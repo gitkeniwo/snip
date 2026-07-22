@@ -1,0 +1,141 @@
+#[cfg(target_os = "macos")]
+use std::process::Command;
+
+use ratatui::style::{Color, Modifier, Style};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Appearance {
+    Light,
+    Dark,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TuiTheme {
+    pub appearance: Appearance,
+    pub accent: Color,
+    pub accent_alt: Color,
+    pub border: Color,
+    pub muted: Color,
+    pub selection_bg: Color,
+    pub selection_fg: Color,
+    pub bar_bg: Color,
+    pub bar_fg: Color,
+    pub success: Color,
+    pub warning: Color,
+    pub error: Color,
+}
+
+impl TuiTheme {
+    pub fn detect() -> Self {
+        Self::for_appearance(detect_appearance())
+    }
+
+    pub fn for_appearance(appearance: Appearance) -> Self {
+        match appearance {
+            Appearance::Light => Self {
+                appearance,
+                accent: Color::Rgb(0, 95, 115),
+                accent_alt: Color::Rgb(111, 45, 168),
+                border: Color::Rgb(105, 105, 105),
+                muted: Color::Rgb(92, 99, 108),
+                selection_bg: Color::Rgb(0, 95, 115),
+                selection_fg: Color::White,
+                bar_bg: Color::Rgb(225, 228, 232),
+                bar_fg: Color::Rgb(42, 47, 52),
+                success: Color::Rgb(0, 120, 70),
+                warning: Color::Rgb(174, 91, 0),
+                error: Color::Rgb(190, 38, 38),
+            },
+            Appearance::Dark => Self {
+                appearance,
+                accent: Color::Rgb(88, 166, 255),
+                accent_alt: Color::Rgb(210, 168, 255),
+                border: Color::Rgb(110, 118, 129),
+                muted: Color::Rgb(139, 148, 158),
+                selection_bg: Color::Rgb(31, 82, 128),
+                selection_fg: Color::White,
+                bar_bg: Color::Rgb(36, 41, 47),
+                bar_fg: Color::Rgb(218, 223, 228),
+                success: Color::Rgb(63, 185, 80),
+                warning: Color::Rgb(227, 179, 65),
+                error: Color::Rgb(248, 81, 73),
+            },
+        }
+    }
+
+    pub fn selected(self) -> Style {
+        Style::default()
+            .fg(self.selection_fg)
+            .bg(self.selection_bg)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn retained_selection(self) -> Style {
+        Style::default()
+            .fg(self.accent)
+            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+    }
+}
+
+fn detect_appearance() -> Appearance {
+    if let Ok(value) = std::env::var("SNIP_TUI_THEME") {
+        if value.eq_ignore_ascii_case("light") {
+            return Appearance::Light;
+        }
+        if value.eq_ignore_ascii_case("dark") {
+            return Appearance::Dark;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let is_dark = Command::new("defaults")
+            .args(["read", "-g", "AppleInterfaceStyle"])
+            .output()
+            .is_ok_and(|output| {
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout)
+                        .trim()
+                        .eq_ignore_ascii_case("dark")
+            });
+        if is_dark {
+            Appearance::Dark
+        } else {
+            Appearance::Light
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        if std::env::var("GTK_THEME").is_ok_and(|value| value.to_ascii_lowercase().contains("dark"))
+        {
+            return Appearance::Dark;
+        }
+        if let Ok(value) = std::env::var("COLORFGBG")
+            && let Some(background) = value.rsplit(';').next()
+            && let Ok(background) = background.parse::<u8>()
+        {
+            return if background <= 6 || background == 8 {
+                Appearance::Dark
+            } else {
+                Appearance::Light
+            };
+        }
+        Appearance::Dark
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn light_and_dark_palettes_have_distinct_selection_colors() {
+        let light = TuiTheme::for_appearance(Appearance::Light);
+        let dark = TuiTheme::for_appearance(Appearance::Dark);
+        assert_ne!(light.selection_bg, dark.selection_bg);
+        assert_ne!(light.accent_alt, dark.accent_alt);
+        assert_ne!(light.bar_bg, dark.bar_bg);
+        assert_ne!(light.bar_fg, dark.bar_fg);
+    }
+}

@@ -21,7 +21,7 @@ pub struct Cli {
     pub color: Option<ColorMode>,
 
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -40,6 +40,9 @@ pub enum ColorMode {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Open the interactive terminal browser.
+    #[cfg(feature = "tui")]
+    Tui,
     /// Inspect and modify ~/.config/snip/config.toml.
     Config(ConfigArgs),
     /// Create a new filesystem snippet library.

@@ -1,6 +1,34 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
+#[cfg(feature = "tui")]
+#[test]
+fn tui_requires_a_terminal_and_bare_non_tty_fails_fast() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("TuiCli.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "tui"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("requires an interactive terminal"));
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env_remove("SNIP_LIBRARY")
+        .env("XDG_CONFIG_HOME", temporary.path().join("empty-config"))
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("a command is required"))
+        .stderr(predicate::str::contains("Usage: snip"));
+}
+
 #[test]
 fn cli_json_contract_and_exit_codes() {
     let temporary = tempfile::tempdir().unwrap();

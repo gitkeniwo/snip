@@ -6,6 +6,8 @@ pub mod importer;
 pub mod render;
 pub mod search;
 pub mod service;
+#[cfg(feature = "tui")]
+pub mod tui;
 
 pub use config::{AppConfig, ColorSetting, OutputSetting, PreviewRenderSetting, config_path};
 pub use domain::{

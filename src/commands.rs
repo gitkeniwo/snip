@@ -23,23 +23,39 @@ use tempfile::Builder;
 use crate::cli::*;
 
 pub fn run(cli: &Cli) -> Result<()> {
-    if let Command::Completion(args) = &cli.command {
+    if let Some(Command::Completion(args)) = &cli.command {
         return command_completion(args);
     }
-    if let Command::Config(args) = &cli.command {
+    if let Some(Command::Config(args)) = &cli.command {
         return command_config(args, cli.output);
     }
     let config = AppConfig::load()?;
     let output = resolve_output(cli.output, &config);
     let color = resolve_color(cli.color, &config);
-    match &cli.command {
-        Command::Init(args) => return command_init(args, output),
-        Command::Import(args) => return command_import(args, output),
+    if cli.command.is_none() {
+        #[cfg(feature = "tui")]
+        {
+            if io::stdin().is_terminal() && io::stdout().is_terminal() {
+                let path =
+                    Library::discover(cli.library.as_deref(), config.default_library.as_deref())?;
+                return snip::tui::run(Library::open(&path)?, &config);
+            }
+        }
+        return Err(SnipError::usage(
+            "a command is required when stdin or stdout is not a terminal; try --help",
+        ));
+    }
+    match cli.command.as_ref() {
+        Some(Command::Init(args)) => return command_init(args, output),
+        Some(Command::Import(args)) => return command_import(args, output),
         _ => {}
     }
     let path = Library::discover(cli.library.as_deref(), config.default_library.as_deref())?;
     let library = Library::open(&path)?;
-    match &cli.command {
+    let command = cli.command.as_ref().expect("command checked above");
+    match command {
+        #[cfg(feature = "tui")]
+        Command::Tui => snip::tui::run(library, &config),
         Command::Info => command_info(&library, output),
         Command::List(args) => command_list(&library, args, output),
         Command::Search(args) => command_search(&library, args, output),

@@ -2,7 +2,7 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
 use serde::{Deserialize, Serialize};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Theme, ThemeSet};
-use syntect::parsing::SyntaxSet;
+use syntect::parsing::{SyntaxReference, SyntaxSet};
 use syntect::util::{LinesWithEndings, as_24_bit_terminal_escaped};
 
 use crate::domain::Snippet;
@@ -91,15 +91,7 @@ fn render_ansi(snippet: &Snippet) -> Result<String> {
             ensure_newline(&mut output);
             output.push('\n');
         }
-        let syntax = syntax_set
-            .find_syntax_by_token(&fragment.language)
-            .or_else(|| {
-                std::path::Path::new(&fragment.file)
-                    .extension()
-                    .and_then(|extension| extension.to_str())
-                    .and_then(|extension| syntax_set.find_syntax_by_extension(extension))
-            })
-            .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+        let syntax = find_syntax(&syntax_set, &fragment.language, &fragment.file);
         let mut highlighter = HighlightLines::new(syntax, theme);
         for line in LinesWithEndings::from(&fragment.content) {
             let ranges = highlighter
@@ -145,15 +137,7 @@ fn render_html(snippet: &Snippet) -> Result<String> {
         if let Some(note) = &fragment.note_content {
             push_markdown_html(&mut output, note);
         }
-        let syntax = syntax_set
-            .find_syntax_by_token(&fragment.language)
-            .or_else(|| {
-                std::path::Path::new(&fragment.file)
-                    .extension()
-                    .and_then(|extension| extension.to_str())
-                    .and_then(|extension| syntax_set.find_syntax_by_extension(extension))
-            })
-            .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+        let syntax = find_syntax(&syntax_set, &fragment.language, &fragment.file);
         let highlighted = syntect::html::highlighted_html_for_string(
             &fragment.content,
             &syntax_set,
@@ -168,6 +152,23 @@ fn render_html(snippet: &Snippet) -> Result<String> {
     }
     output.push_str("</body></html>\n");
     Ok(output)
+}
+
+/// Resolve a language exactly the same way for CLI and interactive previews.
+pub fn find_syntax<'a>(
+    syntax_set: &'a SyntaxSet,
+    language: &str,
+    file: &str,
+) -> &'a SyntaxReference {
+    syntax_set
+        .find_syntax_by_token(language)
+        .or_else(|| {
+            std::path::Path::new(file)
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .and_then(|extension| syntax_set.find_syntax_by_extension(extension))
+        })
+        .unwrap_or_else(|| syntax_set.find_syntax_plain_text())
 }
 
 fn markdown_options() -> Options {

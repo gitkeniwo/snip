@@ -13,6 +13,15 @@ path = "src/lib.rs"
 name = "snip"
 path = "src/main.rs"
 
+[features]
+default = ["tui"]
+tui = [
+    "dep:arboard",
+    "dep:notify",
+    "dep:notify-debouncer-mini",
+    "dep:ratatui",
+]
+
 [dependencies]
 blake3 = "1.8"
 clap = { version = "4.6", features = ["derive", "env"] }
@@ -29,6 +38,10 @@ thiserror = "2.0"
 time = { version = "0.3.54", features = ["formatting", "parsing"] }
 toml = "1.0"
 uuid = { version = "1.24", features = ["v4", "serde"] }
+arboard = { version = "3.6.1", optional = true, default-features = false }
+notify = { version = "8.2", optional = true }
+notify-debouncer-mini = { version = "0.7", optional = true }
+ratatui = { version = "0.30.2", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2.1"

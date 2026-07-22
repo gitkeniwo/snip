@@ -6,6 +6,39 @@ can be opened with any text editor. The CLI adds validation, structured JSON,
 search, previews, optimistic concurrency, recoverable deletion, and import from
 SnippetsLab.
 
+The optional Ratatui browser provides a three-pane folder/tag, snippet, and
+preview workflow. It searches interactively, edits through an external editor,
+copies to the clipboard, and refreshes when CLI agents or text editors change
+files on disk:
+
+```bash
+cargo run -- --library ./Main.sniplib tui
+# With default_library configured and an interactive terminal:
+cargo run --
+```
+
+Use `/` to search, `Tab` or `h`/`l` to change pane, `j`/`k` to navigate, `e`
+to edit, `y` to copy content, `Y` to copy the UUID, `r` to rescan, `?` for help,
+and `q` to quit. Moving through folders or tags in the Library pane filters the
+Snippets pane immediately; `Enter` transfers focus to the filtered results. A
+two-line status bar keeps the active mode, pane, filter, selection position, and
+available actions visible. The TUI is enabled by default; a slim agent build is
+available with `cargo build --no-default-features`.
+
+On macOS, the TUI follows the system light/dark appearance and updates while it
+is running. Linux uses `GTK_THEME` or `COLORFGBG` when available. Override
+automatic detection for a terminal whose background differs from the system:
+
+```bash
+SNIP_TUI_THEME=light snip
+SNIP_TUI_THEME=dark snip
+```
+
+Snippet titles use portable language badges such as `[rs]`, `[py]`, `[sh]`, and
+`[md]`. They deliberately avoid Nerd Font private-use glyphs, so the default UI
+works with any terminal font. A configurable Nerd Font icon set and custom
+folder icons can be added later without changing the library format.
+
 SQLite is not the source of truth. A future search cache may live under
 `.snip/cache/`, but deleting that directory must never lose library data.
 

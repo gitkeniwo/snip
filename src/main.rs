@@ -1,12 +1,19 @@
 mod cli;
 mod commands;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use cli::{Cli, OutputMode};
+use std::io::IsTerminal;
 
 fn main() {
     let cli = Cli::parse();
     let output = commands::effective_output(&cli);
+    if cli.command.is_none()
+        && (!std::io::stdin().is_terminal() || !std::io::stdout().is_terminal())
+        && output == OutputMode::Human
+    {
+        eprintln!("{}", Cli::command().render_help());
+    }
     if let Err(error) = commands::run(&cli) {
         if output == OutputMode::Human {
             eprintln!("snip: error: {error}");
