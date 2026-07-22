@@ -1,0 +1,228 @@
+# snip
+
+`snip` is a filesystem-native snippet library for humans, shell scripts, and AI
+agents. Markdown, source code, notes, and metadata remain ordinary files that
+can be opened with any text editor. The CLI adds validation, structured JSON,
+search, previews, optimistic concurrency, recoverable deletion, and import from
+SnippetsLab.
+
+SQLite is not the source of truth. A future search cache may live under
+`.snip/cache/`, but deleting that directory must never lose library data.
+
+## Build
+
+Rust 1.89 or newer is recommended. Dependencies are pinned in `Cargo.lock`.
+
+```bash
+cd /Users/keniwo/ws/snip
+cargo build --release
+```
+
+The binary is `target/release/snip`.
+
+During development, this checkout uses `./Main.sniplib` as its default library:
+
+```bash
+./target/release/snip config set default-library ./Main.sniplib
+./target/release/snip info
+```
+
+`Main.sniplib/` is local working data and is ignored by the source repository.
+It can be deleted and recreated with `snip init ./Main.sniplib --name Main`
+without affecting the Rust project.
+
+## Quick start
+
+```bash
+snip init ./Main.sniplib --name Main
+snip config set default-library ./Main.sniplib
+
+printf 'echo hello\n' | snip create \
+  --title "Hello" \
+  --folder Scripts/Shell \
+  --tag demo \
+  --language bash \
+  --content-file -
+
+snip list
+snip search hello
+snip preview Hello
+snip edit Hello
+```
+
+When `--library` is omitted, `SNIP_LIBRARY` is checked next, followed by walking
+from the current directory toward the filesystem root for `snip.toml`, and
+finally `default_library` in the user config.
+
+## User configuration
+
+The config lives at `$XDG_CONFIG_HOME/snip/config.toml`, or
+`~/.config/snip/config.toml` when `XDG_CONFIG_HOME` is unset. Create it and bind
+a default library with:
+
+```bash
+snip config init --library /Users/keniwo/ws/snip/Main.sniplib
+snip config show
+snip config path
+```
+
+This checkout currently binds the development library at
+`/Users/keniwo/ws/snip/Main.sniplib`. Replace it with the eventual production
+library path after migration.
+
+You can safely change supported values without editing TOML by hand:
+
+```bash
+snip config set default-library /Users/keniwo/ws/snip/Main.sniplib
+snip config set output json
+snip config set color auto
+snip config set preview-render ansi
+snip config set preview-pager false
+snip config set editor 'nvim -f'
+snip config set pager 'less -R'
+snip config set default-language rust
+snip config set default-folder Agents/Generated
+snip config set default-tags 'ai,generated'
+snip config unset default-folder
+```
+
+The complete schema is:
+
+```toml
+schema_version = 1
+default_library = "/Users/keniwo/ws/snip/Main.sniplib"
+output = "human"             # human | json | jsonl
+color = "auto"               # auto | always | never
+preview_render = "ansi"      # ansi | plain | html
+preview_pager = false
+editor = "nvim -f"
+pager = "less -R"
+default_language = "text"
+default_folder = ""
+default_tags = ["personal"]
+```
+
+Config values are defaults only. Explicit CLI options override them. Library
+resolution is `--library` → `SNIP_LIBRARY` → nearest ancestor library →
+`default_library`, so commands run inside a library never jump unexpectedly to
+the global default. Unknown TOML fields are preserved when `snip config set` or
+`unset` rewrites the file, allowing future GUI settings to coexist.
+
+## Agent-friendly operations
+
+Use UUIDs from JSON output for deterministic operations. Human-readable titles
+are accepted only when they identify exactly one snippet.
+
+```bash
+snip --output json list
+snip --output json search terraform
+snip --output json show 428ac138
+
+snip edit 428ac138 \
+  --content-file - \
+  --if-hash 03ab... <<'EOF'
+replacement content
+EOF
+```
+
+Structured stdout is kept separate from errors. Exit codes are stable:
+
+| Code | Meaning |
+|---:|---|
+| 0 | success |
+| 1 | I/O or internal failure |
+| 2 | invalid CLI usage |
+| 3 | missing or ambiguous selector |
+| 4 | lock or fingerprint conflict |
+| 5 | invalid library data |
+
+`--output jsonl` emits one JSON value per line for lists and search results.
+`cat` always emits only the raw fragment content.
+
+## Files are the database
+
+```text
+Main.sniplib/
+├── snip.toml
+├── tags.toml
+├── snippets/
+│   └── Dotfiles/
+│       └── Brewfile--a5792745/
+│           ├── snippet.toml
+│           ├── README.md
+│           ├── fragments/001-Brewfile
+│           ├── notes/001.md
+│           └── attachments/
+├── trash/
+└── .snip/
+```
+
+The physical path below `snippets/` is the folder hierarchy. A snippet package
+is recognized by `snippet.toml`; its directory name is descriptive and can be
+moved or renamed manually. UUIDs in the manifest remain the stable identity.
+See [FORMAT.md](FORMAT.md) for the v1 format contract.
+
+Direct editor changes are discovered on the next scan. CLI mutations use a
+library lock and atomic writes. `--if-hash` prevents an agent from overwriting a
+version it did not read. `snip doctor --repair` recovers interrupted package
+transactions.
+
+## Preview and editing
+
+```bash
+snip preview ID --render ansi
+snip preview ID --render plain
+snip preview ID --render html > preview.html
+snip preview ID --pager
+```
+
+`snip edit ID` copies the first fragment to a temporary file and opens the
+configured `editor`, then `$VISUAL`, then `$EDITOR`, then `vi`. It checks the
+original fingerprint before committing the result. Additional editor targets are available with
+`--fragment`, `--note-editor`, `--readme-editor`, and `--metadata-editor`.
+
+## SnippetsLab migration
+
+The source library is opened read-only. Import is staged, validated, and only
+then renamed to the requested destination.
+
+```bash
+snip import snippetslab \
+  /Users/keniwo/Documents/main.snippetslablibrary \
+  --into /Users/keniwo/ws/snip/Main.sniplib \
+  --dry-run
+
+snip import snippetslab \
+  /Users/keniwo/Documents/main.snippetslablibrary \
+  --into /Users/keniwo/ws/snip/Main.sniplib
+```
+
+The importer preserves snippet and fragment UUIDs, hierarchy, tags, flags,
+timestamps, content, notes, and original lexer names. Attachments are reported
+but their private SnippetsLab relationships are not imported in format v1.
+
+## Git and deletion
+
+Git is optional and normal writes never auto-commit. `snip init --git` creates a
+dedicated repository. `snip git status`, `diff`, and `log` work for nested
+libraries; `snip git commit` is deliberately restricted to a library that is
+also the Git repository root.
+
+`snip delete` moves packages into tracked `trash/`. `snip restore` moves them
+back. Permanent deletion requires `snip purge SELECTOR --yes`.
+
+## Shell completion
+
+```bash
+snip completion zsh > ~/.zfunc/_snip
+snip completion fish > ~/.config/fish/completions/snip.fish
+```
+
+## Development checks
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+cargo build --release
+```
