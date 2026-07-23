@@ -159,10 +159,10 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     ("r", "rename"),
                     ("m", "move"),
                     ("t", "tags"),
-                    ("d", "trash"),
+                    ("P", "path"),
                 ],
-                &[("n", "new"), ("e", "edit"), ("d", "trash")],
-                &[("n", ""), ("e", ""), ("d", "")],
+                &[("n", "new"), ("e", "edit"), ("P", "path")],
+                &[("n", ""), ("e", ""), ("P", "")],
             ),
             Pane::Preview => (
                 &[
@@ -171,9 +171,10 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     ("R", "readme"),
                     ("N", "lines"),
                     ("y", "copy"),
+                    ("P", "path"),
                 ],
-                &[("e", "edit"), ("N", "lines"), ("y", "copy")],
-                &[("e", ""), ("N", ""), ("y", "")],
+                &[("e", "edit"), ("y", "copy"), ("P", "path")],
+                &[("e", ""), ("y", ""), ("P", "")],
             ),
         }
     };
@@ -209,11 +210,11 @@ fn shortcut_pills_width(commands: ShortcutSet<'_>) -> usize {
     commands
         .iter()
         .map(|(key, action)| {
-            4 + text_width(key) as usize
+            2 + text_width(key) as usize
                 + if action.is_empty() {
                     0
                 } else {
-                    3 + text_width(action) as usize
+                    2 + text_width(action) as usize
                 }
         })
         .sum::<usize>()
@@ -230,7 +231,7 @@ fn shortcut_pills(commands: ShortcutSet<'_>, theme: TuiTheme) -> Line<'static> {
         }
         spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, theme.bar_bg));
         spans.push(Span::styled(
-            format!(" {key} "),
+            (*key).to_owned(),
             Style::default()
                 .fg(theme.selection_fg)
                 .bg(primary)
@@ -245,7 +246,7 @@ fn shortcut_pills(commands: ShortcutSet<'_>, theme: TuiTheme) -> Line<'static> {
         } else {
             spans.push(widgets::pill_cap(widgets::PILL_CLOSE, primary, secondary));
             spans.push(Span::styled(
-                format!(" {action} "),
+                format!(" {action}"),
                 Style::default()
                     .fg(primary)
                     .bg(secondary)

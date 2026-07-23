@@ -61,7 +61,9 @@ impl Pane {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SidebarItem {
     All,
+    Uncategorized,
     Folder(String),
+    Trash,
     Tag(String),
     Header,
 }
@@ -101,13 +103,14 @@ impl SidebarState {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Filter {
+    pub uncategorized: bool,
     pub folder: Option<String>,
     pub tag: Option<String>,
 }
 
 impl Filter {
     pub fn is_empty(&self) -> bool {
-        self.folder.is_none() && self.tag.is_none()
+        !self.uncategorized && self.folder.is_none() && self.tag.is_none()
     }
 }
 

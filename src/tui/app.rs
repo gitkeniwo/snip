@@ -15,6 +15,7 @@ use crate::search::{MemoryIndex, SearchIndex};
 use crate::service::{
     CreateOptions, EditOptions, create_folder, create_snippet, delete_folder, delete_snippet,
     delete_tag, edit_snippet, move_folder, purge_snippet, rename_tag, restore_snippet,
+    trash_entries,
 };
 
 use super::editor::{EditOutcome, EditRequest, EditTarget};
@@ -136,7 +137,8 @@ impl App {
             default_tags: config.default_tags.clone(),
             last_click: None,
         };
-        sidebar::rebuild(&mut app.sidebar, &app.catalog);
+        let trash_count = trash_entries(&app.library).map_or(0, |entries| entries.len());
+        sidebar::rebuild(&mut app.sidebar, &app.catalog, trash_count);
         app.refresh_visible();
         Ok(app)
     }
@@ -180,7 +182,7 @@ impl App {
         let catalog = self.library.scan()?;
         self.catalog = catalog.clone();
         self.index = MemoryIndex::new(catalog);
-        sidebar::rebuild(&mut self.sidebar, &self.catalog);
+        self.rebuild_sidebar();
         self.refresh_visible();
         if self.trash.open {
             self.trash.reload(&self.library)?;
@@ -348,6 +350,7 @@ impl App {
             KeyCode::Char('T') => self.open_trash(),
             KeyCode::Char('y') => return self.copy_content_effect(),
             KeyCode::Char('Y') => return self.copy_id_effect(),
+            KeyCode::Char('P') | KeyCode::Char('c') => return self.copy_path_effect(),
             KeyCode::Char('[') => self.previous_fragment(),
             KeyCode::Char(']') => self.next_fragment(),
             _ => self.handle_pane_key(key),
@@ -437,6 +440,9 @@ impl App {
     }
 
     fn matches_filter(&self, snippet: &Snippet) -> bool {
+        if self.filter.uncategorized {
+            return snippet.folder.is_empty();
+        }
         let folder_matches = self.filter.folder.as_ref().is_none_or(|folder| {
             snippet.folder == *folder || snippet.folder.starts_with(&format!("{folder}/"))
         });
@@ -751,7 +757,7 @@ impl App {
         }
         let parent = match self.sidebar.selected().map(|row| &row.item) {
             Some(SidebarItem::Folder(path)) => Some(path.clone()),
-            Some(SidebarItem::All) => None,
+            Some(SidebarItem::All) | Some(SidebarItem::Uncategorized) => None,
             _ => {
                 self.set_status(
                     "select a folder before creating a subfolder",
@@ -1063,7 +1069,7 @@ impl App {
                 });
                 if let Some(folder) = folder {
                     self.sidebar.expanded.remove(&folder);
-                    sidebar::rebuild(&mut self.sidebar, &self.catalog);
+                    self.rebuild_sidebar();
                     self.sync_sidebar_filter();
                 }
             }
@@ -1199,19 +1205,39 @@ impl App {
     fn sync_sidebar_filter(&mut self) -> bool {
         let item = self.sidebar.selected().map(|row| row.item.clone());
         match item {
-            Some(SidebarItem::All) => self.filter = Filter::default(),
+            Some(SidebarItem::All) => {
+                self.filter = Filter::default();
+            }
+            Some(SidebarItem::Uncategorized) => {
+                self.filter = Filter {
+                    uncategorized: true,
+                    folder: None,
+                    tag: None,
+                };
+            }
             Some(SidebarItem::Folder(folder)) => {
+                self.filter.uncategorized = false;
                 self.filter.folder = Some(folder);
                 self.filter.tag = None;
             }
             Some(SidebarItem::Tag(tag)) => {
+                self.filter.uncategorized = false;
                 self.filter.tag = Some(tag);
                 self.filter.folder = None;
+            }
+            Some(SidebarItem::Trash) => {
+                self.open_trash();
+                return false;
             }
             _ => return false,
         }
         self.refresh_visible();
         true
+    }
+
+    fn rebuild_sidebar(&mut self) {
+        let trash_count = trash_entries(&self.library).map_or(0, |entries| entries.len());
+        sidebar::rebuild(&mut self.sidebar, &self.catalog, trash_count);
     }
 
     fn toggle_sidebar_folder(&mut self) {
@@ -1223,7 +1249,7 @@ impl App {
             if !self.sidebar.expanded.remove(&folder) {
                 self.sidebar.expanded.insert(folder);
             }
-            sidebar::rebuild(&mut self.sidebar, &self.catalog);
+            self.rebuild_sidebar();
             self.sync_sidebar_filter();
         } else {
             self.apply_sidebar_filter();
@@ -1353,6 +1379,23 @@ impl App {
             .map(|snippet| Effect::CopyToClipboard {
                 text: snippet.id.to_string(),
                 label: "snippet UUID".to_owned(),
+            })
+            .into_iter()
+            .collect()
+    }
+
+    fn copy_path_effect(&self) -> Vec<Effect> {
+        self.selected_snippet()
+            .map(|snippet| {
+                let path = snippet
+                    .loaded_fragments
+                    .get(self.fragment_index)
+                    .map(|fragment| &fragment.absolute_path)
+                    .unwrap_or(&snippet.package_path);
+                Effect::CopyToClipboard {
+                    text: path.display().to_string(),
+                    label: "snippet path".to_owned(),
+                }
             })
             .into_iter()
             .collect()

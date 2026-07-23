@@ -4,44 +4,80 @@ use crate::domain::CatalogSnapshot;
 
 use super::state::{SidebarItem, SidebarRow, SidebarState};
 
-pub fn rebuild(state: &mut SidebarState, catalog: &CatalogSnapshot) {
+pub fn rebuild(state: &mut SidebarState, catalog: &CatalogSnapshot, trash_count: usize) {
     let selected_key = state.selected().map(row_key);
     if state.expanded.is_empty() {
         state.expanded.extend(catalog.folders.iter().cloned());
     }
 
-    let mut rows = vec![SidebarRow {
-        item: SidebarItem::All,
-        label: "All snippets".to_owned(),
+    let uncategorized_count = catalog
+        .snippets
+        .iter()
+        .filter(|snippet| snippet.folder.is_empty())
+        .count();
+
+    let mut rows = vec![
+        SidebarRow {
+            item: SidebarItem::All,
+            label: "All snippets".to_owned(),
+            depth: 0,
+            count: catalog.snippets.len(),
+            has_children: false,
+            expanded: false,
+        },
+        SidebarRow {
+            item: SidebarItem::Uncategorized,
+            label: "Uncategorized".to_owned(),
+            depth: 0,
+            count: uncategorized_count,
+            has_children: false,
+            expanded: false,
+        },
+    ];
+
+    if !catalog.folders.is_empty() {
+        rows.push(SidebarRow {
+            item: SidebarItem::Header,
+            label: "Folders".to_owned(),
+            depth: 0,
+            count: 0,
+            has_children: false,
+            expanded: false,
+        });
+
+        for folder in &catalog.folders {
+            if !ancestors_visible(folder, &state.expanded) {
+                continue;
+            }
+            let prefix = format!("{folder}/");
+            let has_children = catalog
+                .folders
+                .iter()
+                .any(|candidate| candidate.starts_with(&prefix));
+            let count = catalog
+                .snippets
+                .iter()
+                .filter(|snippet| snippet.folder == *folder || snippet.folder.starts_with(&prefix))
+                .count();
+            rows.push(SidebarRow {
+                item: SidebarItem::Folder(folder.clone()),
+                label: folder.rsplit('/').next().unwrap_or(folder).to_owned(),
+                depth: folder.matches('/').count(),
+                count,
+                has_children,
+                expanded: state.expanded.contains(folder),
+            });
+        }
+    }
+
+    rows.push(SidebarRow {
+        item: SidebarItem::Trash,
+        label: "Trash".to_owned(),
         depth: 0,
-        count: catalog.snippets.len(),
+        count: trash_count,
         has_children: false,
         expanded: false,
-    }];
-
-    for folder in &catalog.folders {
-        if !ancestors_visible(folder, &state.expanded) {
-            continue;
-        }
-        let prefix = format!("{folder}/");
-        let has_children = catalog
-            .folders
-            .iter()
-            .any(|candidate| candidate.starts_with(&prefix));
-        let count = catalog
-            .snippets
-            .iter()
-            .filter(|snippet| snippet.folder == *folder || snippet.folder.starts_with(&prefix))
-            .count();
-        rows.push(SidebarRow {
-            item: SidebarItem::Folder(folder.clone()),
-            label: folder.rsplit('/').next().unwrap_or(folder).to_owned(),
-            depth: folder.matches('/').count(),
-            count,
-            has_children,
-            expanded: state.expanded.contains(folder),
-        });
-    }
+    });
 
     rows.push(SidebarRow {
         item: SidebarItem::Header,
@@ -97,7 +133,9 @@ pub fn rebuild(state: &mut SidebarState, catalog: &CatalogSnapshot) {
 fn row_key(row: &SidebarRow) -> String {
     match &row.item {
         SidebarItem::All => "all".to_owned(),
+        SidebarItem::Uncategorized => "uncategorized".to_owned(),
         SidebarItem::Folder(path) => format!("folder:{path}"),
+        SidebarItem::Trash => "trash".to_owned(),
         SidebarItem::Tag(tag) => format!("tag:{tag}"),
         SidebarItem::Header => "header".to_owned(),
     }

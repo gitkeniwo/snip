@@ -1,6 +1,6 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
@@ -9,6 +9,7 @@ use super::bottom_bar;
 use super::help;
 use super::modal;
 use super::preview;
+use super::selection::text_width;
 use super::snippet_list;
 use super::state::Pane;
 use super::top_bar;
@@ -63,32 +64,62 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
                 let label = format!("{} ", row.label);
                 let remaining = content_width.saturating_sub(label.chars().count());
                 return ListItem::new(Line::from(vec![
-                    Span::styled(label, Style::default().fg(app.theme.tag)),
+                    Span::styled(label, Style::default().fg(app.theme.bar_fg)),
                     Span::styled("─".repeat(remaining), Style::default().fg(app.theme.border)),
                 ]));
             }
-            let branch = if matches!(row.item, super::state::SidebarItem::Tag(_)) {
-                ""
-            } else if row.has_children {
-                if row.expanded { "▾ " } else { "▸ " }
-            } else {
-                "  "
+
+            let (icon, icon_style, label_style) = match &row.item {
+                super::state::SidebarItem::All => (
+                    "≡ ",
+                    Style::default().fg(app.theme.accent),
+                    Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD),
+                ),
+                super::state::SidebarItem::Uncategorized => (
+                    "∅ ",
+                    Style::default().fg(app.theme.muted),
+                    Style::default().fg(app.theme.muted),
+                ),
+                super::state::SidebarItem::Trash => (
+                    "× ",
+                    Style::default().fg(app.theme.muted),
+                    Style::default().fg(app.theme.muted),
+                ),
+                super::state::SidebarItem::Tag(_) => (
+                    "# ",
+                    Style::default().fg(app.theme.tag),
+                    Style::default(),
+                ),
+                super::state::SidebarItem::Folder(_) => {
+                    let branch = if row.has_children {
+                        if row.expanded { "▾ " } else { "▸ " }
+                    } else {
+                        "  "
+                    };
+                    (branch, Style::default(), Style::default())
+                }
+                super::state::SidebarItem::Header => unreachable!(),
             };
-            let prefix = format!("{}{}", "  ".repeat(row.depth), branch);
-            let count = row.count.to_string();
-            let used = prefix.chars().count()
-                + row.label.chars().count()
-                + count.len()
-                + 2 * usize::from(matches!(row.item, super::state::SidebarItem::Tag(_)));
-            let padding = " ".repeat(content_width.saturating_sub(used).max(1));
-            let mut spans = vec![Span::raw(prefix)];
-            if matches!(row.item, super::state::SidebarItem::Tag(_)) {
-                spans.push(Span::styled("# ", Style::default().fg(app.theme.tag)));
-                spans.push(Span::raw(format!("{}{}", row.label, padding)));
+
+            let indent = if matches!(row.item, super::state::SidebarItem::Folder(_)) {
+                "  ".repeat(row.depth)
             } else {
-                spans.push(Span::raw(format!("{}{}", row.label, padding)));
-            }
-            spans.push(Span::styled(count, Style::default().fg(app.theme.muted)));
+                String::new()
+            };
+
+            let count = row.count.to_string();
+            let used = text_width(&indent) as usize
+                + text_width(icon) as usize
+                + text_width(&row.label) as usize
+                + count.len();
+            let padding = " ".repeat(content_width.saturating_sub(used).max(1));
+
+            let spans = vec![
+                Span::raw(indent),
+                Span::styled(icon, icon_style),
+                Span::styled(format!("{}{}", row.label, padding), label_style),
+                Span::styled(count, Style::default().fg(app.theme.muted)),
+            ];
             ListItem::new(Line::from(spans))
         })
         .collect::<Vec<_>>();

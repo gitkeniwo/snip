@@ -14,16 +14,7 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         area,
     );
     let counts = if let Some(index) = app.list_state.selected() {
-        let fragments = app
-            .selected_snippet()
-            .map_or(0, |snippet| snippet.loaded_fragments.len());
-        format!(
-            "{}/{} · {}/{}",
-            index + 1,
-            app.visible.len(),
-            app.fragment_index.saturating_add(1).min(fragments),
-            fragments
-        )
+        format!("#{}/{}", index + 1, app.visible.len())
     } else {
         format!("0/{}", app.visible.len())
     };
@@ -122,7 +113,9 @@ fn top_position_pill(sort: Option<&str>, counts: &str, theme: TuiTheme) -> Line<
 }
 
 fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> {
-    let mut segments = if let Some(folder) = &app.filter.folder {
+    let mut segments = if app.filter.uncategorized {
+        vec!["Uncategorized".to_owned()]
+    } else if let Some(folder) = &app.filter.folder {
         folder.split('/').map(ToOwned::to_owned).collect::<Vec<_>>()
     } else if let Some(tag) = &app.filter.tag {
         vec![format!("#{tag}")]

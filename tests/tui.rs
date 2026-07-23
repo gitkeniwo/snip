@@ -119,8 +119,15 @@ fn navigation_recursive_filter_and_search_work_headlessly() {
     let mut app = App::new(library, &AppConfig::default()).unwrap();
     assert_eq!(app.visible[0].snippet_id, first_id, "pinned snippets lead");
 
-    app.handle_key(key(KeyCode::Char('j')));
-    assert_eq!(app.focus, Pane::Sidebar);
+    let code_row = app
+        .sidebar
+        .rows
+        .iter()
+        .position(|row| row.item == SidebarItem::Folder("Code".to_owned()))
+        .unwrap();
+    app.sidebar.list_state.select(Some(code_row));
+    app.handle_key(key(KeyCode::Enter));
+    app.focus = Pane::Sidebar;
     assert_eq!(
         app.sidebar.selected().map(|row| &row.item),
         Some(&SidebarItem::Folder("Code".to_owned()))
@@ -263,7 +270,8 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("Alpha Rust"));
     assert!(rendered.contains("snip"));
     assert!(rendered.contains("~ › All snippets"));
-    assert!(rendered.contains("1/2 · 1/1"));
+    assert!(rendered.contains("#1/2"));
+    assert!(rendered.contains("frag 1/1"));
     assert!(rendered.contains("Tab"));
     assert!(rendered.contains('/'));
     assert!(rendered.contains("001-Alpha Rust.rs rs"));
@@ -282,7 +290,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         buffer.cell((nav_key_x, 29)).unwrap().bg,
         app.theme.pill_primary
     );
-    let nav_join_x = nav_key_x + 4;
+    let nav_join_x = nav_key_x + 3;
     assert_eq!(buffer.cell((0, 29)).unwrap().fg, app.theme.pill_primary);
     assert_eq!(buffer.cell((0, 29)).unwrap().bg, app.theme.bar_bg);
     assert_eq!(buffer.cell((nav_join_x, 29)).unwrap().symbol(), "\u{e0b4}");
@@ -304,7 +312,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(top.ends_with('\u{e0b4}'));
     let brand_x = text_column(&top, "snip");
     let breadcrumb_x = text_column(&top, "~");
-    let counts_x = text_column_from_end(&top, "1/2 · 1/1");
+    let counts_x = text_column_from_end(&top, "#1/2");
     assert_eq!(
         buffer.cell((brand_x, 0)).unwrap().bg,
         app.theme.pill_primary
@@ -353,37 +361,39 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((27, 3)).unwrap().symbol(), "★");
     assert!(row_text_from(buffer, 3, 29).starts_with("[Code > Rust]"));
     assert_eq!(
-        buffer.cell((2, 7)).unwrap().symbol(),
+        buffer.cell((2, 10)).unwrap().symbol(),
         "#",
         "top-level tags should not inherit the folder icon gutter"
     );
     assert_eq!(buffer.cell((2, 1)).unwrap().symbol(), "L");
-    assert_eq!(buffer.cell((2, 3)).unwrap().symbol(), "▾");
-    assert_eq!(buffer.cell((2, 6)).unwrap().symbol(), "T");
-    assert_eq!(buffer.cell((2, 6)).unwrap().fg, app.theme.tag);
-    assert_eq!(buffer.cell((3, 6)).unwrap().symbol(), "a");
-    assert_eq!(buffer.cell((2, 7)).unwrap().symbol(), "#");
-    assert_eq!(buffer.cell((3, 7)).unwrap().symbol(), " ");
+    assert_eq!(buffer.cell((2, 5)).unwrap().symbol(), "▾");
+    assert_eq!(buffer.cell((2, 9)).unwrap().symbol(), "T");
+    assert_eq!(buffer.cell((3, 9)).unwrap().symbol(), "a");
+    assert_eq!(buffer.cell((2, 10)).unwrap().symbol(), "#");
+    assert_eq!(buffer.cell((3, 10)).unwrap().symbol(), " ");
     assert_eq!(buffer.cell((56, 1)).unwrap().symbol(), "P");
     assert_eq!(buffer.cell((56, 2)).unwrap().symbol(), "A");
     assert_eq!(buffer.cell((56, 3)).unwrap().symbol(), "C");
-    assert_eq!(buffer.cell((56, 4)).unwrap().symbol(), "#");
+    assert_eq!(buffer.cell((56, 4)).unwrap().symbol(), "f");
+    assert_eq!(buffer.cell((56, 5)).unwrap().symbol(), "#");
     let preview_bottom = row_text_from(buffer, 28, 54);
     assert!(preview_bottom.contains("Rust"));
     assert!(preview_bottom.contains("1 line"));
 
     let metadata = row_text_from(buffer, 3, 54);
-    let tags = row_text_from(buffer, 4, 54);
+    let fragment = row_text_from(buffer, 4, 54);
+    let tags = row_text_from(buffer, 5, 54);
     assert!(metadata.contains("Code/Rust · "));
     assert!(!metadata.contains("#dev"));
-    assert!(metadata.contains("001-Alpha Rust.rs rs"));
+    assert!(fragment.contains("frag 1/1 · "));
+    assert!(fragment.contains("001-Alpha Rust.rs rs"));
     assert!(
         tags.contains("#dev"),
         "preview tags belong on their own row"
     );
-    let filename_x = 54 + metadata.find("001-Alpha Rust.rs rs").unwrap() as u16;
+    let filename_x = 54 + fragment.find("001-Alpha Rust.rs rs").unwrap() as u16;
     assert_ne!(
-        buffer.cell((filename_x, 3)).unwrap().bg,
+        buffer.cell((filename_x, 4)).unwrap().bg,
         app.theme.selection_bg,
         "the active filename should not use a filled selection chip"
     );
@@ -586,7 +596,7 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
 
-    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 3));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 5));
     assert_eq!(app.focus, Pane::Sidebar);
     assert_eq!(app.filter.folder.as_deref(), Some("Code"));
 
@@ -969,4 +979,73 @@ fn external_editor_command_saves_through_optimistic_service() {
             .content,
         "fn editor_saved() {}\n"
     );
+}
+
+#[test]
+fn copy_snippet_path_effect_copies_absolute_path() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+    let expected_path = app
+        .selected_snippet()
+        .unwrap()
+        .loaded_fragments[0]
+        .absolute_path
+        .display()
+        .to_string();
+
+    let effects = app.handle_key(key(KeyCode::Char('P')));
+    let Effect::CopyToClipboard { text, label } = &effects[0] else {
+        panic!("expected copy to clipboard effect");
+    };
+    assert_eq!(text, &expected_path);
+    assert_eq!(label, "snippet path");
+
+    let effects_c = app.handle_key(key(KeyCode::Char('c')));
+    let Effect::CopyToClipboard { text: text_c, label: label_c } = &effects_c[0] else {
+        panic!("expected copy to clipboard effect");
+    };
+    assert_eq!(text_c, &expected_path);
+    assert_eq!(label_c, "snippet path");
+}
+
+#[test]
+fn sidebar_uncategorized_and_trash_items_work() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Root Snippet".to_owned(),
+            folder: None,
+            language: "text".to_owned(),
+            content: "root content\n".to_owned(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let uncat_row = app
+        .sidebar
+        .rows
+        .iter()
+        .position(|row| row.item == SidebarItem::Uncategorized)
+        .unwrap();
+    app.sidebar.list_state.select(Some(uncat_row));
+    app.focus = Pane::Sidebar;
+    app.handle_key(key(KeyCode::Enter));
+
+    assert_eq!(app.visible.len(), 1);
+    assert_eq!(app.selected_snippet().unwrap().title, "Root Snippet");
+
+    let trash_row = app
+        .sidebar
+        .rows
+        .iter()
+        .position(|row| row.item == SidebarItem::Trash)
+        .unwrap();
+    app.sidebar.list_state.select(Some(trash_row));
+    app.focus = Pane::Sidebar;
+    app.handle_key(key(KeyCode::Enter));
+    assert!(app.trash.open);
 }

@@ -100,11 +100,13 @@ pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
+            Constraint::Length(1),
             Constraint::Min(0),
         ])
         .split(inner)
     } else {
         Layout::vertical([
+            Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
@@ -114,15 +116,16 @@ pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     };
     let title_area = regions[0];
     let metadata_area = regions[1];
-    let tags_area = has_tags.then_some(regions[2]);
-    let rule_area = if has_tags { regions[3] } else { regions[2] };
-    let raw_content_area = if has_tags { regions[4] } else { regions[3] };
+    let fragment_area = regions[2];
+    let tags_area = has_tags.then_some(regions[3]);
+    let rule_area = if has_tags { regions[4] } else { regions[3] };
+    let raw_content_area = if has_tags { regions[5] } else { regions[4] };
     let content_area = if app.show_line_numbers {
         raw_content_area
     } else {
         widgets::inset_left(raw_content_area, 1)
     };
-    app.layout.preview_tabs = metadata_area;
+    app.layout.preview_tabs = fragment_area;
     app.layout.preview_content = content_area;
     draw_preview_header(
         frame,
@@ -130,6 +133,7 @@ pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         &snippet,
         title_area,
         metadata_area,
+        fragment_area,
         tags_area,
         rule_area,
     );
@@ -182,11 +186,13 @@ fn draw_preview_header(
     snippet: &Snippet,
     title_area: Rect,
     metadata_area: Rect,
+    fragment_area: Rect,
     tags_area: Option<Rect>,
     rule_area: Rect,
 ) {
     let title_area = widgets::inset_left(title_area, 1);
     let metadata_area = widgets::inset_left(metadata_area, 1);
+    let fragment_area = widgets::inset_left(fragment_area, 1);
     let tags_area = tags_area.map(|area| widgets::inset_left(area, 1));
     let rule_area = widgets::inset_left(rule_area, 1);
     let marker = match (snippet.pinned, snippet.locked) {
@@ -214,60 +220,110 @@ fn draw_preview_header(
         ])),
         title_area,
     );
-    let mut metadata = vec![Span::styled(
-        if snippet.folder.is_empty() {
-            "~".to_owned()
-        } else {
-            snippet.folder.clone()
-        },
-        Style::default().fg(app.theme.muted),
-    )];
-    let multiple_fragments = snippet.loaded_fragments.len() > 1;
-    if !multiple_fragments {
-        metadata.push(Span::styled(" · ", Style::default().fg(app.theme.muted)));
-        metadata.push(Span::styled(
+    let metadata = vec![
+        Span::styled(
+            if snippet.folder.is_empty() {
+                "~".to_owned()
+            } else {
+                snippet.folder.clone()
+            },
+            Style::default().fg(app.theme.muted),
+        ),
+        Span::styled(" · ", Style::default().fg(app.theme.muted)),
+        Span::styled(
             snippet.fingerprint.0.chars().take(8).collect::<String>(),
             Style::default().fg(app.theme.muted),
+        ),
+    ];
+    frame.render_widget(Paragraph::new(Line::from(metadata)), metadata_area);
+
+    let mut fragments_spans = Vec::new();
+    let total_fragments = snippet.loaded_fragments.len();
+    let current_fragment = app.fragment_index.saturating_add(1).min(total_fragments);
+
+    if total_fragments > 1 {
+        fragments_spans.push(Span::styled("frag ", Style::default().fg(app.theme.accent)));
+        fragments_spans.push(Span::styled(
+            format!("{current_fragment}/{total_fragments}"),
+            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD),
         ));
+        fragments_spans.push(Span::styled(
+            " [",
+            Style::default().fg(app.theme.warning).add_modifier(Modifier::BOLD),
+        ));
+        fragments_spans.push(Span::styled(
+            "]",
+            Style::default().fg(app.theme.warning).add_modifier(Modifier::BOLD),
+        ));
+        fragments_spans.push(Span::styled(" · ", Style::default().fg(app.theme.rule)));
+    } else {
+        fragments_spans.push(Span::styled("frag ", Style::default().fg(app.theme.accent)));
+        fragments_spans.push(Span::styled(
+            "1/1",
+            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD),
+        ));
+        fragments_spans.push(Span::styled(" · ", Style::default().fg(app.theme.rule)));
     }
 
-    let mut start = metadata_area
+    let mut start = fragment_area
         .x
-        .saturating_add(Line::from(metadata.clone()).width() as u16);
+        .saturating_add(Line::from(fragments_spans.clone()).width() as u16);
     for (index, fragment) in snippet.loaded_fragments.iter().take(16).enumerate() {
-        let separator = if index == 0 { " · " } else { " │ " };
-        metadata.push(Span::styled(separator, Style::default().fg(app.theme.rule)));
-        start = start.saturating_add(separator.chars().count() as u16);
+        if index > 0 {
+            let separator = " │ ";
+            fragments_spans.push(Span::styled(separator, Style::default().fg(app.theme.rule)));
+            start = start.saturating_add(separator.chars().count() as u16);
+        }
         let file = std::path::Path::new(&fragment.file)
             .file_name()
             .and_then(|value| value.to_str())
             .unwrap_or(&fragment.title);
-        let label = if multiple_fragments {
+        let badge = icons::language_badge(&fragment.language);
+
+        let full_text = if badge.is_empty() {
             file.to_owned()
         } else {
-            format!("{file} {}", icons::language_badge(&fragment.language))
+            format!("{file} {badge}")
         };
-        let available = metadata_area.right().saturating_sub(start) as usize;
-        let label = widgets::truncate_end(&label, available);
-        let width = Line::raw(label.clone()).width() as u16;
+
+        let available = fragment_area.right().saturating_sub(start) as usize;
+        let truncated = widgets::truncate_end(&full_text, available);
+        let width = Line::raw(truncated.clone()).width() as u16;
+
         app.layout.tab_spans[index] = (start, start.saturating_add(width));
         app.layout.tab_count += 1;
-        metadata.push(Span::styled(
-            label,
-            if index == app.fragment_index {
-                Style::default()
-                    .fg(app.theme.accent)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(app.theme.muted)
-            },
-        ));
+
+        if badge.is_empty() || truncated.chars().count() < full_text.chars().count() {
+            fragments_spans.push(Span::styled(
+                truncated,
+                if index == app.fragment_index {
+                    Style::default().fg(app.theme.bar_fg)
+                } else {
+                    Style::default().fg(app.theme.muted)
+                },
+            ));
+        } else {
+            fragments_spans.push(Span::styled(
+                file.to_owned(),
+                if index == app.fragment_index {
+                    Style::default().fg(app.theme.bar_fg)
+                } else {
+                    Style::default().fg(app.theme.muted)
+                },
+            ));
+            fragments_spans.push(Span::raw(" "));
+            fragments_spans.push(Span::styled(
+                badge.to_owned(),
+                Style::default().fg(app.theme.accent_alt),
+            ));
+        }
+
         start = start.saturating_add(width);
-        if start >= metadata_area.right() {
+        if start >= fragment_area.right() {
             break;
         }
     }
-    frame.render_widget(Paragraph::new(Line::from(metadata)), metadata_area);
+    frame.render_widget(Paragraph::new(Line::from(fragments_spans)), fragment_area);
 
     if let Some(tags_area) = tags_area {
         let mut tags = Vec::new();
