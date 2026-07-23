@@ -76,6 +76,14 @@ fn row_text_from(buffer: &ratatui::buffer::Buffer, y: u16, x_start: u16) -> Stri
         .collect()
 }
 
+fn text_x(buffer: &ratatui::buffer::Buffer, y: u16, needle: &str) -> Option<u16> {
+    let row = row_text(buffer, y).chars().collect::<Vec<_>>();
+    let needle = needle.chars().collect::<Vec<_>>();
+    row.windows(needle.len())
+        .position(|window| window == needle)
+        .map(|index| index as u16)
+}
+
 fn text_column(value: &str, needle: &str) -> u16 {
     let byte_index = value.find(needle).expect("text should contain needle");
     value[..byte_index].chars().count() as u16
@@ -434,10 +442,12 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((56, code_y)).unwrap().symbol(), "f");
 
     app.handle_key(key(KeyCode::Char('?')));
-    terminal
+    let backend = TestBackend::new(120, 42);
+    let mut help_terminal = Terminal::new(backend).unwrap();
+    help_terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
-    let buffer = terminal.backend().buffer();
+    let buffer = help_terminal.backend().buffer();
     let rendered = buffer
         .content()
         .iter()
@@ -447,8 +457,38 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("SNIPPETS"));
     assert!(rendered.contains("LIBRARY & GLOBAL"));
     assert!(rendered.contains("PREVIEW & MOUSE"));
-    assert_eq!(buffer.cell((11, 4)).unwrap().fg, app.theme.accent);
-    assert_eq!(buffer.cell((11, 9)).unwrap().fg, app.theme.accent_alt);
+    for label in [
+        "Help",
+        "snip TUI",
+        "NAVIGATION",
+        "SNIPPETS",
+        "LIBRARY & GLOBAL",
+        "PREVIEW & MOUSE",
+    ] {
+        let (y, x) = (0..buffer.area.height)
+            .find_map(|y| text_x(buffer, y, label).map(|x| (y, x)))
+            .unwrap_or_else(|| panic!("missing centered help label: {label}"));
+        let center = x + label.chars().count() as u16 / 2;
+        assert!(
+            center.abs_diff(buffer.area.width / 2) <= 1,
+            "{label} is not centered on row {y}"
+        );
+    }
+    let rows = (0..buffer.area.height)
+        .map(|y| row_text(buffer, y))
+        .collect::<Vec<_>>();
+    assert!(rows.iter().all(|row| !row.contains("g / G")));
+    assert!(rows.iter().all(|row| !row.contains("r / m / t")));
+    assert!(rows.iter().all(|row| !row.contains("e / E / R")));
+    assert!(rendered.contains("first item"));
+    assert!(rendered.contains("last item"));
+    assert!(rendered.contains("rename snippet"));
+    assert!(rendered.contains("move snippet"));
+    assert!(rendered.contains("edit tags"));
+    let tab_y = (0..buffer.area.height)
+        .find(|&y| text_x(buffer, y, "next pane").is_some())
+        .unwrap();
+    assert!(text_x(buffer, tab_y, "Tab").unwrap() >= 13);
 }
 
 #[test]
