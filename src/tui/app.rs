@@ -299,11 +299,12 @@ impl App {
                 }
             }
             KeyCode::Char('?') => self.show_help = !self.show_help,
-            KeyCode::F(5) | KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                match self.rescan() {
-                    Ok(()) => self.set_status("library refreshed", StatusLevel::Info),
-                    Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
-                }
+            // Kept as two arms on purpose: a guard on `F(5) | Char('r')` would apply
+            // to both alternatives and quietly require Ctrl-F5. Plain `r` must still
+            // fall through to rename below, so only the Char arm carries the guard.
+            KeyCode::F(5) => self.rescan_now(),
+            KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.rescan_now()
             }
             KeyCode::Char('s') => {
                 self.sort = self.sort.next();
@@ -770,6 +771,13 @@ impl App {
         };
         self.rescan()?;
         Ok((Vec::new(), message))
+    }
+
+    fn rescan_now(&mut self) {
+        match self.rescan() {
+            Ok(()) => self.set_status("library refreshed", StatusLevel::Info),
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
     }
 
     fn open_new_for_context(&mut self) {

@@ -1188,3 +1188,32 @@ fn folder_rename_keeps_the_parent_and_move_reparents() {
         app.catalog.folders
     );
 }
+
+#[test]
+fn both_rescan_bindings_work_independently() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library.clone(), &AppConfig::default()).unwrap();
+
+    // A match guard on `F(5) | Char('r')` would apply to both alternatives and
+    // silently demand Ctrl-F5, so each binding is checked on its own.
+    app.handle_key(key(KeyCode::F(5)));
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("library refreshed"),
+        "plain F5 should rescan"
+    );
+
+    app.status = None;
+    app.handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("library refreshed"),
+        "Ctrl-r should rescan"
+    );
+
+    // Plain `r` must still fall through to rename rather than rescanning.
+    app.status = None;
+    app.focus = Pane::List;
+    app.handle_key(key(KeyCode::Char('r')));
+    assert!(matches!(app.modal, Some(Modal::Input(_))), "r opens rename");
+}
