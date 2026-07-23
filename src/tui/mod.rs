@@ -7,6 +7,7 @@ pub mod icons;
 pub mod layout;
 pub mod modal;
 pub mod preview;
+pub mod selection;
 pub mod sidebar;
 pub mod snippet_list;
 pub mod state;
@@ -58,7 +59,7 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
                 Event::Key(key) if key.kind == ratatui::crossterm::event::KeyEventKind::Press => {
                     effects.extend(app.handle_key(key));
                 }
-                Event::Mouse(mouse) => app.handle_mouse(mouse),
+                Event::Mouse(mouse) => effects.extend(app.handle_mouse(mouse)),
                 _ => {}
             }
         }

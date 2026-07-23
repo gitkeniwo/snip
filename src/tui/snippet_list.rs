@@ -17,7 +17,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 .snippets
                 .iter()
                 .find(|snippet| snippet.id == row.snippet_id)?;
-            let marker_width = usize::from(snippet.pinned) * 2 + usize::from(snippet.locked) * 2;
+            let marker_width = usize::from(snippet.locked) * 2;
             let title_width = width.saturating_sub(3 + marker_width);
             let title = truncate(&snippet.title, title_width);
             let used = 3 + title.chars().count() + marker_width;
@@ -31,9 +31,6 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(padding),
             ];
-            if snippet.pinned {
-                first.push(Span::styled(" ★", Style::default().fg(app.theme.warning)));
-            }
             if snippet.locked {
                 first.push(Span::styled(" ⊘", Style::default().fg(app.theme.error)));
             }
@@ -41,7 +38,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             let second = if let Some(excerpt) = row.excerpt.as_ref() {
                 let indent = 3.min(width);
                 Line::from(vec![
-                    Span::raw(" ".repeat(indent)),
+                    pin_gutter(app, snippet.pinned, indent),
                     Span::styled(
                         truncate(excerpt, width.saturating_sub(indent)),
                         Style::default().fg(app.theme.muted),
@@ -67,7 +64,7 @@ fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> L
     let indent = 3.min(width);
     let folder = truncate(&folder, width.saturating_sub(indent));
     let mut spans = vec![
-        Span::raw(" ".repeat(indent)),
+        pin_gutter(app, snippet.pinned, indent),
         Span::styled(folder.clone(), Style::default().fg(app.theme.muted)),
     ];
     let mut used = indent + folder.chars().count();
@@ -99,6 +96,14 @@ fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> L
         ));
     }
     Line::from(spans)
+}
+
+fn pin_gutter(app: &App, pinned: bool, width: usize) -> Span<'static> {
+    if pinned && width >= 3 {
+        Span::styled(" ★ ", Style::default().fg(app.theme.warning))
+    } else {
+        Span::raw(" ".repeat(width))
+    }
 }
 
 fn truncate(value: &str, width: usize) -> String {

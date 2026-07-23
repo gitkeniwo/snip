@@ -384,14 +384,14 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
 
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 3));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 3));
     assert_eq!(app.focus, Pane::Sidebar);
     assert_eq!(app.filter.folder.as_deref(), Some("Code"));
 
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 30, 4));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 30, 4));
     assert_eq!(app.focus, Pane::List);
     assert!(app.selected_id.is_some());
-    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 30, 4));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 30, 4));
     assert_eq!(app.focus, Pane::Preview, "second click drills into preview");
 
     app.selected_id = Some(first_id);
@@ -405,13 +405,13 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
         .unwrap();
     assert_eq!(app.layout.tab_count, 2);
     let tab = app.layout.tab_spans[1];
-    app.handle_mouse(mouse(
+    let _ = app.handle_mouse(mouse(
         MouseEventKind::Down(MouseButton::Left),
         tab.0,
         app.layout.preview_tabs.y,
     ));
     assert_eq!(app.fragment_index, 1);
-    app.handle_mouse(mouse(
+    let _ = app.handle_mouse(mouse(
         MouseEventKind::ScrollDown,
         app.layout.preview_content.x,
         app.layout.preview_content.y,
@@ -423,6 +423,44 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
             .iter()
             .any(|snippet| snippet.id == second_id)
     );
+}
+
+#[test]
+fn preview_drag_selection_copies_text_without_line_number_gutter() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    // The fixture renders note rule, note, blank, then `1 │ fn alpha() {}`.
+    let x = app.layout.preview_content.x;
+    let y = app.layout.preview_content.y + 3;
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), x + 4, y));
+    assert!(
+        app.handle_mouse(mouse(MouseEventKind::Up(MouseButton::Left), x + 4, y,))
+            .is_empty(),
+        "a plain click must not copy a single character"
+    );
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), x, y));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), x + 11, y));
+    let effects = app.handle_mouse(mouse(MouseEventKind::Up(MouseButton::Left), x + 11, y));
+    let Effect::CopyToClipboard { text, label } = &effects[0] else {
+        panic!("expected automatic clipboard effect");
+    };
+    assert_eq!(text, "fn alpha");
+    assert_eq!(label, "selection");
+    assert!(!text.contains('1'));
+    assert!(!text.contains('│'));
+
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    assert_ne!(buffer.cell((x, y)).unwrap().bg, app.theme.selection_bg);
+    assert_eq!(buffer.cell((x + 4, y)).unwrap().bg, app.theme.selection_bg);
 }
 
 #[test]

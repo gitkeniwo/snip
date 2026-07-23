@@ -2,11 +2,12 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Tabs, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap};
 
 use super::app::App;
 use super::modal::Modal;
 use super::preview::PreviewDocument;
+use super::selection::{SelectionKey, SelectionRow, char_width, text_width};
 use super::snippet_list;
 use super::state::{Pane, SidebarItem, StatusLevel};
 use super::theme::TuiTheme;
@@ -149,13 +150,11 @@ fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
         Constraint::Min(0),
     ])
     .split(inner);
-    app.layout.preview_tabs = regions[4];
-    app.layout.preview_content = regions[6];
+    app.layout.preview_tabs = regions[1];
+    app.layout.preview_content = regions[4];
     draw_preview_header(frame, app, &snippet, &regions);
     match app
         .preview
@@ -163,27 +162,35 @@ fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     {
         Ok(document) => {
             let text = compose_preview(document, app.show_line_numbers, app.theme);
-            let width = regions[6].width.max(1) as usize;
-            let rendered_rows = text
+            let rendered = wrap_preview(text, regions[4].width.max(1), app.show_line_numbers);
+            app.preview_selection.prepare(
+                SelectionKey {
+                    snippet_id: snippet.id,
+                    fragment_index: app.fragment_index,
+                    fingerprint: snippet.fingerprint.0.clone(),
+                },
+                rendered.rows,
+            );
+            let max_scroll = rendered
+                .text
                 .lines
-                .iter()
-                .map(|line| line.width().max(1).div_ceil(width))
-                .sum::<usize>();
-            let max_scroll = rendered_rows
-                .saturating_sub(regions[6].height as usize)
+                .len()
+                .saturating_sub(regions[4].height as usize)
                 .min(u16::MAX as usize) as u16;
             app.preview_scroll = app.preview_scroll.min(max_scroll);
             frame.render_widget(
-                Paragraph::new(text)
-                    .scroll((app.preview_scroll, 0))
-                    .wrap(Wrap { trim: false }),
-                regions[6],
-            )
+                Paragraph::new(rendered.text).scroll((app.preview_scroll, 0)),
+                regions[4],
+            );
+            draw_preview_selection(frame, app, regions[4]);
         }
-        Err(error) => frame.render_widget(
-            Paragraph::new(error.to_string()).style(Style::default().fg(app.theme.error)),
-            regions[6],
-        ),
+        Err(error) => {
+            app.preview_selection.clear();
+            frame.render_widget(
+                Paragraph::new(error.to_string()).style(Style::default().fg(app.theme.error)),
+                regions[4],
+            );
+        }
     }
 }
 
@@ -578,7 +585,7 @@ fn draw_preview_header(
     let padding = " ".repeat(
         regions[0]
             .width
-            .saturating_sub(title.chars().count() as u16 + marker.chars().count() as u16)
+            .saturating_sub(title.chars().count() as u16 + marker.chars().count() as u16 + 1)
             as usize,
     );
     frame.render_widget(
@@ -586,6 +593,7 @@ fn draw_preview_header(
             Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(padding),
             Span::styled(marker.to_owned(), Style::default().fg(app.theme.warning)),
+            Span::raw(" "),
         ])),
         regions[0],
     );
@@ -602,6 +610,43 @@ fn draw_preview_header(
         snippet.fingerprint.0.chars().take(8).collect::<String>(),
         Style::default().fg(app.theme.muted),
     ));
+
+    let mut start = regions[1].x + Line::from(metadata.clone()).width() as u16;
+    for (index, fragment) in snippet.loaded_fragments.iter().take(16).enumerate() {
+        let separator = if index == 0 { " · " } else { " │ " };
+        metadata.push(Span::styled(
+            separator,
+            Style::default().fg(app.theme.rule),
+        ));
+        start = start.saturating_add(separator.chars().count() as u16);
+        let file = std::path::Path::new(&fragment.file)
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or(&fragment.title);
+        let label = format!(
+            "{file} {}",
+            super::icons::language_badge(&fragment.language)
+        );
+        let available = regions[1].right().saturating_sub(start) as usize;
+        let label = truncate_end(&label, available);
+        let width = Line::raw(label.clone()).width() as u16;
+        app.layout.tab_spans[index] = (start, start.saturating_add(width));
+        app.layout.tab_count += 1;
+        metadata.push(Span::styled(
+            label,
+            if index == app.fragment_index {
+                Style::default()
+                    .fg(app.theme.accent)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(app.theme.muted)
+            },
+        ));
+        start = start.saturating_add(width);
+        if start >= regions[1].right() {
+            break;
+        }
+    }
     frame.render_widget(Paragraph::new(Line::from(metadata)), regions[1]);
 
     let mut tags = Vec::new();
@@ -616,37 +661,6 @@ fn draw_preview_header(
     }
     frame.render_widget(Paragraph::new(Line::from(tags)), regions[2]);
     draw_rule(frame, regions[3], app.theme);
-    let titles = snippet
-        .loaded_fragments
-        .iter()
-        .map(|fragment| {
-            let file = std::path::Path::new(&fragment.file)
-                .file_name()
-                .and_then(|value| value.to_str())
-                .unwrap_or(&fragment.title);
-            Line::from(format!(
-                "{file} {}",
-                super::icons::language_badge(&fragment.language)
-            ))
-        })
-        .collect::<Vec<_>>();
-    let mut start = regions[4].x;
-    for (index, title) in titles.iter().take(16).enumerate() {
-        let width = title.width().saturating_add(2) as u16;
-        app.layout.tab_spans[index] = (start, start.saturating_add(width));
-        app.layout.tab_count += 1;
-        start = start.saturating_add(width).saturating_add(3);
-    }
-    frame.render_widget(
-        Tabs::new(titles)
-            .select(app.fragment_index)
-            .style(Style::default().fg(app.theme.muted))
-            .highlight_style(app.theme.selected())
-            .padding(" ", " ")
-            .divider(" │ "),
-        regions[4],
-    );
-    draw_rule(frame, regions[5], app.theme);
 }
 
 fn compose_preview(
@@ -695,6 +709,118 @@ fn content_section_rule(label: &str, theme: TuiTheme) -> Line<'static> {
         ),
         Span::styled(" ──", Style::default().fg(theme.rule)),
     ])
+}
+
+struct WrappedPreview {
+    text: Text<'static>,
+    rows: Vec<SelectionRow>,
+}
+
+fn wrap_preview(text: Text<'static>, width: u16, show_line_numbers: bool) -> WrappedPreview {
+    let mut lines = Vec::new();
+    let mut rows = Vec::new();
+    for line in text.lines {
+        let plain = line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        let mut gutter_remaining = if show_line_numbers {
+            line_number_gutter(&plain)
+        } else {
+            0
+        };
+        if line.spans.is_empty() {
+            lines.push(Line::default());
+            rows.push(SelectionRow {
+                ends_line: true,
+                ..SelectionRow::default()
+            });
+            continue;
+        }
+
+        let mut spans = Vec::new();
+        let mut row_text = String::new();
+        let mut row_width = 0_u16;
+        for span in line.spans {
+            for character in span.content.chars() {
+                let character_width = char_width(character);
+                if row_width > 0 && row_width.saturating_add(character_width) > width {
+                    push_preview_row(
+                        &mut lines,
+                        &mut rows,
+                        std::mem::take(&mut spans),
+                        std::mem::take(&mut row_text),
+                        row_width,
+                        &mut gutter_remaining,
+                        false,
+                    );
+                    row_width = 0;
+                }
+                row_width = row_width.saturating_add(character_width);
+                row_text.push(character);
+                spans.push(Span::styled(character.to_string(), span.style));
+            }
+        }
+        push_preview_row(
+            &mut lines,
+            &mut rows,
+            spans,
+            row_text,
+            row_width,
+            &mut gutter_remaining,
+            true,
+        );
+    }
+    WrappedPreview {
+        text: Text::from(lines),
+        rows,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_preview_row(
+    lines: &mut Vec<Line<'static>>,
+    rows: &mut Vec<SelectionRow>,
+    spans: Vec<Span<'static>>,
+    text: String,
+    width: u16,
+    gutter_remaining: &mut u16,
+    ends_line: bool,
+) {
+    let gutter_width = (*gutter_remaining).min(width);
+    *gutter_remaining = gutter_remaining.saturating_sub(width);
+    lines.push(Line::from(spans));
+    rows.push(SelectionRow {
+        text,
+        display_width: width,
+        gutter_width,
+        ends_line,
+    });
+}
+
+fn line_number_gutter(value: &str) -> u16 {
+    let Some((number, remainder)) = value.split_once('│') else {
+        return 0;
+    };
+    if number.trim().parse::<usize>().is_ok() && remainder.starts_with(' ') {
+        text_width(number).saturating_add(text_width("│ "))
+    } else {
+        0
+    }
+}
+
+fn draw_preview_selection(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    for screen_row in 0..area.height {
+        let logical_row = app.preview_scroll as usize + screen_row as usize;
+        for column in 0..area.width {
+            if app.preview_selection.contains(logical_row, column) {
+                let cell = &mut frame.buffer_mut()[(area.x + column, area.y + screen_row)];
+                cell.fg = app.theme.selection_fg;
+                cell.bg = app.theme.selection_bg;
+            }
+        }
+    }
 }
 
 fn draw_rule(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
@@ -842,6 +968,12 @@ fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
         help_row(
             ("click", "select item or tab"),
             ("double-click", "drill into preview"),
+            theme.success,
+            theme,
+        ),
+        help_row(
+            ("drag in preview", "select text"),
+            ("mouse up", "copy selection"),
             theme.success,
             theme,
         ),

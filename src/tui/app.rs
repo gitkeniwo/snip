@@ -23,6 +23,7 @@ use super::icons::IconMode;
 use super::layout::{LayoutRects, contains, inner};
 use super::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerModal};
 use super::preview::PreviewCache;
+use super::selection::{PreviewSelection, SelectionPoint};
 use super::sidebar;
 use super::state::{
     Filter, Pane, SearchState, SidebarItem, SidebarState, SortMode, StatusLevel, StatusMessage,
@@ -55,6 +56,7 @@ pub struct App {
     pub sort: SortMode,
     pub layout: LayoutRects,
     pub preview: PreviewCache,
+    pub preview_selection: PreviewSelection,
     pub highlighter: Highlighter,
     pub theme: TuiTheme,
     pub theme_setting: TuiThemeSetting,
@@ -113,6 +115,7 @@ impl App {
             sort,
             layout: LayoutRects::default(),
             preview: PreviewCache::default(),
+            preview_selection: PreviewSelection::default(),
             highlighter: Highlighter::new(theme)?,
             theme,
             theme_setting: tui.theme,
@@ -332,6 +335,7 @@ impl App {
             KeyCode::Char('L') if self.focus != Pane::Sidebar => self.toggle_lock(),
             KeyCode::Char('N') => {
                 self.show_line_numbers = !self.show_line_numbers;
+                self.preview_selection.clear();
                 self.set_status(
                     if self.show_line_numbers {
                         "line numbers on"
@@ -351,18 +355,62 @@ impl App {
         Vec::new()
     }
 
-    pub fn handle_mouse(&mut self, event: MouseEvent) {
+    pub fn handle_mouse(&mut self, event: MouseEvent) -> Vec<Effect> {
         if self.modal.is_some() || self.trash.open || self.show_help || self.search.active {
-            return;
+            return Vec::new();
         }
         match event.kind {
             MouseEventKind::ScrollUp => self.scroll_at(event.column, event.row, -1),
             MouseEventKind::ScrollDown => self.scroll_at(event.column, event.row, 1),
             MouseEventKind::Down(MouseButton::Left) => {
+                if contains(self.layout.preview_content, event.column, event.row)
+                    && let Some(point) =
+                        self.preview_selection_point(event.column, event.row, false)
+                {
+                    self.preview_selection.begin(point);
+                    self.focus = Pane::Preview;
+                    return Vec::new();
+                }
+                self.preview_selection.clear();
                 self.click_at(event.column, event.row);
+            }
+            MouseEventKind::Drag(MouseButton::Left) if self.preview_selection.is_dragging() => {
+                if let Some(point) = self.preview_selection_point(event.column, event.row, true) {
+                    self.preview_selection.update(point);
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) if self.preview_selection.is_dragging() => {
+                if let Some(point) = self.preview_selection_point(event.column, event.row, true)
+                    && let Some(text) = self.preview_selection.finish(point)
+                {
+                    return vec![Effect::CopyToClipboard {
+                        text,
+                        label: "selection".to_owned(),
+                    }];
+                }
             }
             _ => {}
         }
+        Vec::new()
+    }
+
+    fn preview_selection_point(
+        &self,
+        column: u16,
+        row: u16,
+        clamp: bool,
+    ) -> Option<SelectionPoint> {
+        let area = self.layout.preview_content;
+        if area.is_empty() {
+            return None;
+        }
+        if !clamp && !contains(area, column, row) {
+            return None;
+        }
+        let column = column.clamp(area.x, area.right().saturating_sub(1)) - area.x;
+        let visible_row = row.clamp(area.y, area.bottom().saturating_sub(1)) - area.y;
+        let logical_row = self.preview_scroll as usize + visible_row as usize;
+        self.preview_selection.point_at(logical_row, column)
     }
 
     pub fn handle_editor_outcome(&mut self, outcome: EditOutcome) {

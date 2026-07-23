@@ -29,8 +29,10 @@ tags; `p`/`L` toggle pin or lock; and `d` moves snippets to trash. `T` opens the
 restore/purge view, `s` changes sort order, `F5` or `Ctrl-r` rescans, and `?`
 shows the full key map. Preview source lines are numbered by default; `N`
 toggles line numbers. Mouse click, double-click, fragment-tab click, and wheel
-scrolling are supported. The TUI is enabled by default; a slim agent build is
-available with `cargo build --no-default-features`.
+scrolling are supported. Dragging across Preview text selects it; releasing the
+mouse copies the selection automatically, excluding the line-number gutter.
+The TUI is enabled by default; a slim agent build is available with
+`cargo build --no-default-features`.
 
 On macOS, the TUI follows the system light/dark appearance and updates while it
 is running. Linux uses `GTK_THEME` or `COLORFGBG` when available. Override
