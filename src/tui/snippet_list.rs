@@ -11,7 +11,8 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
     let width = width as usize;
     app.visible
         .iter()
-        .filter_map(|row| {
+        .enumerate()
+        .filter_map(|(index, row)| {
             let snippet = app
                 .catalog
                 .snippets
@@ -47,7 +48,15 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             } else {
                 metadata_line(app, snippet, width)
             };
-            Some(ListItem::new(vec![Line::from(first), second]))
+            let first = Line::from(first);
+            let first = if app.focus != super::state::Pane::List
+                && app.list_state.selected() == Some(index)
+            {
+                first.style(app.theme.retained_selection())
+            } else {
+                first
+            };
+            Some(ListItem::new(vec![first, second]))
         })
         .collect()
 }

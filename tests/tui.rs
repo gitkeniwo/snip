@@ -249,7 +249,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("Tab pane"));
     assert!(rendered.contains("/ search"));
     assert!(rendered.contains("001-Alpha Rust.rs rs"));
-    assert!(rendered.contains("1 │ fn alpha() {}"));
+    assert!(rendered.contains("1│ fn alpha() {}"));
     let buffer = terminal.backend().buffer();
     assert_eq!(buffer.cell((0, 1)).unwrap().symbol(), "╭");
     assert_eq!(buffer.cell((24, 1)).unwrap().symbol(), "╭");
@@ -263,27 +263,54 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         "r",
         "the badge starts directly below the S in Snippets"
     );
+    assert_eq!(buffer.cell((26, 2)).unwrap().bg, app.theme.retained_bg);
+    assert_ne!(
+        buffer.cell((26, 3)).unwrap().bg,
+        app.theme.retained_bg,
+        "a retained selection only highlights the title row"
+    );
     assert_eq!(buffer.cell((29, 2)).unwrap().symbol(), "A");
     assert_eq!(buffer.cell((29, 3)).unwrap().symbol(), "[");
+    assert_eq!(buffer.cell((27, 3)).unwrap().symbol(), "★");
     assert!(row_text_from(buffer, 3, 29).starts_with("[Code > Rust]"));
     assert_eq!(
-        buffer.cell((3, 7)).unwrap().symbol(),
+        buffer.cell((2, 7)).unwrap().symbol(),
         "#",
         "top-level tags should not inherit the folder icon gutter"
     );
+    assert_eq!(buffer.cell((2, 1)).unwrap().symbol(), "L");
+    assert_eq!(buffer.cell((2, 3)).unwrap().symbol(), "▾");
+    assert_eq!(buffer.cell((2, 6)).unwrap().symbol(), "─");
+    assert_eq!(buffer.cell((5, 6)).unwrap().symbol(), "T");
+    assert_eq!(buffer.cell((5, 6)).unwrap().fg, app.theme.tag);
+    assert_eq!(buffer.cell((56, 1)).unwrap().symbol(), "P");
+    assert_eq!(buffer.cell((56, 2)).unwrap().symbol(), "A");
+    assert_eq!(buffer.cell((56, 3)).unwrap().symbol(), "C");
+    assert_eq!(buffer.cell((56, 4)).unwrap().symbol(), "#");
 
     let metadata = row_text_from(buffer, 3, 54);
     let tags = row_text_from(buffer, 4, 54);
     assert!(metadata.contains("Code/Rust · "));
     assert!(!metadata.contains("#dev"));
+    assert!(metadata.contains("001-Alpha Rust.rs rs"));
     assert!(
         tags.contains("#dev"),
         "preview tags belong on their own row"
     );
-    let preview = (8..20)
+    let filename_x = 54 + metadata.find("001-Alpha Rust.rs rs").unwrap() as u16;
+    assert_ne!(
+        buffer.cell((filename_x, 3)).unwrap().bg,
+        app.theme.selection_bg,
+        "the active filename should not use a filled selection chip"
+    );
+    assert!(row_text_from(buffer, 2, 54).contains("★ pinned"));
+    let preview_start = app.layout.preview_content.y;
+    let preview = (preview_start..preview_start + 12)
         .map(|y| row_text(buffer, y))
         .collect::<Vec<_>>()
         .join("\n");
+    assert!(preview.contains("Note"));
+    assert!(!preview.contains("Note  ─"));
     assert!(preview.find("Rust note").unwrap() < preview.find("fn alpha() {}").unwrap());
 
     app.handle_key(key(KeyCode::Tab));
@@ -295,6 +322,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((24, 1)).unwrap().fg, app.theme.accent);
     assert_eq!(buffer.cell((25, 2)).unwrap().symbol(), " ");
     assert_eq!(buffer.cell((25, 2)).unwrap().bg, app.theme.selection_bg);
+    assert_eq!(buffer.cell((26, 3)).unwrap().bg, app.theme.selection_bg);
 
     app.handle_key(key(KeyCode::Char('N')));
     assert!(!app.show_line_numbers);
@@ -308,8 +336,13 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(!rendered.contains("1 │ fn alpha() {}"));
+    assert!(!rendered.contains("1│ fn alpha() {}"));
     assert!(rendered.contains("fn alpha() {}"));
+    let buffer = terminal.backend().buffer();
+    let code_y = app.layout.preview_content.y + 3;
+    assert_eq!(app.layout.preview_content.x, 56);
+    assert_eq!(buffer.cell((55, code_y)).unwrap().symbol(), " ");
+    assert_eq!(buffer.cell((56, code_y)).unwrap().symbol(), "f");
 
     app.handle_key(key(KeyCode::Char('?')));
     terminal
@@ -435,18 +468,18 @@ fn preview_drag_selection_copies_text_without_line_number_gutter() {
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
 
-    // The fixture renders note rule, note, blank, then `1 │ fn alpha() {}`.
+    // The fixture renders note title, note, footer, then `1│ fn alpha() {}`.
     let x = app.layout.preview_content.x;
     let y = app.layout.preview_content.y + 3;
-    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), x + 4, y));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), x + 3, y));
     assert!(
-        app.handle_mouse(mouse(MouseEventKind::Up(MouseButton::Left), x + 4, y,))
+        app.handle_mouse(mouse(MouseEventKind::Up(MouseButton::Left), x + 3, y,))
             .is_empty(),
         "a plain click must not copy a single character"
     );
     let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), x, y));
-    let _ = app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), x + 11, y));
-    let effects = app.handle_mouse(mouse(MouseEventKind::Up(MouseButton::Left), x + 11, y));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), x + 10, y));
+    let effects = app.handle_mouse(mouse(MouseEventKind::Up(MouseButton::Left), x + 10, y));
     let Effect::CopyToClipboard { text, label } = &effects[0] else {
         panic!("expected automatic clipboard effect");
     };
@@ -460,7 +493,43 @@ fn preview_drag_selection_copies_text_without_line_number_gutter() {
         .unwrap();
     let buffer = terminal.backend().buffer();
     assert_ne!(buffer.cell((x, y)).unwrap().bg, app.theme.selection_bg);
-    assert_eq!(buffer.cell((x + 4, y)).unwrap().bg, app.theme.selection_bg);
+    assert_eq!(buffer.cell((x + 3, y)).unwrap().bg, app.theme.selection_bg);
+}
+
+#[test]
+fn wrapped_code_rows_keep_a_blank_line_number_gutter() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let catalog = library.scan().unwrap();
+    let snippet = library
+        .resolve_snippet(&catalog, &first_id.to_string())
+        .unwrap();
+    edit_snippet(
+        &library,
+        &first_id.to_string(),
+        &EditOptions {
+            content: Some(format!("value=\"{}\"\necho done\n", "a".repeat(70))),
+            if_hash: Some(snippet.fingerprint.clone()),
+            ..EditOptions::default()
+        },
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let x = app.layout.preview_content.x;
+    let first = app.layout.preview_content.y + 3;
+    assert_eq!(buffer.cell((x, first)).unwrap().symbol(), "1");
+    assert_eq!(buffer.cell((x + 1, first)).unwrap().symbol(), "│");
+    for continuation in [first + 1, first + 2] {
+        assert_eq!(buffer.cell((x, continuation)).unwrap().symbol(), " ");
+        assert_eq!(buffer.cell((x + 1, continuation)).unwrap().symbol(), "│");
+    }
+    assert_eq!(buffer.cell((x, first + 3)).unwrap().symbol(), "2");
 }
 
 #[test]
