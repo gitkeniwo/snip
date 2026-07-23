@@ -1,6 +1,15 @@
+use ratatui::Frame;
+use ratatui::layout::Rect;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem};
+
 use crate::error::Result;
 use crate::filesystem::Library;
 use crate::service::{TrashEntry, trash_entries};
+
+use super::app::App;
+use super::widgets;
 
 #[derive(Clone, Debug, Default)]
 pub struct TrashState {
@@ -33,4 +42,49 @@ impl TrashState {
             .clamp(0, self.entries.len().saturating_sub(1) as isize)
             as usize;
     }
+}
+
+pub fn draw_trash(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let popup = widgets::centered_rect(76, 20, area);
+    frame.render_widget(Clear, popup);
+    let items = app
+        .trash
+        .entries
+        .iter()
+        .map(|entry| {
+            ListItem::new(vec![
+                Line::from(Span::styled(
+                    entry.title.clone(),
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Line::from(vec![
+                    Span::styled(
+                        entry.original_path.clone(),
+                        Style::default().fg(app.theme.muted),
+                    ),
+                    Span::styled("  ·  ", Style::default().fg(app.theme.rule)),
+                    Span::styled(
+                        entry.deleted_at.clone(),
+                        Style::default().fg(app.theme.muted),
+                    ),
+                ]),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let mut state = ratatui::widgets::ListState::default();
+    state.select((!items.is_empty()).then_some(app.trash.selected));
+    frame.render_stateful_widget(
+        List::new(items)
+            .block(
+                Block::default()
+                    .title(format!(" Trash ({}) ", app.trash.entries.len()))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(app.theme.accent_alt)),
+            )
+            .highlight_symbol("▌ ")
+            .highlight_style(app.theme.selected()),
+        popup,
+        &mut state,
+    );
 }

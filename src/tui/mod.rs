@@ -1,7 +1,9 @@
 pub mod app;
+pub mod bottom_bar;
 pub mod clipboard;
 pub mod editor;
 pub mod event;
+pub mod help;
 pub mod highlight;
 pub mod icons;
 pub mod layout;
@@ -12,8 +14,10 @@ pub mod sidebar;
 pub mod snippet_list;
 pub mod state;
 pub mod theme;
+pub mod top_bar;
 pub mod trash;
 pub mod ui;
+pub mod widgets;
 
 use std::io::{self, IsTerminal, Stdout};
 use std::panic;
