@@ -1,6 +1,6 @@
 # snip
 
-<img width="2122" height="1336" alt="output0" src="https://github.com/user-attachments/assets/6404e779-48ab-4cec-9b9a-a6035634ce6b" />
+<img width="887" height="629" alt="Screenshot 2026-07-23 at 22 08 34" src="https://github.com/user-attachments/assets/29012f73-975e-4d84-889c-8b85820487eb" />
 
 `snip` is a filesystem-native snippet library for humans, shell scripts, and AI
 agents. Markdown, source code, notes, and metadata remain ordinary files that
