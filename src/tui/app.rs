@@ -12,7 +12,7 @@ use crate::config::{AppConfig, TuiIconSetting, TuiThemeSetting};
 use crate::domain::{CatalogSnapshot, FolderFilter, Snippet};
 use crate::error::{Result, SnipError};
 use crate::filesystem::Library;
-use crate::search::{MemoryIndex, SearchIndex};
+use crate::search::{MemoryIndex, SearchIndex, SearchQuery};
 use crate::service::{
     CreateOptions, EditOptions, create_folder, create_snippet, delete_folder, delete_snippet,
     delete_tag, edit_snippet, move_folder, purge_snippet, rename_tag, restore_snippet,
@@ -218,10 +218,13 @@ impl App {
                 .collect()
         } else {
             let mut best = HashMap::<Uuid, VisibleRow>::new();
-            for result in self
-                .index
-                .search(&self.search.query, None, self.filter.tag.as_deref())
-            {
+            // The sidebar folder filter is applied separately through `allowed`,
+            // so the query only carries the tag. Substring matching cannot fail,
+            // hence the query is always constructible here.
+            let query = SearchQuery::new(&self.search.query, false)
+                .expect("substring queries never fail to build")
+                .tag(self.filter.tag.as_deref());
+            for result in self.index.search(&query) {
                 if !allowed.contains(&result.snippet_id) {
                     continue;
                 }

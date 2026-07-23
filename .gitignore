@@ -2,3 +2,5 @@
 /Main.sniplib/
 .DS_Store
 AGENT.md
+.agents/
+.omp/

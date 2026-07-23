@@ -206,12 +206,22 @@ snip --output json list --folder Scripts --no-subfolders
 snip --output json search terraform
 snip --output json show 428ac138
 
+# Search is structure-aware, so it replaces grep/rg over the library
+snip --output json search 'kubectl (apply|rollout)' --regex
+snip --output json search rollout --context 2      # surrounding lines
+snip --output json search deploy --field title --field tag --limit 10
+
 # Content, notes, and READMEs take an inline value or a file (- is stdin)
 snip edit 428ac138 --content 'replacement content' --if-hash 03ab...
 snip edit 428ac138 --content-file - --if-hash 03ab... <<'EOF'
 replacement content
 EOF
 ```
+
+Search results carry the snippet's `fingerprint`, so a metadata change (retag,
+move, rename, delete) can go straight from `search` to `--if-hash` without a
+separate `show`. Replacing content still means reading the content first —
+`--if-hash` proves nobody else edited the snippet, not that the change is right.
 
 External editing (`snip edit` with no structured change, `--metadata-editor`,
 `--readme-editor`, `--note-editor`) requires an interactive terminal and exits

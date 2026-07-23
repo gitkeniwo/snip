@@ -217,15 +217,49 @@ pub struct ChangeSet {
     pub new_path: Option<PathBuf>,
 }
 
+/// Which part of a snippet a search looked at, used both to narrow a search
+/// (`snip search --field`) and to report where each hit came from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "lowercase")]
+#[value(rename_all = "lowercase")]
+pub enum SearchField {
+    Title,
+    Tag,
+    Readme,
+    Content,
+    Note,
+}
+
+impl SearchField {
+    pub const ALL: [Self; 5] = [
+        Self::Title,
+        Self::Tag,
+        Self::Readme,
+        Self::Content,
+        Self::Note,
+    ];
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct SearchResult {
     pub snippet_id: Uuid,
     pub title: String,
     pub folder: String,
+    /// The snippet's fingerprint at scan time, so a metadata change (retag, move,
+    /// rename, delete) can go straight to `--if-hash` without a second read.
+    /// Replacing content still needs the content, so read it before overwriting.
+    pub fingerprint: Fingerprint,
+    pub field: SearchField,
     pub fragment_id: Option<Uuid>,
     pub fragment_title: Option<String>,
     pub line: Option<usize>,
     pub excerpt: String,
+    /// Lines immediately before/after the match, present only when context was
+    /// requested. Empty vectors are omitted from JSON.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_before: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_after: Vec<String>,
     pub score: u32,
 }
 

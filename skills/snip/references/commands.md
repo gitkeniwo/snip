@@ -37,12 +37,22 @@ Returns an array of snippet summaries (no content). Pinned snippets sort first
 in every mode.
 
 ### `snip search <QUERY>`
-`--folder <FOLDER>` `--no-subfolders` `--tag <TAG>`
+`--regex` `--field <FIELD>` `--context/-C <N>` `--limit/-m <N>` `--folder <FOLDER>`
+`--no-subfolders` `--tag <TAG>`
 
-Case-insensitive substring search over titles, tags, notes, README, and fragment
-content. Scored: exact title 100, title substring 80, tag 65, README line 50,
-note line 45, content line 40. Results are sorted by score and include a `line`
-and `excerpt` per match, so one snippet can appear several times.
+Case-insensitive search over titles, tags, README, fragment content, and notes.
+Scored: exact title 100, title substring 80, tag 65, README line 50, note line
+45, content line 40. Results sort by score and carry a `line` and `excerpt` per
+match, so one snippet can appear several times — cap it with `--limit`.
+
+| Flag | Notes |
+|---|---|
+| `--regex` | QUERY becomes a regular expression (the `regex` crate — linear time, no backreferences). Case-insensitive; `(?-i)` opts out. A bad pattern is a `usage_error`. |
+| `--field <FIELD>` | `title`, `tag`, `readme`, `content`, `note`. Repeatable; omitting it searches all five. |
+| `--context <N>`, `-C <N>` | Fill `context_before` / `context_after` with N lines each. Human output marks context with `-` and the match with `:`, like ripgrep. |
+| `--limit <N>`, `-m <N>` | Keep the top N rows after scoring. |
+
+Every result reports the `field` it matched and the snippet's `fingerprint`.
 
 ### Folder filtering (`list` and `search`)
 
@@ -205,11 +215,19 @@ an array.
 ```json
 {
   "snippet_id": "79d92dea-…", "title": "Greeter", "folder": "Scripts",
+  "fingerprint": "472697ff…", "field": "content",
   "fragment_id": "813f6ac6-…", "fragment_title": "Fragment",
-  "line": 1, "excerpt": "echo hello world", "score": 40
+  "line": 4, "excerpt": "kubectl rollout status deploy/api",
+  "context_before": ["# roll out", "kubectl apply -f deploy.yaml"],
+  "context_after": ["echo done"],
+  "score": 40
 }
 ```
-`line` and `fragment_id` are null for title- and tag-only matches.
+`line` and `fragment_id` are null for title- and tag-only matches. `field` is one
+of `title`, `tag`, `readme`, `content`, `note`. The context arrays are omitted
+entirely unless `--context` was passed. `fingerprint` is the snippet's hash at
+scan time — enough to drive `--if-hash` for a metadata change without a second
+read, though replacing content still means reading the content first.
 
 ### Mutation result (`create`, `edit`, `fragment *`, `delete`)
 ```json

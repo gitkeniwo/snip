@@ -1,7 +1,7 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
-use snip::domain::FolderFilter;
+use snip::domain::{FolderFilter, SearchField};
 use snip::sort::SortMode;
 
 #[derive(Parser, Debug)]
@@ -133,6 +133,9 @@ impl FilterArgs {
 #[derive(Args, Debug)]
 pub struct SearchArgs {
     pub query: String,
+    /// Treat QUERY as a regular expression. Case-insensitive; use (?-i) to opt out.
+    #[arg(long)]
+    pub regex: bool,
     /// Restrict to a folder and its subfolders. Pass "" for Uncategorized.
     #[arg(long)]
     pub folder: Option<String>,
@@ -141,6 +144,15 @@ pub struct SearchArgs {
     pub no_subfolders: bool,
     #[arg(long)]
     pub tag: Option<String>,
+    /// Only search these parts of a snippet. Repeatable; defaults to all.
+    #[arg(long = "field")]
+    pub fields: Vec<SearchField>,
+    /// Lines of surrounding context to include with each match.
+    #[arg(long, short = 'C', default_value_t = 0, value_name = "N")]
+    pub context: usize,
+    /// Keep only the top N results after scoring.
+    #[arg(long, short = 'm', value_name = "N")]
+    pub limit: Option<usize>,
 }
 
 impl SearchArgs {

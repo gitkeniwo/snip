@@ -9,7 +9,7 @@ use snip::domain::{Fingerprint, FolderFilter, folder_label};
 use snip::error::{Result, SnipError};
 use snip::importer::import_snippetslab;
 use snip::render::{RenderMode, preview};
-use snip::search::{MemoryIndex, SearchIndex};
+use snip::search::{MemoryIndex, SearchIndex, SearchQuery};
 use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, FragmentEditOptions, add_fragment,
     create_folder, create_snippet, delete_folder, delete_snippet, delete_tag, doctor,
@@ -196,7 +196,13 @@ fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) -> Res
 
 fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) -> Result<()> {
     let index = MemoryIndex::new(library.scan()?);
-    let results = index.search(&args.query, args.folder_filter(), args.tag.as_deref());
+    let query = SearchQuery::new(&args.query, args.regex)?
+        .folder(args.folder_filter())
+        .tag(args.tag.as_deref())
+        .fields(&args.fields)
+        .context_lines(args.context)
+        .limit(args.limit);
+    let results = index.search(&query);
     if output == OutputMode::Human {
         for result in results {
             let location = result
@@ -210,6 +216,20 @@ fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) -> R
                 result.title,
                 result.excerpt
             );
+            // Mirror ripgrep's convention: `-` marks context, `:` marks the match,
+            // so a match stays findable when context makes the output dense.
+            if let Some(line) = result.line {
+                let first = line.saturating_sub(result.context_before.len());
+                for (offset, text) in result.context_before.iter().enumerate() {
+                    println!("  {:>5}- {text}", first + offset);
+                }
+                if !result.context_before.is_empty() || !result.context_after.is_empty() {
+                    println!("  {line:>5}: {}", result.excerpt);
+                }
+                for (offset, text) in result.context_after.iter().enumerate() {
+                    println!("  {:>5}- {text}", line + offset + 1);
+                }
+            }
         }
     } else {
         print_records(&results, output)?;

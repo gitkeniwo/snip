@@ -481,3 +481,118 @@ fn external_editing_refuses_to_run_without_a_terminal() {
         );
     }
 }
+
+#[test]
+fn search_supports_regex_context_fields_and_limits() {
+    let temporary = tempfile::tempdir_in(".").unwrap();
+    let library = temporary.path().join("Search.sniplib");
+    json(&library, &["init", library.to_str().unwrap()]);
+    json(
+        &library,
+        &[
+            "create",
+            "--title",
+            "Deploy script",
+            "--folder",
+            "Ops",
+            "--tag",
+            "deploy",
+            "--language",
+            "bash",
+            "--content",
+            "set -euo pipefail\n# roll out\nkubectl apply -f deploy.yaml\nkubectl rollout status deploy/api\necho done\n",
+        ],
+    );
+    json(
+        &library,
+        &[
+            "create",
+            "--title",
+            "Rollback",
+            "--folder",
+            "Ops/K8s",
+            "--tag",
+            "deploy",
+            "--language",
+            "bash",
+            "--content",
+            "kubectl rollout undo deploy/api\n",
+        ],
+    );
+
+    let rows = |arguments: &[&str]| -> Vec<Value> {
+        json(&library, arguments).as_array().unwrap().clone()
+    };
+
+    // --regex turns the query into a pattern, so alternation no longer needs rg.
+    let matches = rows(&["search", "kubectl (apply|rollout)", "--regex"]);
+    assert_eq!(matches.len(), 3);
+    assert!(matches.iter().all(|row| row["field"] == "content"));
+    // Regex is case-insensitive by default; (?-i) opts out without another flag.
+    assert_eq!(rows(&["search", "KUBECTL", "--regex"]).len(), 3);
+    assert!(rows(&["search", "(?-i)KUBECTL", "--regex"]).is_empty());
+    let invalid = command(&library, &["search", "kubectl (", "--regex"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        invalid.status.code(),
+        Some(2),
+        "an unparsable regex is a usage error"
+    );
+
+    // --context carries the surrounding lines so a match can be judged in place.
+    let contextual = rows(&["search", "rollout status", "--context", "2"]);
+    let hit = &contextual[0];
+    assert_eq!(hit["line"], 4);
+    assert_eq!(
+        hit["context_before"].as_array().unwrap().len(),
+        2,
+        "two lines before the match"
+    );
+    assert_eq!(
+        hit["context_after"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap(),
+        "echo done"
+    );
+    // Without --context the arrays are absent rather than empty noise.
+    let plain = rows(&["search", "rollout status"]);
+    assert!(plain[0].get("context_before").is_none());
+
+    // --field narrows the search domain, and every row says where it matched.
+    let fields = |arguments: &[&str]| -> Vec<String> {
+        rows(arguments)
+            .iter()
+            .map(|row| row["field"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert!(fields(&["search", "deploy"]).contains(&"content".to_owned()));
+    assert_eq!(
+        fields(&["search", "deploy", "--field", "tag"]),
+        ["tag", "tag"]
+    );
+    let narrowed = fields(&["search", "deploy", "--field", "title", "--field", "tag"]);
+    assert!(
+        narrowed
+            .iter()
+            .all(|field| field == "title" || field == "tag")
+    );
+
+    // --limit keeps the top-scoring rows so a broad query cannot flood the caller.
+    assert_eq!(rows(&["search", "deploy", "--limit", "2"]).len(), 2);
+
+    // The fingerprint rides along, so a metadata edit needs no separate read.
+    let found = &rows(&["search", "Rollback", "--field", "title", "--limit", "1"])[0];
+    let id = found["snippet_id"].as_str().unwrap();
+    let hash = found["fingerprint"].as_str().unwrap();
+    let edited = json(&library, &["edit", id, "--tag", "k8s", "--if-hash", hash]);
+    assert_eq!(edited["snippet"]["tags"][0], "k8s");
+    // ...and the same hash is now stale, so the guard still does its job.
+    let stale = command(
+        &library,
+        &["edit", id, "--title", "Nope", "--if-hash", hash],
+    )
+    .output()
+    .unwrap();
+    assert_eq!(stale.status.code(), Some(4));
+}

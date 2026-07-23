@@ -91,10 +91,29 @@ snip cat <selector> --fragment 2              # raw fragment bytes, no decoratio
 snip path <selector> --fragment 1             # absolute path to a managed file
 ```
 
-`search` is a substring match with weighted scoring (title beats tags beats
-content) and returns per-line excerpts, which makes it the right first move when
-the user describes a snippet vaguely. `cat` is the right move when you want to
-pipe content somewhere — it emits nothing but the fragment.
+**Search the library with `snip search`, not `rg`.** Both read the same files,
+but `rg` returns paths inside package directories that you then have to map back
+to snippets, and it cannot see titles or tags at all. `snip search` knows the
+structure: it searches titles, tags, README, fragment content, and notes, scores
+them (title beats tags beats content), and hands back snippet IDs, folders, and
+fingerprints. `cat` is the right move when you want to pipe content somewhere —
+it emits nothing but the fragment.
+
+```bash
+snip search 'kubectl (apply|rollout)' --regex     # full regex, not just substrings
+snip search "rollout" --context 2                 # surrounding lines, like rg -C
+snip search "deploy" --field title --field tag    # narrow the domain
+snip search "deploy" --limit 10                   # top N after scoring
+```
+
+- `--regex` is case-insensitive like the rest of search; put `(?-i)` in the
+  pattern to opt out. An unparsable pattern is a `usage_error`, not silence.
+- `--context N` fills `context_before` / `context_after` on each result, so you
+  can judge a match without a follow-up read. They are omitted when unused.
+- `--field` takes `title`, `tag`, `readme`, `content`, or `note`, repeatable.
+  Every result also reports the `field` it matched, so hits are self-describing.
+- `--limit` matters more than it looks: search emits one row per matching *line*,
+  so a common word across a large library returns a lot of rows. Cap it.
 
 `list` and `search` both take `--folder` and `--tag`. **`--folder Code` includes
 `Code/Rust` and everything else beneath it**, because that is how a folder reads
@@ -151,6 +170,14 @@ the other writer did.
 Every successful mutation returns a `changes` object containing
 `old_fingerprint` and `new_fingerprint`. Keep the new one if you are about to
 make a second edit; it saves a re-read.
+
+`list` and `search` also carry a `fingerprint`, which lets you go straight from
+finding a snippet to changing it. That shortcut is sound for **metadata** —
+retag, move, rename, pin, delete — where the change does not depend on the
+content. It is not a licence to skip reading before you replace content: a
+search result is one matching line, and `--if-hash` only proves nobody else
+edited the snippet, not that you knew what you were overwriting. When you are
+replacing content you have not read, read it first.
 
 ### What `edit` changes
 

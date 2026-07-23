@@ -1,5 +1,5 @@
 use snip::render::{RenderMode, preview};
-use snip::search::{MemoryIndex, SearchIndex};
+use snip::search::{MemoryIndex, SearchIndex, SearchQuery};
 use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, delete_snippet,
     doctor, edit_snippet, restore_snippet, trash_entries,
@@ -56,7 +56,7 @@ fn filesystem_is_the_source_of_truth() {
     assert_ne!(old_hash, changed.fingerprint);
     assert_eq!(changed.loaded_fragments[0].content, "echo changed\n");
 
-    let results = MemoryIndex::new(catalog).search("changed", None, None);
+    let results = MemoryIndex::new(catalog).search(&SearchQuery::new("changed", false).unwrap());
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].line, Some(1));
 }
