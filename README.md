@@ -1,5 +1,7 @@
 # snip
 
+<img width="2122" height="1336" alt="output0" src="https://github.com/user-attachments/assets/6404e779-48ab-4cec-9b9a-a6035634ce6b" />
+
 `snip` is a filesystem-native snippet library for humans, shell scripts, and AI
 agents. Markdown, source code, notes, and metadata remain ordinary files that
 can be opened with any text editor. The CLI adds validation, structured JSON,
