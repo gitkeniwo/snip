@@ -86,6 +86,8 @@ pub struct AppConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editor: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vscode_cmd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pager: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_language: Option<String>,
@@ -109,6 +111,7 @@ impl Default for AppConfig {
             preview_render: None,
             preview_pager: None,
             editor: None,
+            vscode_cmd: None,
             pager: None,
             default_language: None,
             default_folder: None,
@@ -167,6 +170,7 @@ impl AppConfig {
         }
         for (name, value) in [
             ("editor", self.editor.as_deref()),
+            ("vscode_cmd", self.vscode_cmd.as_deref()),
             ("pager", self.pager.as_deref()),
             ("default_language", self.default_language.as_deref()),
         ] {

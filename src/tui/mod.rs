@@ -120,6 +120,37 @@ fn execute_effect(
             }
             Err(error) => app.set_status(error.to_string(), StatusLevel::Error),
         },
+        Effect::OpenInVsCode { path } => {
+            let vscode_bin = app.vscode_cmd.as_deref().unwrap_or("code");
+            let parts = match shlex::split(vscode_bin).filter(|parts| !parts.is_empty()) {
+                Some(parts) if !parts.is_empty() => parts,
+                _ => {
+                    app.set_status(
+                        format!("invalid vscode command: {vscode_bin:?}"),
+                        StatusLevel::Error,
+                    );
+                    return Ok(());
+                }
+            };
+            let mut command = std::process::Command::new(&parts[0]);
+            command.args(&parts[1..]);
+            command.arg(&path);
+            match command.spawn() {
+                Ok(_) => {
+                    let name = path
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("file");
+                    app.set_status(format!("opened {name} in VS Code"), StatusLevel::Info);
+                }
+                Err(error) => {
+                    app.set_status(
+                        format!("cannot launch VS Code ({:?}): {error}", parts[0]),
+                        StatusLevel::Error,
+                    );
+                }
+            }
+        }
     }
     Ok(())
 }

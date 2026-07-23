@@ -28,7 +28,7 @@ actions on the right; active search, status, or modal input temporarily takes
 over the row.
 
 The TUI provides complete local management: `n` creates snippets or folders;
-`e`/`E`/`R` edit content, note, or README; `r` renames; `m` moves; `t` edits
+`e`/`E`/`R` edit content, note, or README; `v` opens in VS Code; `r` renames; `m` moves; `t` edits
 tags; `p`/`L` toggle pin or lock; and `d` moves snippets to trash. `T` opens the
 restore/purge view, `s` changes sort order, `F5` or `Ctrl-r` rescans, and `?`
 shows the full key map. Preview source lines are numbered by default; `N`

@@ -80,6 +80,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
             &[
                 ("n", "new snippet"),
                 ("e", "edit content"),
+                ("v", "open in vscode"),
                 ("E", "edit note"),
                 ("R", "edit README"),
                 ("r", "rename snippet"),

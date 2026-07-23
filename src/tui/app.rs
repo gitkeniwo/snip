@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use ratatui::crossterm::event::{
@@ -38,6 +39,7 @@ pub enum Effect {
     SpawnEditor(EditRequest),
     ForceSave(EditRequest),
     CopyToClipboard { text: String, label: String },
+    OpenInVsCode { path: PathBuf },
 }
 
 pub struct App {
@@ -69,6 +71,7 @@ pub struct App {
     pub trash: TrashState,
     pub should_quit: bool,
     pub editor_cmd: Option<String>,
+    pub vscode_cmd: Option<String>,
     pub show_help: bool,
     pub default_language: String,
     pub default_folder: Option<String>,
@@ -128,6 +131,7 @@ impl App {
             trash: TrashState::default(),
             should_quit: false,
             editor_cmd: config.editor.clone(),
+            vscode_cmd: config.vscode_cmd.clone(),
             show_help: false,
             default_language: config
                 .default_language
@@ -326,6 +330,7 @@ impl App {
                 self.refresh_visible();
             }
             KeyCode::Char('e') if self.focus != Pane::Sidebar => return self.edit_effect(),
+            KeyCode::Char('v') if self.focus != Pane::Sidebar => return self.open_vscode_effect(),
             KeyCode::Char('E') if self.focus != Pane::Sidebar => return self.edit_note_effect(),
             KeyCode::Char('R') if self.focus != Pane::Sidebar => return self.edit_readme_effect(),
             KeyCode::Char('n') => self.open_new_for_context(),
@@ -1396,6 +1401,20 @@ impl App {
                     text: path.display().to_string(),
                     label: "snippet path".to_owned(),
                 }
+            })
+            .into_iter()
+            .collect()
+    }
+
+    fn open_vscode_effect(&self) -> Vec<Effect> {
+        self.selected_snippet()
+            .map(|snippet| {
+                let path = snippet
+                    .loaded_fragments
+                    .get(self.fragment_index)
+                    .map(|fragment| fragment.absolute_path.clone())
+                    .unwrap_or_else(|| snippet.package_path.clone());
+                Effect::OpenInVsCode { path }
             })
             .into_iter()
             .collect()

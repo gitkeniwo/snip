@@ -907,6 +907,34 @@ fn note_and_readme_editor_targets_save_markdown() {
         Some("# README\n")
     );
 }
+#[test]
+fn v_key_emits_open_in_vscode_effect() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let config = AppConfig {
+        vscode_cmd: Some("code-insiders".to_owned()),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    app.focus = Pane::List;
+    app.selected_id = Some(first_id);
+    app.list_state.select(Some(
+        app.visible
+            .iter()
+            .position(|row| row.snippet_id == first_id)
+            .unwrap(),
+    ));
+
+    assert_eq!(app.vscode_cmd.as_deref(), Some("code-insiders"));
+
+    let effects = app.handle_key(key(KeyCode::Char('v')));
+    let Effect::OpenInVsCode { path } = effects.into_iter().next().unwrap() else {
+        panic!("expected OpenInVsCode effect");
+    };
+
+    let snippet = app.selected_snippet().unwrap();
+    let expected_path = &snippet.loaded_fragments[0].absolute_path;
+    assert_eq!(&path, expected_path);
+}
 
 #[test]
 fn trash_overlay_restores_and_purges_entries() {
