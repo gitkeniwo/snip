@@ -280,9 +280,11 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     );
     assert_eq!(buffer.cell((2, 1)).unwrap().symbol(), "L");
     assert_eq!(buffer.cell((2, 3)).unwrap().symbol(), "▾");
-    assert_eq!(buffer.cell((2, 6)).unwrap().symbol(), "─");
-    assert_eq!(buffer.cell((5, 6)).unwrap().symbol(), "T");
-    assert_eq!(buffer.cell((5, 6)).unwrap().fg, app.theme.tag);
+    assert_eq!(buffer.cell((2, 6)).unwrap().symbol(), "T");
+    assert_eq!(buffer.cell((2, 6)).unwrap().fg, app.theme.tag);
+    assert_eq!(buffer.cell((3, 6)).unwrap().symbol(), "a");
+    assert_eq!(buffer.cell((2, 7)).unwrap().symbol(), "#");
+    assert_eq!(buffer.cell((3, 7)).unwrap().symbol(), " ");
     assert_eq!(buffer.cell((56, 1)).unwrap().symbol(), "P");
     assert_eq!(buffer.cell((56, 2)).unwrap().symbol(), "A");
     assert_eq!(buffer.cell((56, 3)).unwrap().symbol(), "C");
@@ -305,6 +307,19 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     );
     assert!(row_text_from(buffer, 2, 54).contains("★ pinned"));
     let preview_start = app.layout.preview_content.y;
+    let note_y = (preview_start..preview_start + 12)
+        .find(|&y| row_text(buffer, y).contains("Note"))
+        .expect("fixture note header should be visible");
+    let note_content_y = (note_y + 1..preview_start + 12)
+        .find(|&y| row_text(buffer, y).contains("Rust note"))
+        .expect("fixture note content should be visible");
+    assert_eq!(buffer.cell((56, note_y)).unwrap().symbol(), "N");
+    assert_eq!(buffer.cell((56, note_content_y)).unwrap().symbol(), "R");
+    assert_eq!(
+        buffer.cell((55, note_y)).unwrap().symbol(),
+        " ",
+        "note prose should align with the Preview title, not the code gutter"
+    );
     let preview = (preview_start..preview_start + 12)
         .map(|y| row_text(buffer, y))
         .collect::<Vec<_>>()
@@ -360,6 +375,46 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("PREVIEW & MOUSE"));
     assert_eq!(buffer.cell((11, 4)).unwrap().fg, app.theme.accent);
     assert_eq!(buffer.cell((11, 9)).unwrap().fg, app.theme.accent_alt);
+}
+
+#[test]
+fn preview_omits_the_tags_row_when_a_snippet_has_no_tags() {
+    let (_temporary, library, _first_id, second_id) = fixture();
+    let catalog = library.scan().unwrap();
+    let snippet = library
+        .resolve_snippet(&catalog, &second_id.to_string())
+        .unwrap();
+    edit_snippet(
+        &library,
+        &second_id.to_string(),
+        &EditOptions {
+            tags: Some(Vec::new()),
+            if_hash: Some(snippet.fingerprint.clone()),
+            ..EditOptions::default()
+        },
+    )
+    .unwrap();
+
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let index = app
+        .visible
+        .iter()
+        .position(|row| row.snippet_id == second_id)
+        .unwrap();
+    app.list_state.select(Some(index));
+    app.selected_id = Some(second_id);
+
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    assert_eq!(
+        app.layout.preview_content.y,
+        app.layout.preview_tabs.y + 2,
+        "a tagless preview has metadata, a rule, then content—without a blank tags row"
+    );
 }
 
 #[test]

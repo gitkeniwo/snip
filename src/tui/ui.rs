@@ -59,10 +59,11 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         .iter()
         .map(|row| {
             if row.item == SidebarItem::Header {
-                let label = format!(" {} ", row.label);
-                let remaining = content_width.saturating_sub(label.chars().count() + 2);
+                // Tags is a section label, not a tree item: start it at the
+                // same content edge as the folder caret and tag marker.
+                let label = format!("{} ", row.label);
+                let remaining = content_width.saturating_sub(label.chars().count());
                 return ListItem::new(Line::from(vec![
-                    Span::styled("──", Style::default().fg(app.theme.border)),
                     Span::styled(label, Style::default().fg(app.theme.tag)),
                     Span::styled("─".repeat(remaining), Style::default().fg(app.theme.border)),
                 ]));
@@ -79,11 +80,11 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
             let used = prefix.chars().count()
                 + row.label.chars().count()
                 + count.len()
-                + usize::from(matches!(row.item, SidebarItem::Tag(_)));
+                + 2 * usize::from(matches!(row.item, SidebarItem::Tag(_)));
             let padding = " ".repeat(content_width.saturating_sub(used).max(1));
             let mut spans = vec![Span::raw(prefix)];
             if matches!(row.item, SidebarItem::Tag(_)) {
-                spans.push(Span::styled("#", Style::default().fg(app.theme.tag)));
+                spans.push(Span::styled("# ", Style::default().fg(app.theme.tag)));
                 spans.push(Span::raw(format!("{}{}", row.label, padding)));
             } else {
                 spans.push(Span::raw(format!("{}{}", row.label, padding)));
@@ -140,22 +141,46 @@ fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         );
         return;
     };
-    let regions = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Min(0),
-    ])
-    .split(inner);
-    app.layout.preview_tabs = regions[1];
-    let content_area = if app.show_line_numbers {
-        regions[4]
+    let has_tags = !snippet.tags.is_empty();
+    let regions = if has_tags {
+        Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(inner)
     } else {
-        inset_left(regions[4], 1)
+        Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(inner)
+    };
+    let title_area = regions[0];
+    let metadata_area = regions[1];
+    let tags_area = has_tags.then_some(regions[2]);
+    let rule_area = if has_tags { regions[3] } else { regions[2] };
+    let raw_content_area = if has_tags { regions[4] } else { regions[3] };
+    app.layout.preview_tabs = metadata_area;
+    let content_area = if app.show_line_numbers {
+        raw_content_area
+    } else {
+        inset_left(raw_content_area, 1)
     };
     app.layout.preview_content = content_area;
-    draw_preview_header(frame, app, &snippet, &regions);
+    draw_preview_header(
+        frame,
+        app,
+        &snippet,
+        title_area,
+        metadata_area,
+        tags_area,
+        rule_area,
+    );
     match app
         .preview
         .get(&snippet, app.fragment_index, &app.highlighter, app.theme)
@@ -575,12 +600,15 @@ fn draw_preview_header(
     frame: &mut Frame<'_>,
     app: &mut App,
     snippet: &crate::domain::Snippet,
-    regions: &[Rect],
+    title_area: Rect,
+    metadata_area: Rect,
+    tags_area: Option<Rect>,
+    rule_area: Rect,
 ) {
-    let title_area = inset_left(regions[0], 1);
-    let metadata_area = inset_left(regions[1], 1);
-    let tags_area = inset_left(regions[2], 1);
-    let rule_area = inset_left(regions[3], 1);
+    let title_area = inset_left(title_area, 1);
+    let metadata_area = inset_left(metadata_area, 1);
+    let tags_area = tags_area.map(|area| inset_left(area, 1));
+    let rule_area = inset_left(rule_area, 1);
     let marker = match (snippet.pinned, snippet.locked) {
         (true, true) => "★ pinned · ⊘ locked",
         (true, false) => "★ pinned",
@@ -666,17 +694,19 @@ fn draw_preview_header(
     }
     frame.render_widget(Paragraph::new(Line::from(metadata)), metadata_area);
 
-    let mut tags = Vec::new();
-    for tag in &snippet.tags {
-        if !tags.is_empty() {
-            tags.push(Span::raw(" "));
+    if let Some(tags_area) = tags_area {
+        let mut tags = Vec::new();
+        for tag in &snippet.tags {
+            if !tags.is_empty() {
+                tags.push(Span::raw(" "));
+            }
+            tags.push(Span::styled(
+                format!("#{tag}"),
+                Style::default().fg(app.theme.tag),
+            ));
         }
-        tags.push(Span::styled(
-            format!("#{tag}"),
-            Style::default().fg(app.theme.tag),
-        ));
+        frame.render_widget(Paragraph::new(Line::from(tags)), tags_area);
     }
-    frame.render_widget(Paragraph::new(Line::from(tags)), tags_area);
     draw_rule(frame, rule_area, app.theme);
 }
 
@@ -687,10 +717,21 @@ fn compose_preview(
     width: u16,
 ) -> Text<'static> {
     let mut lines = Vec::new();
+    // With line numbers enabled the code gutter intentionally occupies the
+    // pane's first cell. Prose sections do not have a gutter, so inset them by
+    // one cell to align with the `P` in the Preview block title/front matter.
+    let prose_inset = usize::from(show_line_numbers);
     if let Some(note) = document.note {
-        lines.push(note_header(theme));
-        lines.extend(note.lines);
-        lines.push(note_footer(theme, width));
+        lines.push(inset_preview_line(note_header(theme), prose_inset));
+        lines.extend(
+            note.lines
+                .into_iter()
+                .map(|line| inset_preview_line(line, prose_inset)),
+        );
+        lines.push(inset_preview_line(
+            note_footer(theme, width.saturating_sub(prose_inset as u16)),
+            prose_inset,
+        ));
     }
 
     let number_width = document.fragment.lines.len().max(1).to_string().len();
@@ -712,10 +753,25 @@ fn compose_preview(
 
     if let Some(readme) = document.readme {
         lines.push(Line::default());
-        lines.push(content_section_rule("readme", theme));
-        lines.extend(readme.lines);
+        lines.push(inset_preview_line(
+            content_section_rule("readme", theme),
+            prose_inset,
+        ));
+        lines.extend(
+            readme
+                .lines
+                .into_iter()
+                .map(|line| inset_preview_line(line, prose_inset)),
+        );
     }
     Text::from(lines)
+}
+
+fn inset_preview_line(mut line: Line<'static>, inset: usize) -> Line<'static> {
+    if inset > 0 {
+        line.spans.insert(0, Span::raw(" ".repeat(inset)));
+    }
+    line
 }
 
 fn note_header(theme: TuiTheme) -> Line<'static> {
@@ -760,31 +816,47 @@ fn wrap_preview(text: Text<'static>, width: u16, show_line_numbers: bool) -> Wra
             .map(|span| span.content.as_ref())
             .collect::<String>();
         let decorative = is_preview_decoration(&plain);
-        let line_gutter = if decorative {
-            text_width(&plain)
-        } else if show_line_numbers {
+        let number_gutter = if !decorative && show_line_numbers {
             line_number_gutter(&plain)
         } else {
             0
         };
-        let continuation = (line_gutter > 0 && !decorative).then(|| {
-            let padding = " ".repeat(line_gutter.saturating_sub(2) as usize);
-            let number_style = line
-                .spans
-                .first()
-                .map_or(Style::default(), |span| span.style);
-            let rule_style = line
-                .spans
-                .get(1)
-                .map_or(Style::default(), |span| span.style);
-            (
-                vec![
-                    Span::styled(padding.clone(), number_style),
-                    Span::styled("│ ", rule_style),
-                ],
-                format!("{padding}│ "),
-            )
-        });
+        let prose_gutter = u16::from(
+            !decorative && show_line_numbers && number_gutter == 0 && plain.starts_with(' '),
+        );
+        let line_gutter = if decorative {
+            text_width(&plain)
+        } else {
+            number_gutter.max(prose_gutter)
+        };
+        let continuation = (number_gutter > 0)
+            .then(|| {
+                let padding = " ".repeat(number_gutter.saturating_sub(2) as usize);
+                let number_style = line
+                    .spans
+                    .first()
+                    .map_or(Style::default(), |span| span.style);
+                let rule_style = line
+                    .spans
+                    .get(1)
+                    .map_or(Style::default(), |span| span.style);
+                (
+                    vec![
+                        Span::styled(padding.clone(), number_style),
+                        Span::styled("│ ", rule_style),
+                    ],
+                    format!("{padding}│ "),
+                )
+            })
+            .or_else(|| {
+                (prose_gutter > 0).then(|| {
+                    let style = line
+                        .spans
+                        .first()
+                        .map_or(Style::default(), |span| span.style);
+                    (vec![Span::styled(" ", style)], " ".to_owned())
+                })
+            });
         if line.spans.is_empty() {
             lines.push(Line::default());
             rows.push(SelectionRow {
@@ -843,6 +915,7 @@ fn wrap_preview(text: Text<'static>, width: u16, show_line_numbers: bool) -> Wra
 }
 
 fn is_preview_decoration(value: &str) -> bool {
+    let value = value.trim_start();
     value == "Note"
         || value.starts_with("── readme ")
         || (!value.is_empty() && value.chars().all(|character| character == '─'))
