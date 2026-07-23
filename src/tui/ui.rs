@@ -73,7 +73,9 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
                 super::state::SidebarItem::All => (
                     "≡ ",
                     Style::default().fg(app.theme.accent),
-                    Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(app.theme.accent)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 super::state::SidebarItem::Uncategorized => (
                     "∅ ",
@@ -85,11 +87,9 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
                     Style::default().fg(app.theme.muted),
                     Style::default().fg(app.theme.muted),
                 ),
-                super::state::SidebarItem::Tag(_) => (
-                    "# ",
-                    Style::default().fg(app.theme.tag),
-                    Style::default(),
-                ),
+                super::state::SidebarItem::Tag(_) => {
+                    ("# ", Style::default().fg(app.theme.tag), Style::default())
+                }
                 super::state::SidebarItem::Folder(_) => {
                     let branch = if row.has_children {
                         if row.expanded { "▾ " } else { "▸ " }
