@@ -18,6 +18,58 @@ pub fn folder_label(folder: &str) -> &str {
     }
 }
 
+/// A folder restriction shared by `snip list`, `snip search`, and the TUI sidebar,
+/// so "in folder X" means the same thing on every surface.
+///
+/// Descendants are included by default because that is how folders read to a
+/// person: picking `Code` in the sidebar shows what is in `Code/Rust` too. Pass
+/// [`FolderFilter::exact`] for the narrower "directly in this folder" question.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FolderFilter<'a> {
+    pub path: &'a str,
+    pub include_descendants: bool,
+}
+
+impl<'a> FolderFilter<'a> {
+    pub fn recursive(path: &'a str) -> Self {
+        Self {
+            path,
+            include_descendants: true,
+        }
+    }
+
+    pub fn exact(path: &'a str) -> Self {
+        Self {
+            path,
+            include_descendants: false,
+        }
+    }
+
+    pub fn new(path: &'a str, include_descendants: bool) -> Self {
+        Self {
+            path,
+            include_descendants,
+        }
+    }
+
+    /// Matching is case-insensitive. An empty path means the library root
+    /// (`Uncategorized`) and never matches descendants — otherwise it would
+    /// silently select the entire library.
+    pub fn matches(&self, folder: &str) -> bool {
+        let filter = self.path.to_lowercase();
+        let candidate = folder.to_lowercase();
+        if candidate == filter {
+            return true;
+        }
+        if !self.include_descendants || filter.is_empty() {
+            return false;
+        }
+        candidate
+            .strip_prefix(&filter)
+            .is_some_and(|rest| rest.starts_with('/'))
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LibraryManifest {
     pub format: String,
@@ -175,4 +227,51 @@ pub struct SearchResult {
     pub line: Option<usize>,
     pub excerpt: String,
     pub score: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn folder_filter_includes_descendants_but_not_partial_components() {
+        let filter = FolderFilter::recursive("Code");
+        assert!(filter.matches("Code"));
+        assert!(filter.matches("Code/Rust"));
+        assert!(filter.matches("Code/Rust/Async"));
+        assert!(filter.matches("code/rust"), "matching is case-insensitive");
+        // "Codebase" starts with "Code" textually but is a different folder.
+        assert!(!filter.matches("Codebase"));
+        assert!(!filter.matches(""));
+    }
+
+    #[test]
+    fn exact_folder_filter_stops_at_the_folder_itself() {
+        let filter = FolderFilter::exact("Code");
+        assert!(filter.matches("Code"));
+        assert!(!filter.matches("Code/Rust"));
+    }
+
+    #[test]
+    fn the_library_root_never_matches_descendants() {
+        // An empty path means Uncategorized. Treating it as a prefix would make
+        // `--folder ""` select the entire library instead.
+        for filter in [FolderFilter::recursive(""), FolderFilter::exact("")] {
+            assert!(filter.matches(""));
+            assert!(!filter.matches("Code"));
+        }
+    }
+
+    #[test]
+    fn folder_label_names_the_root_the_way_every_surface_prints_it() {
+        assert_eq!(folder_label(""), UNCATEGORIZED);
+        assert_eq!(folder_label("Code/Rust"), "Code/Rust");
+    }
+
+    #[test]
+    fn multibyte_folder_names_do_not_split_characters() {
+        let filter = FolderFilter::recursive("图床");
+        assert!(filter.matches("图床/配置"));
+        assert!(!filter.matches("图床配置"));
+    }
 }

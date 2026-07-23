@@ -1,6 +1,7 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+use snip::domain::FolderFilter;
 use snip::sort::SortMode;
 
 #[derive(Parser, Debug)]
@@ -108,8 +109,12 @@ pub struct InitArgs {
 
 #[derive(Args, Debug)]
 pub struct FilterArgs {
+    /// Restrict to a folder and its subfolders. Pass "" for Uncategorized.
     #[arg(long)]
     pub folder: Option<String>,
+    /// Restrict --folder to that folder alone, excluding its subfolders.
+    #[arg(long, requires = "folder")]
+    pub no_subfolders: bool,
     #[arg(long)]
     pub tag: Option<String>,
     /// Order of the listing. Pinned snippets always come first.
@@ -117,13 +122,33 @@ pub struct FilterArgs {
     pub sort: SortMode,
 }
 
+impl FilterArgs {
+    pub fn folder_filter(&self) -> Option<FolderFilter<'_>> {
+        self.folder
+            .as_deref()
+            .map(|folder| FolderFilter::new(folder, !self.no_subfolders))
+    }
+}
+
 #[derive(Args, Debug)]
 pub struct SearchArgs {
     pub query: String,
+    /// Restrict to a folder and its subfolders. Pass "" for Uncategorized.
     #[arg(long)]
     pub folder: Option<String>,
+    /// Restrict --folder to that folder alone, excluding its subfolders.
+    #[arg(long, requires = "folder")]
+    pub no_subfolders: bool,
     #[arg(long)]
     pub tag: Option<String>,
+}
+
+impl SearchArgs {
+    pub fn folder_filter(&self) -> Option<FolderFilter<'_>> {
+        self.folder
+            .as_deref()
+            .map(|folder| FolderFilter::new(folder, !self.no_subfolders))
+    }
 }
 
 #[derive(Args, Debug)]
@@ -198,11 +223,20 @@ pub struct CreateArgs {
     pub language: Option<String>,
     #[arg(long, default_value = "Fragment")]
     pub fragment_title: String,
+    /// Initial fragment content, given inline.
+    #[arg(long, conflicts_with = "content_file")]
+    pub content: Option<String>,
     /// Read initial fragment content from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub content_file: Option<String>,
+    /// Fragment note (Markdown), given inline.
+    #[arg(long, conflicts_with = "note_file")]
+    pub note: Option<String>,
     #[arg(long)]
     pub note_file: Option<String>,
+    /// Snippet README (Markdown), given inline.
+    #[arg(long, conflicts_with = "readme_file")]
+    pub readme: Option<String>,
     #[arg(long)]
     pub readme_file: Option<String>,
     #[arg(long)]
@@ -245,15 +279,24 @@ pub struct EditArgs {
     pub fragment_title: Option<String>,
     #[arg(long)]
     pub language: Option<String>,
+    /// Replacement fragment content, given inline.
+    #[arg(long, conflicts_with = "content_file")]
+    pub content: Option<String>,
     #[arg(long)]
     pub content_file: Option<String>,
+    /// Replacement fragment note (Markdown), given inline.
+    #[arg(long, conflicts_with_all = ["note_file", "clear_note"])]
+    pub note: Option<String>,
     #[arg(long, conflicts_with = "clear_note")]
     pub note_file: Option<String>,
-    #[arg(long, conflicts_with = "note_file")]
+    #[arg(long, conflicts_with_all = ["note_file", "note"])]
     pub clear_note: bool,
+    /// Replacement snippet README (Markdown), given inline.
+    #[arg(long, conflicts_with_all = ["readme_file", "clear_readme"])]
+    pub readme: Option<String>,
     #[arg(long, conflicts_with = "clear_readme")]
     pub readme_file: Option<String>,
-    #[arg(long, conflicts_with = "readme_file")]
+    #[arg(long, conflicts_with_all = ["readme_file", "readme"])]
     pub clear_readme: bool,
     /// Edit snippet.toml in the external editor when no structured change is given.
     #[arg(long, conflicts_with = "readme_editor")]
@@ -289,8 +332,14 @@ pub struct FragmentAddArgs {
     pub title: String,
     #[arg(long)]
     pub language: Option<String>,
+    /// Fragment content, given inline.
+    #[arg(long, conflicts_with = "content_file")]
+    pub content: Option<String>,
     #[arg(long)]
     pub content_file: Option<String>,
+    /// Fragment note (Markdown), given inline.
+    #[arg(long, conflicts_with = "note_file")]
+    pub note: Option<String>,
     #[arg(long)]
     pub note_file: Option<String>,
     #[command(flatten)]
@@ -305,11 +354,17 @@ pub struct FragmentEditArgs {
     pub title: Option<String>,
     #[arg(long)]
     pub language: Option<String>,
+    /// Replacement fragment content, given inline.
+    #[arg(long, conflicts_with = "content_file")]
+    pub content: Option<String>,
     #[arg(long)]
     pub content_file: Option<String>,
+    /// Replacement fragment note (Markdown), given inline.
+    #[arg(long, conflicts_with_all = ["note_file", "clear_note"])]
+    pub note: Option<String>,
     #[arg(long, conflicts_with = "clear_note")]
     pub note_file: Option<String>,
-    #[arg(long, conflicts_with = "note_file")]
+    #[arg(long, conflicts_with_all = ["note_file", "note"])]
     pub clear_note: bool,
     #[command(flatten)]
     pub optimistic: OptimisticArgs,

@@ -271,3 +271,213 @@ fn list_sort_and_open_share_the_tui_vocabulary() {
         .unwrap();
     assert!(!missing_app.status.success());
 }
+
+#[test]
+fn inline_content_flags_match_their_file_counterparts() {
+    let temporary = tempfile::tempdir_in(".").unwrap();
+    let library = temporary.path().join("Inline.sniplib");
+    json(&library, &["init", library.to_str().unwrap()]);
+
+    // Content, notes, and READMEs can be passed inline instead of through a file,
+    // which is what an agent driving the CLI reaches for first.
+    let created = json(
+        &library,
+        &[
+            "create",
+            "--title",
+            "Inline",
+            "--language",
+            "bash",
+            "--content",
+            "echo 'hi $USER'\nexit 0\n",
+            "--note",
+            "# Note\nBody",
+            "--readme",
+            "# Readme",
+        ],
+    );
+    let fragment = &created["snippet"]["loaded_fragments"][0];
+    assert_eq!(
+        fragment["content"].as_str().unwrap(),
+        "echo 'hi $USER'\nexit 0\n"
+    );
+    assert_eq!(fragment["note_content"].as_str().unwrap(), "# Note\nBody");
+    assert_eq!(created["snippet"]["readme"].as_str().unwrap(), "# Readme");
+
+    let hash = created["snippet"]["fingerprint"].as_str().unwrap();
+    let edited = json(
+        &library,
+        &[
+            "edit",
+            "Inline",
+            "--content",
+            "echo bye\n",
+            "--if-hash",
+            hash,
+        ],
+    );
+    assert_eq!(
+        edited["snippet"]["loaded_fragments"][0]["content"]
+            .as_str()
+            .unwrap(),
+        "echo bye\n"
+    );
+
+    let added = json(
+        &library,
+        &[
+            "fragment",
+            "add",
+            "Inline",
+            "--title",
+            "Second",
+            "--language",
+            "python",
+            "--content",
+            "print(1)\n",
+            "--note",
+            "second note",
+        ],
+    );
+    assert_eq!(
+        added["snippet"]["loaded_fragments"][1]["content"]
+            .as_str()
+            .unwrap(),
+        "print(1)\n"
+    );
+
+    // Inline and file forms are mutually exclusive rather than silently picking one.
+    let both = command(
+        &library,
+        &[
+            "create",
+            "--title",
+            "Both",
+            "--content",
+            "x",
+            "--content-file",
+            "-",
+        ],
+    )
+    .output()
+    .unwrap();
+    assert!(!both.status.success());
+}
+
+#[test]
+fn folder_filters_include_subfolders_unless_opted_out() {
+    let temporary = tempfile::tempdir_in(".").unwrap();
+    let library = temporary.path().join("Folders.sniplib");
+    json(&library, &["init", library.to_str().unwrap()]);
+
+    json(
+        &library,
+        &["create", "--title", "Root", "--content", "needle root"],
+    );
+    json(
+        &library,
+        &[
+            "create",
+            "--title",
+            "Top",
+            "--folder",
+            "Code",
+            "--content",
+            "needle top",
+        ],
+    );
+    json(
+        &library,
+        &[
+            "create",
+            "--title",
+            "Deep",
+            "--folder",
+            "Code/Rust",
+            "--content",
+            "needle deep",
+        ],
+    );
+
+    let titles = |arguments: &[&str]| -> Vec<String> {
+        let mut rows = json(&library, arguments)
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["title"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        rows.sort();
+        rows.dedup();
+        rows
+    };
+
+    // A folder means the folder and everything under it, matching the TUI sidebar.
+    assert_eq!(titles(&["list", "--folder", "Code"]), ["Deep", "Top"]);
+    assert_eq!(
+        titles(&["search", "needle", "--folder", "Code"]),
+        ["Deep", "Top"]
+    );
+    assert_eq!(
+        titles(&["list", "--folder", "code"]),
+        ["Deep", "Top"],
+        "case-insensitive"
+    );
+
+    assert_eq!(
+        titles(&["list", "--folder", "Code", "--no-subfolders"]),
+        ["Top"]
+    );
+    assert_eq!(
+        titles(&["search", "needle", "--folder", "Code", "--no-subfolders"]),
+        ["Top"]
+    );
+
+    // An empty folder is the library root, and must not swallow the whole library.
+    assert_eq!(titles(&["list", "--folder", ""]), ["Root"]);
+
+    // A partial path component is not a parent: "Cod" must not match "Code".
+    assert!(titles(&["list", "--folder", "Cod"]).is_empty());
+
+    // --no-subfolders is meaningless on its own.
+    assert!(
+        !command(&library, &["list", "--no-subfolders"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+}
+
+#[test]
+fn external_editing_refuses_to_run_without_a_terminal() {
+    let temporary = tempfile::tempdir_in(".").unwrap();
+    let library = temporary.path().join("Editor.sniplib");
+    json(&library, &["init", library.to_str().unwrap()]);
+    json(&library, &["create", "--title", "Solo", "--content", "x"]);
+
+    // assert_cmd runs without a TTY, so every external-editor path must fail fast
+    // with usage guidance instead of blocking on an editor that can never appear.
+    for arguments in [
+        vec!["edit", "Solo"],
+        vec!["edit", "Solo", "--metadata-editor"],
+        vec!["edit", "Solo", "--readme-editor"],
+        vec!["edit", "Solo", "--note-editor"],
+    ] {
+        let output = command(&library, &arguments)
+            .env("EDITOR", "true")
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "expected a usage error from: snip {}",
+            arguments.join(" ")
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            format!("{stderr}{stdout}").contains("requires an interactive terminal"),
+            "unhelpful message: {stderr}{stdout}"
+        );
+    }
+}

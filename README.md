@@ -201,15 +201,22 @@ are accepted only when they identify exactly one snippet.
 
 ```bash
 snip --output json list
+snip --output json list --folder Scripts        # includes Scripts/Shell
+snip --output json list --folder Scripts --no-subfolders
 snip --output json search terraform
 snip --output json show 428ac138
 
-snip edit 428ac138 \
-  --content-file - \
-  --if-hash 03ab... <<'EOF'
+# Content, notes, and READMEs take an inline value or a file (- is stdin)
+snip edit 428ac138 --content 'replacement content' --if-hash 03ab...
+snip edit 428ac138 --content-file - --if-hash 03ab... <<'EOF'
 replacement content
 EOF
 ```
+
+External editing (`snip edit` with no structured change, `--metadata-editor`,
+`--readme-editor`, `--note-editor`) requires an interactive terminal and exits
+with a usage error otherwise, so scripts fail fast instead of blocking on an
+editor that can never appear.
 
 Structured stdout is kept separate from errors. Exit codes are stable:
 
@@ -224,6 +231,18 @@ Structured stdout is kept separate from errors. Exit codes are stable:
 
 `--output jsonl` emits one JSON value per line for lists and search results.
 `cat` always emits only the raw fragment content.
+
+### Installable agent skill
+
+[`skills/snip`](skills/snip/SKILL.md) packages the above into a skill any agent
+can load — vocabulary, selectors, JSON payload shapes, the `--if-hash` workflow,
+and the on-disk format. Symlink it into an agent's skills directory:
+
+```bash
+mkdir -p ~/.claude/skills && ln -s "$PWD/skills/snip" ~/.claude/skills/snip
+```
+
+See [`skills/README.md`](skills/README.md) for other runtimes.
 
 ## Files are the database
 

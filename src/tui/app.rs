@@ -9,7 +9,7 @@ use ratatui::widgets::ListState;
 use uuid::Uuid;
 
 use crate::config::{AppConfig, TuiIconSetting, TuiThemeSetting};
-use crate::domain::{CatalogSnapshot, Snippet};
+use crate::domain::{CatalogSnapshot, FolderFilter, Snippet};
 use crate::error::{Result, SnipError};
 use crate::filesystem::Library;
 use crate::search::{MemoryIndex, SearchIndex};
@@ -425,9 +425,11 @@ impl App {
         if self.filter.uncategorized {
             return snippet.folder.is_empty();
         }
-        let folder_matches = self.filter.folder.as_ref().is_none_or(|folder| {
-            snippet.folder == *folder || snippet.folder.starts_with(&format!("{folder}/"))
-        });
+        let folder_matches = self
+            .filter
+            .folder
+            .as_deref()
+            .is_none_or(|folder| FolderFilter::recursive(folder).matches(&snippet.folder));
         let tag_matches = self.filter.tag.as_ref().is_none_or(|tag| {
             snippet
                 .tags

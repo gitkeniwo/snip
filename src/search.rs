@@ -1,7 +1,12 @@
-use crate::domain::{CatalogSnapshot, SearchResult};
+use crate::domain::{CatalogSnapshot, FolderFilter, SearchResult};
 
 pub trait SearchIndex {
-    fn search(&self, query: &str, folder: Option<&str>, tag: Option<&str>) -> Vec<SearchResult>;
+    fn search(
+        &self,
+        query: &str,
+        folder: Option<FolderFilter<'_>>,
+        tag: Option<&str>,
+    ) -> Vec<SearchResult>;
 }
 
 #[derive(Clone, Debug)]
@@ -20,16 +25,17 @@ impl MemoryIndex {
 }
 
 impl SearchIndex for MemoryIndex {
-    fn search(&self, query: &str, folder: Option<&str>, tag: Option<&str>) -> Vec<SearchResult> {
+    fn search(
+        &self,
+        query: &str,
+        folder: Option<FolderFilter<'_>>,
+        tag: Option<&str>,
+    ) -> Vec<SearchResult> {
         let needle = query.to_lowercase();
-        let folder_filter = folder.map(str::to_lowercase);
         let tag_filter = tag.map(str::to_lowercase);
         let mut results = Vec::new();
         for snippet in &self.catalog.snippets {
-            if folder_filter
-                .as_ref()
-                .is_some_and(|folder| snippet.folder.to_lowercase() != *folder)
-            {
+            if folder.is_some_and(|folder| !folder.matches(&snippet.folder)) {
                 continue;
             }
             if tag_filter.as_ref().is_some_and(|tag| {

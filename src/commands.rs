@@ -5,7 +5,7 @@ use snip::config::{
     AppConfig, ColorSetting, OutputSetting, PreviewRenderSetting, TuiConfig, TuiIconSetting,
     TuiThemeSetting, config_path,
 };
-use snip::domain::{Fingerprint, folder_label};
+use snip::domain::{Fingerprint, FolderFilter, folder_label};
 use snip::error::{Result, SnipError};
 use snip::importer::import_snippetslab;
 use snip::render::{RenderMode, preview};
@@ -175,7 +175,7 @@ fn command_info(library: &Library, output: OutputMode) -> Result<()> {
 
 fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) -> Result<()> {
     let catalog = library.scan()?;
-    let mut snippets = filter_snippets(&catalog, args.folder.as_deref(), args.tag.as_deref());
+    let mut snippets = filter_snippets(&catalog, args.folder_filter(), args.tag.as_deref());
     snippets.sort_by(|left, right| args.sort.compare(left, right));
     let rows = snippets.iter().map(snippet_summary).collect::<Vec<_>>();
     if output == OutputMode::Human {
@@ -196,7 +196,7 @@ fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) -> Res
 
 fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) -> Result<()> {
     let index = MemoryIndex::new(library.scan()?);
-    let results = index.search(&args.query, args.folder.as_deref(), args.tag.as_deref());
+    let results = index.search(&args.query, args.folder_filter(), args.tag.as_deref());
     if output == OutputMode::Human {
         for result in results {
             let location = result
@@ -400,9 +400,10 @@ fn command_create(
                 .unwrap_or_else(|| "text".to_owned()),
             source_language: None,
             fragment_title: Some(args.fragment_title.clone()),
-            content: read_optional_file(args.content_file.as_deref())?.unwrap_or_default(),
-            note: read_optional_file(args.note_file.as_deref())?,
-            readme: read_optional_file(args.readme_file.as_deref())?,
+            content: read_optional_text(args.content.as_deref(), args.content_file.as_deref())?
+                .unwrap_or_default(),
+            note: read_optional_text(args.note.as_deref(), args.note_file.as_deref())?,
+            readme: read_optional_text(args.readme.as_deref(), args.readme_file.as_deref())?,
             pinned: args.pin,
             locked: args.lock,
             ..CreateOptions::default()
@@ -435,16 +436,16 @@ fn command_edit(
         fragment_selector: args.fragment.clone(),
         fragment_title: args.fragment_title.clone(),
         language: args.language.clone(),
-        content: read_optional_file(args.content_file.as_deref())?,
+        content: read_optional_text(args.content.as_deref(), args.content_file.as_deref())?,
         note: if args.clear_note {
             Some(None)
         } else {
-            read_optional_file(args.note_file.as_deref())?.map(Some)
+            read_optional_text(args.note.as_deref(), args.note_file.as_deref())?.map(Some)
         },
         readme: if args.clear_readme {
             Some(None)
         } else {
-            read_optional_file(args.readme_file.as_deref())?.map(Some)
+            read_optional_text(args.readme.as_deref(), args.readme_file.as_deref())?.map(Some)
         },
         if_hash: fingerprint(args.optimistic.if_hash.as_deref()),
         force: args.optimistic.force,
@@ -471,8 +472,9 @@ fn command_fragment(
                     .or_else(|| config.default_language.clone())
                     .unwrap_or_else(|| "text".to_owned()),
                 source_language: None,
-                content: read_optional_file(args.content_file.as_deref())?.unwrap_or_default(),
-                note: read_optional_file(args.note_file.as_deref())?,
+                content: read_optional_text(args.content.as_deref(), args.content_file.as_deref())?
+                    .unwrap_or_default(),
+                note: read_optional_text(args.note.as_deref(), args.note_file.as_deref())?,
                 if_hash: fingerprint(args.optimistic.if_hash.as_deref()),
                 force: args.optimistic.force,
                 ..FragmentAddOptions::default()
@@ -485,11 +487,11 @@ fn command_fragment(
             &FragmentEditOptions {
                 title: args.title.clone(),
                 language: args.language.clone(),
-                content: read_optional_file(args.content_file.as_deref())?,
+                content: read_optional_text(args.content.as_deref(), args.content_file.as_deref())?,
                 note: if args.clear_note {
                     Some(None)
                 } else {
-                    read_optional_file(args.note_file.as_deref())?.map(Some)
+                    read_optional_text(args.note.as_deref(), args.note_file.as_deref())?.map(Some)
                 },
                 if_hash: fingerprint(args.optimistic.if_hash.as_deref()),
                 force: args.optimistic.force,
@@ -983,6 +985,15 @@ fn edit_external(
     output: OutputMode,
     configured_editor: Option<&str>,
 ) -> Result<()> {
+    // Spawning $EDITOR hands the terminal to an interactive program. Without a
+    // terminal there is nothing for it to attach to, so it would block forever
+    // in a script or agent instead of failing. Refuse early and say what to pass
+    // instead, matching how `snip tui` guards itself.
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return Err(SnipError::usage(
+            "external editing requires an interactive terminal; pass a structured change instead, such as --content, --content-file, --title, or --tag",
+        ));
+    }
     let catalog = library.scan()?;
     let original = library.resolve_snippet(&catalog, &args.selector)?.clone();
     let expected = fingerprint(args.optimistic.if_hash.as_deref())
@@ -1145,6 +1156,15 @@ fn send_to_pager(content: &str, configured_pager: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+/// Resolve text supplied either inline (`--content`) or from a file (`--content-file`).
+/// Clap already rejects passing both, so at most one is ever set.
+fn read_optional_text(inline: Option<&str>, path: Option<&str>) -> Result<Option<String>> {
+    match inline {
+        Some(value) => Ok(Some(value.to_owned())),
+        None => read_optional_file(path),
+    }
+}
+
 fn read_optional_file(path: Option<&str>) -> Result<Option<String>> {
     let Some(path) = path else {
         return Ok(None);
@@ -1170,23 +1190,26 @@ fn edit_has_structured_changes(args: &EditArgs) -> bool {
         || args.unlock
         || args.fragment_title.is_some()
         || args.language.is_some()
+        || args.content.is_some()
         || args.content_file.is_some()
+        || args.note.is_some()
         || args.note_file.is_some()
         || args.clear_note
+        || args.readme.is_some()
         || args.readme_file.is_some()
         || args.clear_readme
 }
 
 fn filter_snippets<'a>(
     catalog: &'a CatalogSnapshot,
-    folder: Option<&str>,
+    folder: Option<FolderFilter<'_>>,
     tag: Option<&str>,
 ) -> Vec<&'a Snippet> {
     catalog
         .snippets
         .iter()
         .filter(|snippet| {
-            folder.is_none_or(|folder| snippet.folder.eq_ignore_ascii_case(folder))
+            folder.is_none_or(|folder| folder.matches(&snippet.folder))
                 && tag.is_none_or(|tag| {
                     snippet
                         .tags
