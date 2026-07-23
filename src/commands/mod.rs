@@ -9,6 +9,7 @@ pub mod trash;
 use snip::Library;
 use snip::config::AppConfig;
 use snip::error::{Result, SnipError};
+#[cfg(feature = "tui")]
 use std::io::{self, IsTerminal};
 
 pub use output::effective_output;
