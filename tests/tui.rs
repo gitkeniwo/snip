@@ -251,6 +251,17 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("001-Alpha Rust.rs rs"));
     assert!(rendered.contains("1│ fn alpha() {}"));
     let buffer = terminal.backend().buffer();
+    let bottom = row_text(buffer, 29);
+    assert!(bottom.starts_with('◗'));
+    assert!(bottom.ends_with('◖'));
+    assert!(bottom.find("←/→ nav").unwrap() < 10);
+    assert!(
+        bottom.rfind("n new").unwrap() > 60,
+        "pane-specific actions should be grouped on the right"
+    );
+    assert_eq!(buffer.cell((1, 29)).unwrap().bg, app.theme.retained_bg);
+    let action_x = bottom.rfind("n new").unwrap() as u16;
+    assert_eq!(buffer.cell((action_x, 29)).unwrap().bg, app.theme.bar_bg);
     assert_eq!(buffer.cell((0, 1)).unwrap().symbol(), "╭");
     assert_eq!(buffer.cell((24, 1)).unwrap().symbol(), "╭");
     assert_eq!(buffer.cell((0, 1)).unwrap().fg, app.theme.accent);

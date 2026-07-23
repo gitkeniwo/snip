@@ -12,6 +12,9 @@ use super::snippet_list;
 use super::state::{Pane, SidebarItem, StatusLevel};
 use super::theme::TuiTheme;
 
+type Shortcut<'a> = (&'a str, &'a str);
+type ShortcutSet<'a> = &'a [Shortcut<'a>];
+
 pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     let area = frame.area();
     let vertical = Layout::vertical([
@@ -381,99 +384,151 @@ fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         );
         return;
     }
-    let full: &[(&str, &str)] = if app.trash.open {
-        &[
-            ("j/k", "move"),
-            ("Enter/u", "restore"),
-            ("x", "purge"),
-            ("Esc", "close"),
-        ]
+    let navigation_full: ShortcutSet<'_> = &[
+        ("←/→", "nav"),
+        ("Tab", "pane"),
+        ("/", "search"),
+        ("?", "help"),
+        ("q", "quit"),
+    ];
+    let navigation_medium: ShortcutSet<'_> = &[
+        ("←/→", "nav"),
+        ("Tab", "pane"),
+        ("/", "search"),
+        ("?", "help"),
+    ];
+    let navigation_compact: ShortcutSet<'_> = &[("←/→", ""), ("Tab", ""), ("/", ""), ("?", "")];
+    let navigation_minimal: ShortcutSet<'_> = &[("Tab", ""), ("/", "")];
+
+    let (actions_full, actions_medium, actions_compact): (
+        ShortcutSet<'_>,
+        ShortcutSet<'_>,
+        ShortcutSet<'_>,
+    ) = if app.trash.open {
+        (
+            &[("j/k", "move"), ("u", "restore"), ("x", "purge")],
+            &[("u", "restore"), ("x", "purge")],
+            &[("u", ""), ("x", "")],
+        )
     } else {
         match app.focus {
-            Pane::Sidebar => &[
-                ("Tab", "pane"),
-                ("j/k", "move"),
-                ("n", "new"),
-                ("r", "rename"),
-                ("d", "delete"),
-                ("/", "search"),
-                ("?", "help"),
-            ],
-            Pane::List | Pane::Preview => &[
-                ("Tab", "pane"),
-                ("n", "new"),
-                ("e", "edit"),
-                ("d", "delete"),
-                ("r", "rename"),
-                ("t", "tags"),
-                ("N", "lines"),
-                ("y", "copy"),
-                ("/", "search"),
-                ("?", "help"),
-            ],
+            Pane::Sidebar => (
+                &[
+                    ("n", "new"),
+                    ("r", "rename"),
+                    ("d", "delete"),
+                    ("s", "sort"),
+                ],
+                &[("n", "new"), ("r", "rename"), ("d", "delete")],
+                &[("n", ""), ("r", ""), ("d", "")],
+            ),
+            Pane::List => (
+                &[
+                    ("n", "new"),
+                    ("e", "edit"),
+                    ("r", "rename"),
+                    ("m", "move"),
+                    ("t", "tags"),
+                    ("d", "trash"),
+                ],
+                &[("n", "new"), ("e", "edit"), ("d", "trash")],
+                &[("n", ""), ("e", ""), ("d", "")],
+            ),
+            Pane::Preview => (
+                &[
+                    ("e", "code"),
+                    ("E", "note"),
+                    ("R", "readme"),
+                    ("N", "lines"),
+                    ("y", "copy"),
+                ],
+                &[("e", "edit"), ("N", "lines"), ("y", "copy")],
+                &[("e", ""), ("N", ""), ("y", "")],
+            ),
         }
     };
-    let medium: &[(&str, &str)] = if app.trash.open {
-        &[
-            ("j/k", "move"),
-            ("u", "restore"),
-            ("x", "purge"),
-            ("Esc", "close"),
-        ]
-    } else {
-        match app.focus {
-            Pane::Sidebar => &[
-                ("Tab", "pane"),
-                ("j/k", "move"),
-                ("n", "new"),
-                ("r", "rename"),
-                ("d", "delete"),
-                ("?", "help"),
-            ],
-            Pane::List | Pane::Preview => &[
-                ("Tab", "pane"),
-                ("j/k", "move"),
-                ("e", "edit"),
-                ("d", "delete"),
-                ("N", "lines"),
-                ("/", "search"),
-                ("?", "help"),
-            ],
-        }
-    };
-    let compact: &[(&str, &str)] = if app.trash.open {
-        &[("u", "restore"), ("x", "purge"), ("Esc", "close")]
-    } else {
-        &[
-            ("Tab", "pane"),
-            ("j/k", "move"),
-            ("/", "search"),
-            ("q", "quit"),
-        ]
-    };
-    let commands = if area.width >= 100 {
-        full.to_vec()
-    } else if area.width >= 70 {
-        medium.to_vec()
-    } else {
-        compact.to_vec()
-    };
+
+    let tiers = [
+        (navigation_full, actions_full),
+        (navigation_medium, actions_medium),
+        (navigation_compact, actions_medium),
+        (navigation_compact, actions_compact),
+        (navigation_minimal, &actions_compact[..1]),
+    ];
+    let (navigation, actions) = tiers
+        .into_iter()
+        .find(|(navigation, actions)| {
+            shortcut_pills_width(navigation) + shortcut_pills_width(actions) + 2
+                <= area.width as usize
+        })
+        .unwrap_or((navigation_minimal, &actions_compact[..1]));
+
+    let left = shortcut_pills(
+        navigation,
+        app.theme.accent,
+        app.theme.retained_bg,
+        app.theme,
+    );
+    let right = shortcut_pills(actions, app.theme.accent_alt, app.theme.bar_bg, app.theme);
+    let right_width = right.width().min(area.width as usize) as u16;
+    let regions =
+        Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).split(area);
+    frame.render_widget(Paragraph::new(left), regions[0]);
+    frame.render_widget(
+        Paragraph::new(right).alignment(Alignment::Right),
+        regions[1],
+    );
+}
+
+fn shortcut_pills(
+    commands: ShortcutSet<'_>,
+    key_color: ratatui::style::Color,
+    background: ratatui::style::Color,
+    theme: TuiTheme,
+) -> Line<'static> {
     let mut spans = Vec::new();
-    for (key, action) in &commands {
-        spans.push(Span::raw("  "));
+    for (index, (key, action)) in commands.iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
+        // Standard Unicode half-circles form a capsule without requiring a
+        // Powerline or Nerd Font glyph.
+        spans.push(Span::styled("◗", Style::default().fg(background)));
         spans.push(Span::styled(
-            (*key).to_owned(),
+            format!(" {key}"),
             Style::default()
-                .fg(app.theme.accent)
+                .fg(key_color)
+                .bg(background)
                 .add_modifier(Modifier::BOLD),
         ));
-        spans.push(Span::raw(" "));
-        spans.push(Span::styled(
-            (*action).to_owned(),
-            Style::default().fg(app.theme.muted),
-        ));
+        if action.is_empty() {
+            spans.push(Span::styled(" ", Style::default().bg(background)));
+        } else {
+            spans.push(Span::styled(
+                format!(" {action} "),
+                Style::default().fg(theme.muted).bg(background),
+            ));
+        }
+        spans.push(Span::styled("◖", Style::default().fg(background)));
     }
-    frame.render_widget(Paragraph::new(Line::from(spans)), area);
+    Line::from(spans)
+}
+
+fn shortcut_pills_width(commands: ShortcutSet<'_>) -> usize {
+    commands
+        .iter()
+        .map(|(key, action)| {
+            // Two cap cells, two inner spaces, and an optional separator plus
+            // action label.
+            4 + text_width(key) as usize
+                + if action.is_empty() {
+                    0
+                } else {
+                    1 + text_width(action) as usize
+                }
+        })
+        .sum::<usize>()
+        + commands.len().saturating_sub(1)
 }
 
 fn draw_modal(frame: &mut Frame<'_>, app: &mut App, area: Rect) {

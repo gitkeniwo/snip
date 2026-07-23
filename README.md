@@ -20,8 +20,9 @@ cargo run --
 Use `/` to search, `Tab` to cycle panes, `h`/`←` and `l`/`→` to move back or
 drill in, and `j`/`k` to navigate. Moving through folders or tags filters the
 snippet list immediately. The top bar shows the active path, sort, list
-position, and fragment position; the muted bottom bar shows pane-specific
-commands or the active search/modal input.
+position, and fragment position. The pill-style bottom bar keeps global
+navigation/search/help on the left and pane-specific editing actions on the
+right; active search, status, or modal input temporarily takes over the row.
 
 The TUI provides complete local management: `n` creates snippets or folders;
 `e`/`E`/`R` edit content, note, or README; `r` renames; `m` moves; `t` edits
