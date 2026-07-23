@@ -17,12 +17,19 @@ cargo run -- --library ./Main.sniplib tui
 cargo run --
 ```
 
-Use `/` to search, `Tab` or `h`/`l` to change pane, `j`/`k` to navigate, `e`
-to edit, `y` to copy content, `Y` to copy the UUID, `r` to rescan, `?` for help,
-and `q` to quit. Moving through folders or tags in the Library pane filters the
-Snippets pane immediately; `Enter` transfers focus to the filtered results. A
-two-line status bar keeps the active mode, pane, filter, selection position, and
-available actions visible. The TUI is enabled by default; a slim agent build is
+Use `/` to search, `Tab` to cycle panes, `h`/`←` and `l`/`→` to move back or
+drill in, and `j`/`k` to navigate. Moving through folders or tags filters the
+snippet list immediately. The top bar shows the active path, sort, list
+position, and fragment position; the muted bottom bar shows pane-specific
+commands or the active search/modal input.
+
+The TUI provides complete local management: `n` creates snippets or folders;
+`e`/`E`/`R` edit content, note, or README; `r` renames; `m` moves; `t` edits
+tags; `p`/`L` toggle pin or lock; and `d` moves snippets to trash. `T` opens the
+restore/purge view, `s` changes sort order, `F5` or `Ctrl-r` rescans, and `?`
+shows the full key map. Preview source lines are numbered by default; `N`
+toggles line numbers. Mouse click, double-click, fragment-tab click, and wheel
+scrolling are supported. The TUI is enabled by default; a slim agent build is
 available with `cargo build --no-default-features`.
 
 On macOS, the TUI follows the system light/dark appearance and updates while it
@@ -116,6 +123,9 @@ snip config set pager 'less -R'
 snip config set default-language rust
 snip config set default-folder Agents/Generated
 snip config set default-tags 'ai,generated'
+snip config set tui-theme auto
+snip config set tui-sort modified
+snip config set tui-icons ascii
 snip config unset default-folder
 ```
 
@@ -133,7 +143,17 @@ pager = "less -R"
 default_language = "text"
 default_folder = ""
 default_tags = ["personal"]
+
+[tui]
+theme = "auto"             # auto | light | dark
+sort = "manual"            # manual | title | modified | created
+icons = "ascii"            # ascii | nerd; nerd falls back to ascii in v2
 ```
+
+`SNIP_TUI_THEME=light|dark` overrides `[tui].theme`. Unknown values under a
+future `[tui.colors]` table are preserved when the config is rewritten; custom
+palette consumption and actual Nerd Font glyphs are reserved for a later
+version.
 
 Config values are defaults only. Explicit CLI options override them. Library
 resolution is `--library` → `SNIP_LIBRARY` → nearest ancestor library →

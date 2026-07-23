@@ -4,11 +4,14 @@ pub mod editor;
 pub mod event;
 pub mod highlight;
 pub mod icons;
+pub mod layout;
+pub mod modal;
 pub mod preview;
 pub mod sidebar;
 pub mod snippet_list;
 pub mod state;
 pub mod theme;
+pub mod trash;
 pub mod ui;
 
 use std::io::{self, IsTerminal, Stdout};
@@ -18,7 +21,9 @@ use std::time::Duration;
 
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use ratatui::crossterm::event::{self as terminal_event, Event};
+use ratatui::crossterm::event::{
+    self as terminal_event, DisableMouseCapture, EnableMouseCapture, Event,
+};
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -48,11 +53,14 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     while !app.should_quit {
         terminal.draw(|frame| ui::draw(frame, &mut app))?;
         let mut effects = Vec::new();
-        if terminal_event::poll(Duration::from_millis(120))?
-            && let Event::Key(key) = terminal_event::read()?
-            && key.kind == ratatui::crossterm::event::KeyEventKind::Press
-        {
-            effects.extend(app.handle_key(key));
+        if terminal_event::poll(Duration::from_millis(120))? {
+            match terminal_event::read()? {
+                Event::Key(key) if key.kind == ratatui::crossterm::event::KeyEventKind::Press => {
+                    effects.extend(app.handle_key(key));
+                }
+                Event::Mouse(mouse) => app.handle_mouse(mouse),
+                _ => {}
+            }
         }
         let mut dirty = false;
         while receiver.try_recv().is_ok() {
@@ -148,7 +156,8 @@ impl Drop for TerminalGuard {
 
 fn setup_terminal() -> Result<()> {
     enable_raw_mode()?;
-    if let Err(error) = execute!(io::stdout(), EnterAlternateScreen) {
+    if let Err(error) = execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture) {
+        let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
         let _ = disable_raw_mode();
         return Err(error.into());
     }
@@ -157,7 +166,7 @@ fn setup_terminal() -> Result<()> {
 
 fn restore_terminal() {
     let _ = disable_raw_mode();
-    let _ = execute!(io::stdout(), LeaveAlternateScreen);
+    let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
 }
 
 struct PanicHookGuard {

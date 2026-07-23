@@ -1,7 +1,10 @@
 use clap::CommandFactory;
 use serde::Serialize;
 use serde_json::json;
-use snip::config::{AppConfig, ColorSetting, OutputSetting, PreviewRenderSetting, config_path};
+use snip::config::{
+    AppConfig, ColorSetting, OutputSetting, PreviewRenderSetting, TuiConfig, TuiIconSetting,
+    TuiSortSetting, TuiThemeSetting, config_path,
+};
 use snip::domain::Fingerprint;
 use snip::error::{Result, SnipError};
 use snip::importer::import_snippetslab;
@@ -735,6 +738,7 @@ fn command_config(args: &ConfigArgs, explicit_output: Option<OutputMode>) -> Res
                 preview_render: Some(PreviewRenderSetting::Ansi),
                 preview_pager: Some(false),
                 default_language: Some("text".to_owned()),
+                tui: Some(TuiConfig::default()),
                 ..AppConfig::default()
             };
             if let Some(library) = library {
@@ -820,6 +824,37 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
             let tags = value.split(',').map(str::to_owned).collect::<Vec<_>>();
             config.default_tags = snip::filesystem::normalize_tags(&tags)?;
         }
+        ConfigKey::TuiTheme => {
+            config.tui.get_or_insert_with(TuiConfig::default).theme =
+                match value.to_ascii_lowercase().as_str() {
+                    "auto" => TuiThemeSetting::Auto,
+                    "light" => TuiThemeSetting::Light,
+                    "dark" => TuiThemeSetting::Dark,
+                    _ => return Err(SnipError::usage("tui-theme must be auto, light, or dark")),
+                };
+        }
+        ConfigKey::TuiSort => {
+            config.tui.get_or_insert_with(TuiConfig::default).sort =
+                match value.to_ascii_lowercase().as_str() {
+                    "manual" => TuiSortSetting::Manual,
+                    "title" => TuiSortSetting::Title,
+                    "modified" => TuiSortSetting::Modified,
+                    "created" => TuiSortSetting::Created,
+                    _ => {
+                        return Err(SnipError::usage(
+                            "tui-sort must be manual, title, modified, or created",
+                        ));
+                    }
+                };
+        }
+        ConfigKey::TuiIcons => {
+            config.tui.get_or_insert_with(TuiConfig::default).icons =
+                match value.to_ascii_lowercase().as_str() {
+                    "ascii" => TuiIconSetting::Ascii,
+                    "nerd" => TuiIconSetting::Nerd,
+                    _ => return Err(SnipError::usage("tui-icons must be ascii or nerd")),
+                };
+        }
     }
     Ok(())
 }
@@ -836,6 +871,15 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         ConfigKey::DefaultLanguage => config.default_language = None,
         ConfigKey::DefaultFolder => config.default_folder = None,
         ConfigKey::DefaultTags => config.default_tags.clear(),
+        ConfigKey::TuiTheme => {
+            config.tui.get_or_insert_with(TuiConfig::default).theme = TuiThemeSetting::Auto
+        }
+        ConfigKey::TuiSort => {
+            config.tui.get_or_insert_with(TuiConfig::default).sort = TuiSortSetting::Manual
+        }
+        ConfigKey::TuiIcons => {
+            config.tui.get_or_insert_with(TuiConfig::default).icons = TuiIconSetting::Ascii
+        }
     }
 }
 

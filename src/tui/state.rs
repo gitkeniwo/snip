@@ -11,6 +11,35 @@ pub enum Pane {
     Preview,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SortMode {
+    #[default]
+    Manual,
+    Title,
+    Modified,
+    Created,
+}
+
+impl SortMode {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Manual => Self::Title,
+            Self::Title => Self::Modified,
+            Self::Modified => Self::Created,
+            Self::Created => Self::Manual,
+        }
+    }
+
+    pub fn indicator(self) -> Option<&'static str> {
+        match self {
+            Self::Manual => None,
+            Self::Title => Some("↑ title"),
+            Self::Modified => Some("↓ modified"),
+            Self::Created => Some("↓ created"),
+        }
+    }
+}
+
 impl Pane {
     pub fn next(self) -> Self {
         match self {
@@ -120,9 +149,4 @@ impl StatusMessage {
     pub fn expired(&self) -> bool {
         Instant::now() >= self.expires_at
     }
-}
-
-#[derive(Clone, Debug)]
-pub enum PendingPrompt {
-    ForceEdit(crate::tui::editor::EditRequest),
 }

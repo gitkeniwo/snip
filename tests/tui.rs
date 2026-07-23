@@ -2,14 +2,20 @@
 
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use snip::service::{CreateOptions, EditOptions, create_snippet, edit_snippet};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use snip::service::{
+    CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, edit_snippet,
+};
 use snip::tui::app::{App, Effect};
-use snip::tui::editor::{EditOutcome, force_save};
+use snip::tui::editor::{EditOutcome, EditTarget, force_save};
 use snip::tui::highlight::Highlighter;
-use snip::tui::state::{Pane, PendingPrompt, SidebarItem};
+use snip::tui::icons::IconMode;
+use snip::tui::modal::{Modal, ModalAction};
+use snip::tui::state::{Pane, SidebarItem, SortMode};
 use snip::tui::theme::{Appearance, TuiTheme};
-use snip::{AppConfig, Library};
+use snip::{AppConfig, Library, TuiConfig, TuiIconSetting, TuiSortSetting, TuiThemeSetting};
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
@@ -47,6 +53,46 @@ fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
 
 fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
+}
+
+fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
+    MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }
+}
+
+fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
+    (0..buffer.area.width)
+        .map(|x| buffer.cell((x, y)).unwrap().symbol())
+        .collect()
+}
+
+fn row_text_from(buffer: &ratatui::buffer::Buffer, y: u16, x_start: u16) -> String {
+    (x_start..buffer.area.width)
+        .map(|x| buffer.cell((x, y)).unwrap().symbol())
+        .collect()
+}
+
+fn replace_modal_input(app: &mut App, value: &str) {
+    let Some(Modal::Input(input)) = app.modal.as_mut() else {
+        panic!("expected input modal");
+    };
+    input.value = value.to_owned();
+    input.cursor = value.chars().count();
+}
+
+fn select_sidebar_item(app: &mut App, item: SidebarItem) {
+    let index = app
+        .sidebar
+        .rows
+        .iter()
+        .position(|row| row.item == item)
+        .unwrap();
+    app.sidebar.list_state.select(Some(index));
+    app.focus = Pane::Sidebar;
 }
 
 #[test]
@@ -139,6 +185,7 @@ fn edit_effect_captures_hash_and_conflict_can_force_save() {
             .position(|row| row.snippet_id == first_id)
             .unwrap(),
     ));
+    app.focus = Pane::List;
     let original_hash = app.selected_snippet().unwrap().fingerprint.clone();
     let effects = app.handle_key(key(KeyCode::Char('e')));
     let Effect::SpawnEditor(mut request) = effects.into_iter().next().unwrap() else {
@@ -158,7 +205,10 @@ fn edit_effect_captures_hash_and_conflict_can_force_save() {
     )
     .unwrap();
     app.handle_editor_outcome(EditOutcome::Conflict(request));
-    assert!(matches!(app.pending, Some(PendingPrompt::ForceEdit(_))));
+    assert!(matches!(
+        app.modal,
+        Some(Modal::Confirm(ref modal)) if matches!(modal.action, ModalAction::ForceEdit(_))
+    ));
     let effects = app.handle_key(key(KeyCode::Char('y')));
     let Effect::ForceSave(request) = effects.into_iter().next().unwrap() else {
         panic!("expected force-save effect");
@@ -193,28 +243,419 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("Snippets"));
     assert!(rendered.contains("Preview"));
     assert!(rendered.contains("Alpha Rust"));
-    assert!(rendered.contains("[rs]"));
-    assert!(rendered.contains("◆ Library"));
-    assert!(rendered.contains("NORMAL"));
-    assert!(rendered.contains("LIBRARY"));
-    assert!(rendered.contains("PANE"));
-    assert!(rendered.contains("MOVE"));
-    assert!(rendered.contains("SEARCH"));
-    assert!(rendered.contains("1/2"));
+    assert!(rendered.contains("snip"));
+    assert!(rendered.contains("~ › All snippets"));
+    assert!(rendered.contains("1/2 · 1/1"));
+    assert!(rendered.contains("Tab pane"));
+    assert!(rendered.contains("/ search"));
+    assert!(rendered.contains("001-Alpha Rust.rs rs"));
+    assert!(rendered.contains("1 │ fn alpha() {}"));
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer.cell((0, 0)).unwrap().symbol(), "┏");
-    assert_eq!(buffer.cell((24, 0)).unwrap().symbol(), "┌");
-    assert_eq!(buffer.cell((3, 1)).unwrap().bg, app.theme.selection_bg);
-    assert_eq!(buffer.cell((18, 28)).unwrap().bg, app.theme.bar_bg);
-    assert_eq!(buffer.cell((10, 29)).unwrap().bg, app.theme.bar_bg);
+    assert_eq!(buffer.cell((0, 1)).unwrap().symbol(), "╭");
+    assert_eq!(buffer.cell((24, 1)).unwrap().symbol(), "╭");
+    assert_eq!(buffer.cell((0, 1)).unwrap().fg, app.theme.accent);
+    assert_eq!(buffer.cell((24, 1)).unwrap().fg, app.theme.border);
+    assert_eq!(buffer.cell((3, 2)).unwrap().bg, app.theme.selection_bg);
+    assert_eq!(buffer.cell((12, 0)).unwrap().bg, app.theme.bar_bg);
+    assert_eq!(buffer.cell((26, 1)).unwrap().symbol(), "S");
+    assert_eq!(
+        buffer.cell((26, 2)).unwrap().symbol(),
+        "r",
+        "the badge starts directly below the S in Snippets"
+    );
+    assert_eq!(buffer.cell((29, 2)).unwrap().symbol(), "A");
+    assert_eq!(buffer.cell((29, 3)).unwrap().symbol(), "[");
+    assert!(row_text_from(buffer, 3, 29).starts_with("[Code > Rust]"));
+    assert_eq!(
+        buffer.cell((3, 7)).unwrap().symbol(),
+        "#",
+        "top-level tags should not inherit the folder icon gutter"
+    );
+
+    let metadata = row_text_from(buffer, 3, 54);
+    let tags = row_text_from(buffer, 4, 54);
+    assert!(metadata.contains("Code/Rust · "));
+    assert!(!metadata.contains("#dev"));
+    assert!(
+        tags.contains("#dev"),
+        "preview tags belong on their own row"
+    );
+    let preview = (8..20)
+        .map(|y| row_text(buffer, y))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(preview.find("Rust note").unwrap() < preview.find("fn alpha() {}").unwrap());
 
     app.handle_key(key(KeyCode::Tab));
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
     let buffer = terminal.backend().buffer();
-    assert_eq!(buffer.cell((0, 0)).unwrap().symbol(), "┌");
-    assert_eq!(buffer.cell((24, 0)).unwrap().symbol(), "┏");
+    assert_eq!(buffer.cell((0, 1)).unwrap().fg, app.theme.border);
+    assert_eq!(buffer.cell((24, 1)).unwrap().fg, app.theme.accent);
+    assert_eq!(buffer.cell((25, 2)).unwrap().symbol(), " ");
+    assert_eq!(buffer.cell((25, 2)).unwrap().bg, app.theme.selection_bg);
+
+    app.handle_key(key(KeyCode::Char('N')));
+    assert!(!app.show_line_numbers);
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(!rendered.contains("1 │ fn alpha() {}"));
+    assert!(rendered.contains("fn alpha() {}"));
+
+    app.handle_key(key(KeyCode::Char('?')));
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let rendered = buffer
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("NAVIGATION"));
+    assert!(rendered.contains("SNIPPETS"));
+    assert!(rendered.contains("LIBRARY & GLOBAL"));
+    assert!(rendered.contains("PREVIEW & MOUSE"));
+    assert_eq!(buffer.cell((11, 4)).unwrap().fg, app.theme.accent);
+    assert_eq!(buffer.cell((11, 9)).unwrap().fg, app.theme.accent_alt);
+}
+
+#[test]
+fn arrows_sort_and_mouse_use_the_rendered_layout() {
+    let (_temporary, library, first_id, second_id) = fixture();
+    create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Aardvark".to_owned(),
+            folder: Some("Code/Shell".to_owned()),
+            language: "text".to_owned(),
+            content: String::new(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+    add_fragment(
+        &library,
+        &first_id.to_string(),
+        &FragmentAddOptions {
+            title: "helper.sh".to_owned(),
+            language: "bash".to_owned(),
+            content: "echo helper\n".to_owned(),
+            ..FragmentAddOptions::default()
+        },
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+    app.sort = SortMode::Title;
+    app.refresh_visible();
+    assert_eq!(app.visible[0].snippet_id, first_id, "pinned remains first");
+    let second_title = app
+        .catalog
+        .snippets
+        .iter()
+        .find(|snippet| snippet.id == app.visible[1].snippet_id)
+        .map(|snippet| snippet.title.as_str());
+    assert_eq!(second_title, Some("Aardvark"));
+    app.handle_key(key(KeyCode::Char('s')));
+    assert_eq!(app.sort, SortMode::Modified);
+
+    app.handle_key(key(KeyCode::Right));
+    assert_eq!(app.focus, Pane::List);
+    app.handle_key(key(KeyCode::Right));
+    assert_eq!(app.focus, Pane::Preview);
+    app.handle_key(key(KeyCode::Left));
+    assert_eq!(app.focus, Pane::List);
+    app.handle_key(key(KeyCode::Left));
+    assert_eq!(app.focus, Pane::Sidebar);
+
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 3));
+    assert_eq!(app.focus, Pane::Sidebar);
+    assert_eq!(app.filter.folder.as_deref(), Some("Code"));
+
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 30, 4));
+    assert_eq!(app.focus, Pane::List);
+    assert!(app.selected_id.is_some());
+    app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 30, 4));
+    assert_eq!(app.focus, Pane::Preview, "second click drills into preview");
+
+    app.selected_id = Some(first_id);
+    app.list_state.select(
+        app.visible
+            .iter()
+            .position(|row| row.snippet_id == first_id),
+    );
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.layout.tab_count, 2);
+    let tab = app.layout.tab_spans[1];
+    app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        tab.0,
+        app.layout.preview_tabs.y,
+    ));
+    assert_eq!(app.fragment_index, 1);
+    app.handle_mouse(mouse(
+        MouseEventKind::ScrollDown,
+        app.layout.preview_content.x,
+        app.layout.preview_content.y,
+    ));
+    assert_eq!(app.preview_scroll, 3);
+    assert!(
+        app.catalog
+            .snippets
+            .iter()
+            .any(|snippet| snippet.id == second_id)
+    );
+}
+
+#[test]
+fn snippet_metadata_mutations_flow_through_modals() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library.clone(), &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+
+    app.handle_key(key(KeyCode::Char('r')));
+    replace_modal_input(&mut app, "Renamed Rust");
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.selected_snippet().unwrap().title, "Renamed Rust");
+
+    app.handle_key(key(KeyCode::Char('t')));
+    replace_modal_input(&mut app, "dev, cli");
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.selected_snippet().unwrap().tags, ["dev", "cli"]);
+
+    app.handle_key(key(KeyCode::Char('m')));
+    let Some(Modal::Picker(picker)) = app.modal.as_mut() else {
+        panic!("expected folder picker");
+    };
+    picker.selected = picker
+        .filtered()
+        .iter()
+        .position(|folder| *folder == "Code/Shell")
+        .unwrap();
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.selected_snippet().unwrap().folder, "Code/Shell");
+
+    let pinned = app.selected_snippet().unwrap().pinned;
+    app.handle_key(key(KeyCode::Char('p')));
+    assert_eq!(app.selected_snippet().unwrap().pinned, !pinned);
+    app.handle_key(key(KeyCode::Char('L')));
+    assert!(app.selected_snippet().unwrap().locked);
+    app.handle_key(key(KeyCode::Char('r')));
+    assert!(app.modal.is_none());
+    assert!(app.status.as_ref().unwrap().text.contains("locked"));
+    app.handle_key(key(KeyCode::Char('L')));
+    assert!(!app.selected_snippet().unwrap().locked);
+
+    app.handle_key(key(KeyCode::Char('d')));
+    assert!(matches!(app.modal, Some(Modal::Confirm(_))));
+    app.handle_key(key(KeyCode::Char('y')));
+    assert!(
+        !app.catalog
+            .snippets
+            .iter()
+            .any(|snippet| snippet.id == first_id)
+    );
+    assert_eq!(snip::service::trash_entries(&library).unwrap().len(), 1);
+}
+
+#[test]
+fn sidebar_folder_and_tag_management_reports_service_errors_in_modal() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+    select_sidebar_item(&mut app, SidebarItem::All);
+    app.handle_key(key(KeyCode::Char('n')));
+    replace_modal_input(&mut app, "Empty");
+    app.handle_key(key(KeyCode::Enter));
+    assert!(app.catalog.folders.contains(&"Empty".to_owned()));
+
+    select_sidebar_item(&mut app, SidebarItem::Folder("Empty".to_owned()));
+    app.handle_key(key(KeyCode::Char('r')));
+    replace_modal_input(&mut app, "Renamed Empty");
+    app.handle_key(key(KeyCode::Enter));
+    assert!(app.catalog.folders.contains(&"Renamed Empty".to_owned()));
+
+    select_sidebar_item(&mut app, SidebarItem::Folder("Renamed Empty".to_owned()));
+    app.handle_key(key(KeyCode::Char('d')));
+    app.handle_key(key(KeyCode::Char('y')));
+    assert!(!app.catalog.folders.contains(&"Renamed Empty".to_owned()));
+
+    select_sidebar_item(&mut app, SidebarItem::Folder("Code/Rust".to_owned()));
+    app.handle_key(key(KeyCode::Char('d')));
+    app.handle_key(key(KeyCode::Char('y')));
+    assert!(matches!(
+        app.modal,
+        Some(Modal::Confirm(ref modal)) if modal.error.as_deref().is_some_and(|error| error.contains("not empty"))
+    ));
+    app.handle_key(key(KeyCode::Esc));
+
+    select_sidebar_item(&mut app, SidebarItem::Tag("dev".to_owned()));
+    app.handle_key(key(KeyCode::Char('r')));
+    replace_modal_input(&mut app, "craft");
+    app.handle_key(key(KeyCode::Enter));
+    assert!(app.modal.is_none(), "rename failed: {:?}", app.modal);
+    assert!(
+        app.catalog.tags.contains(&"craft".to_owned()),
+        "catalog tags: {:?}",
+        app.catalog.tags
+    );
+    select_sidebar_item(&mut app, SidebarItem::Tag("craft".to_owned()));
+    app.handle_key(key(KeyCode::Char('d')));
+    app.handle_key(key(KeyCode::Char('y')));
+    assert!(!app.catalog.tags.contains(&"craft".to_owned()));
+}
+
+#[test]
+fn create_wizard_uses_defaults_and_opens_the_new_fragment_editor() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        default_language: Some("python".to_owned()),
+        default_folder: Some("Code/Rust".to_owned()),
+        default_tags: vec!["generated".to_owned()],
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    app.focus = Pane::List;
+
+    app.handle_key(key(KeyCode::Char('n')));
+    replace_modal_input(&mut app, "Generated helper");
+    app.handle_key(key(KeyCode::Enter));
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected folder picker");
+    };
+    assert_eq!(picker.selected_value().as_deref(), Some("Code/Rust"));
+    app.handle_key(key(KeyCode::Enter));
+    let Some(Modal::Input(language)) = app.modal.as_ref() else {
+        panic!("expected language input");
+    };
+    assert_eq!(language.value, "python");
+    let effects = app.handle_key(key(KeyCode::Enter));
+    let Effect::SpawnEditor(request) = effects.into_iter().next().unwrap() else {
+        panic!("expected editor for newly created snippet");
+    };
+    assert!(matches!(request.target, EditTarget::Content { .. }));
+    assert_eq!(request.original, "");
+    assert_eq!(request.suffix, "py");
+    let created = app.selected_snippet().unwrap();
+    assert_eq!(created.title, "Generated helper");
+    assert_eq!(created.folder, "Code/Rust");
+    assert_eq!(created.tags, ["generated"]);
+}
+
+#[test]
+fn tui_config_controls_theme_sort_and_portable_icon_fallback() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            theme: TuiThemeSetting::Light,
+            sort: TuiSortSetting::Title,
+            icons: TuiIconSetting::Nerd,
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let app = App::new(library, &config).unwrap();
+    assert_eq!(app.theme.appearance, Appearance::Light);
+    assert_eq!(app.sort, SortMode::Title);
+    assert_eq!(app.icon_mode, IconMode::Ascii);
+}
+
+#[test]
+fn note_and_readme_editor_targets_save_markdown() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library.clone(), &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+    app.selected_id = Some(first_id);
+    app.list_state.select(Some(
+        app.visible
+            .iter()
+            .position(|row| row.snippet_id == first_id)
+            .unwrap(),
+    ));
+
+    let effects = app.handle_key(key(KeyCode::Char('E')));
+    let Effect::SpawnEditor(mut note) = effects.into_iter().next().unwrap() else {
+        panic!("expected note editor");
+    };
+    assert!(matches!(note.target, EditTarget::Note { .. }));
+    assert_eq!(note.suffix, "md");
+    note.edited = Some("updated **note**\n".to_owned());
+    force_save(&library, &note).unwrap();
+    app.rescan().unwrap();
+    assert_eq!(
+        app.selected_snippet().unwrap().loaded_fragments[0]
+            .note_content
+            .as_deref(),
+        Some("updated **note**\n")
+    );
+
+    let effects = app.handle_key(key(KeyCode::Char('R')));
+    let Effect::SpawnEditor(mut readme) = effects.into_iter().next().unwrap() else {
+        panic!("expected readme editor");
+    };
+    assert_eq!(readme.target, EditTarget::Readme);
+    assert_eq!(readme.suffix, "md");
+    readme.edited = Some("# README\n".to_owned());
+    force_save(&library, &readme).unwrap();
+    app.rescan().unwrap();
+    assert_eq!(
+        app.selected_snippet().unwrap().readme.as_deref(),
+        Some("# README\n")
+    );
+}
+
+#[test]
+fn trash_overlay_restores_and_purges_entries() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+
+    app.handle_key(key(KeyCode::Char('d')));
+    app.handle_key(key(KeyCode::Char('y')));
+    app.handle_key(key(KeyCode::Char('T')));
+    assert!(app.trash.open);
+    assert_eq!(app.trash.entries.len(), 1);
+    app.handle_key(key(KeyCode::Char('u')));
+    assert!(
+        app.catalog
+            .snippets
+            .iter()
+            .any(|snippet| snippet.id == first_id)
+    );
+    assert!(app.trash.entries.is_empty());
+
+    app.handle_key(key(KeyCode::Esc));
+    app.selected_id = Some(first_id);
+    app.list_state.select(
+        app.visible
+            .iter()
+            .position(|row| row.snippet_id == first_id),
+    );
+    app.handle_key(key(KeyCode::Char('d')));
+    app.handle_key(key(KeyCode::Char('y')));
+    app.handle_key(key(KeyCode::Char('T')));
+    app.handle_key(key(KeyCode::Char('x')));
+    assert!(matches!(app.modal, Some(Modal::Confirm(_))));
+    app.handle_key(key(KeyCode::Char('y')));
+    assert!(app.trash.entries.is_empty());
 }
 
 #[cfg(unix)]
@@ -228,7 +669,9 @@ fn external_editor_command_saves_through_optimistic_service() {
     let fragment = &snippet.loaded_fragments[0];
     let request = snip::tui::editor::EditRequest {
         snippet_id: snippet.id,
-        fragment_id: fragment.id,
+        target: EditTarget::Content {
+            fragment_id: fragment.id,
+        },
         expected: snippet.fingerprint.clone(),
         original: fragment.content.clone(),
         edited: None,

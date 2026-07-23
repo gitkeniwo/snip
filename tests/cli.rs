@@ -161,6 +161,9 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         ("default-language", "rust"),
         ("default-folder", "Agents/Generated"),
         ("default-tags", "ai, generated, AI"),
+        ("tui-theme", "dark"),
+        ("tui-sort", "modified"),
+        ("tui-icons", "nerd"),
     ] {
         Command::cargo_bin("snip")
             .unwrap()

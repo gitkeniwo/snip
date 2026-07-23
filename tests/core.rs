@@ -4,7 +4,10 @@ use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, delete_snippet,
     doctor, edit_snippet, restore_snippet, trash_entries,
 };
-use snip::{AppConfig, ErrorKind, Fingerprint, Library, OutputSetting};
+use snip::{
+    AppConfig, ErrorKind, Fingerprint, Library, OutputSetting, TuiIconSetting, TuiSortSetting,
+    TuiThemeSetting,
+};
 use std::fs;
 use tempfile::TempDir;
 
@@ -238,17 +241,37 @@ fn config_round_trip_preserves_unknown_fields_and_normalizes_tags() {
     let path = temporary.path().join("config.toml");
     fs::write(
         &path,
-        r#"schema_version = 1
+        r##"schema_version = 1
 output = "json"
 default_tags = [" demo ", "DEMO", "Rust"]
 future_gui_layout = "wide"
-"#,
+
+[tui]
+theme = "light"
+sort = "modified"
+icons = "nerd"
+
+[tui.colors]
+accent = "#123456"
+"##,
     )
     .unwrap();
 
     let config = AppConfig::load_from(&path).unwrap();
     assert_eq!(config.output, Some(OutputSetting::Json));
     assert_eq!(config.default_tags, vec!["demo", "Rust"]);
+    let tui = config.tui.as_ref().unwrap();
+    assert_eq!(tui.theme, TuiThemeSetting::Light);
+    assert_eq!(tui.sort, TuiSortSetting::Modified);
+    assert_eq!(tui.icons, TuiIconSetting::Nerd);
+    assert_eq!(
+        tui.extra
+            .get("colors")
+            .and_then(|value| value.as_table())
+            .and_then(|colors| colors.get("accent"))
+            .and_then(|value| value.as_str()),
+        Some("#123456")
+    );
     assert_eq!(
         config
             .extra
@@ -260,4 +283,5 @@ future_gui_layout = "wide"
     config.save_to(&path).unwrap();
     let saved = fs::read_to_string(path).unwrap();
     assert!(saved.contains("future_gui_layout = \"wide\""));
+    assert!(saved.contains("accent = \"#123456\""));
 }

@@ -3,6 +3,8 @@ use std::process::Command;
 
 use ratatui::style::{Color, Modifier, Style};
 
+use crate::config::TuiThemeSetting;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Appearance {
     Light,
@@ -20,6 +22,8 @@ pub struct TuiTheme {
     pub selection_fg: Color,
     pub bar_bg: Color,
     pub bar_fg: Color,
+    pub tag: Color,
+    pub rule: Color,
     pub success: Color,
     pub warning: Color,
     pub error: Color,
@@ -27,7 +31,17 @@ pub struct TuiTheme {
 
 impl TuiTheme {
     pub fn detect() -> Self {
-        Self::for_appearance(detect_appearance())
+        Self::resolve(TuiThemeSetting::Auto)
+    }
+
+    pub fn resolve(setting: TuiThemeSetting) -> Self {
+        let environment = std::env::var("SNIP_TUI_THEME").ok();
+        Self::for_appearance(resolve_appearance(setting, environment.as_deref()))
+    }
+
+    /// Reserved for `[tui.colors]`; v2 deliberately keeps the built-in palette.
+    pub fn with_overrides(self, _overrides: &toml::Table) -> Self {
+        self
     }
 
     pub fn for_appearance(appearance: Appearance) -> Self {
@@ -42,6 +56,8 @@ impl TuiTheme {
                 selection_fg: Color::White,
                 bar_bg: Color::Rgb(225, 228, 232),
                 bar_fg: Color::Rgb(42, 47, 52),
+                tag: Color::Rgb(154, 100, 0),
+                rule: Color::Rgb(210, 214, 219),
                 success: Color::Rgb(0, 120, 70),
                 warning: Color::Rgb(174, 91, 0),
                 error: Color::Rgb(190, 38, 38),
@@ -56,6 +72,8 @@ impl TuiTheme {
                 selection_fg: Color::White,
                 bar_bg: Color::Rgb(36, 41, 47),
                 bar_fg: Color::Rgb(218, 223, 228),
+                tag: Color::Rgb(227, 179, 65),
+                rule: Color::Rgb(60, 66, 74),
                 success: Color::Rgb(63, 185, 80),
                 warning: Color::Rgb(227, 179, 65),
                 error: Color::Rgb(248, 81, 73),
@@ -73,18 +91,23 @@ impl TuiTheme {
     pub fn retained_selection(self) -> Style {
         Style::default()
             .fg(self.accent)
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            .add_modifier(Modifier::BOLD)
     }
 }
 
-fn detect_appearance() -> Appearance {
-    if let Ok(value) = std::env::var("SNIP_TUI_THEME") {
+fn resolve_appearance(setting: TuiThemeSetting, environment: Option<&str>) -> Appearance {
+    if let Some(value) = environment {
         if value.eq_ignore_ascii_case("light") {
             return Appearance::Light;
         }
         if value.eq_ignore_ascii_case("dark") {
             return Appearance::Dark;
         }
+    }
+    match setting {
+        TuiThemeSetting::Light => return Appearance::Light,
+        TuiThemeSetting::Dark => return Appearance::Dark,
+        TuiThemeSetting::Auto => {}
     }
 
     #[cfg(target_os = "macos")]
@@ -137,5 +160,23 @@ mod tests {
         assert_ne!(light.accent_alt, dark.accent_alt);
         assert_ne!(light.bar_bg, dark.bar_bg);
         assert_ne!(light.bar_fg, dark.bar_fg);
+        assert_ne!(light.tag, dark.tag);
+        assert_ne!(light.rule, dark.rule);
+    }
+
+    #[test]
+    fn environment_override_precedes_explicit_theme() {
+        assert_eq!(
+            resolve_appearance(TuiThemeSetting::Dark, Some("light")),
+            Appearance::Light
+        );
+        assert_eq!(
+            resolve_appearance(TuiThemeSetting::Light, Some("dark")),
+            Appearance::Dark
+        );
+        assert_eq!(
+            resolve_appearance(TuiThemeSetting::Dark, None),
+            Appearance::Dark
+        );
     }
 }

@@ -13,11 +13,18 @@ use crate::service::{EditOptions, edit_snippet};
 #[derive(Clone, Debug)]
 pub struct EditRequest {
     pub snippet_id: Uuid,
-    pub fragment_id: Uuid,
+    pub target: EditTarget,
     pub expected: Fingerprint,
     pub original: String,
     pub edited: Option<String>,
     pub suffix: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EditTarget {
+    Content { fragment_id: Uuid },
+    Note { fragment_id: Uuid },
+    Readme,
 }
 
 #[derive(Debug)]
@@ -69,17 +76,23 @@ fn save(library: &Library, request: &EditRequest, force: bool) -> Result<()> {
         .edited
         .as_ref()
         .ok_or_else(|| SnipError::usage("edited content is unavailable"))?;
-    edit_snippet(
-        library,
-        &request.snippet_id.to_string(),
-        &EditOptions {
-            fragment_selector: Some(request.fragment_id.to_string()),
-            content: Some(edited.clone()),
-            if_hash: (!force).then(|| request.expected.clone()),
-            force,
-            ..EditOptions::default()
-        },
-    )?;
+    let mut options = EditOptions {
+        if_hash: (!force).then(|| request.expected.clone()),
+        force,
+        ..EditOptions::default()
+    };
+    match &request.target {
+        EditTarget::Content { fragment_id } => {
+            options.fragment_selector = Some(fragment_id.to_string());
+            options.content = Some(edited.clone());
+        }
+        EditTarget::Note { fragment_id } => {
+            options.fragment_selector = Some(fragment_id.to_string());
+            options.note = Some(Some(edited.clone()));
+        }
+        EditTarget::Readme => options.readme = Some(Some(edited.clone())),
+    }
+    edit_snippet(library, &request.snippet_id.to_string(), &options)?;
     Ok(())
 }
 

@@ -1,25 +1,35 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::AppConfig;
+use crate::config::{AppConfig, TuiIconSetting, TuiSortSetting, TuiThemeSetting};
 use crate::domain::{CatalogSnapshot, Snippet};
-use crate::error::Result;
+use crate::error::{Result, SnipError};
 use crate::filesystem::Library;
 use crate::search::{MemoryIndex, SearchIndex};
+use crate::service::{
+    CreateOptions, EditOptions, create_folder, create_snippet, delete_folder, delete_snippet,
+    delete_tag, edit_snippet, move_folder, purge_snippet, rename_tag, restore_snippet,
+};
 
-use super::editor::{EditOutcome, EditRequest};
+use super::editor::{EditOutcome, EditRequest, EditTarget};
 use super::highlight::Highlighter;
+use super::icons::IconMode;
+use super::layout::{LayoutRects, contains, inner};
+use super::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerModal};
 use super::preview::PreviewCache;
 use super::sidebar;
 use super::state::{
-    Filter, Pane, PendingPrompt, SearchState, SidebarItem, SidebarState, StatusLevel,
-    StatusMessage, VisibleRow,
+    Filter, Pane, SearchState, SidebarItem, SidebarState, SortMode, StatusLevel, StatusMessage,
+    VisibleRow,
 };
 use super::theme::TuiTheme;
+use super::trash::TrashState;
 
 #[derive(Clone, Debug)]
 pub enum Effect {
@@ -41,22 +51,51 @@ pub struct App {
     pub selected_id: Option<Uuid>,
     pub fragment_index: usize,
     pub preview_scroll: u16,
+    pub show_line_numbers: bool,
+    pub sort: SortMode,
+    pub layout: LayoutRects,
     pub preview: PreviewCache,
     pub highlighter: Highlighter,
     pub theme: TuiTheme,
+    pub theme_setting: TuiThemeSetting,
+    pub theme_overrides: toml::Table,
+    pub icon_mode: IconMode,
     pub theme_checked_at: Instant,
     pub status: Option<StatusMessage>,
-    pub pending: Option<PendingPrompt>,
+    pub modal: Option<Modal>,
+    pub trash: TrashState,
     pub should_quit: bool,
     pub editor_cmd: Option<String>,
     pub show_help: bool,
+    pub default_language: String,
+    pub default_folder: Option<String>,
+    pub default_tags: Vec<String>,
+    last_click: Option<(usize, Instant)>,
 }
 
 impl App {
     pub fn new(library: Library, config: &AppConfig) -> Result<Self> {
         let catalog = library.scan()?;
         let index = MemoryIndex::new(catalog.clone());
-        let theme = TuiTheme::detect();
+        let tui = config.tui.clone().unwrap_or_default();
+        let theme_overrides = tui
+            .extra
+            .get("colors")
+            .and_then(toml::Value::as_table)
+            .cloned()
+            .unwrap_or_default();
+        let theme = TuiTheme::resolve(tui.theme).with_overrides(&theme_overrides);
+        let sort = match tui.sort {
+            TuiSortSetting::Manual => SortMode::Manual,
+            TuiSortSetting::Title => SortMode::Title,
+            TuiSortSetting::Modified => SortMode::Modified,
+            TuiSortSetting::Created => SortMode::Created,
+        };
+        let icon_mode = match tui.icons {
+            TuiIconSetting::Ascii => IconMode::Ascii,
+            TuiIconSetting::Nerd => IconMode::Nerd,
+        }
+        .effective();
         let mut app = Self {
             library,
             catalog,
@@ -70,15 +109,29 @@ impl App {
             selected_id: None,
             fragment_index: 0,
             preview_scroll: 0,
+            show_line_numbers: true,
+            sort,
+            layout: LayoutRects::default(),
             preview: PreviewCache::default(),
             highlighter: Highlighter::new(theme)?,
             theme,
+            theme_setting: tui.theme,
+            theme_overrides,
+            icon_mode,
             theme_checked_at: Instant::now(),
             status: None,
-            pending: None,
+            modal: None,
+            trash: TrashState::default(),
             should_quit: false,
             editor_cmd: config.editor.clone(),
             show_help: false,
+            default_language: config
+                .default_language
+                .clone()
+                .unwrap_or_else(|| "text".to_owned()),
+            default_folder: config.default_folder.clone(),
+            default_tags: config.default_tags.clone(),
+            last_click: None,
         };
         sidebar::rebuild(&mut app.sidebar, &app.catalog);
         app.refresh_visible();
@@ -98,17 +151,20 @@ impl App {
     }
 
     pub fn tick_status(&mut self) {
-        if self.pending.is_none() && self.status.as_ref().is_some_and(StatusMessage::expired) {
+        if self.modal.is_none() && self.status.as_ref().is_some_and(StatusMessage::expired) {
             self.status = None;
         }
     }
 
     pub fn tick_theme(&mut self) -> Result<()> {
+        if self.theme_setting != TuiThemeSetting::Auto {
+            return Ok(());
+        }
         if self.theme_checked_at.elapsed() < Duration::from_secs(5) {
             return Ok(());
         }
         self.theme_checked_at = Instant::now();
-        let theme = TuiTheme::detect();
+        let theme = TuiTheme::resolve(self.theme_setting).with_overrides(&self.theme_overrides);
         if theme.appearance != self.theme.appearance {
             self.highlighter = Highlighter::new(theme)?;
             self.theme = theme;
@@ -123,6 +179,9 @@ impl App {
         self.index = MemoryIndex::new(catalog);
         sidebar::rebuild(&mut self.sidebar, &self.catalog);
         self.refresh_visible();
+        if self.trash.open {
+            self.trash.reload(&self.library)?;
+        }
         Ok(())
     }
 
@@ -143,7 +202,26 @@ impl App {
                 .iter()
                 .filter(|snippet| allowed.contains(&snippet.id))
                 .collect::<Vec<_>>();
-            snippets.sort_by_key(|snippet| !snippet.pinned);
+            match self.sort {
+                SortMode::Manual => snippets.sort_by_key(|snippet| !snippet.pinned),
+                SortMode::Title => snippets.sort_by(|left, right| {
+                    (!left.pinned)
+                        .cmp(&(!right.pinned))
+                        .then_with(|| left.title.to_lowercase().cmp(&right.title.to_lowercase()))
+                }),
+                SortMode::Modified => snippets.sort_by(|left, right| {
+                    (!left.pinned)
+                        .cmp(&(!right.pinned))
+                        .then_with(|| compare_optional_desc(&left.modified_at, &right.modified_at))
+                }),
+                // `created_at` is emitted in RFC3339 UTC form by snip, so lexical
+                // ordering is chronological. Imported mixed offsets may differ slightly.
+                SortMode::Created => snippets.sort_by(|left, right| {
+                    (!left.pinned)
+                        .cmp(&(!right.pinned))
+                        .then_with(|| right.created_at.cmp(&left.created_at))
+                }),
+            }
             snippets
                 .into_iter()
                 .map(|snippet| VisibleRow {
@@ -196,8 +274,8 @@ impl App {
             self.should_quit = true;
             return Vec::new();
         }
-        if self.pending.is_some() {
-            return self.handle_prompt(key);
+        if self.modal.is_some() {
+            return self.handle_modal_key(key);
         }
         if self.search.active {
             return self.handle_search(key);
@@ -210,12 +288,15 @@ impl App {
             }
             return Vec::new();
         }
+        if self.trash.open {
+            return self.handle_trash_key(key);
+        }
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Tab => self.focus = self.focus.next(),
             KeyCode::BackTab => self.focus = self.focus.previous(),
-            KeyCode::Char('h') => self.focus = self.focus.previous(),
-            KeyCode::Char('l') => self.focus = self.focus.next(),
+            KeyCode::Char('h') | KeyCode::Left => self.drill_back(),
+            KeyCode::Char('l') | KeyCode::Right => self.drill_forward(),
             KeyCode::Char('/') => self.search.active = true,
             KeyCode::Esc => {
                 if self.show_help {
@@ -229,11 +310,38 @@ impl App {
                 }
             }
             KeyCode::Char('?') => self.show_help = !self.show_help,
-            KeyCode::Char('r') => match self.rescan() {
-                Ok(()) => self.set_status("library refreshed", StatusLevel::Info),
-                Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
-            },
-            KeyCode::Char('e') => return self.edit_effect(),
+            KeyCode::F(5) | KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                match self.rescan() {
+                    Ok(()) => self.set_status("library refreshed", StatusLevel::Info),
+                    Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+                }
+            }
+            KeyCode::Char('s') => {
+                self.sort = self.sort.next();
+                self.refresh_visible();
+            }
+            KeyCode::Char('e') if self.focus != Pane::Sidebar => return self.edit_effect(),
+            KeyCode::Char('E') if self.focus != Pane::Sidebar => return self.edit_note_effect(),
+            KeyCode::Char('R') if self.focus != Pane::Sidebar => return self.edit_readme_effect(),
+            KeyCode::Char('n') => self.open_new_for_context(),
+            KeyCode::Char('d') => self.open_delete_for_context(),
+            KeyCode::Char('r') => self.open_rename_for_context(),
+            KeyCode::Char('m') if self.focus != Pane::Sidebar => self.open_move_snippet(),
+            KeyCode::Char('t') if self.focus != Pane::Sidebar => self.open_edit_tags(),
+            KeyCode::Char('p') if self.focus != Pane::Sidebar => self.toggle_pin(),
+            KeyCode::Char('L') if self.focus != Pane::Sidebar => self.toggle_lock(),
+            KeyCode::Char('N') => {
+                self.show_line_numbers = !self.show_line_numbers;
+                self.set_status(
+                    if self.show_line_numbers {
+                        "line numbers on"
+                    } else {
+                        "line numbers off"
+                    },
+                    StatusLevel::Info,
+                );
+            }
+            KeyCode::Char('T') => self.open_trash(),
             KeyCode::Char('y') => return self.copy_content_effect(),
             KeyCode::Char('Y') => return self.copy_id_effect(),
             KeyCode::Char('[') => self.previous_fragment(),
@@ -241,6 +349,20 @@ impl App {
             _ => self.handle_pane_key(key),
         }
         Vec::new()
+    }
+
+    pub fn handle_mouse(&mut self, event: MouseEvent) {
+        if self.modal.is_some() || self.trash.open || self.show_help || self.search.active {
+            return;
+        }
+        match event.kind {
+            MouseEventKind::ScrollUp => self.scroll_at(event.column, event.row, -1),
+            MouseEventKind::ScrollDown => self.scroll_at(event.column, event.row, 1),
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.click_at(event.column, event.row);
+            }
+            _ => {}
+        }
     }
 
     pub fn handle_editor_outcome(&mut self, outcome: EditOutcome) {
@@ -252,15 +374,16 @@ impl App {
                 if let Err(error) = self.rescan() {
                     self.set_status(error.to_string(), StatusLevel::Error);
                 } else {
-                    self.set_status("fragment saved", StatusLevel::Info);
+                    self.set_status("snippet saved", StatusLevel::Info);
                 }
             }
             EditOutcome::Conflict(request) => {
-                self.pending = Some(PendingPrompt::ForceEdit(request));
-                self.set_status(
-                    "changed on disk while editing — y: overwrite, n: discard",
-                    StatusLevel::Error,
-                );
+                self.modal = Some(Modal::Confirm(ConfirmModal::new(
+                    "Overwrite changed snippet?",
+                    "The snippet changed on disk while the editor was open.",
+                    ModalAction::ForceEdit(request),
+                    true,
+                )));
             }
         }
     }
@@ -286,21 +409,510 @@ impl App {
             .map_or("", |snippet| snippet.title.as_str())
     }
 
-    fn handle_prompt(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            KeyCode::Char('y') | KeyCode::Char('Y') => {
-                let Some(PendingPrompt::ForceEdit(request)) = self.pending.take() else {
-                    return Vec::new();
-                };
-                vec![Effect::ForceSave(request)]
+    fn handle_modal_key(&mut self, key: KeyEvent) -> Vec<Effect> {
+        let mut submit = false;
+        let mut cancel = false;
+        if let Some(modal) = self.modal.as_mut() {
+            match modal {
+                Modal::Input(input) => match key.code {
+                    KeyCode::Enter => submit = true,
+                    KeyCode::Esc => cancel = true,
+                    KeyCode::Left => input.cursor = input.cursor.saturating_sub(1),
+                    KeyCode::Right => {
+                        input.cursor = (input.cursor + 1).min(input.value.chars().count())
+                    }
+                    KeyCode::Home => input.cursor = 0,
+                    KeyCode::End => input.cursor = input.value.chars().count(),
+                    KeyCode::Backspace => input.backspace(),
+                    KeyCode::Delete => input.delete(),
+                    KeyCode::Char(value)
+                        if !key
+                            .modifiers
+                            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                    {
+                        input.insert(value)
+                    }
+                    _ => {}
+                },
+                Modal::Confirm(_) => match key.code {
+                    KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => submit = true,
+                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => cancel = true,
+                    _ => {}
+                },
+                Modal::Picker(picker) => match key.code {
+                    KeyCode::Enter => submit = true,
+                    KeyCode::Esc => cancel = true,
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        picker.selected = picker
+                            .selected
+                            .saturating_add(1)
+                            .min(picker.filtered().len().saturating_sub(1));
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        picker.selected = picker.selected.saturating_sub(1)
+                    }
+                    KeyCode::Home => picker.selected = 0,
+                    KeyCode::End => picker.selected = picker.filtered().len().saturating_sub(1),
+                    KeyCode::Backspace => {
+                        picker.filter.pop();
+                        picker.clamp();
+                        picker.error = None;
+                    }
+                    KeyCode::Char(value)
+                        if !key
+                            .modifiers
+                            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                    {
+                        picker.filter.push(value);
+                        picker.selected = 0;
+                        picker.error = None;
+                    }
+                    _ => {}
+                },
             }
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                self.pending = None;
+        }
+        if cancel {
+            let force_edit = self
+                .modal
+                .as_ref()
+                .is_some_and(|modal| matches!(modal.action(), ModalAction::ForceEdit(_)));
+            self.modal = None;
+            if force_edit {
                 self.set_status("edited content discarded", StatusLevel::Info);
+            }
+            return Vec::new();
+        }
+        if submit {
+            return self.submit_modal();
+        }
+        Vec::new()
+    }
+
+    fn submit_modal(&mut self) -> Vec<Effect> {
+        let Some(mut modal) = self.modal.take() else {
+            return Vec::new();
+        };
+        let action = modal.action().clone();
+        let value = match &modal {
+            Modal::Input(input) => Some(input.value.clone()),
+            Modal::Confirm(_) => None,
+            Modal::Picker(picker) => picker.selected_value(),
+        };
+        if matches!(modal, Modal::Picker(_)) && value.is_none() {
+            modal.set_error("no matching item");
+            self.modal = Some(modal);
+            return Vec::new();
+        }
+        match self.perform_modal_action(action, value.as_deref()) {
+            Ok((effects, message)) => {
+                if !message.is_empty() {
+                    self.set_status(message, StatusLevel::Info);
+                }
+                effects
+            }
+            Err(error) => {
+                modal.set_error(error.to_string());
+                self.modal = Some(modal);
                 Vec::new()
             }
-            _ => Vec::new(),
         }
+    }
+
+    fn perform_modal_action(
+        &mut self,
+        action: ModalAction,
+        value: Option<&str>,
+    ) -> Result<(Vec<Effect>, String)> {
+        let input = || {
+            value
+                .map(str::trim)
+                .ok_or_else(|| SnipError::usage("modal input is unavailable"))
+        };
+        let message = match action {
+            ModalAction::RenameSnippet { id } => {
+                edit_snippet(
+                    &self.library,
+                    &id.to_string(),
+                    &EditOptions {
+                        title: Some(input()?.to_owned()),
+                        ..EditOptions::default()
+                    },
+                )?;
+                "snippet renamed".to_owned()
+            }
+            ModalAction::MoveSnippet { id } => {
+                let folder = input()?;
+                edit_snippet(
+                    &self.library,
+                    &id.to_string(),
+                    &EditOptions {
+                        folder: Some(if folder == "~" { "" } else { folder }.to_owned()),
+                        ..EditOptions::default()
+                    },
+                )?;
+                "snippet moved".to_owned()
+            }
+            ModalAction::EditTags { id } => {
+                let tags = input()?
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|tag| !tag.is_empty())
+                    .map(ToOwned::to_owned)
+                    .collect::<Vec<_>>();
+                edit_snippet(
+                    &self.library,
+                    &id.to_string(),
+                    &EditOptions {
+                        tags: Some(tags),
+                        ..EditOptions::default()
+                    },
+                )?;
+                "tags updated".to_owned()
+            }
+            ModalAction::DeleteSnippet { id } => {
+                delete_snippet(&self.library, &id.to_string(), None, false)?;
+                "snippet moved to trash".to_owned()
+            }
+            ModalAction::ForceEdit(request) => {
+                return Ok((vec![Effect::ForceSave(request)], String::new()));
+            }
+            ModalAction::CreateTitle => {
+                let title = input()?;
+                if title.is_empty() {
+                    return Err(SnipError::usage("snippet title cannot be empty"));
+                }
+                let mut folders = vec!["~".to_owned()];
+                folders.extend(self.catalog.folders.iter().cloned());
+                let preferred = self
+                    .filter
+                    .folder
+                    .as_ref()
+                    .or(self.default_folder.as_ref())
+                    .map_or("~", String::as_str);
+                let mut picker = PickerModal::new(
+                    "Create in folder",
+                    folders,
+                    ModalAction::CreateFolder {
+                        title: title.to_owned(),
+                    },
+                );
+                picker.selected = picker
+                    .items
+                    .iter()
+                    .position(|folder| folder == preferred)
+                    .unwrap_or(0);
+                self.modal = Some(Modal::Picker(picker));
+                return Ok((Vec::new(), String::new()));
+            }
+            ModalAction::CreateFolder { title } => {
+                let folder = input()?;
+                self.modal = Some(Modal::Input(InputModal::new(
+                    "Language",
+                    self.default_language.clone(),
+                    ModalAction::CreateLanguage {
+                        title,
+                        folder: if folder == "~" { "" } else { folder }.to_owned(),
+                    },
+                )));
+                return Ok((Vec::new(), String::new()));
+            }
+            ModalAction::CreateLanguage { title, folder } => {
+                let created = create_snippet(
+                    &self.library,
+                    &CreateOptions {
+                        title,
+                        folder: (!folder.is_empty()).then_some(folder),
+                        tags: self.default_tags.clone(),
+                        language: input()?.to_owned(),
+                        content: String::new(),
+                        ..CreateOptions::default()
+                    },
+                )?;
+                let fragment = created
+                    .loaded_fragments
+                    .first()
+                    .ok_or_else(|| SnipError::validation("new snippet has no fragment"))?;
+                let suffix = std::path::Path::new(&fragment.file)
+                    .extension()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("txt")
+                    .to_owned();
+                let request = EditRequest {
+                    snippet_id: created.id,
+                    target: EditTarget::Content {
+                        fragment_id: fragment.id,
+                    },
+                    expected: created.fingerprint.clone(),
+                    original: fragment.content.clone(),
+                    edited: None,
+                    suffix,
+                };
+                self.rescan()?;
+                self.selected_id = Some(created.id);
+                if let Some(index) = self
+                    .visible
+                    .iter()
+                    .position(|row| row.snippet_id == created.id)
+                {
+                    self.list_state.select(Some(index));
+                }
+                self.focus = Pane::List;
+                return Ok((
+                    vec![Effect::SpawnEditor(request)],
+                    "snippet created".to_owned(),
+                ));
+            }
+            ModalAction::CreateFolderUnder { .. } => {
+                create_folder(&self.library, input()?)?;
+                "folder created".to_owned()
+            }
+            ModalAction::RenameFolder { path } => {
+                move_folder(&self.library, &path, input()?)?;
+                "folder renamed".to_owned()
+            }
+            ModalAction::DeleteFolder { path } => {
+                delete_folder(&self.library, &path)?;
+                "folder deleted".to_owned()
+            }
+            ModalAction::RenameTag { tag } => {
+                let count = rename_tag(&self.library, &tag, input()?)?;
+                format!("tag renamed in {count} snippets")
+            }
+            ModalAction::DeleteTag { tag } => {
+                let count = delete_tag(&self.library, &tag)?;
+                format!("tag removed from {count} snippets")
+            }
+            ModalAction::PurgeSnippet { entry_id } => {
+                purge_snippet(&self.library, &entry_id)?;
+                self.trash.reload(&self.library)?;
+                "trash entry permanently deleted".to_owned()
+            }
+        };
+        self.rescan()?;
+        Ok((Vec::new(), message))
+    }
+
+    fn open_new_for_context(&mut self) {
+        if self.focus != Pane::Sidebar {
+            self.modal = Some(Modal::Input(InputModal::new(
+                "Title",
+                "",
+                ModalAction::CreateTitle,
+            )));
+            return;
+        }
+        let parent = match self.sidebar.selected().map(|row| &row.item) {
+            Some(SidebarItem::Folder(path)) => Some(path.clone()),
+            Some(SidebarItem::All) => None,
+            _ => {
+                self.set_status(
+                    "select a folder before creating a subfolder",
+                    StatusLevel::Error,
+                );
+                return;
+            }
+        };
+        let value = parent
+            .as_ref()
+            .map_or(String::new(), |path| format!("{path}/"));
+        self.modal = Some(Modal::Input(InputModal::new(
+            "New folder",
+            value,
+            ModalAction::CreateFolderUnder {
+                parent: parent.unwrap_or_default(),
+            },
+        )));
+    }
+
+    fn open_delete_for_context(&mut self) {
+        if self.focus == Pane::Sidebar {
+            let selected = self.sidebar.selected().cloned();
+            match selected.map(|row| row.item) {
+                Some(SidebarItem::Folder(path)) => {
+                    self.modal = Some(Modal::Confirm(ConfirmModal::new(
+                        "Delete folder?",
+                        format!("Delete empty folder {path:?}?"),
+                        ModalAction::DeleteFolder { path },
+                        true,
+                    )));
+                }
+                Some(SidebarItem::Tag(tag)) => {
+                    let count = self.sidebar.selected().map_or(0, |row| row.count);
+                    self.modal = Some(Modal::Confirm(ConfirmModal::new(
+                        "Delete tag?",
+                        format!("Remove #{tag} from {count} snippets?"),
+                        ModalAction::DeleteTag { tag },
+                        true,
+                    )));
+                }
+                _ => {}
+            }
+            return;
+        }
+        let Some(snippet) = self.mutable_selected() else {
+            return;
+        };
+        self.modal = Some(Modal::Confirm(ConfirmModal::new(
+            "Move snippet to trash?",
+            format!("Delete {:?}? It can be restored from Trash.", snippet.title),
+            ModalAction::DeleteSnippet { id: snippet.id },
+            true,
+        )));
+    }
+
+    fn open_rename_for_context(&mut self) {
+        if self.focus == Pane::Sidebar {
+            let selected = self.sidebar.selected().cloned();
+            match selected.map(|row| row.item) {
+                Some(SidebarItem::Folder(path)) => {
+                    self.modal = Some(Modal::Input(InputModal::new(
+                        "Rename folder",
+                        path.clone(),
+                        ModalAction::RenameFolder { path },
+                    )));
+                }
+                Some(SidebarItem::Tag(tag)) => {
+                    self.modal = Some(Modal::Input(InputModal::new(
+                        "Rename tag",
+                        tag.clone(),
+                        ModalAction::RenameTag { tag },
+                    )));
+                }
+                _ => {}
+            }
+            return;
+        }
+        let Some(snippet) = self.mutable_selected() else {
+            return;
+        };
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Rename",
+            snippet.title.clone(),
+            ModalAction::RenameSnippet { id: snippet.id },
+        )));
+    }
+
+    fn open_move_snippet(&mut self) {
+        let Some(snippet) = self.mutable_selected() else {
+            return;
+        };
+        let mut folders = vec!["~".to_owned()];
+        folders.extend(self.catalog.folders.iter().cloned());
+        self.modal = Some(Modal::Picker(PickerModal::new(
+            "Move to folder",
+            folders,
+            ModalAction::MoveSnippet { id: snippet.id },
+        )));
+    }
+
+    fn open_edit_tags(&mut self) {
+        let Some(snippet) = self.mutable_selected() else {
+            return;
+        };
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Tags",
+            snippet.tags.join(", "),
+            ModalAction::EditTags { id: snippet.id },
+        )));
+    }
+
+    fn toggle_pin(&mut self) {
+        let Some(snippet) = self.selected_snippet().cloned() else {
+            return;
+        };
+        let result = edit_snippet(
+            &self.library,
+            &snippet.id.to_string(),
+            &EditOptions {
+                pinned: Some(!snippet.pinned),
+                force: snippet.locked,
+                ..EditOptions::default()
+            },
+        );
+        self.finish_direct_mutation(result.map(|_| "pin updated"));
+    }
+
+    fn toggle_lock(&mut self) {
+        let Some(snippet) = self.selected_snippet().cloned() else {
+            return;
+        };
+        let result = edit_snippet(
+            &self.library,
+            &snippet.id.to_string(),
+            &EditOptions {
+                locked: Some(!snippet.locked),
+                force: snippet.locked,
+                ..EditOptions::default()
+            },
+        );
+        self.finish_direct_mutation(result.map(|_| "lock updated"));
+    }
+
+    fn finish_direct_mutation<T>(&mut self, result: Result<T>) {
+        match result {
+            Ok(_) => match self.rescan() {
+                Ok(()) => self.set_status("snippet updated", StatusLevel::Info),
+                Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+            },
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
+    fn mutable_selected(&mut self) -> Option<Snippet> {
+        let snippet = self.selected_snippet()?.clone();
+        if snippet.locked {
+            self.set_status("snippet is locked", StatusLevel::Error);
+            None
+        } else {
+            Some(snippet)
+        }
+    }
+
+    fn open_trash(&mut self) {
+        match self.trash.open(&self.library) {
+            Ok(()) => self.status = None,
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
+    fn handle_trash_key(&mut self, key: KeyEvent) -> Vec<Effect> {
+        match key.code {
+            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Esc | KeyCode::Char('T') => self.trash.open = false,
+            KeyCode::Char('j') | KeyCode::Down => self.trash.move_selection(1),
+            KeyCode::Char('k') | KeyCode::Up => self.trash.move_selection(-1),
+            KeyCode::Char('g') | KeyCode::Home => self.trash.selected = 0,
+            KeyCode::Char('G') | KeyCode::End => {
+                self.trash.selected = self.trash.entries.len().saturating_sub(1)
+            }
+            KeyCode::Enter | KeyCode::Char('u') => {
+                let Some(entry) = self.trash.selected().cloned() else {
+                    return Vec::new();
+                };
+                match restore_snippet(&self.library, &entry.entry_id, None) {
+                    Ok(_) => match self.rescan() {
+                        Ok(()) => self.set_status("snippet restored", StatusLevel::Info),
+                        Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+                    },
+                    Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+                }
+            }
+            KeyCode::Char('x') => {
+                let Some(entry) = self.trash.selected().cloned() else {
+                    return Vec::new();
+                };
+                self.modal = Some(Modal::Confirm(ConfirmModal::new(
+                    "Permanently delete?",
+                    format!("Purge {:?}? This cannot be undone.", entry.title),
+                    ModalAction::PurgeSnippet {
+                        entry_id: entry.entry_id,
+                    },
+                    true,
+                )));
+            }
+            _ => {}
+        }
+        Vec::new()
     }
 
     fn handle_search(&mut self, key: KeyEvent) -> Vec<Effect> {
@@ -389,6 +1001,110 @@ impl App {
                 self.preview_scroll = self.preview_scroll.saturating_sub(10)
             }
             _ => {}
+        }
+    }
+
+    fn drill_back(&mut self) {
+        match self.focus {
+            Pane::Preview => self.focus = Pane::List,
+            Pane::List => self.focus = Pane::Sidebar,
+            Pane::Sidebar => {
+                let folder = self.sidebar.selected().and_then(|row| match &row.item {
+                    SidebarItem::Folder(folder) if row.expanded => Some(folder.clone()),
+                    _ => None,
+                });
+                if let Some(folder) = folder {
+                    self.sidebar.expanded.remove(&folder);
+                    sidebar::rebuild(&mut self.sidebar, &self.catalog);
+                    self.sync_sidebar_filter();
+                }
+            }
+        }
+    }
+
+    fn drill_forward(&mut self) {
+        match self.focus {
+            Pane::Sidebar => self.apply_sidebar_filter(),
+            Pane::List => self.focus = Pane::Preview,
+            Pane::Preview => {}
+        }
+    }
+
+    fn click_at(&mut self, column: u16, row: u16) {
+        if contains(self.layout.sidebar, column, row) {
+            let content = inner(self.layout.sidebar);
+            if !contains(content, column, row) {
+                self.focus = Pane::Sidebar;
+                return;
+            }
+            let index = self.sidebar.list_state.offset() + (row - content.y) as usize;
+            if index >= self.sidebar.rows.len() {
+                return;
+            }
+            self.sidebar.list_state.select(Some(index));
+            self.focus = Pane::Sidebar;
+            let fold_column = content
+                .x
+                .saturating_add(self.sidebar.rows[index].depth.saturating_mul(2) as u16);
+            if self.sidebar.rows[index].has_children && column <= fold_column.saturating_add(1) {
+                self.toggle_sidebar_folder();
+            } else {
+                self.sync_sidebar_filter();
+            }
+            return;
+        }
+        if contains(self.layout.list, column, row) {
+            let content = inner(self.layout.list);
+            if !contains(content, column, row) {
+                self.focus = Pane::List;
+                return;
+            }
+            let index = self.list_state.offset() + ((row - content.y) / 2) as usize;
+            if index >= self.visible.len() {
+                return;
+            }
+            self.select_list(index);
+            self.focus = Pane::List;
+            let now = Instant::now();
+            let double = self.last_click.is_some_and(|(previous, at)| {
+                previous == index && now.duration_since(at) < Duration::from_millis(500)
+            });
+            self.last_click = Some((index, now));
+            if double {
+                self.focus = Pane::Preview;
+            }
+            return;
+        }
+        if contains(self.layout.preview_tabs, column, row) {
+            for (index, (start, end)) in self.layout.tab_spans[..self.layout.tab_count]
+                .iter()
+                .enumerate()
+            {
+                if column >= *start && column < *end {
+                    self.fragment_index = index;
+                    self.preview_scroll = 0;
+                    self.preview.invalidate();
+                    self.focus = Pane::Preview;
+                    return;
+                }
+            }
+        }
+        if contains(self.layout.preview, column, row) {
+            self.focus = Pane::Preview;
+        }
+    }
+
+    fn scroll_at(&mut self, column: u16, row: u16, direction: isize) {
+        if contains(self.layout.sidebar, column, row) {
+            self.move_sidebar(direction);
+        } else if contains(self.layout.list, column, row) {
+            self.move_list(direction);
+        } else if contains(self.layout.preview, column, row) {
+            if direction < 0 {
+                self.preview_scroll = self.preview_scroll.saturating_sub(3);
+            } else {
+                self.preview_scroll = self.preview_scroll.saturating_add(3);
+            }
         }
     }
 
@@ -530,11 +1246,46 @@ impl App {
             .to_owned();
         vec![Effect::SpawnEditor(EditRequest {
             snippet_id: snippet.id,
-            fragment_id: fragment.id,
+            target: EditTarget::Content {
+                fragment_id: fragment.id,
+            },
             expected: snippet.fingerprint.clone(),
             original: fragment.content.clone(),
             edited: None,
             suffix,
+        })]
+    }
+
+    fn edit_note_effect(&mut self) -> Vec<Effect> {
+        let Some(snippet) = self.mutable_selected() else {
+            return Vec::new();
+        };
+        let Some(fragment) = snippet.loaded_fragments.get(self.fragment_index) else {
+            return Vec::new();
+        };
+        vec![Effect::SpawnEditor(EditRequest {
+            snippet_id: snippet.id,
+            target: EditTarget::Note {
+                fragment_id: fragment.id,
+            },
+            expected: snippet.fingerprint.clone(),
+            original: fragment.note_content.clone().unwrap_or_default(),
+            edited: None,
+            suffix: "md".to_owned(),
+        })]
+    }
+
+    fn edit_readme_effect(&mut self) -> Vec<Effect> {
+        let Some(snippet) = self.mutable_selected() else {
+            return Vec::new();
+        };
+        vec![Effect::SpawnEditor(EditRequest {
+            snippet_id: snippet.id,
+            target: EditTarget::Readme,
+            expected: snippet.fingerprint.clone(),
+            original: snippet.readme.clone().unwrap_or_default(),
+            edited: None,
+            suffix: "md".to_owned(),
         })]
     }
 
@@ -557,5 +1308,14 @@ impl App {
             })
             .into_iter()
             .collect()
+    }
+}
+
+fn compare_optional_desc(left: &Option<String>, right: &Option<String>) -> std::cmp::Ordering {
+    match (left, right) {
+        (Some(left), Some(right)) => right.cmp(left),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
     }
 }

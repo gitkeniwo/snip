@@ -469,6 +469,9 @@ pub enum ConfigKey {
     DefaultLanguage,
     DefaultFolder,
     DefaultTags,
+    TuiTheme,
+    TuiSort,
+    TuiIcons,
 }
 
 #[cfg(test)]

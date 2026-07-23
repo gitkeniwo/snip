@@ -1,5 +1,19 @@
 use crate::domain::Snippet;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum IconMode {
+    #[default]
+    Ascii,
+    Nerd,
+}
+
+impl IconMode {
+    /// Nerd Font glyphs are intentionally deferred; v2 remains portable.
+    pub fn effective(self) -> Self {
+        Self::Ascii
+    }
+}
+
 /// A portable, fixed-width alternative to Nerd Font private-use glyphs.
 pub fn snippet_badge(snippet: &Snippet) -> &'static str {
     let Some(first) = snippet.loaded_fragments.first() else {

@@ -689,8 +689,14 @@ pub fn rename_tag(library: &Library, old: &str, new: &str) -> Result<usize> {
         .find(|tag| tag.name.eq_ignore_ascii_case(old))
     {
         tag.name = replacement.to_owned();
-        library.write_tag_registry(&registry)?;
     }
+    // Editing snippets registers the replacement tag before the old registry
+    // entry is renamed. Collapse that temporary duplicate atomically.
+    let mut seen = HashSet::new();
+    registry
+        .tags
+        .retain(|tag| seen.insert(tag.name.to_lowercase()));
+    library.write_tag_registry(&registry)?;
     Ok(changed)
 }
 

@@ -31,6 +31,45 @@ pub enum PreviewRenderSetting {
     Html,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TuiThemeSetting {
+    #[default]
+    Auto,
+    Light,
+    Dark,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TuiSortSetting {
+    #[default]
+    Manual,
+    Title,
+    Modified,
+    Created,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TuiIconSetting {
+    #[default]
+    Ascii,
+    Nerd,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TuiConfig {
+    #[serde(default)]
+    pub theme: TuiThemeSetting,
+    #[serde(default)]
+    pub sort: TuiSortSetting,
+    #[serde(default)]
+    pub icons: TuiIconSetting,
+    #[serde(flatten)]
+    pub extra: toml::Table,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub schema_version: u32,
@@ -54,6 +93,8 @@ pub struct AppConfig {
     pub default_folder: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub default_tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tui: Option<TuiConfig>,
     #[serde(flatten)]
     pub extra: toml::Table,
 }
@@ -72,6 +113,7 @@ impl Default for AppConfig {
             default_language: None,
             default_folder: None,
             default_tags: Vec::new(),
+            tui: None,
             extra: toml::Table::new(),
         }
     }
