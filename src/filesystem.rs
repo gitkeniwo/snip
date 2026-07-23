@@ -227,9 +227,7 @@ impl Library {
             }
         }
         if changed {
-            registry
-                .tags
-                .sort_by_key(|left| left.name.to_lowercase());
+            registry.tags.sort_by_key(|left| left.name.to_lowercase());
             self.write_tag_registry(&registry)?;
         }
         Ok(())
