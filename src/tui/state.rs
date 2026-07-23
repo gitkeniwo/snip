@@ -11,32 +11,17 @@ pub enum Pane {
     Preview,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum SortMode {
-    #[default]
-    Manual,
-    Title,
-    Modified,
-    Created,
-}
+/// Shared with `snip list --sort` and the `[tui] sort` config key so both surfaces
+/// name and apply the same orders.
+pub use crate::sort::SortMode;
 
-impl SortMode {
-    pub fn next(self) -> Self {
-        match self {
-            Self::Manual => Self::Title,
-            Self::Title => Self::Modified,
-            Self::Modified => Self::Created,
-            Self::Created => Self::Manual,
-        }
-    }
-
-    pub fn indicator(self) -> Option<&'static str> {
-        match self {
-            Self::Manual => None,
-            Self::Title => Some("↑ title"),
-            Self::Modified => Some("↓ modified"),
-            Self::Created => Some("↓ created"),
-        }
+/// Top-bar badge for the active sort. `Manual` is the default, so it stays unlabelled.
+pub fn sort_indicator(sort: SortMode) -> Option<&'static str> {
+    match sort {
+        SortMode::Manual => None,
+        SortMode::Title => Some("↑ title"),
+        SortMode::Modified => Some("↓ modified"),
+        SortMode::Created => Some("↓ created"),
     }
 }
 

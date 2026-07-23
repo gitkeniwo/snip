@@ -71,7 +71,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     Span::styled("/ ", Style::default().fg(app.theme.accent)),
                     Span::raw(picker.filter.clone()),
                     Span::styled(
-                        "  Enter select  Esc cancel",
+                        "  ↑/↓ move  Enter select  Esc cancel",
                         Style::default().fg(app.theme.muted),
                     ),
                 ])),
@@ -144,17 +144,18 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         match app.focus {
             Pane::Sidebar => (
                 &[
-                    ("n", "new"),
+                    ("n", "create"),
                     ("r", "rename"),
+                    ("m", "move"),
                     ("d", "delete"),
                     ("s", "sort"),
                 ],
-                &[("n", "new"), ("r", "rename"), ("d", "delete")],
+                &[("n", "create"), ("r", "rename"), ("d", "delete")],
                 &[("n", ""), ("r", ""), ("d", "")],
             ),
             Pane::List => (
                 &[
-                    ("n", "new"),
+                    ("n", "create"),
                     ("e", "edit"),
                     ("v", "vscode"),
                     ("r", "rename"),
@@ -162,7 +163,12 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     ("t", "tags"),
                     ("P", "path"),
                 ],
-                &[("n", "new"), ("e", "edit"), ("v", "vscode"), ("P", "path")],
+                &[
+                    ("n", "create"),
+                    ("e", "edit"),
+                    ("v", "vscode"),
+                    ("P", "path"),
+                ],
                 &[("n", ""), ("e", ""), ("v", ""), ("P", "")],
             ),
             Pane::Preview => (

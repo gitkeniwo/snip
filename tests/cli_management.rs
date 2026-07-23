@@ -224,3 +224,50 @@ fn cli_reports_selector_ambiguity_and_jsonl_records() {
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout).lines().count(), 2);
 }
+
+#[test]
+fn list_sort_and_open_share_the_tui_vocabulary() {
+    let temporary = tempfile::tempdir_in(".").unwrap();
+    let library = temporary.path().join("Sort.sniplib");
+    json(&library, &["init", library.to_str().unwrap()]);
+
+    for title in ["Charlie", "Alpha", "Bravo"] {
+        json(
+            &library,
+            &["create", "--title", title, "--language", "text"],
+        );
+    }
+    // Pinning must win over every sort mode, exactly as the TUI list does.
+    json(&library, &["edit", "Charlie", "--pin"]);
+
+    let titles = |mode: &str| -> Vec<String> {
+        let value = json(&library, &["list", "--sort", mode]);
+        value
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["title"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(titles("title"), ["Charlie", "Alpha", "Bravo"]);
+    assert_eq!(titles("created")[0], "Charlie");
+    assert_eq!(titles("modified")[0], "Charlie");
+
+    let rejected = command(&library, &["list", "--sort", "nonsense"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+
+    // `snip open` is the CLI counterpart of the TUI's `v` key: same target flags as
+    // `snip path`, but the resolved path is handed to an application.
+    let expected = command(&library, &["path", "Alpha"]).output().unwrap();
+    let expected = String::from_utf8_lossy(&expected.stdout).trim().to_owned();
+    let opened = json(&library, &["open", "Alpha", "--app", "true"]);
+    assert_eq!(opened["opened"].as_str().unwrap(), expected);
+    assert_eq!(opened["app"].as_str().unwrap(), "true");
+
+    let missing_app = command(&library, &["open", "Alpha", "--app", "snip-no-such-binary"])
+        .output()
+        .unwrap();
+    assert!(!missing_app.status.success());
+}

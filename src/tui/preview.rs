@@ -228,11 +228,7 @@ fn draw_preview_header(
     );
     let metadata = vec![
         Span::styled(
-            if snippet.folder.is_empty() {
-                "~".to_owned()
-            } else {
-                snippet.folder.clone()
-            },
+            crate::domain::folder_label(&snippet.folder).to_owned(),
             Style::default().fg(app.theme.muted),
         ),
         Span::styled(" · ", Style::default().fg(app.theme.muted)),
@@ -248,7 +244,10 @@ fn draw_preview_header(
     let current_fragment = app.fragment_index.saturating_add(1).min(total_fragments);
 
     if total_fragments > 1 {
-        fragments_spans.push(Span::styled("frag ", Style::default().fg(app.theme.accent)));
+        fragments_spans.push(Span::styled(
+            "fragment ",
+            Style::default().fg(app.theme.accent),
+        ));
         fragments_spans.push(Span::styled(
             format!("{current_fragment}/{total_fragments}"),
             Style::default()
@@ -269,7 +268,10 @@ fn draw_preview_header(
         ));
         fragments_spans.push(Span::styled(" · ", Style::default().fg(app.theme.rule)));
     } else {
-        fragments_spans.push(Span::styled("frag ", Style::default().fg(app.theme.accent)));
+        fragments_spans.push(Span::styled(
+            "fragment ",
+            Style::default().fg(app.theme.accent),
+        ));
         fragments_spans.push(Span::styled(
             "1/1",
             Style::default()

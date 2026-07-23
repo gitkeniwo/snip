@@ -9,7 +9,7 @@ use super::theme::TuiTheme;
 use super::widgets;
 
 pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
-    let popup = widgets::centered_rect(108, 39, area);
+    let popup = widgets::centered_rect(108, 40, area);
     frame.render_widget(Clear, popup);
     let block = Block::default()
         .title(Line::from(" Help ").centered())
@@ -27,7 +27,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
         Constraint::Length(1),
         Constraint::Length(8),
         Constraint::Length(1),
-        Constraint::Length(6),
+        Constraint::Length(7),
         Constraint::Length(1),
         Constraint::Length(4),
         Constraint::Min(0),
@@ -78,7 +78,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
         help_panel(
             "SNIPPETS",
             &[
-                ("n", "new snippet"),
+                ("n", "create snippet"),
                 ("e", "edit content"),
                 ("v", "open in vscode"),
                 ("E", "edit note"),
@@ -90,7 +90,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
                 ("p", "toggle pin"),
                 ("L", "toggle lock"),
                 ("y", "copy content"),
-                ("Y", "copy UUID"),
+                ("Y", "copy ID"),
                 ("P", "copy path"),
             ],
             theme.accent_alt,
@@ -103,8 +103,9 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
         help_panel(
             "LIBRARY & GLOBAL",
             &[
-                ("n", "new child folder"),
+                ("n", "create folder"),
                 ("r", "rename folder or tag"),
+                ("m", "move folder"),
                 ("d", "delete folder or tag"),
                 ("/", "search"),
                 ("s", "cycle sort"),

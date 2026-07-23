@@ -3,9 +3,9 @@ use serde::Serialize;
 use serde_json::json;
 use snip::config::{
     AppConfig, ColorSetting, OutputSetting, PreviewRenderSetting, TuiConfig, TuiIconSetting,
-    TuiSortSetting, TuiThemeSetting, config_path,
+    TuiThemeSetting, config_path,
 };
-use snip::domain::Fingerprint;
+use snip::domain::{Fingerprint, folder_label};
 use snip::error::{Result, SnipError};
 use snip::importer::import_snippetslab;
 use snip::render::{RenderMode, preview};
@@ -16,6 +16,7 @@ use snip::service::{
     edit_fragment, edit_snippet, move_folder, organize, purge_snippet, remove_fragment, rename_tag,
     reorder_fragment, replace_manifest_text, restore_snippet, trash_entries,
 };
+use snip::sort::SortMode;
 use snip::{CatalogSnapshot, Library, Snippet};
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
@@ -61,6 +62,7 @@ pub fn run(cli: &Cli) -> Result<()> {
         Command::Tui => snip::tui::run(library, &config),
         Command::Info => command_info(&library, output),
         Command::List(args) => command_list(&library, args, output),
+        Command::Open(args) => command_open(&library, args, output, &config),
         Command::Search(args) => command_search(&library, args, output),
         Command::Show(args) => command_show(&library, args, output),
         Command::Cat(args) => command_cat(&library, args),
@@ -173,7 +175,8 @@ fn command_info(library: &Library, output: OutputMode) -> Result<()> {
 
 fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) -> Result<()> {
     let catalog = library.scan()?;
-    let snippets = filter_snippets(&catalog, args.folder.as_deref(), args.tag.as_deref());
+    let mut snippets = filter_snippets(&catalog, args.folder.as_deref(), args.tag.as_deref());
+    snippets.sort_by(|left, right| args.sort.compare(left, right));
     let rows = snippets.iter().map(snippet_summary).collect::<Vec<_>>();
     if output == OutputMode::Human {
         for snippet in snippets {
@@ -181,11 +184,7 @@ fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) -> Res
                 "{}  {}  [{}]  {}",
                 &snippet.id.simple().to_string()[..8],
                 snippet.title,
-                if snippet.folder.is_empty() {
-                    "Uncategorized"
-                } else {
-                    &snippet.folder
-                },
+                folder_label(&snippet.folder),
                 snippet.tags.join(", ")
             );
         }
@@ -224,14 +223,7 @@ fn command_show(library: &Library, args: &SelectorArgs, output: OutputMode) -> R
     if output == OutputMode::Human {
         println!("ID: {}", snippet.id);
         println!("Title: {}", snippet.title);
-        println!(
-            "Folder: {}",
-            if snippet.folder.is_empty() {
-                "Uncategorized"
-            } else {
-                &snippet.folder
-            }
-        );
+        println!("Folder: {}", folder_label(&snippet.folder));
         println!("Tags: {}", snippet.tags.join(", "));
         println!("Created: {}", snippet.created_at);
         println!(
@@ -310,22 +302,74 @@ fn command_preview(
     Ok(())
 }
 
-fn command_path(library: &Library, args: &PathArgs) -> Result<()> {
+/// Resolve the managed path a selector plus target flags point at. Shared by
+/// `snip path` and `snip open` so both accept the same targets.
+fn resolve_managed_path(
+    library: &Library,
+    selector: &str,
+    metadata: bool,
+    readme: bool,
+    fragment: Option<&str>,
+) -> Result<PathBuf> {
     let catalog = library.scan()?;
-    let snippet = library.resolve_snippet(&catalog, &args.selector)?;
-    let path = if args.metadata {
+    let snippet = library.resolve_snippet(&catalog, selector)?;
+    Ok(if metadata {
         snippet.package_path.join("snippet.toml")
-    } else if args.readme {
+    } else if readme {
         snippet.package_path.join("README.md")
-    } else if let Some(fragment) = &args.fragment {
+    } else if let Some(fragment) = fragment {
         library
             .resolve_fragment(snippet, Some(fragment))?
             .absolute_path
             .clone()
     } else {
         snippet.package_path.clone()
-    };
+    })
+}
+
+fn command_path(library: &Library, args: &PathArgs) -> Result<()> {
+    let path = resolve_managed_path(
+        library,
+        &args.selector,
+        args.metadata,
+        args.readme,
+        args.fragment.as_deref(),
+    )?;
     println!("{}", path.display());
+    Ok(())
+}
+
+fn command_open(
+    library: &Library,
+    args: &OpenArgs,
+    output: OutputMode,
+    config: &AppConfig,
+) -> Result<()> {
+    let path = resolve_managed_path(
+        library,
+        &args.selector,
+        args.metadata,
+        args.readme,
+        args.fragment.as_deref(),
+    )?;
+    let app = args
+        .app
+        .as_deref()
+        .or(config.vscode_cmd.as_deref())
+        .unwrap_or("code");
+    let parts = shlex::split(app)
+        .filter(|parts| !parts.is_empty())
+        .ok_or_else(|| SnipError::usage(format!("invalid app command: {app:?}")))?;
+    ProcessCommand::new(&parts[0])
+        .args(&parts[1..])
+        .arg(&path)
+        .spawn()
+        .map_err(|error| SnipError::io(format!("cannot launch {:?}: {error}", parts[0])))?;
+    if output == OutputMode::Human {
+        println!("opened: {}", path.display());
+    } else {
+        print_record(&json!({"opened": path, "app": parts[0]}), output)?;
+    }
     Ok(())
 }
 
@@ -836,10 +880,10 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
         ConfigKey::TuiSort => {
             config.tui.get_or_insert_with(TuiConfig::default).sort =
                 match value.to_ascii_lowercase().as_str() {
-                    "manual" => TuiSortSetting::Manual,
-                    "title" => TuiSortSetting::Title,
-                    "modified" => TuiSortSetting::Modified,
-                    "created" => TuiSortSetting::Created,
+                    "manual" => SortMode::Manual,
+                    "title" => SortMode::Title,
+                    "modified" => SortMode::Modified,
+                    "created" => SortMode::Created,
                     _ => {
                         return Err(SnipError::usage(
                             "tui-sort must be manual, title, modified, or created",
@@ -875,7 +919,7 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
             config.tui.get_or_insert_with(TuiConfig::default).theme = TuiThemeSetting::Auto
         }
         ConfigKey::TuiSort => {
-            config.tui.get_or_insert_with(TuiConfig::default).sort = TuiSortSetting::Manual
+            config.tui.get_or_insert_with(TuiConfig::default).sort = SortMode::Manual
         }
         ConfigKey::TuiIcons => {
             config.tui.get_or_insert_with(TuiConfig::default).icons = TuiIconSetting::Ascii

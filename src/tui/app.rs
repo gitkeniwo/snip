@@ -8,7 +8,7 @@ use ratatui::crossterm::event::{
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::{AppConfig, TuiIconSetting, TuiSortSetting, TuiThemeSetting};
+use crate::config::{AppConfig, TuiIconSetting, TuiThemeSetting};
 use crate::domain::{CatalogSnapshot, Snippet};
 use crate::error::{Result, SnipError};
 use crate::filesystem::Library;
@@ -23,7 +23,7 @@ use super::editor::{EditOutcome, EditRequest, EditTarget};
 use super::highlight::Highlighter;
 use super::icons::IconMode;
 use super::layout::{LayoutRects, contains, inner};
-use super::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerModal};
+use super::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerItem, PickerModal};
 use super::preview::PreviewCache;
 use super::selection::{PreviewSelection, SelectionPoint};
 use super::sidebar;
@@ -91,12 +91,7 @@ impl App {
             .cloned()
             .unwrap_or_default();
         let theme = TuiTheme::resolve(tui.theme).with_overrides(&theme_overrides);
-        let sort = match tui.sort {
-            TuiSortSetting::Manual => SortMode::Manual,
-            TuiSortSetting::Title => SortMode::Title,
-            TuiSortSetting::Modified => SortMode::Modified,
-            TuiSortSetting::Created => SortMode::Created,
-        };
+        let sort = tui.sort;
         let icon_mode = match tui.icons {
             TuiIconSetting::Ascii => IconMode::Ascii,
             TuiIconSetting::Nerd => IconMode::Nerd,
@@ -211,26 +206,8 @@ impl App {
                 .iter()
                 .filter(|snippet| allowed.contains(&snippet.id))
                 .collect::<Vec<_>>();
-            match self.sort {
-                SortMode::Manual => snippets.sort_by_key(|snippet| !snippet.pinned),
-                SortMode::Title => snippets.sort_by(|left, right| {
-                    (!left.pinned)
-                        .cmp(&(!right.pinned))
-                        .then_with(|| left.title.to_lowercase().cmp(&right.title.to_lowercase()))
-                }),
-                SortMode::Modified => snippets.sort_by(|left, right| {
-                    (!left.pinned)
-                        .cmp(&(!right.pinned))
-                        .then_with(|| compare_optional_desc(&left.modified_at, &right.modified_at))
-                }),
-                // `created_at` is emitted in RFC3339 UTC form by snip, so lexical
-                // ordering is chronological. Imported mixed offsets may differ slightly.
-                SortMode::Created => snippets.sort_by(|left, right| {
-                    (!left.pinned)
-                        .cmp(&(!right.pinned))
-                        .then_with(|| right.created_at.cmp(&left.created_at))
-                }),
-            }
+            let sort = self.sort;
+            snippets.sort_by(|left, right| sort.compare(left, right));
             snippets
                 .into_iter()
                 .map(|snippet| VisibleRow {
@@ -336,7 +313,7 @@ impl App {
             KeyCode::Char('n') => self.open_new_for_context(),
             KeyCode::Char('d') => self.open_delete_for_context(),
             KeyCode::Char('r') => self.open_rename_for_context(),
-            KeyCode::Char('m') if self.focus != Pane::Sidebar => self.open_move_snippet(),
+            KeyCode::Char('m') => self.open_move_for_context(),
             KeyCode::Char('t') if self.focus != Pane::Sidebar => self.open_edit_tags(),
             KeyCode::Char('p') if self.focus != Pane::Sidebar => self.toggle_pin(),
             KeyCode::Char('L') if self.focus != Pane::Sidebar => self.toggle_lock(),
@@ -501,13 +478,23 @@ impl App {
                 Modal::Picker(picker) => match key.code {
                     KeyCode::Enter => submit = true,
                     KeyCode::Esc => cancel = true,
-                    KeyCode::Char('j') | KeyCode::Down => {
+                    // The filter is a text field, so `j`/`k` must stay typable: folder
+                    // names like "Docker" would otherwise be unreachable. Navigate with
+                    // the arrows or Ctrl-n/Ctrl-p instead.
+                    KeyCode::Down => {
                         picker.selected = picker
                             .selected
                             .saturating_add(1)
                             .min(picker.filtered().len().saturating_sub(1));
                     }
-                    KeyCode::Char('k') | KeyCode::Up => {
+                    KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        picker.selected = picker
+                            .selected
+                            .saturating_add(1)
+                            .min(picker.filtered().len().saturating_sub(1));
+                    }
+                    KeyCode::Up => picker.selected = picker.selected.saturating_sub(1),
+                    KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         picker.selected = picker.selected.saturating_sub(1)
                     }
                     KeyCode::Home => picker.selected = 0,
@@ -600,12 +587,11 @@ impl App {
                 "snippet renamed".to_owned()
             }
             ModalAction::MoveSnippet { id } => {
-                let folder = input()?;
                 edit_snippet(
                     &self.library,
                     &id.to_string(),
                     &EditOptions {
-                        folder: Some(if folder == "~" { "" } else { folder }.to_owned()),
+                        folder: Some(input()?.to_owned()),
                         ..EditOptions::default()
                     },
                 )?;
@@ -640,17 +626,15 @@ impl App {
                 if title.is_empty() {
                     return Err(SnipError::usage("snippet title cannot be empty"));
                 }
-                let mut folders = vec!["~".to_owned()];
-                folders.extend(self.catalog.folders.iter().cloned());
                 let preferred = self
                     .filter
                     .folder
-                    .as_ref()
-                    .or(self.default_folder.as_ref())
-                    .map_or("~", String::as_str);
+                    .as_deref()
+                    .or(self.default_folder.as_deref())
+                    .unwrap_or_default();
                 let mut picker = PickerModal::new(
                     "Create in folder",
-                    folders,
+                    self.folder_picker_items(),
                     ModalAction::CreateFolder {
                         title: title.to_owned(),
                     },
@@ -658,19 +642,18 @@ impl App {
                 picker.selected = picker
                     .items
                     .iter()
-                    .position(|folder| folder == preferred)
+                    .position(|item| item.value == preferred)
                     .unwrap_or(0);
                 self.modal = Some(Modal::Picker(picker));
                 return Ok((Vec::new(), String::new()));
             }
             ModalAction::CreateFolder { title } => {
-                let folder = input()?;
                 self.modal = Some(Modal::Input(InputModal::new(
                     "Language",
                     self.default_language.clone(),
                     ModalAction::CreateLanguage {
                         title,
-                        folder: if folder == "~" { "" } else { folder }.to_owned(),
+                        folder: input()?.to_owned(),
                     },
                 )));
                 return Ok((Vec::new(), String::new()));
@@ -725,9 +708,42 @@ impl App {
                 create_folder(&self.library, input()?)?;
                 "folder created".to_owned()
             }
+            // Mirrors `snip folder rename`: the new name is a single path component and
+            // the folder keeps its parent. Reparenting is `MoveFolder` / `snip folder move`.
             ModalAction::RenameFolder { path } => {
-                move_folder(&self.library, &path, input()?)?;
+                let name = input()?;
+                if name.is_empty() {
+                    return Err(SnipError::usage("folder name cannot be empty"));
+                }
+                if std::path::Path::new(name).components().count() != 1 {
+                    return Err(SnipError::usage(
+                        "new folder name must be one path component",
+                    ));
+                }
+                let target = std::path::Path::new(&path)
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new(""))
+                    .join(name);
+                move_folder(&self.library, &path, &target.to_string_lossy())?;
                 "folder renamed".to_owned()
+            }
+            // Mirrors `snip folder move`: the picked destination becomes the new parent.
+            ModalAction::MoveFolder { path } => {
+                let parent = input()?;
+                let name = std::path::Path::new(&path)
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .ok_or_else(|| SnipError::usage("folder has no name"))?;
+                let target = if parent.is_empty() {
+                    name.to_owned()
+                } else {
+                    format!("{parent}/{name}")
+                };
+                if target == path {
+                    return Err(SnipError::usage("folder is already in that location"));
+                }
+                move_folder(&self.library, &path, &target)?;
+                "folder moved".to_owned()
             }
             ModalAction::DeleteFolder { path } => {
                 delete_folder(&self.library, &path)?;
@@ -775,7 +791,7 @@ impl App {
             .as_ref()
             .map_or(String::new(), |path| format!("{path}/"));
         self.modal = Some(Modal::Input(InputModal::new(
-            "New folder",
+            "Create folder",
             value,
             ModalAction::CreateFolderUnder {
                 parent: parent.unwrap_or_default(),
@@ -824,9 +840,16 @@ impl App {
             let selected = self.sidebar.selected().cloned();
             match selected.map(|row| row.item) {
                 Some(SidebarItem::Folder(path)) => {
+                    // Like `snip folder rename`, this edits the folder name only; the
+                    // parent path is fixed. Use `m` to reparent.
+                    let name = std::path::Path::new(&path)
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or(&path)
+                        .to_owned();
                     self.modal = Some(Modal::Input(InputModal::new(
                         "Rename folder",
-                        path.clone(),
+                        name,
                         ModalAction::RenameFolder { path },
                     )));
                 }
@@ -851,15 +874,41 @@ impl App {
         )));
     }
 
-    fn open_move_snippet(&mut self) {
+    /// Destination rows for every folder picker: the library root shown under the same
+    /// `Uncategorized` label the CLI prints, then each folder path.
+    fn folder_picker_items(&self) -> Vec<PickerItem> {
+        let mut items = vec![PickerItem::new(crate::domain::UNCATEGORIZED, "")];
+        items.extend(self.catalog.folders.iter().map(PickerItem::plain));
+        items
+    }
+
+    fn open_move_for_context(&mut self) {
+        if self.focus == Pane::Sidebar {
+            let Some(SidebarItem::Folder(path)) = self.sidebar.selected().map(|row| &row.item)
+            else {
+                return;
+            };
+            let path = path.clone();
+            // A folder cannot move inside itself, and the root is spelled `Uncategorized`
+            // to match `snip list`.
+            let items = self
+                .folder_picker_items()
+                .into_iter()
+                .filter(|item| item.value != path && !item.value.starts_with(&format!("{path}/")))
+                .collect::<Vec<_>>();
+            self.modal = Some(Modal::Picker(PickerModal::new(
+                "Move folder into",
+                items,
+                ModalAction::MoveFolder { path },
+            )));
+            return;
+        }
         let Some(snippet) = self.mutable_selected() else {
             return;
         };
-        let mut folders = vec!["~".to_owned()];
-        folders.extend(self.catalog.folders.iter().cloned());
         self.modal = Some(Modal::Picker(PickerModal::new(
             "Move to folder",
-            folders,
+            self.folder_picker_items(),
             ModalAction::MoveSnippet { id: snippet.id },
         )));
     }
@@ -1383,7 +1432,7 @@ impl App {
         self.selected_snippet()
             .map(|snippet| Effect::CopyToClipboard {
                 text: snippet.id.to_string(),
-                label: "snippet UUID".to_owned(),
+                label: "snippet ID".to_owned(),
             })
             .into_iter()
             .collect()
@@ -1418,14 +1467,5 @@ impl App {
             })
             .into_iter()
             .collect()
-    }
-}
-
-fn compare_optional_desc(left: &Option<String>, right: &Option<String>) -> std::cmp::Ordering {
-    match (left, right) {
-        (Some(left), Some(right)) => right.cmp(left),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => std::cmp::Ordering::Equal,
     }
 }

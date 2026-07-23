@@ -5,7 +5,7 @@ use snip::service::{
     doctor, edit_snippet, restore_snippet, trash_entries,
 };
 use snip::{
-    AppConfig, ErrorKind, Fingerprint, Library, OutputSetting, TuiIconSetting, TuiSortSetting,
+    AppConfig, ErrorKind, Fingerprint, Library, OutputSetting, SortMode, TuiIconSetting,
     TuiThemeSetting,
 };
 use std::fs;
@@ -262,7 +262,7 @@ accent = "#123456"
     assert_eq!(config.default_tags, vec!["demo", "Rust"]);
     let tui = config.tui.as_ref().unwrap();
     assert_eq!(tui.theme, TuiThemeSetting::Light);
-    assert_eq!(tui.sort, TuiSortSetting::Modified);
+    assert_eq!(tui.sort, SortMode::Modified);
     assert_eq!(tui.icons, TuiIconSetting::Nerd);
     assert_eq!(
         tui.extra

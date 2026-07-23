@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{Result, SnipError};
 use crate::filesystem::{atomic_write, normalize_tags};
+use crate::sort::SortMode;
 
 pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
@@ -42,16 +43,6 @@ pub enum TuiThemeSetting {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TuiSortSetting {
-    #[default]
-    Manual,
-    Title,
-    Modified,
-    Created,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum TuiIconSetting {
     #[default]
     Ascii,
@@ -63,7 +54,7 @@ pub struct TuiConfig {
     #[serde(default)]
     pub theme: TuiThemeSetting,
     #[serde(default)]
-    pub sort: TuiSortSetting,
+    pub sort: SortMode,
     #[serde(default)]
     pub icons: TuiIconSetting,
     #[serde(flatten)]

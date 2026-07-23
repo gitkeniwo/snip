@@ -27,9 +27,12 @@ keeps global navigation/search/help on the left and pane-specific editing
 actions on the right; active search, status, or modal input temporarily takes
 over the row.
 
-The TUI provides complete local management: `n` creates snippets or folders;
-`e`/`E`/`R` edit content, note, or README; `v` opens in VS Code; `r` renames; `m` moves; `t` edits
-tags; `p`/`L` toggle pin or lock; and `d` moves snippets to trash. `T` opens the
+The TUI provides complete local management, using the same words as the CLI:
+`n` creates snippets or folders; `e`/`E`/`R` edit content, note, or README; `v`
+opens in VS Code (`snip open`); `r` renames a snippet, or a folder within its
+parent (`snip folder rename`); `m` moves a snippet, or reparents a folder
+(`snip folder move`); `t` edits tags; `p`/`L` toggle pin or lock; and `d` moves
+snippets to trash. `T` opens the
 restore/purge view, `s` changes sort order, `F5` or `Ctrl-r` rescans, and `?`
 shows the full key map. Preview source lines are numbered by default; `N`
 toggles line numbers. Mouse click, double-click, fragment-tab click, and wheel
@@ -115,9 +118,11 @@ printf 'echo hello\n' | snip create \
   --content-file -
 
 snip list
+snip list --sort modified          # manual | title | modified | created
 snip search hello
 snip preview Hello
 snip edit Hello
+snip open Hello                    # hand a managed path to an app, like the TUI's `v`
 ```
 
 When `--library` is omitted, `SNIP_LIBRARY` is checked next, followed by walking

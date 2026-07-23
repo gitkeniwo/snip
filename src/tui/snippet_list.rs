@@ -62,11 +62,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
 }
 
 fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> Line<'static> {
-    let folder_path = if snippet.folder.is_empty() {
-        "~".to_owned()
-    } else {
-        snippet.folder.replace('/', " > ")
-    };
+    let folder_path = crate::domain::folder_label(&snippet.folder).replace('/', " > ");
     let folder = format!("[{folder_path}]");
     // Badge (two cells) plus its separator occupy the first three cells of
     // row one. Indenting metadata by the same amount aligns it with the title.

@@ -5,6 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 
 use super::app::App;
+use super::state::sort_indicator;
 use super::theme::TuiTheme;
 use super::widgets;
 
@@ -25,7 +26,7 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     } else {
         app.theme.pill_primary
     };
-    let right = top_position_pill(app.sort.indicator(), &counts, app.theme);
+    let right = top_position_pill(sort_indicator(app.sort), &counts, app.theme);
     let right_width = right.width().min(area.width as usize) as u16;
     let regions = Layout::horizontal([
         Constraint::Min(0),

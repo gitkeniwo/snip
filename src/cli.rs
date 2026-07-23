@@ -1,6 +1,8 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+use snip::sort::SortMode;
+
 #[derive(Parser, Debug)]
 #[command(
     name = "snip",
@@ -61,6 +63,8 @@ pub enum Command {
     Preview(PreviewArgs),
     /// Print a managed filesystem path.
     Path(PathArgs),
+    /// Open a managed path in an external application.
+    Open(OpenArgs),
     /// Create a snippet.
     Create(CreateArgs),
     /// Modify a snippet or launch an external editor.
@@ -108,6 +112,9 @@ pub struct FilterArgs {
     pub folder: Option<String>,
     #[arg(long)]
     pub tag: Option<String>,
+    /// Order of the listing. Pinned snippets always come first.
+    #[arg(long, default_value = "manual")]
+    pub sort: SortMode,
 }
 
 #[derive(Args, Debug)]
@@ -161,6 +168,22 @@ pub struct PathArgs {
     pub readme: bool,
     #[arg(long, conflicts_with_all = ["metadata", "readme"])]
     pub fragment: Option<String>,
+}
+
+/// Same target selection as `snip path`, but hands the resolved path to an app.
+/// This is the CLI counterpart of the TUI's `v` key.
+#[derive(Args, Debug)]
+pub struct OpenArgs {
+    pub selector: String,
+    #[arg(long, conflicts_with_all = ["readme", "fragment"])]
+    pub metadata: bool,
+    #[arg(long, conflicts_with_all = ["metadata", "fragment"])]
+    pub readme: bool,
+    #[arg(long, conflicts_with_all = ["metadata", "readme"])]
+    pub fragment: Option<String>,
+    /// Command to launch. Defaults to the `vscode_cmd` config key, then `code`.
+    #[arg(long)]
+    pub app: Option<String>,
 }
 
 #[derive(Args, Debug)]

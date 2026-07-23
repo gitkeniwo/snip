@@ -117,11 +117,7 @@ fn render_html(snippet: &Snippet) -> Result<String> {
     output.push_str(&format!("<h1>{}</h1>", escape_html(&snippet.title)));
     output.push_str(&format!(
         "<p class=\"meta\">Folder: {} · Tags: {}</p>",
-        escape_html(if snippet.folder.is_empty() {
-            "Uncategorized"
-        } else {
-            &snippet.folder
-        }),
+        escape_html(crate::domain::folder_label(&snippet.folder)),
         escape_html(&snippet.tags.join(", "))
     ));
     if let Some(readme) = &snippet.readme {

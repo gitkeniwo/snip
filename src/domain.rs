@@ -5,6 +5,19 @@ use uuid::Uuid;
 pub const FORMAT_NAME: &str = "snip-library";
 pub const SCHEMA_VERSION: u32 = 1;
 
+/// Display name for snippets that live at the library root with no folder.
+/// Every surface (CLI output, HTML preview, TUI) uses this one label.
+pub const UNCATEGORIZED: &str = "Uncategorized";
+
+/// Human-facing folder name: the folder path itself, or [`UNCATEGORIZED`] at the root.
+pub fn folder_label(folder: &str) -> &str {
+    if folder.is_empty() {
+        UNCATEGORIZED
+    } else {
+        folder
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LibraryManifest {
     pub format: String,

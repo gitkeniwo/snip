@@ -112,10 +112,38 @@ impl ConfirmModal {
     }
 }
 
+/// A picker row. `label` is what the user reads and filters on; `value` is what the
+/// action receives. They differ for the library root, shown as `Uncategorized` but
+/// submitted as an empty folder path — which also keeps a real folder of that name
+/// from colliding with the root entry.
+#[derive(Clone, Debug)]
+pub struct PickerItem {
+    pub label: String,
+    pub value: String,
+}
+
+impl PickerItem {
+    pub fn new(label: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            value: value.into(),
+        }
+    }
+
+    /// A row whose label and value are the same, such as a folder path.
+    pub fn plain(value: impl Into<String>) -> Self {
+        let value = value.into();
+        Self {
+            label: value.clone(),
+            value,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct PickerModal {
     pub label: String,
-    pub items: Vec<String>,
+    pub items: Vec<PickerItem>,
     pub filter: String,
     pub selected: usize,
     pub action: ModalAction,
@@ -123,7 +151,7 @@ pub struct PickerModal {
 }
 
 impl PickerModal {
-    pub fn new(label: impl Into<String>, items: Vec<String>, action: ModalAction) -> Self {
+    pub fn new(label: impl Into<String>, items: Vec<PickerItem>, action: ModalAction) -> Self {
         Self {
             label: label.into(),
             items,
@@ -134,19 +162,18 @@ impl PickerModal {
         }
     }
 
-    pub fn filtered(&self) -> Vec<&str> {
+    pub fn filtered(&self) -> Vec<&PickerItem> {
         let query = self.filter.to_lowercase();
         self.items
             .iter()
-            .filter(|item| query.is_empty() || item.to_lowercase().contains(&query))
-            .map(String::as_str)
+            .filter(|item| query.is_empty() || item.label.to_lowercase().contains(&query))
             .collect()
     }
 
     pub fn selected_value(&self) -> Option<String> {
         self.filtered()
             .get(self.selected)
-            .map(|value| (*value).to_owned())
+            .map(|item| item.value.clone())
     }
 
     pub fn clamp(&mut self) {
@@ -167,6 +194,7 @@ pub enum ModalAction {
     CreateLanguage { title: String, folder: String },
     CreateFolderUnder { parent: String },
     RenameFolder { path: String },
+    MoveFolder { path: String },
     DeleteFolder { path: String },
     RenameTag { tag: String },
     DeleteTag { tag: String },
@@ -217,7 +245,7 @@ pub fn draw_modal(frame: &mut Frame<'_>, area: Rect, modal: &mut Modal, theme: T
             let filtered = picker.filtered();
             let items = filtered
                 .iter()
-                .map(|item| ListItem::new((*item).to_owned()))
+                .map(|item| ListItem::new(item.label.clone()))
                 .collect::<Vec<_>>();
             let mut state = ratatui::widgets::ListState::default();
             state.select((!items.is_empty()).then_some(picker.selected));

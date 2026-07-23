@@ -15,7 +15,7 @@ use snip::tui::icons::IconMode;
 use snip::tui::modal::{Modal, ModalAction};
 use snip::tui::state::{Pane, SidebarItem, SortMode};
 use snip::tui::theme::{Appearance, TuiTheme};
-use snip::{AppConfig, Library, TuiConfig, TuiIconSetting, TuiSortSetting, TuiThemeSetting};
+use snip::{AppConfig, Library, TuiConfig, TuiIconSetting, TuiThemeSetting};
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
@@ -271,7 +271,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("snip"));
     assert!(rendered.contains("~ › All snippets"));
     assert!(rendered.contains("#1/2"));
-    assert!(rendered.contains("frag 1/1"));
+    assert!(rendered.contains("fragment 1/1"));
     assert!(rendered.contains("Tab"));
     assert!(rendered.contains('/'));
     assert!(rendered.contains("001-Alpha Rust.rs rs"));
@@ -282,7 +282,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(bottom.ends_with('\u{e0b4}'));
     assert!(bottom.find("←/→").unwrap() < 10);
     assert!(
-        bottom.rfind("new").unwrap() > 60,
+        bottom.rfind("create").unwrap() > 60,
         "pane-specific actions should be grouped on the right"
     );
     let nav_key_x = text_column(&bottom, "←/→");
@@ -302,7 +302,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         buffer.cell((nav_join_x, 29)).unwrap().bg,
         app.theme.pill_secondary
     );
-    let action_x = text_column_from_end(&bottom, "new");
+    let action_x = text_column_from_end(&bottom, "create");
     assert_eq!(
         buffer.cell((action_x, 29)).unwrap().bg,
         app.theme.pill_secondary
@@ -385,7 +385,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     let tags = row_text_from(buffer, 5, 54);
     assert!(metadata.contains("Code/Rust · "));
     assert!(!metadata.contains("#dev"));
-    assert!(fragment.contains("frag 1/1 · "));
+    assert!(fragment.contains("fragment 1/1 · "));
     assert!(fragment.contains("001-Alpha Rust.rs rs"));
     assert!(
         tags.contains("#dev"),
@@ -734,7 +734,7 @@ fn snippet_metadata_mutations_flow_through_modals() {
     picker.selected = picker
         .filtered()
         .iter()
-        .position(|folder| *folder == "Code/Shell")
+        .position(|folder| folder.value == "Code/Shell")
         .unwrap();
     app.handle_key(key(KeyCode::Enter));
     assert_eq!(app.selected_snippet().unwrap().folder, "Code/Shell");
@@ -852,7 +852,7 @@ fn tui_config_controls_theme_sort_and_portable_icon_fallback() {
     let config = AppConfig {
         tui: Some(TuiConfig {
             theme: TuiThemeSetting::Light,
-            sort: TuiSortSetting::Title,
+            sort: SortMode::Title,
             icons: TuiIconSetting::Nerd,
             ..TuiConfig::default()
         }),
@@ -1077,4 +1077,114 @@ fn sidebar_uncategorized_and_trash_items_work() {
     app.focus = Pane::Sidebar;
     app.handle_key(key(KeyCode::Enter));
     assert!(app.trash.open);
+}
+
+#[test]
+fn picker_filter_accepts_j_and_k_and_navigates_with_arrows() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+    snip::service::create_folder(&app.library, "Docker").unwrap();
+    app.rescan().unwrap();
+
+    app.handle_key(key(KeyCode::Char('m')));
+    for character in "Docker".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected folder picker");
+    };
+    // `j`/`k` must reach the filter instead of moving the selection.
+    assert_eq!(picker.filter, "Docker");
+    assert_eq!(picker.selected_value().as_deref(), Some("Docker"));
+
+    app.handle_key(key(KeyCode::Backspace));
+    app.handle_key(key(KeyCode::Backspace));
+    app.handle_key(key(KeyCode::Backspace));
+    app.handle_key(key(KeyCode::Backspace));
+    app.handle_key(key(KeyCode::Backspace));
+    app.handle_key(key(KeyCode::Backspace));
+    app.handle_key(key(KeyCode::Down));
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected folder picker");
+    };
+    let after_down = picker.selected;
+    assert_eq!(after_down, 1);
+    app.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL));
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected folder picker");
+    };
+    assert_eq!(picker.selected, 2);
+    app.handle_key(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL));
+    app.handle_key(key(KeyCode::Up));
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected folder picker");
+    };
+    assert_eq!(picker.selected, 0);
+}
+
+#[test]
+fn folder_pickers_label_the_library_root_the_way_the_cli_prints_it() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+
+    app.handle_key(key(KeyCode::Char('m')));
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected folder picker");
+    };
+    // The root reads as `Uncategorized` (as in `snip list`) but submits an empty
+    // folder path, so a real folder of that name could never shadow it.
+    assert_eq!(picker.items[0].label, snip::UNCATEGORIZED);
+    assert_eq!(picker.items[0].value, "");
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.selected_snippet().unwrap().folder, "");
+}
+
+#[test]
+fn folder_rename_keeps_the_parent_and_move_reparents() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+    // `r` mirrors `snip folder rename`: one path component, parent untouched.
+    select_sidebar_item(&mut app, SidebarItem::Folder("Code/Rust".to_owned()));
+    app.handle_key(key(KeyCode::Char('r')));
+    let Some(Modal::Input(input)) = app.modal.as_ref() else {
+        panic!("expected rename input");
+    };
+    assert_eq!(input.value, "Rust", "rename prefills the leaf name only");
+    replace_modal_input(&mut app, "Systems/Rust");
+    app.handle_key(key(KeyCode::Enter));
+    assert!(matches!(
+        app.modal,
+        Some(Modal::Input(ref modal))
+            if modal.error.as_deref().is_some_and(|error| error.contains("one path component"))
+    ));
+    replace_modal_input(&mut app, "Rustic");
+    app.handle_key(key(KeyCode::Enter));
+    assert!(app.catalog.folders.contains(&"Code/Rustic".to_owned()));
+
+    // `m` mirrors `snip folder move`: the picked folder becomes the new parent.
+    select_sidebar_item(&mut app, SidebarItem::Folder("Code/Rustic".to_owned()));
+    app.handle_key(key(KeyCode::Char('m')));
+    let Some(Modal::Picker(picker)) = app.modal.as_mut() else {
+        panic!("expected folder picker");
+    };
+    assert!(
+        !picker.items.iter().any(|item| item.value == "Code/Rustic"),
+        "a folder cannot move into itself"
+    );
+    picker.selected = picker
+        .filtered()
+        .iter()
+        .position(|item| item.value == "Code/Shell")
+        .unwrap();
+    app.handle_key(key(KeyCode::Enter));
+    assert!(
+        app.catalog
+            .folders
+            .contains(&"Code/Shell/Rustic".to_owned()),
+        "folders: {:?}",
+        app.catalog.folders
+    );
 }
