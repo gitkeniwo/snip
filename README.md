@@ -2,62 +2,34 @@
 
 <img width="887" height="629" alt="Screenshot 2026-07-23 at 22 08 34" src="https://github.com/user-attachments/assets/29012f73-975e-4d84-889c-8b85820487eb" />
 
-`snip` is a filesystem-native snippet library for humans, shell scripts, and AI
-agents. Markdown, source code, notes, and metadata remain ordinary files that
-can be opened with any text editor. The CLI adds validation, structured JSON,
-search, previews, optimistic concurrency, recoverable deletion, and import from
-SnippetsLab.
+`snip` keeps a snippet library in plain files. Source code, Markdown notes, and
+metadata stay as ordinary text you can open in any editor, grep, diff, and put
+under version control.
 
-The optional Ratatui browser provides a three-pane folder/tag, snippet, and
-preview workflow. It searches interactively, edits through an external editor,
-copies to the clipboard, and refreshes when CLI agents or text editors change
-files on disk:
+It replaces SnippetsLab, which keeps its library in a database only that app can
+read. That design makes the snippets hard to reach from anywhere else, and it
+means edits made outside the app never show up inside it. Using the filesystem
+instead removes the middleman: an editor, a shell script, and an AI agent can
+all work on one library at the same time.
 
-```bash
-cargo run -- --library ./Main.sniplib tui
-# With default_library configured and an interactive terminal:
-cargo run --
-```
+Letting several writers share a library is the interesting problem, and it is
+what the CLI is built around. Every command can emit JSON, snippets are
+addressed by UUID, and writes are guarded by a content fingerprint, so one
+writer cannot silently overwrite work it never read. Deletion goes to a trash
+directory rather than disappearing.
 
-Use `/` to search, `Tab` to cycle panes, `h`/`←` and `l`/`→` to move back or
-drill in, and `j`/`k` to navigate. Moving through folders or tags filters the
-snippet list immediately. The two-tone pill top bar shows the active path,
-sort, list position, and fragment position. The matching pill-style bottom bar
-keeps global navigation/search/help on the left and pane-specific editing
-actions on the right; active search, status, or modal input temporarily takes
-over the row.
-
-The TUI provides complete local management, using the same words as the CLI:
-`n` creates snippets or folders; `e`/`E`/`R` edit content, note, or README; `v`
-opens in VS Code (`snip open`); `r` renames a snippet, or a folder within its
-parent (`snip folder rename`); `m` moves a snippet, or reparents a folder
-(`snip folder move`); `t` edits tags; `p`/`L` toggle pin or lock; and `d` moves
-snippets to trash. `T` opens the
-restore/purge view, `s` changes sort order, `F5` or `Ctrl-r` rescans, and `?`
-shows the full key map. Preview source lines are numbered by default; `N`
-toggles line numbers. Mouse click, double-click, fragment-tab click, and wheel
-scrolling are supported. Dragging across Preview text selects it; releasing the
-mouse copies the selection automatically, excluding the line-number gutter.
-The TUI is enabled by default; a slim agent build is available with
-`cargo build --no-default-features`.
-
-On macOS, the TUI follows the system light/dark appearance and updates while it
-is running. Linux uses `GTK_THEME` or `COLORFGBG` when available. Override
-automatic detection for a terminal whose background differs from the system:
+The bundled terminal browser covers the other half — reading, skimming, and
+editing by hand. It watches the library, so a change an agent makes in one
+terminal shows up in the other while you are looking at it.
 
 ```bash
-SNIP_TUI_THEME=light snip
-SNIP_TUI_THEME=dark snip
+snip tui                              # or plain `snip` in an interactive terminal
+snip --library ./Main.sniplib tui
 ```
 
-Snippet titles use portable language badges such as `[rs]`, `[py]`, `[sh]`, and
-`[md]`; these content icons deliberately avoid private-use glyphs. The top and
-bottom pill chrome uses the Powerline round-cap glyphs included in Nerd Fonts
-and other Powerline-patched terminal fonts. Custom file and folder icons can be
-added later without changing the library format.
-
-SQLite is not the source of truth. A future search cache may live under
-`.snip/cache/`, but deleting that directory must never lose library data.
+See [Terminal browser](#terminal-browser) for what it can do,
+[Agent-friendly operations](#agent-friendly-operations) for the JSON and
+concurrency contract, and [FORMAT.md](FORMAT.md) for the on-disk format.
 
 ## Build
 
@@ -128,6 +100,51 @@ snip open Hello                    # hand a managed path to an app, like the TUI
 When `--library` is omitted, `SNIP_LIBRARY` is checked next, followed by walking
 from the current directory toward the filesystem root for `snip.toml`, and
 finally `default_library` in the user config.
+
+## Terminal browser
+
+Three panes: folders and tags on the left, the snippet list in the middle, a
+preview on the right. Selecting a folder or tag filters the list as you move.
+
+| Key | |
+|---|---|
+| `/` | search; `Tab` cycles panes |
+| `h`/`←`, `l`/`→` | back out, or drill in |
+| `j`/`k` | move; `[`/`]` switch fragments |
+| `n` | create a snippet, or a folder from the sidebar |
+| `e`, `E`, `R` | edit content, note, or README in `$EDITOR` |
+| `v` | open in VS Code (`snip open`) |
+| `r` | rename a snippet, or the selected folder or tag |
+| `m` | move a snippet to a folder, or reparent the selected folder |
+| `t`, `p`, `L` | edit tags, toggle pin, toggle lock |
+| `d`, `T` | move to trash; open the restore/purge view |
+| `s`, `N` | change sort order; toggle preview line numbers |
+| `F5`, `Ctrl-r` | rescan now (the watcher usually does this for you) |
+| `?` | the full key map |
+
+Keys are named after the CLI commands they run, so `r` on a folder is
+`snip folder rename` and `m` is `snip folder move`.
+
+The mouse works too: click to focus and select, double-click to drill in, click
+a fragment tab, and scroll the pane under the cursor. Dragging across the
+preview selects text and releasing copies it, without the line-number gutter.
+
+The TUI ships by default. For a smaller agent-only binary, build with
+`cargo build --no-default-features`.
+
+### Appearance
+
+On macOS the TUI follows the system light/dark setting and updates while it
+runs; Linux uses `GTK_THEME` or `COLORFGBG` when available. Override it for a
+terminal whose background differs from the system:
+
+```bash
+SNIP_TUI_THEME=light snip     # or: snip config set tui-theme light
+```
+
+Language badges are plain ASCII (`[rs]`, `[py]`, `[sh]`, `[md]`) so they render
+in any font. The rounded caps on the top and bottom bars are Powerline glyphs,
+which need a Nerd Font or another Powerline-patched terminal font.
 
 ## User configuration
 
@@ -269,18 +286,28 @@ Main.sniplib/
 │           ├── notes/001.md
 │           └── attachments/
 ├── trash/
-└── .snip/
+├── .snip/
+└── .gitignore
 ```
 
 The physical path below `snippets/` is the folder hierarchy. A snippet package
 is recognized by `snippet.toml`; its directory name is descriptive and can be
 moved or renamed manually. UUIDs in the manifest remain the stable identity.
-See [FORMAT.md](FORMAT.md) for the v1 format contract.
+
+[FORMAT.md](FORMAT.md) specifies all of this normatively — manifests, path
+rules, the fingerprint algorithm, and the transaction protocol — so another tool
+can read and write a library without going through snip. That specification is
+what makes "your snippets are not locked in an app" a checkable claim rather
+than a slogan.
 
 Direct editor changes are discovered on the next scan. CLI mutations use a
 library lock and atomic writes. `--if-hash` prevents an agent from overwriting a
 version it did not read. `snip doctor --repair` recovers interrupted package
 transactions.
+
+Nothing under `.snip/` is user data — it holds locks and in-flight transactions,
+and may later hold a search cache. Deleting it while snip is not running must
+never lose anything from the library.
 
 ## Preview and editing
 
