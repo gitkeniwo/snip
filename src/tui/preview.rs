@@ -131,11 +131,13 @@ pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         frame,
         app,
         &snippet,
-        title_area,
-        metadata_area,
-        fragment_area,
-        tags_area,
-        rule_area,
+        PreviewHeaderAreas {
+            title: title_area,
+            metadata: metadata_area,
+            fragment: fragment_area,
+            tags: tags_area,
+            rule: rule_area,
+        },
     );
     match app
         .preview
@@ -180,21 +182,25 @@ pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     }
 }
 
+struct PreviewHeaderAreas {
+    title: Rect,
+    metadata: Rect,
+    fragment: Rect,
+    tags: Option<Rect>,
+    rule: Rect,
+}
+
 fn draw_preview_header(
     frame: &mut Frame<'_>,
     app: &mut App,
     snippet: &Snippet,
-    title_area: Rect,
-    metadata_area: Rect,
-    fragment_area: Rect,
-    tags_area: Option<Rect>,
-    rule_area: Rect,
+    areas: PreviewHeaderAreas,
 ) {
-    let title_area = widgets::inset_left(title_area, 1);
-    let metadata_area = widgets::inset_left(metadata_area, 1);
-    let fragment_area = widgets::inset_left(fragment_area, 1);
-    let tags_area = tags_area.map(|area| widgets::inset_left(area, 1));
-    let rule_area = widgets::inset_left(rule_area, 1);
+    let title_area = widgets::inset_left(areas.title, 1);
+    let metadata_area = widgets::inset_left(areas.metadata, 1);
+    let fragment_area = widgets::inset_left(areas.fragment, 1);
+    let tags_area = areas.tags.map(|area| widgets::inset_left(area, 1));
+    let rule_area = widgets::inset_left(areas.rule, 1);
     let marker = match (snippet.pinned, snippet.locked) {
         (true, true) => "★ pinned · ⊘ locked",
         (true, false) => "★ pinned",
@@ -245,22 +251,30 @@ fn draw_preview_header(
         fragments_spans.push(Span::styled("frag ", Style::default().fg(app.theme.accent)));
         fragments_spans.push(Span::styled(
             format!("{current_fragment}/{total_fragments}"),
-            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(app.theme.accent)
+                .add_modifier(Modifier::BOLD),
         ));
         fragments_spans.push(Span::styled(
             " [",
-            Style::default().fg(app.theme.warning).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(app.theme.warning)
+                .add_modifier(Modifier::BOLD),
         ));
         fragments_spans.push(Span::styled(
             "]",
-            Style::default().fg(app.theme.warning).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(app.theme.warning)
+                .add_modifier(Modifier::BOLD),
         ));
         fragments_spans.push(Span::styled(" · ", Style::default().fg(app.theme.rule)));
     } else {
         fragments_spans.push(Span::styled("frag ", Style::default().fg(app.theme.accent)));
         fragments_spans.push(Span::styled(
             "1/1",
-            Style::default().fg(app.theme.accent).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(app.theme.accent)
+                .add_modifier(Modifier::BOLD),
         ));
         fragments_spans.push(Span::styled(" · ", Style::default().fg(app.theme.rule)));
     }

@@ -986,10 +986,7 @@ fn copy_snippet_path_effect_copies_absolute_path() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
 
-    let expected_path = app
-        .selected_snippet()
-        .unwrap()
-        .loaded_fragments[0]
+    let expected_path = app.selected_snippet().unwrap().loaded_fragments[0]
         .absolute_path
         .display()
         .to_string();
@@ -1002,7 +999,11 @@ fn copy_snippet_path_effect_copies_absolute_path() {
     assert_eq!(label, "snippet path");
 
     let effects_c = app.handle_key(key(KeyCode::Char('c')));
-    let Effect::CopyToClipboard { text: text_c, label: label_c } = &effects_c[0] else {
+    let Effect::CopyToClipboard {
+        text: text_c,
+        label: label_c,
+    } = &effects_c[0]
+    else {
         panic!("expected copy to clipboard effect");
     };
     assert_eq!(text_c, &expected_path);
