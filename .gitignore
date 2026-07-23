@@ -1,6 +1,14 @@
 /target/
 /Main.sniplib/
 .DS_Store
-AGENT.md
+
+AGENTS.md
+CLAUDE.md
+.claude/
 .agents/
 .omp/
+# Added by code-review-graph
+.code-review-graph/
+.vscode/
+.mcp.json
+opencode.jsonc
