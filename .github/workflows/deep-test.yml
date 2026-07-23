@@ -1,0 +1,59 @@
+name: Deep tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Test suite to run
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - importer
+          - watcher-stress
+          - coverage
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deep-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  deep:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: deep-linux
+      - name: All deterministic tests
+        if: inputs.suite == 'all'
+        run: cargo test --locked --all-features
+      - name: SnippetsLab importer fixture
+        if: inputs.suite == 'importer'
+        run: cargo test --locked --all-features importer::snippetslab::tests
+      - name: Recursive watcher stress regression
+        if: inputs.suite == 'watcher-stress'
+        run: cargo test --locked --all-features watcher_handles_a_large_library_tree
+      - name: Install coverage tooling
+        if: inputs.suite == 'coverage'
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Collect LCOV coverage
+        if: inputs.suite == 'coverage'
+        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov.info
+      - name: Upload coverage report
+        if: inputs.suite == 'coverage'
+        uses: actions/upload-artifact@v5
+        with:
+          name: lcov
+          path: lcov.info
+          if-no-files-found: error
+          retention-days: 14

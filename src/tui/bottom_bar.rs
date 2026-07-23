@@ -237,7 +237,11 @@ fn shortcut_pills(commands: ShortcutSet<'_>, theme: TuiTheme) -> Line<'static> {
                 .add_modifier(Modifier::BOLD),
         ));
         if action.is_empty() {
-            spans.push(widgets::pill_cap(widgets::PILL_CLOSE, primary, theme.bar_bg));
+            spans.push(widgets::pill_cap(
+                widgets::PILL_CLOSE,
+                primary,
+                theme.bar_bg,
+            ));
         } else {
             spans.push(widgets::pill_cap(widgets::PILL_CLOSE, primary, secondary));
             spans.push(Span::styled(
@@ -247,7 +251,11 @@ fn shortcut_pills(commands: ShortcutSet<'_>, theme: TuiTheme) -> Line<'static> {
                     .bg(secondary)
                     .add_modifier(Modifier::BOLD),
             ));
-            spans.push(widgets::pill_cap(widgets::PILL_CLOSE, secondary, theme.bar_bg));
+            spans.push(widgets::pill_cap(
+                widgets::PILL_CLOSE,
+                secondary,
+                theme.bar_bg,
+            ));
         }
     }
     Line::from(spans)

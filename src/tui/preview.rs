@@ -245,10 +245,7 @@ fn draw_preview_header(
         let label = if multiple_fragments {
             file.to_owned()
         } else {
-            format!(
-                "{file} {}",
-                icons::language_badge(&fragment.language)
-            )
+            format!("{file} {}", icons::language_badge(&fragment.language))
         };
         let available = metadata_area.right().saturating_sub(start) as usize;
         let label = widgets::truncate_end(&label, available);

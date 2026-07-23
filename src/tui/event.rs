@@ -93,4 +93,18 @@ mod tests {
             AppEvent::FsChanged
         );
     }
+
+    #[test]
+    fn watcher_handles_a_large_library_tree() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        for index in 0..400 {
+            std::fs::create_dir_all(root.join(format!("snippets/F{index}/S{index}/notes")))
+                .unwrap();
+        }
+
+        // This specifically guards against regressions where recursive watching opens
+        // one file descriptor per managed package and fails on ordinary libraries.
+        let (_watcher, _receiver) = start_watcher(root).unwrap();
+    }
 }

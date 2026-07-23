@@ -61,13 +61,36 @@ SQLite is not the source of truth. A future search cache may live under
 Rust 1.89 or newer is recommended. Dependencies are pinned in `Cargo.lock`.
 
 ```bash
-cd /Users/keniwo/ws/snip
+cd /path/to/snip
 cargo build --release
 ```
 
 The binary is `target/release/snip`.
 
-During development, this checkout uses `./Main.sniplib` as its default library:
+## Testing and CI
+
+The repository uses three GitHub Actions workflows:
+
+- `CI` runs on pushes and pull requests. It checks formatting, Clippy, the full
+  default build on Linux and Apple Silicon macOS, Rust 1.89 compatibility, and
+  the slim `--no-default-features` agent build.
+- `Deep tests` is manually dispatched for the complete deterministic suite, the
+  synthetic SnippetsLab importer fixture, the recursive-watcher regression, or
+  an LCOV coverage report.
+- `Release build` runs for `v*` tags and manual dispatch, producing tarballs for
+  Linux x86_64/arm64, macOS arm64, and macOS Intel.
+
+Run the equivalent local checks before pushing:
+
+```bash
+cargo fmt --check
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-features
+cargo test --locked --no-default-features
+cargo build --locked --release --all-features
+```
+
+For a local development library, bind `./Main.sniplib` as the default:
 
 ```bash
 ./target/release/snip config set default-library ./Main.sniplib
@@ -108,19 +131,17 @@ The config lives at `$XDG_CONFIG_HOME/snip/config.toml`, or
 a default library with:
 
 ```bash
-snip config init --library /Users/keniwo/ws/snip/Main.sniplib
+snip config init --library /path/to/Main.sniplib
 snip config show
 snip config path
 ```
 
-This checkout currently binds the development library at
-`/Users/keniwo/ws/snip/Main.sniplib`. Replace it with the eventual production
-library path after migration.
+Replace `/path/to/Main.sniplib` with the library you want to use by default.
 
 You can safely change supported values without editing TOML by hand:
 
 ```bash
-snip config set default-library /Users/keniwo/ws/snip/Main.sniplib
+snip config set default-library /path/to/Main.sniplib
 snip config set output json
 snip config set color auto
 snip config set preview-render ansi
@@ -140,7 +161,7 @@ The complete schema is:
 
 ```toml
 schema_version = 1
-default_library = "/Users/keniwo/ws/snip/Main.sniplib"
+default_library = "/path/to/Main.sniplib"
 output = "human"             # human | json | jsonl
 color = "auto"               # auto | always | never
 preview_render = "ansi"      # ansi | plain | html
@@ -248,13 +269,13 @@ then renamed to the requested destination.
 
 ```bash
 snip import snippetslab \
-  /Users/keniwo/Documents/main.snippetslablibrary \
-  --into /Users/keniwo/ws/snip/Main.sniplib \
+  /path/to/main.snippetslablibrary \
+  --into ./Main.sniplib \
   --dry-run
 
 snip import snippetslab \
-  /Users/keniwo/Documents/main.snippetslablibrary \
-  --into /Users/keniwo/ws/snip/Main.sniplib
+  /path/to/main.snippetslablibrary \
+  --into ./Main.sniplib
 ```
 
 The importer preserves snippet and fragment UUIDs, hierarchy, tags, flags,

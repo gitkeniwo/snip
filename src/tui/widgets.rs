@@ -4,9 +4,9 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
-use crate::domain::Snippet;
 use super::icons;
 use super::theme::TuiTheme;
+use crate::domain::Snippet;
 
 pub const PILL_OPEN: &str = "\u{e0b6}";
 pub const PILL_CLOSE: &str = "\u{e0b4}";
@@ -121,4 +121,28 @@ pub fn pill_cap(
     surround: ratatui::style::Color,
 ) -> Span<'static> {
     Span::styled(symbol, Style::default().fg(fill).bg(surround))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::style::Color;
+
+    #[test]
+    fn powerline_caps_keep_the_outer_pill_direction_and_colors() {
+        let open = pill_cap(PILL_OPEN, Color::Cyan, Color::Black);
+        let close = pill_cap(PILL_CLOSE, Color::Cyan, Color::Black);
+        assert_eq!(open.content, PILL_OPEN);
+        assert_eq!(close.content, PILL_CLOSE);
+        assert_eq!(open.style.fg, Some(Color::Cyan));
+        assert_eq!(open.style.bg, Some(Color::Black));
+        assert_eq!(close.style.fg, Some(Color::Cyan));
+        assert_eq!(close.style.bg, Some(Color::Black));
+    }
+
+    #[test]
+    fn truncation_preserves_unicode_characters_and_adds_an_ellipsis() {
+        assert_eq!(truncate_end("你好 Rust", 5), "你好 R…");
+        assert_eq!(truncate_end("short", 8), "short");
+    }
 }

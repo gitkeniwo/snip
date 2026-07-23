@@ -2,7 +2,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{ListItem, List};
+use ratatui::widgets::{List, ListItem};
 
 use super::app::App;
 use super::bottom_bar;
@@ -93,7 +93,11 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         })
         .collect::<Vec<_>>();
     let list = List::new(items)
-        .block(widgets::pane_block("Library", app.focus == Pane::Sidebar, app.theme))
+        .block(widgets::pane_block(
+            "Library",
+            app.focus == Pane::Sidebar,
+            app.theme,
+        ))
         .highlight_style(if app.focus == Pane::Sidebar {
             app.theme.selected()
         } else {
@@ -111,7 +115,11 @@ fn draw_list(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     };
     let content_width = area.width.saturating_sub(3);
     let list = List::new(snippet_list::items(app, content_width))
-        .block(widgets::pane_block(&title, app.focus == Pane::List, app.theme))
+        .block(widgets::pane_block(
+            &title,
+            app.focus == Pane::List,
+            app.theme,
+        ))
         .highlight_style(if app.focus == Pane::List {
             app.theme.selected()
         } else {

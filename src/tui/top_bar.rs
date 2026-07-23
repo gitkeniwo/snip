@@ -77,7 +77,11 @@ fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> 
         secondary_style,
     ));
     spans.push(Span::styled(" ", secondary_style));
-    spans.push(widgets::pill_cap(widgets::PILL_CLOSE, secondary, app.theme.bar_bg));
+    spans.push(widgets::pill_cap(
+        widgets::PILL_CLOSE,
+        secondary,
+        app.theme.bar_bg,
+    ));
     Line::from(spans)
 }
 
@@ -86,7 +90,11 @@ fn top_position_pill(sort: Option<&str>, counts: &str, theme: TuiTheme) -> Line<
     let secondary = theme.pill_secondary;
     let mut spans = Vec::new();
     if let Some(sort) = sort {
-        spans.push(widgets::pill_cap(widgets::PILL_OPEN, secondary, theme.bar_bg));
+        spans.push(widgets::pill_cap(
+            widgets::PILL_OPEN,
+            secondary,
+            theme.bar_bg,
+        ));
         spans.push(Span::styled(
             format!(" {sort} "),
             Style::default()
@@ -105,7 +113,11 @@ fn top_position_pill(sort: Option<&str>, counts: &str, theme: TuiTheme) -> Line<
             .bg(primary)
             .add_modifier(Modifier::BOLD),
     ));
-    spans.push(widgets::pill_cap(widgets::PILL_CLOSE, primary, theme.bar_bg));
+    spans.push(widgets::pill_cap(
+        widgets::PILL_CLOSE,
+        primary,
+        theme.bar_bg,
+    ));
     Line::from(spans)
 }
 
@@ -126,7 +138,10 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
         if segments.is_empty() {
             segments = vec![widgets::truncate_end(&last, width.saturating_sub(4))];
         } else {
-            segments = vec!["…".to_owned(), widgets::truncate_end(&last, width.saturating_sub(8))];
+            segments = vec![
+                "…".to_owned(),
+                widgets::truncate_end(&last, width.saturating_sub(8)),
+            ];
         }
     }
     let mut spans = vec![Span::styled("~", base.fg(app.theme.muted))];
