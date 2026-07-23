@@ -19,10 +19,11 @@ cargo run --
 
 Use `/` to search, `Tab` to cycle panes, `h`/`←` and `l`/`→` to move back or
 drill in, and `j`/`k` to navigate. Moving through folders or tags filters the
-snippet list immediately. The top bar shows the active path, sort, list
-position, and fragment position. The pill-style bottom bar keeps global
-navigation/search/help on the left and pane-specific editing actions on the
-right; active search, status, or modal input temporarily takes over the row.
+snippet list immediately. The two-tone pill top bar shows the active path,
+sort, list position, and fragment position. The matching pill-style bottom bar
+keeps global navigation/search/help on the left and pane-specific editing
+actions on the right; active search, status, or modal input temporarily takes
+over the row.
 
 The TUI provides complete local management: `n` creates snippets or folders;
 `e`/`E`/`R` edit content, note, or README; `r` renames; `m` moves; `t` edits
@@ -45,9 +46,10 @@ SNIP_TUI_THEME=dark snip
 ```
 
 Snippet titles use portable language badges such as `[rs]`, `[py]`, `[sh]`, and
-`[md]`. They deliberately avoid Nerd Font private-use glyphs, so the default UI
-works with any terminal font. A configurable Nerd Font icon set and custom
-folder icons can be added later without changing the library format.
+`[md]`; these content icons deliberately avoid private-use glyphs. The top and
+bottom pill chrome uses the Powerline round-cap glyphs included in Nerd Fonts
+and other Powerline-patched terminal fonts. Custom file and folder icons can be
+added later without changing the library format.
 
 SQLite is not the source of truth. A future search cache may live under
 `.snip/cache/`, but deleting that directory must never lose library data.

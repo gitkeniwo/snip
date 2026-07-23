@@ -15,6 +15,11 @@ use super::theme::TuiTheme;
 type Shortcut<'a> = (&'a str, &'a str);
 type ShortcutSet<'a> = &'a [Shortcut<'a>];
 
+// Powerline extra-symbol round caps. Keep the opening cap on the left and the
+// closing cap on the right: E0B6 opens outward, E0B4 closes outward.
+const PILL_OPEN: &str = "\u{e0b6}";
+const PILL_CLOSE: &str = "\u{e0b4}";
+
 pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     let area = frame.area();
     let vertical = Layout::vertical([
@@ -132,10 +137,17 @@ fn draw_list(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
 }
 
 fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
-    let block = pane_block("Preview", app.focus == Pane::Preview, app.theme);
+    let snippet = app.selected_snippet().cloned();
+    let block = preview_block(
+        app.focus == Pane::Preview,
+        app.theme,
+        snippet.as_ref(),
+        app.fragment_index,
+        area.width,
+    );
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let Some(snippet) = app.selected_snippet().cloned() else {
+    let Some(snippet) = snippet else {
         frame.render_widget(
             Paragraph::new("No snippets match the current filter")
                 .style(Style::default().fg(app.theme.muted))
@@ -228,67 +240,111 @@ fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
 }
 
 fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let base = Style::default().fg(app.theme.bar_fg).bg(app.theme.bar_bg);
-    let position = if let Some(index) = app.list_state.selected() {
+    frame.render_widget(
+        Block::default().style(Style::default().fg(app.theme.bar_fg).bg(app.theme.bar_bg)),
+        area,
+    );
+    let counts = if let Some(index) = app.list_state.selected() {
         let fragments = app
             .selected_snippet()
             .map_or(0, |snippet| snippet.loaded_fragments.len());
-        let position = format!(
-            " {}/{} · {}/{} ",
+        format!(
+            "{}/{} · {}/{}",
             index + 1,
             app.visible.len(),
             app.fragment_index.saturating_add(1).min(fragments),
             fragments
-        );
-        if let Some(sort) = app.sort.indicator() {
-            format!(" {sort}  {position}")
-        } else {
-            position
-        }
+        )
     } else {
-        format!(" 0/{} ", app.visible.len())
+        format!("0/{}", app.visible.len())
     };
     let brand_color = if app.modal.is_some() {
         app.theme.accent_alt
     } else if app.search.active {
         app.theme.warning
     } else {
-        app.theme.accent
+        app.theme.pill_primary
     };
-    let right_width = position.chars().count().min(area.width as usize) as u16;
+    let right = top_position_pill(app.sort.indicator(), &counts, app.theme);
+    let right_width = right.width().min(area.width as usize) as u16;
     let regions = Layout::horizontal([
-        Constraint::Length(6),
         Constraint::Min(0),
+        Constraint::Length(2),
         Constraint::Length(right_width),
     ])
     .split(area);
+    let left = top_context_pill(app, regions[0].width as usize, brand_color);
+    frame.render_widget(Paragraph::new(left), regions[0]);
     frame.render_widget(
-        Paragraph::new(Span::styled(
-            " snip ",
-            Style::default()
-                .fg(app.theme.selection_fg)
-                .bg(brand_color)
-                .add_modifier(Modifier::BOLD),
-        )),
-        regions[0],
-    );
-    let mut breadcrumb = vec![Span::styled("  ", base)];
-    breadcrumb.extend(breadcrumb_spans(
-        app,
-        regions[1].width.saturating_sub(2) as usize,
-        base,
-    ));
-    let line = Line::from(breadcrumb);
-    frame.render_widget(Paragraph::new(line).style(base), regions[1]);
-    frame.render_widget(
-        Paragraph::new(position)
-            .style(base.add_modifier(Modifier::BOLD))
-            .alignment(Alignment::Right),
+        Paragraph::new(right).alignment(Alignment::Right),
         regions[2],
     );
 }
 
+fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> Line<'static> {
+    let primary_style = Style::default()
+        .fg(app.theme.selection_fg)
+        .bg(primary)
+        .add_modifier(Modifier::BOLD);
+    if width < 15 {
+        return Line::from(vec![
+            pill_cap(PILL_OPEN, primary, app.theme.bar_bg),
+            Span::styled(" snip ", primary_style),
+            pill_cap(PILL_CLOSE, primary, app.theme.bar_bg),
+        ]);
+    }
+
+    let secondary = app.theme.pill_secondary;
+    let secondary_style = Style::default().fg(app.theme.bar_fg).bg(secondary);
+    let mut spans = vec![
+        pill_cap(PILL_OPEN, primary, app.theme.bar_bg),
+        Span::styled(" snip ", primary_style),
+        pill_cap(PILL_CLOSE, primary, secondary),
+        Span::styled(" ", secondary_style),
+    ];
+    spans.extend(breadcrumb_spans(
+        app,
+        width.saturating_sub(11),
+        secondary_style,
+    ));
+    spans.push(Span::styled(" ", secondary_style));
+    spans.push(pill_cap(PILL_CLOSE, secondary, app.theme.bar_bg));
+    Line::from(spans)
+}
+
+fn top_position_pill(sort: Option<&str>, counts: &str, theme: TuiTheme) -> Line<'static> {
+    let primary = theme.pill_primary;
+    let secondary = theme.pill_secondary;
+    let mut spans = Vec::new();
+    if let Some(sort) = sort {
+        spans.push(pill_cap(PILL_OPEN, secondary, theme.bar_bg));
+        spans.push(Span::styled(
+            format!(" {sort} "),
+            Style::default()
+                .fg(primary)
+                .bg(secondary)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(pill_cap(PILL_CLOSE, secondary, primary));
+    } else {
+        spans.push(pill_cap(PILL_OPEN, primary, theme.bar_bg));
+    }
+    spans.push(Span::styled(
+        format!(" {counts} "),
+        Style::default()
+            .fg(theme.selection_fg)
+            .bg(primary)
+            .add_modifier(Modifier::BOLD),
+    ));
+    spans.push(pill_cap(PILL_CLOSE, primary, theme.bar_bg));
+    Line::from(spans)
+}
+
 fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    frame.render_widget(
+        Block::default().style(Style::default().fg(app.theme.bar_fg).bg(app.theme.bar_bg)),
+        area,
+    );
     if let Some(modal) = &app.modal {
         match modal {
             Modal::Input(input) => {
@@ -463,13 +519,8 @@ fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         })
         .unwrap_or((navigation_minimal, &actions_compact[..1]));
 
-    let left = shortcut_pills(
-        navigation,
-        app.theme.accent,
-        app.theme.retained_bg,
-        app.theme,
-    );
-    let right = shortcut_pills(actions, app.theme.accent_alt, app.theme.bar_bg, app.theme);
+    let left = shortcut_pills(navigation, app.theme);
+    let right = shortcut_pills(actions, app.theme);
     let right_width = right.width().min(area.width as usize) as u16;
     let regions =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).split(area);
@@ -480,51 +531,60 @@ fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 }
 
-fn shortcut_pills(
-    commands: ShortcutSet<'_>,
-    key_color: ratatui::style::Color,
-    background: ratatui::style::Color,
-    theme: TuiTheme,
-) -> Line<'static> {
+fn shortcut_pills(commands: ShortcutSet<'_>, theme: TuiTheme) -> Line<'static> {
+    let primary = theme.pill_primary;
+    let secondary = theme.pill_secondary;
     let mut spans = Vec::new();
     for (index, (key, action)) in commands.iter().enumerate() {
         if index > 0 {
-            spans.push(Span::raw(" "));
+            spans.push(Span::styled(" ", Style::default().bg(theme.bar_bg)));
         }
-        // Standard Unicode half-circles form a capsule without requiring a
-        // Powerline or Nerd Font glyph.
-        spans.push(Span::styled("◗", Style::default().fg(background)));
+        spans.push(pill_cap(PILL_OPEN, primary, theme.bar_bg));
         spans.push(Span::styled(
-            format!(" {key}"),
+            format!(" {key} "),
             Style::default()
-                .fg(key_color)
-                .bg(background)
+                .fg(theme.selection_fg)
+                .bg(primary)
                 .add_modifier(Modifier::BOLD),
         ));
         if action.is_empty() {
-            spans.push(Span::styled(" ", Style::default().bg(background)));
+            spans.push(pill_cap(PILL_CLOSE, primary, theme.bar_bg));
         } else {
+            spans.push(pill_cap(PILL_CLOSE, primary, secondary));
             spans.push(Span::styled(
                 format!(" {action} "),
-                Style::default().fg(theme.muted).bg(background),
+                Style::default()
+                    .fg(primary)
+                    .bg(secondary)
+                    .add_modifier(Modifier::BOLD),
             ));
+            spans.push(pill_cap(PILL_CLOSE, secondary, theme.bar_bg));
         }
-        spans.push(Span::styled("◖", Style::default().fg(background)));
     }
     Line::from(spans)
+}
+
+fn pill_cap(
+    symbol: &'static str,
+    fill: ratatui::style::Color,
+    surround: ratatui::style::Color,
+) -> Span<'static> {
+    // The glyph's foreground is the solid half-cell; its background must be
+    // the explicit surrounding surface or the edge appears inverted/haloed.
+    Span::styled(symbol, Style::default().fg(fill).bg(surround))
 }
 
 fn shortcut_pills_width(commands: ShortcutSet<'_>) -> usize {
     commands
         .iter()
         .map(|(key, action)| {
-            // Two cap cells, two inner spaces, and an optional separator plus
-            // action label.
+            // Two outer caps and key padding, plus a color-collision cell and
+            // action padding when the label is present.
             4 + text_width(key) as usize
                 + if action.is_empty() {
                     0
                 } else {
-                    1 + text_width(action) as usize
+                    3 + text_width(action) as usize
                 }
         })
         .sum::<usize>()
@@ -1066,7 +1126,7 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
             } else if segment == "All snippets" {
                 base.fg(app.theme.muted)
             } else {
-                base.fg(app.theme.accent).add_modifier(Modifier::BOLD)
+                base.fg(app.theme.pill_primary).add_modifier(Modifier::BOLD)
             }
         } else {
             base
@@ -1249,6 +1309,59 @@ fn pane_block(title: &str, focused: bool, theme: TuiTheme) -> Block<'static> {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(if focused { theme.accent } else { theme.border }))
+}
+
+fn preview_block(
+    focused: bool,
+    theme: TuiTheme,
+    snippet: Option<&crate::domain::Snippet>,
+    fragment_index: usize,
+    width: u16,
+) -> Block<'static> {
+    let mut block = pane_block("Preview", focused, theme);
+    let Some(fragment) = snippet.and_then(|snippet| snippet.loaded_fragments.get(fragment_index))
+    else {
+        return block;
+    };
+
+    let language = super::icons::language_name(&fragment.language);
+    let line_count = fragment.content.lines().count();
+    let count = format!(
+        "{line_count} line{}",
+        if line_count == 1 { "" } else { "s" }
+    );
+    block = block.title_bottom(
+        Line::from(Span::styled(
+            format!(" {language} "),
+            Style::default()
+                .fg(theme.accent_alt)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .left_aligned(),
+    );
+
+    // Ratatui supports multiple titles on the same border. Keep the complete
+    // language label when space is scarce and add the right-aligned count only
+    // when the two titles cannot collide.
+    let available = width.saturating_sub(2) as usize;
+    if language.chars().count() + count.chars().count() + 4 < available {
+        block = block.title_bottom(
+            Line::from(vec![
+                Span::styled(
+                    format!(" {line_count}"),
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!(" line{} ", if line_count == 1 { "" } else { "s" }),
+                    Style::default().fg(theme.muted),
+                ),
+            ])
+            .right_aligned(),
+        );
+    }
+    block
 }
 
 fn inset_left(area: Rect, amount: u16) -> Rect {

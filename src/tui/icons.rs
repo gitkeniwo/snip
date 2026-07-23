@@ -57,9 +57,44 @@ pub fn language_badge(language: &str) -> &'static str {
     }
 }
 
+pub fn language_name(language: &str) -> String {
+    let normalized = language.trim().to_ascii_lowercase();
+    let name = match normalized.as_str() {
+        "rust" => "Rust",
+        "python" => "Python",
+        "bash" => "Bash",
+        "shell" | "sh" => "Shell",
+        "fish" => "Fish",
+        "zsh" => "Zsh",
+        "javascript" | "js" => "JavaScript",
+        "typescript" | "ts" => "TypeScript",
+        "go" | "golang" => "Go",
+        "sql" => "SQL",
+        "markdown" | "md" => "Markdown",
+        "html" => "HTML",
+        "xml" => "XML",
+        "css" => "CSS",
+        "scss" => "SCSS",
+        "sass" => "Sass",
+        "json" => "JSON",
+        "yaml" | "yml" => "YAML",
+        "toml" => "TOML",
+        "dockerfile" | "docker" => "Dockerfile",
+        "makefile" | "make" => "Makefile",
+        "swift" => "Swift",
+        "kotlin" => "Kotlin",
+        "java" => "Java",
+        "c" => "C",
+        "cpp" | "c++" => "C++",
+        "text" | "plain" | "" => "Plain Text",
+        _ => return language.trim().to_owned(),
+    };
+    name.to_owned()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::language_badge;
+    use super::{language_badge, language_name};
 
     #[test]
     fn common_languages_have_font_independent_badges() {
@@ -67,5 +102,13 @@ mod tests {
         assert_eq!(language_badge("fish"), "sh");
         assert_eq!(language_badge("JSON"), "{}");
         assert_eq!(language_badge("unknown-language"), "··");
+    }
+
+    #[test]
+    fn language_names_are_human_readable_and_preserve_unknown_values() {
+        assert_eq!(language_name("js"), "JavaScript");
+        assert_eq!(language_name("cpp"), "C++");
+        assert_eq!(language_name("fish"), "Fish");
+        assert_eq!(language_name("custom-lang"), "custom-lang");
     }
 }

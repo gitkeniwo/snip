@@ -76,6 +76,16 @@ fn row_text_from(buffer: &ratatui::buffer::Buffer, y: u16, x_start: u16) -> Stri
         .collect()
 }
 
+fn text_column(value: &str, needle: &str) -> u16 {
+    let byte_index = value.find(needle).expect("text should contain needle");
+    value[..byte_index].chars().count() as u16
+}
+
+fn text_column_from_end(value: &str, needle: &str) -> u16 {
+    let byte_index = value.rfind(needle).expect("text should contain needle");
+    value[..byte_index].chars().count() as u16
+}
+
 fn replace_modal_input(app: &mut App, value: &str) {
     let Some(Modal::Input(input)) = app.modal.as_mut() else {
         panic!("expected input modal");
@@ -246,28 +256,78 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("snip"));
     assert!(rendered.contains("~ › All snippets"));
     assert!(rendered.contains("1/2 · 1/1"));
-    assert!(rendered.contains("Tab pane"));
-    assert!(rendered.contains("/ search"));
+    assert!(rendered.contains("Tab"));
+    assert!(rendered.contains('/'));
     assert!(rendered.contains("001-Alpha Rust.rs rs"));
     assert!(rendered.contains("1│ fn alpha() {}"));
     let buffer = terminal.backend().buffer();
     let bottom = row_text(buffer, 29);
-    assert!(bottom.starts_with('◗'));
-    assert!(bottom.ends_with('◖'));
-    assert!(bottom.find("←/→ nav").unwrap() < 10);
+    assert!(bottom.starts_with('\u{e0b6}'));
+    assert!(bottom.ends_with('\u{e0b4}'));
+    assert!(bottom.find("←/→").unwrap() < 10);
     assert!(
-        bottom.rfind("n new").unwrap() > 60,
+        bottom.rfind("new").unwrap() > 60,
         "pane-specific actions should be grouped on the right"
     );
-    assert_eq!(buffer.cell((1, 29)).unwrap().bg, app.theme.retained_bg);
-    let action_x = bottom.rfind("n new").unwrap() as u16;
-    assert_eq!(buffer.cell((action_x, 29)).unwrap().bg, app.theme.bar_bg);
+    let nav_key_x = text_column(&bottom, "←/→");
+    assert_eq!(
+        buffer.cell((nav_key_x, 29)).unwrap().bg,
+        app.theme.pill_primary
+    );
+    let nav_join_x = nav_key_x + 4;
+    assert_eq!(buffer.cell((0, 29)).unwrap().fg, app.theme.pill_primary);
+    assert_eq!(buffer.cell((0, 29)).unwrap().bg, app.theme.bar_bg);
+    assert_eq!(buffer.cell((nav_join_x, 29)).unwrap().symbol(), "\u{e0b4}");
+    assert_eq!(
+        buffer.cell((nav_join_x, 29)).unwrap().fg,
+        app.theme.pill_primary
+    );
+    assert_eq!(
+        buffer.cell((nav_join_x, 29)).unwrap().bg,
+        app.theme.pill_secondary
+    );
+    let action_x = text_column_from_end(&bottom, "new");
+    assert_eq!(
+        buffer.cell((action_x, 29)).unwrap().bg,
+        app.theme.pill_secondary
+    );
+    let top = row_text(buffer, 0);
+    assert!(top.starts_with('\u{e0b6}'));
+    assert!(top.ends_with('\u{e0b4}'));
+    let brand_x = text_column(&top, "snip");
+    let breadcrumb_x = text_column(&top, "~");
+    let counts_x = text_column_from_end(&top, "1/2 · 1/1");
+    assert_eq!(
+        buffer.cell((brand_x, 0)).unwrap().bg,
+        app.theme.pill_primary
+    );
+    assert_eq!(
+        buffer.cell((breadcrumb_x, 0)).unwrap().bg,
+        app.theme.pill_secondary
+    );
+    assert_eq!(
+        buffer.cell((counts_x, 0)).unwrap().bg,
+        app.theme.pill_primary
+    );
+    assert_eq!(buffer.cell((0, 0)).unwrap().fg, app.theme.pill_primary);
+    assert_eq!(buffer.cell((0, 0)).unwrap().bg, app.theme.bar_bg);
+    let brand_join_x = brand_x + 5;
+    assert_eq!(buffer.cell((brand_join_x, 0)).unwrap().symbol(), "\u{e0b4}");
+    assert_eq!(
+        buffer.cell((brand_join_x, 0)).unwrap().fg,
+        app.theme.pill_primary
+    );
+    assert_eq!(
+        buffer.cell((brand_join_x, 0)).unwrap().bg,
+        app.theme.pill_secondary
+    );
+    assert_eq!(buffer.cell((99, 0)).unwrap().fg, app.theme.pill_primary);
+    assert_eq!(buffer.cell((99, 0)).unwrap().bg, app.theme.bar_bg);
     assert_eq!(buffer.cell((0, 1)).unwrap().symbol(), "╭");
     assert_eq!(buffer.cell((24, 1)).unwrap().symbol(), "╭");
     assert_eq!(buffer.cell((0, 1)).unwrap().fg, app.theme.accent);
     assert_eq!(buffer.cell((24, 1)).unwrap().fg, app.theme.border);
     assert_eq!(buffer.cell((3, 2)).unwrap().bg, app.theme.selection_bg);
-    assert_eq!(buffer.cell((12, 0)).unwrap().bg, app.theme.bar_bg);
     assert_eq!(buffer.cell((26, 1)).unwrap().symbol(), "S");
     assert_eq!(
         buffer.cell((26, 2)).unwrap().symbol(),
@@ -300,6 +360,9 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((56, 2)).unwrap().symbol(), "A");
     assert_eq!(buffer.cell((56, 3)).unwrap().symbol(), "C");
     assert_eq!(buffer.cell((56, 4)).unwrap().symbol(), "#");
+    let preview_bottom = row_text_from(buffer, 28, 54);
+    assert!(preview_bottom.contains("Rust"));
+    assert!(preview_bottom.contains("1 line"));
 
     let metadata = row_text_from(buffer, 3, 54);
     let tags = row_text_from(buffer, 4, 54);

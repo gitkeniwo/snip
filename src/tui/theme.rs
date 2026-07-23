@@ -21,6 +21,8 @@ pub struct TuiTheme {
     pub selection_bg: Color,
     pub selection_fg: Color,
     pub retained_bg: Color,
+    pub pill_primary: Color,
+    pub pill_secondary: Color,
     pub bar_bg: Color,
     pub bar_fg: Color,
     pub tag: Color,
@@ -56,6 +58,8 @@ impl TuiTheme {
                 selection_bg: Color::Rgb(0, 95, 115),
                 selection_fg: Color::White,
                 retained_bg: Color::Rgb(226, 238, 241),
+                pill_primary: Color::Rgb(0, 95, 115),
+                pill_secondary: Color::Rgb(211, 219, 224),
                 bar_bg: Color::Rgb(225, 228, 232),
                 bar_fg: Color::Rgb(42, 47, 52),
                 tag: Color::Rgb(154, 100, 0),
@@ -73,6 +77,8 @@ impl TuiTheme {
                 selection_bg: Color::Rgb(31, 82, 128),
                 selection_fg: Color::White,
                 retained_bg: Color::Rgb(28, 39, 50),
+                pill_primary: Color::Rgb(0, 113, 118),
+                pill_secondary: Color::Rgb(52, 59, 66),
                 bar_bg: Color::Rgb(36, 41, 47),
                 bar_fg: Color::Rgb(218, 223, 228),
                 tag: Color::Rgb(227, 179, 65),
@@ -162,6 +168,8 @@ mod tests {
         let dark = TuiTheme::for_appearance(Appearance::Dark);
         assert_ne!(light.selection_bg, dark.selection_bg);
         assert_ne!(light.retained_bg, dark.retained_bg);
+        assert_ne!(light.pill_primary, dark.pill_primary);
+        assert_ne!(light.pill_secondary, dark.pill_secondary);
         assert_ne!(light.accent_alt, dark.accent_alt);
         assert_ne!(light.bar_bg, dark.bar_bg);
         assert_ne!(light.bar_fg, dark.bar_fg);
