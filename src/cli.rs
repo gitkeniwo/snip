@@ -565,6 +565,7 @@ pub enum ConfigKey {
     TuiSort,
     TuiIcons,
     GitAutoCommitInterval,
+    GitAutoPush,
     GitBackupOnQuit,
 }
 

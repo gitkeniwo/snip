@@ -203,6 +203,10 @@ pub fn should_auto_backup(status: &Status, now: i64, interval_minutes: u32, paus
         .is_none_or(|commit| now.saturating_sub(commit.timestamp) >= interval_seconds)
 }
 
+pub fn should_auto_push(status: &Status, enabled: bool, paused: bool) -> bool {
+    enabled && !paused && check_push(status).is_ok()
+}
+
 pub fn backup_message(status: &Status) -> String {
     let now = OffsetDateTime::now_utc();
     let local = UtcOffset::current_local_offset()
@@ -551,6 +555,33 @@ mod write_tests {
             short_id: "abcdef0".to_owned(),
         };
         assert!(!should_auto_backup(&status, now, 1, false));
+    }
+
+    #[test]
+    fn auto_push_delegates_every_status_guard_to_push_preconditions() {
+        let mut status = clean_status();
+        status.unstaged = 0;
+        status.untracked = 0;
+        assert!(should_auto_push(&status, true, false));
+        assert!(!should_auto_push(&status, false, false));
+        assert!(!should_auto_push(&status, true, true));
+
+        status.upstream = None;
+        assert!(!should_auto_push(&status, true, false));
+        status.upstream = Some("origin/main".to_owned());
+        status.ahead = 0;
+        assert!(!should_auto_push(&status, true, false));
+        status.ahead = 1;
+        status.conflicted.push("snippet.toml".to_owned());
+        assert!(!should_auto_push(&status, true, false));
+        status.conflicted.clear();
+        status.state = RepoState::Rebasing;
+        assert!(!should_auto_push(&status, true, false));
+        status.state = RepoState::Clean;
+        status.branch = Branch::Detached {
+            short_id: "abcdef0".to_owned(),
+        };
+        assert!(!should_auto_push(&status, true, false));
     }
 
     #[test]

@@ -1,38 +1,43 @@
 use std::path::Path;
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::Sender;
 use std::time::Duration;
 
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_mini::{Config, DebounceEventResult, Debouncer, new_debouncer_opt};
 
 use crate::error::{Result, SnipError};
+use crate::git::ActionOutcome;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AppEvent {
     FsChanged,
+    GitFinished(GitTaskResult),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitTaskResult {
+    pub action: &'static str,
+    pub outcome: std::result::Result<ActionOutcome, String>,
 }
 
 pub struct WatchHandle {
     _debouncer: Debouncer<notify::RecommendedWatcher>,
 }
 
-pub fn start_watcher(root: &Path) -> Result<(WatchHandle, Receiver<AppEvent>)> {
-    let (debouncer, receiver) =
-        start_watcher_with::<notify::RecommendedWatcher>(root, notify::Config::default())?;
-    Ok((
-        WatchHandle {
-            _debouncer: debouncer,
-        },
-        receiver,
-    ))
+pub fn start_watcher(root: &Path, sender: Sender<AppEvent>) -> Result<WatchHandle> {
+    let debouncer =
+        start_watcher_with::<notify::RecommendedWatcher>(root, notify::Config::default(), sender)?;
+    Ok(WatchHandle {
+        _debouncer: debouncer,
+    })
 }
 
 fn start_watcher_with<T: Watcher>(
     root: &Path,
     notify_config: notify::Config,
-) -> Result<(Debouncer<T>, Receiver<AppEvent>)> {
+    sender: Sender<AppEvent>,
+) -> Result<Debouncer<T>> {
     let root = root.to_path_buf();
-    let (sender, receiver) = mpsc::channel();
     let callback_root = root.clone();
     let config = Config::default()
         .with_timeout(Duration::from_millis(250))
@@ -54,7 +59,7 @@ fn start_watcher_with<T: Watcher>(
         .watcher()
         .watch(&root, RecursiveMode::Recursive)
         .map_err(|error| SnipError::io(format!("cannot watch {}: {error}", root.display())))?;
-    Ok((debouncer, receiver))
+    Ok(debouncer)
 }
 
 fn is_relevant(root: &Path, path: &Path) -> bool {
@@ -69,7 +74,7 @@ fn is_relevant(root: &Path, path: &Path) -> bool {
 mod tests {
     use super::*;
     use std::process::Command;
-    use std::sync::mpsc::RecvTimeoutError;
+    use std::sync::mpsc::{self, RecvTimeoutError};
     use std::time::Duration;
 
     use crate::config::{AppConfig, GitConfig};
@@ -91,8 +96,10 @@ mod tests {
     fn debounced_watcher_reports_managed_file_changes() {
         let temporary = tempfile::tempdir().unwrap();
         let notify_config = notify::Config::default().with_poll_interval(Duration::from_millis(50));
-        let (_watcher, receiver) =
-            start_watcher_with::<notify::PollWatcher>(temporary.path(), notify_config).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        let _watcher =
+            start_watcher_with::<notify::PollWatcher>(temporary.path(), notify_config, sender)
+                .unwrap();
         std::fs::write(temporary.path().join("changed.txt"), "changed").unwrap();
         assert_eq!(
             receiver.recv_timeout(Duration::from_secs(5)).unwrap(),
@@ -111,7 +118,8 @@ mod tests {
 
         // This specifically guards against regressions where recursive watching opens
         // one file descriptor per managed package and fails on ordinary libraries.
-        let (_watcher, _receiver) = start_watcher(root).unwrap();
+        let (sender, _receiver) = mpsc::channel();
+        let _watcher = start_watcher(root, sender).unwrap();
     }
 
     #[test]
@@ -164,8 +172,9 @@ mod tests {
             .timestamp -= 120;
 
         let notify_config = notify::Config::default().with_poll_interval(Duration::from_millis(50));
-        let (_watcher, receiver) =
-            start_watcher_with::<notify::PollWatcher>(&root, notify_config).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        let _watcher =
+            start_watcher_with::<notify::PollWatcher>(&root, notify_config, sender).unwrap();
         // The dirty worktree is part of the watcher's baseline. The operation
         // below writes only .git (and the ignored .snip lock), so it must not
         // produce a new application event.

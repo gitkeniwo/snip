@@ -189,8 +189,10 @@ CLI Git writes are deliberate user-triggered operations: they disable
 credential prompts and fail fast. The TUI suspends to the real terminal for
 manual operations and `backup_on_quit`, preserving interactive credentials and
 progress. With `[git].auto_commit_interval` set above zero, the TUI may create
-local interval commits; it never auto-pushes. `a` in the Git panel pauses these
-commits for the current session.
+local interval commits. `[git].auto_push = true` also pushes ahead commits in a
+non-prompting background worker on that same interval. An interval of `0`
+disables both. `a` in the Git panel pauses automatic commits and pushes for the
+current session.
 
 ## Other
 
@@ -202,9 +204,11 @@ commits for the current session.
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
   `editor`, `pager`, `default-language`, `default-folder`, `default-tags`,
   `tui-theme`, `tui-sort`, `tui-icons`, `git-auto-commit-interval`,
-  `git-backup-on-quit`. The interval is a whole number of minutes, with `0`
-  meaning off; the quit setting is boolean. Unknown keys in the file are
-  preserved across writes, so hand-added settings survive.
+  `git-auto-push`, `git-backup-on-quit`. The interval is a whole number of
+  minutes, with `0` meaning all automatic Git work is off; both remaining Git
+  settings are boolean. Enabling auto-push while the interval is `0` prints a
+  warning. Unknown keys in the file are preserved across writes, so hand-added
+  settings survive.
 - `snip completion bash|zsh|fish` — shell completion script.
 - `snip tui` — interactive TUI for humans. Refuses to start without a terminal.
 

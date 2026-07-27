@@ -37,6 +37,8 @@ pub fn commit(repo: &Repo, message: &str) -> Result<()> {
 }
 
 pub fn push(repo: &Repo) -> Result<()> {
+    // This fresh check closes the check-then-act window for background pushes:
+    // the TUI status used to schedule the worker may already be stale.
     check_push(&status(repo)?).map_err(refusal_error)?;
     push_with(repo, Mode::NonInteractive)
 }

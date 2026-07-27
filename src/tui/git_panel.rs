@@ -53,7 +53,13 @@ pub fn badge(state: &GitState, icons: IconMode, theme: TuiTheme) -> Option<(Stri
     if status.behind > 0 {
         text.push_str(&format!("{down}{}", status.behind));
     }
-    let backed_up = dirty == 0 && status.ahead == 0;
+    if state.push_in_flight {
+        text.push_str(match icons {
+            IconMode::Nerd => " ⇡",
+            IconMode::Ascii => " >>",
+        });
+    }
+    let backed_up = dirty == 0 && status.ahead == 0 && !state.push_in_flight;
     if backed_up {
         text.push_str(clean);
     }
@@ -225,14 +231,41 @@ fn repository_text(app: &App) -> Text<'static> {
         app.theme,
     ));
     lines.extend([Line::raw(""), section("AUTOMATIC", app.theme)]);
-    let auto_commit = if app.git.auto_commit_interval == 0 {
+    let automatic_mode = if app.git.auto_commit_interval == 0 {
         "off".to_owned()
-    } else if app.git.auto_backup_paused {
-        format!("paused (every {} min)", app.git.auto_commit_interval)
+    } else if app.git.auto_push {
+        format!("commit + push (every {} min)", app.git.auto_commit_interval)
     } else {
-        format!("every {} min", app.git.auto_commit_interval)
+        format!("commit only (every {} min)", app.git.auto_commit_interval)
     };
-    lines.push(key_value("auto commit", auto_commit, app.theme));
+    lines.push(key_value("mode", automatic_mode, app.theme));
+    lines.push(key_value(
+        "state",
+        if app.git.auto_commit_interval == 0 {
+            "off".to_owned()
+        } else if app.git.auto_backup_paused {
+            "paused".to_owned()
+        } else {
+            "active".to_owned()
+        },
+        app.theme,
+    ));
+    lines.push(key_value(
+        "push",
+        if app.git.push_in_flight
+            && app
+                .git
+                .push_attempted_at
+                .is_some_and(|attempt| attempt.elapsed() > std::time::Duration::from_secs(180))
+        {
+            "background push stalled".to_owned()
+        } else if app.git.push_in_flight {
+            "in flight".to_owned()
+        } else {
+            "idle".to_owned()
+        },
+        app.theme,
+    ));
     lines.push(key_value(
         "on quit",
         if app.git.backup_on_quit {
@@ -242,15 +275,20 @@ fn repository_text(app: &App) -> Text<'static> {
         },
         app.theme,
     ));
-    lines.push(key_value(
-        "last error",
-        app.git
-            .last_auto_error
-            .as_deref()
-            .map(|error| widgets::truncate_end(error, 38))
-            .unwrap_or_else(|| "—".to_owned()),
-        app.theme,
-    ));
+    let last_errors = match (
+        app.git.last_commit_error.as_deref(),
+        app.git.last_push_error.as_deref(),
+    ) {
+        (Some(commit), Some(push)) => format!(
+            "C: {}; P: {}",
+            widgets::truncate_end(commit, 15),
+            widgets::truncate_end(push, 15)
+        ),
+        (Some(commit), None) => format!("commit: {}", widgets::truncate_end(commit, 30)),
+        (None, Some(push)) => format!("push: {}", widgets::truncate_end(push, 32)),
+        (None, None) => "—".to_owned(),
+    };
+    lines.push(key_value("last errors", last_errors, app.theme));
 
     if !status.conflicted.is_empty()
         || !matches!(status.branch, Branch::Named { .. } | Branch::Unborn)
@@ -420,11 +458,16 @@ mod tests {
             error: None,
             open: false,
             auto_commit_interval: 0,
+            auto_push: false,
             backup_on_quit: false,
             auto_backup_paused: false,
-            last_auto_error: None,
+            last_commit_error: None,
+            last_push_error: None,
             operation_queued: false,
             auto_attempted_at: None,
+            push_attempted_at: None,
+            push_in_flight: false,
+            sender: None,
             checked_at: Instant::now(),
             interval: Duration::from_secs(5),
         }
@@ -465,6 +508,18 @@ mod tests {
         assert_eq!(
             badge(&state(changed), IconMode::Ascii, theme).unwrap().0,
             "git:main +2 ^1 v3"
+        );
+
+        let mut pushing = state(status());
+        pushing.status.as_mut().unwrap().ahead = 2;
+        pushing.push_in_flight = true;
+        assert_eq!(
+            badge(&pushing, IconMode::Ascii, theme).unwrap().0,
+            "git:main ^2 >>"
+        );
+        assert_eq!(
+            badge(&pushing, IconMode::Nerd, theme).unwrap().0,
+            "⎇ main ↑2 ⇡"
         );
     }
 

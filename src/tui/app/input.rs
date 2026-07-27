@@ -130,6 +130,10 @@ impl App {
     }
 
     fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
+        if self.git.push_in_flight {
+            self.set_status("a background push is running", StatusLevel::Error);
+            return Vec::new();
+        }
         let refusal =
             match &action {
                 GitAction::Init => match self.git.unavailable.as_ref() {
@@ -175,6 +179,11 @@ impl App {
     }
 
     pub(super) fn request_quit(&mut self) -> Vec<Effect> {
+        if self.git.push_in_flight {
+            self.pending_quit = true;
+            self.set_status("finishing background push…", StatusLevel::Info);
+            return Vec::new();
+        }
         if self.git.backup_on_quit {
             // The periodic badge may be a few seconds old; quitting is the one
             // point where the backup decision must use a fresh worktree view.
@@ -196,10 +205,15 @@ impl App {
         }
     }
 
+    pub(crate) fn resume_quit_after_push(&mut self) -> Vec<Effect> {
+        self.pending_quit = false;
+        self.request_quit()
+    }
+
     fn toggle_auto_backup(&mut self) {
         if self.git.auto_commit_interval == 0 {
             self.set_status(
-                "automatic commits are off; set git-auto-commit-interval to enable them",
+                "automatic Git operations are off; set git-auto-commit-interval to enable them",
                 StatusLevel::Info,
             );
             return;
@@ -207,15 +221,19 @@ impl App {
         self.git.auto_backup_paused = !self.git.auto_backup_paused;
         self.set_status(
             if self.git.auto_backup_paused {
-                "automatic Git commits paused for this session"
+                "automatic Git operations paused for this session"
             } else {
-                "automatic Git commits resumed"
+                "automatic Git operations resumed"
             },
             StatusLevel::Info,
         );
     }
 
     fn open_git_message(&mut self) {
+        if self.git.push_in_flight {
+            self.set_status("a background push is running", StatusLevel::Error);
+            return;
+        }
         let Some(status) = self.git.status.as_ref() else {
             self.set_status(
                 self.git_availability_refusal().to_string(),

@@ -66,6 +66,8 @@ pub struct GitConfig {
     #[serde(default, alias = "auto_backup_interval")]
     pub auto_commit_interval: u32,
     #[serde(default)]
+    pub auto_push: bool,
+    #[serde(default)]
     pub backup_on_quit: bool,
     #[serde(flatten)]
     pub extra: toml::Table,

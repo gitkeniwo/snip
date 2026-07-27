@@ -1,6 +1,8 @@
 #![cfg(feature = "tui")]
 
 use std::process::Command as ProcessCommand;
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -14,6 +16,7 @@ use snip::service::{
 };
 use snip::tui::app::{App, Effect};
 use snip::tui::editor::{EditOutcome, EditTarget, force_save};
+use snip::tui::event::AppEvent;
 use snip::tui::highlight::Highlighter;
 use snip::tui::icons::IconMode;
 use snip::tui::modal::{InputModal, Modal, ModalAction};
@@ -863,8 +866,10 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
         last_commit: None,
     });
     app.git.auto_commit_interval = 15;
+    app.git.auto_push = true;
     app.git.backup_on_quit = true;
-    app.git.last_auto_error = Some("previous automatic failure".to_owned());
+    app.git.last_commit_error = Some("previous commit failure".to_owned());
+    app.git.last_push_error = Some("previous push failure".to_owned());
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
@@ -917,9 +922,12 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
         })] if message == "custom backup"
     ));
 
+    app.git.push_in_flight = true;
+    app.git.push_attempted_at = Some(Instant::now() - Duration::from_secs(181));
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
+    assert!(row_text(terminal.backend().buffer(), 0).contains(">>"));
     let rendered = terminal
         .backend()
         .buffer()
@@ -930,8 +938,10 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
     assert!(rendered.contains("REPOSITORY"));
     assert!(rendered.contains("BACKUP"));
     assert!(rendered.contains("AUTOMATIC"));
-    assert!(rendered.contains("every 15 min"));
-    assert!(rendered.contains("previous automatic failure"));
+    assert!(rendered.contains("commit + push (every 15 min)"));
+    assert!(rendered.contains("background push stalled"));
+    assert!(rendered.contains("C: previous comm"));
+    assert!(rendered.contains("P: previous push"));
     assert!(rendered.contains("origin/main"));
     assert!(rendered.contains("backup"));
     assert!(rendered.contains("message"));
@@ -1121,13 +1131,238 @@ fn auto_commit_honors_interlocks_and_lock_contention() {
 
     let library_lock = library.lock().unwrap();
     app.tick_auto_backup();
-    assert!(app.git.last_auto_error.is_none());
+    assert!(app.git.last_commit_error.is_none());
     assert!(app.status.is_none());
     drop(library_lock);
 
+    app.git.last_push_error = Some("previous push failure".to_owned());
     app.git.auto_attempted_at = None;
     app.tick_auto_backup();
     assert_eq!(snip::git::status(&repo).unwrap().dirty_count(), 0);
+    assert!(app.git.last_commit_error.is_none());
+    assert_eq!(
+        app.git.last_push_error.as_deref(),
+        Some("previous push failure")
+    );
+}
+
+#[test]
+fn auto_push_requires_an_opted_in_sender_and_blocks_manual_git_while_running() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let library = Library::init(
+        &temporary.path().join("Push guards.sniplib"),
+        Some("Push guards"),
+    )
+    .unwrap();
+    init_git_repo(library.root());
+    let repo = snip::git::probe(library.root()).unwrap();
+    snip::git::commit(&repo, "initial").unwrap();
+    let config = AppConfig {
+        git: Some(GitConfig {
+            auto_commit_interval: 1,
+            auto_push: true,
+            ..GitConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    app.git.status = Some(Status {
+        branch: Branch::Named {
+            name: "main".to_owned(),
+        },
+        upstream: Some("origin/main".to_owned()),
+        ahead: 1,
+        behind: 0,
+        staged: 0,
+        unstaged: 0,
+        untracked: 0,
+        conflicted: Vec::new(),
+        state: RepoState::Clean,
+        head_oid: Some("abcdef123".to_owned()),
+        last_commit: None,
+    });
+
+    app.tick_auto_backup();
+    assert!(!app.git.push_in_flight);
+    assert!(app.git.push_attempted_at.is_none());
+
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
+    app.git.auto_push = false;
+    app.tick_auto_backup();
+    assert!(receiver.recv_timeout(Duration::from_millis(100)).is_err());
+    assert!(app.git.push_attempted_at.is_none());
+
+    app.git.auto_push = true;
+    app.git.push_in_flight = true;
+    app.tick_auto_backup();
+    assert!(receiver.recv_timeout(Duration::from_millis(100)).is_err());
+
+    app.git.open = true;
+    assert!(app.handle_key(key(KeyCode::Char('p'))).is_empty());
+    assert!(app.handle_key(key(KeyCode::Char('C'))).is_empty());
+    assert!(app.modal.is_none());
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("a background push is running")
+    );
+
+    app.git.open = false;
+    app.status = None;
+    assert!(app.handle_key(key(KeyCode::Char('q'))).is_empty());
+    assert!(app.pending_quit);
+    assert!(!app.should_quit);
+    assert!(!app.git.operation_queued);
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("finishing background push…")
+    );
+    app.git.push_in_flight = false;
+    assert!(app.handle_key(key(KeyCode::Char('q'))).is_empty());
+    assert!(app.should_quit);
+}
+
+#[test]
+fn background_push_reports_success_and_advances_a_bare_remote() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Background push.sniplib");
+    let bare = temporary.path().join("origin.git");
+    let library = Library::init(&root, Some("Background push")).unwrap();
+    init_git_repo(&root);
+    let repo = snip::git::probe(&root).unwrap();
+    snip::git::commit(&repo, "initial").unwrap();
+    git_ok(
+        temporary.path(),
+        &["init", "--bare", bare.to_str().unwrap()],
+    );
+    git_ok(&root, &["remote", "add", "origin", bare.to_str().unwrap()]);
+    git_ok(&root, &["push", "-u", "origin", "main"]);
+    let mut tags = std::fs::read_to_string(root.join("tags.toml")).unwrap();
+    tags.push_str("\n# ahead\n");
+    std::fs::write(root.join("tags.toml"), tags).unwrap();
+    snip::git::commit(&repo, "background push target").unwrap();
+
+    let config = AppConfig {
+        git: Some(GitConfig {
+            auto_commit_interval: 1,
+            auto_push: true,
+            ..GitConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
+    app.tick_auto_backup();
+    assert!(app.git.push_in_flight);
+
+    let event = receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+    let AppEvent::GitFinished(result) = event else {
+        panic!("expected background Git result");
+    };
+    assert!(matches!(
+        result.outcome,
+        Ok(ref outcome) if outcome.pushed && !outcome.committed
+    ));
+    app.git.last_commit_error = Some("automatic commit is still failing".to_owned());
+    app.status = None;
+    app.handle_git_task(result);
+    assert!(!app.git.push_in_flight);
+    assert_eq!(app.git.status.as_ref().unwrap().ahead, 0);
+    assert!(app.status.is_none());
+    assert!(app.git.last_push_error.is_none());
+    assert_eq!(
+        app.git.last_commit_error.as_deref(),
+        Some("automatic commit is still failing")
+    );
+
+    let remote_head = ProcessCommand::new("git")
+        .args([
+            "--git-dir",
+            bare.to_str().unwrap(),
+            "log",
+            "-1",
+            "--format=%s",
+        ])
+        .output()
+        .unwrap();
+    assert!(remote_head.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&remote_head.stdout).trim(),
+        "background push target"
+    );
+}
+
+#[test]
+fn repeated_background_push_failures_emit_only_one_error_transition() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Failed background push.sniplib");
+    let bare = temporary.path().join("origin.git");
+    let missing = temporary.path().join("missing.git");
+    let library = Library::init(&root, Some("Failed background push")).unwrap();
+    init_git_repo(&root);
+    let repo = snip::git::probe(&root).unwrap();
+    snip::git::commit(&repo, "initial").unwrap();
+    git_ok(
+        temporary.path(),
+        &["init", "--bare", bare.to_str().unwrap()],
+    );
+    git_ok(&root, &["remote", "add", "origin", bare.to_str().unwrap()]);
+    git_ok(&root, &["push", "-u", "origin", "main"]);
+    git_ok(
+        &root,
+        &["remote", "set-url", "origin", missing.to_str().unwrap()],
+    );
+    let mut tags = std::fs::read_to_string(root.join("tags.toml")).unwrap();
+    tags.push_str("\n# cannot push\n");
+    std::fs::write(root.join("tags.toml"), tags).unwrap();
+    snip::git::commit(&repo, "unpushable").unwrap();
+
+    let config = AppConfig {
+        git: Some(GitConfig {
+            auto_commit_interval: 1,
+            auto_push: true,
+            ..GitConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
+
+    app.tick_auto_backup();
+    let AppEvent::GitFinished(first) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+    else {
+        panic!("expected failed push result");
+    };
+    assert!(first.outcome.is_err());
+    app.handle_git_task(first);
+    assert!(
+        app.status
+            .as_ref()
+            .is_some_and(|status| status.text.contains("automatic push failed"))
+    );
+    assert!(app.git.last_push_error.is_some());
+
+    app.status = None;
+    app.git.push_attempted_at = None;
+    app.tick_auto_backup();
+    let AppEvent::GitFinished(second) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+    else {
+        panic!("expected repeated failed push result");
+    };
+    app.handle_git_task(second);
+    assert!(app.status.is_none());
+    assert!(!app.git.push_in_flight);
 }
 
 #[test]

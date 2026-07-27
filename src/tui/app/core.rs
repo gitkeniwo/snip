@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 use ratatui::widgets::ListState;
@@ -11,6 +12,7 @@ use crate::filesystem::Library;
 use crate::search::{MemoryIndex, SearchIndex, SearchQuery};
 use crate::service::trash_entries;
 
+use super::super::event::{AppEvent, GitTaskResult};
 use super::super::highlight::Highlighter;
 use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
@@ -143,37 +145,110 @@ impl App {
             || self.pending_quit
             || self.modal.is_some()
             || self.git.operation_queued
-            || self
-                .git
-                .auto_attempted_at
-                .is_some_and(|attempt| attempt.elapsed() < Duration::from_secs(5))
         {
             return;
         }
-        let (Some(repo), Some(status)) = (self.git.repo.clone(), self.git.status.clone()) else {
-            return;
-        };
-        if !crate::git::should_auto_backup(
-            &status,
-            time::OffsetDateTime::now_utc().unix_timestamp(),
-            self.git.auto_commit_interval,
-            self.git.auto_backup_paused,
-        ) {
+
+        if self
+            .git
+            .auto_attempted_at
+            .is_none_or(|attempt| attempt.elapsed() >= Duration::from_secs(5))
+            && let (Some(repo), Some(status)) = (self.git.repo.clone(), self.git.status.clone())
+            && crate::git::should_auto_backup(
+                &status,
+                time::OffsetDateTime::now_utc().unix_timestamp(),
+                self.git.auto_commit_interval,
+                self.git.auto_backup_paused,
+            )
+        {
+            let message = crate::git::backup_message(&status);
+            self.git.auto_attempted_at = Some(Instant::now());
+            // A push does not hold the index lock. Let commits continue while a
+            // background push is in flight; a newer HEAD is pushed next time.
+            match crate::git::commit(&repo, &message) {
+                Ok(()) => {
+                    self.git.last_commit_error = None;
+                    // The push gate below must see the commit that just landed.
+                    self.refresh_git();
+                }
+                Err(error) if crate::git::is_library_lock_conflict(&error) => {}
+                Err(error) => {
+                    let message = error.to_string();
+                    if auto_error_transition(&mut self.git.last_commit_error, message.clone()) {
+                        self.set_status(
+                            format!("automatic commit failed: {message}"),
+                            StatusLevel::Error,
+                        );
+                    }
+                }
+            }
+        }
+
+        if self.git.auto_commit_interval == 0
+            || !self.git.auto_push
+            || self.git.push_attempted_at.is_some_and(|attempt| {
+                attempt.elapsed()
+                    < Duration::from_secs(u64::from(self.git.auto_commit_interval) * 60)
+            })
+        {
             return;
         }
-        let message = crate::git::backup_message(&status);
-        self.git.auto_attempted_at = Some(Instant::now());
-        match crate::git::commit(&repo, &message) {
-            Ok(()) => {
-                self.git.last_auto_error = None;
-                self.refresh_git();
+        self.spawn_auto_push();
+    }
+
+    pub fn set_git_sender(&mut self, sender: Sender<AppEvent>) {
+        self.git.sender = Some(sender);
+    }
+
+    fn spawn_auto_push(&mut self) {
+        let (Some(repo), Some(sender)) = (self.git.repo.clone(), self.git.sender.clone()) else {
+            return;
+        };
+        let Some(status) = self.git.status.as_ref() else {
+            return;
+        };
+        if self.git.push_in_flight
+            || !crate::git::should_auto_push(
+                status,
+                self.git.auto_push,
+                self.git.auto_backup_paused,
+            )
+        {
+            return;
+        }
+        self.git.push_in_flight = true;
+        self.git.push_attempted_at = Some(Instant::now());
+        std::thread::spawn(move || {
+            let outcome = crate::git::push(&repo)
+                .map(|()| crate::git::ActionOutcome {
+                    action: "push",
+                    committed: false,
+                    pushed: true,
+                    message: "backup pushed".to_owned(),
+                })
+                .map_err(|error| error.to_string());
+            let _ = sender.send(AppEvent::GitFinished(GitTaskResult {
+                action: "push",
+                outcome,
+            }));
+        });
+    }
+
+    pub fn handle_git_task(&mut self, result: GitTaskResult) {
+        if result.action == "push" {
+            self.git.push_in_flight = false;
+        }
+        self.refresh_git();
+        match result.outcome {
+            Ok(_) => {
+                // Background success is visible in the badge and panel. Keep it
+                // quiet so an interval backup does not become a recurring toast.
+                self.git.last_push_error = None;
             }
-            Err(error) if crate::git::is_library_lock_conflict(&error) => {}
-            Err(error) => {
-                let message = error.to_string();
-                if auto_error_transition(&mut self.git.last_auto_error, message.clone()) {
+            Err(message) => {
+                if auto_error_transition(&mut self.git.last_push_error, message.clone()) {
                     self.set_status(
-                        format!("automatic commit failed: {message}"),
+                        format!("automatic {} failed: {message}", result.action),
                         StatusLevel::Error,
                     );
                 }

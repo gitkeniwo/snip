@@ -76,6 +76,16 @@ pub fn command_config(args: &ConfigArgs, explicit_output: Option<OutputMode>) ->
             let mut config = AppConfig::load_from(&path)?;
             set_config_value(&mut config, *key, value)?;
             config.save_to(&path)?;
+            if matches!(*key, ConfigKey::GitAutoPush)
+                && config
+                    .git
+                    .as_ref()
+                    .is_some_and(|git| git.auto_push && git.auto_commit_interval == 0)
+            {
+                eprintln!(
+                    "warning: automatic push is enabled but git-auto-commit-interval is 0; automatic Git operations remain off"
+                );
+            }
             let output = resolve_output(explicit_output, &config);
             print_config(&config, &path, output)
         }
@@ -195,6 +205,9 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                 SnipError::usage("git-auto-commit-interval must be a whole number of minutes")
             })?;
         }
+        ConfigKey::GitAutoPush => {
+            config.git.get_or_insert_with(GitConfig::default).auto_push = parse_bool(value)?;
+        }
         ConfigKey::GitBackupOnQuit => {
             config
                 .git
@@ -231,6 +244,9 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
                 .git
                 .get_or_insert_with(GitConfig::default)
                 .auto_commit_interval = 0
+        }
+        ConfigKey::GitAutoPush => {
+            config.git.get_or_insert_with(GitConfig::default).auto_push = false
         }
         ConfigKey::GitBackupOnQuit => {
             config

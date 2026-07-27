@@ -157,6 +157,16 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .success()
         .stdout(predicate::str::contains("Default"));
 
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "set", "git-auto-push", "true"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "automatic push is enabled but git-auto-commit-interval is 0",
+        ));
+
     for (key, value) in [
         ("default-language", "rust"),
         ("default-folder", "Agents/Generated"),
@@ -182,7 +192,16 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .assert()
         .success()
         .stdout(predicate::str::contains("\"auto_commit_interval\": 15"))
+        .stdout(predicate::str::contains("\"auto_push\": true"))
         .stdout(predicate::str::contains("\"backup_on_quit\": true"));
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "unset", "git-auto-push"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auto_push = false"));
 
     Command::cargo_bin("snip")
         .unwrap()

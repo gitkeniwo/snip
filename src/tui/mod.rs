@@ -22,8 +22,8 @@ pub mod widgets;
 
 use std::io::{self, IsTerminal, Stdout, Write};
 use std::panic;
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, mpsc};
+use std::time::{Duration, Instant};
 
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
@@ -54,7 +54,9 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     let mut guard = TerminalGuard::new()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let mut app = App::new(library, config)?;
-    let (_watcher, receiver) = event::start_watcher(app.library.root())?;
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender.clone());
+    let _watcher = event::start_watcher(app.library.root(), sender)?;
 
     while !app.should_quit {
         terminal.draw(|frame| ui::draw(frame, &mut app))?;
@@ -69,8 +71,39 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
             }
         }
         let mut dirty = false;
-        while receiver.try_recv().is_ok() {
-            dirty = true;
+        while let Ok(event) = receiver.try_recv() {
+            handle_app_event(&mut app, event, &mut dirty);
+        }
+        // `pending_quit` also marks an already-queued quit backup. Only the
+        // background-push form has no manual Git operation queued yet.
+        if app.pending_quit && !app.git.operation_queued {
+            if app.git.push_in_flight {
+                app.set_status("finishing background push…", StatusLevel::Info);
+                terminal.draw(|frame| ui::draw(frame, &mut app))?;
+                let deadline = Instant::now() + Duration::from_secs(5);
+                loop {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    match receiver.recv_timeout(remaining) {
+                        Ok(event::AppEvent::FsChanged) => dirty = true,
+                        Ok(event::AppEvent::GitFinished(result)) => {
+                            app.handle_git_task(result);
+                            effects.extend(app.resume_quit_after_push());
+                            break;
+                        }
+                        Err(
+                            mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected,
+                        ) => {
+                            // The worker owns no library data. If it cannot finish
+                            // promptly, leave the local commits for the next session.
+                            app.pending_quit = false;
+                            app.should_quit = true;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                effects.extend(app.resume_quit_after_push());
+            }
         }
         if dirty && let Err(error) = app.rescan() {
             app.set_status(error.to_string(), StatusLevel::Error);
@@ -86,6 +119,13 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn handle_app_event(app: &mut App, event: event::AppEvent, dirty: &mut bool) {
+    match event {
+        event::AppEvent::FsChanged => *dirty = true,
+        event::AppEvent::GitFinished(result) => app.handle_git_task(result),
+    }
 }
 
 fn execute_effect(

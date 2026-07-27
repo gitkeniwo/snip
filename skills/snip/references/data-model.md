@@ -121,9 +121,11 @@ retries the push without creating a commit. None of these commands pulls or
 resolves conflicts.
 
 Automatic Git behavior belongs to the user config, not the library format:
-`[git].auto_commit_interval` controls TUI-only local interval commits and
-`[git].backup_on_quit` requests an interactive backup before the TUI exits.
-Both default to off. Scheduling is derived from the repository's last commit;
-snip does not write an automatic-backup timestamp into `.snip/` or any managed
-file. Interval commits only modify `.git`, so the filesystem watcher ignores
-them and cannot create a commit loop.
+`[git].auto_commit_interval` controls TUI-only local interval commits,
+`[git].auto_push` optionally pushes ahead commits in a background worker on the
+same interval, and `[git].backup_on_quit` requests an interactive backup before
+the TUI exits. All default to off, and an interval of `0` disables both
+automatic operations. Scheduling is derived from Git state; snip does not write
+an automatic-backup timestamp into `.snip/` or any managed file. Interval
+commits only modify `.git`, so the filesystem watcher ignores them and cannot
+create a commit loop.
