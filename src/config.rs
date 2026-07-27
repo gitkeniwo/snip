@@ -63,8 +63,8 @@ pub struct TuiConfig {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct GitConfig {
-    #[serde(default)]
-    pub auto_backup_interval: u32,
+    #[serde(default, alias = "auto_backup_interval")]
+    pub auto_commit_interval: u32,
     #[serde(default)]
     pub backup_on_quit: bool,
     #[serde(flatten)]

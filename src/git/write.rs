@@ -6,8 +6,8 @@ use crate::error::{Result, SnipError};
 use crate::filesystem::Library;
 
 use super::{
-    GitAction, Repo, check_commit, check_push, command, command_failed, probe, refusal_error,
-    spawn_error, status,
+    GitAction, Repo, check_backup, check_commit, check_push, command, command_failed, probe,
+    refusal_error, spawn_error, status,
 };
 
 #[derive(Clone, Copy)]
@@ -29,6 +29,9 @@ pub fn init(library_root: &Path) -> Result<()> {
 }
 
 pub fn commit(repo: &Repo, message: &str) -> Result<()> {
+    // This fresh check is the check-then-act boundary. TUI eligibility may
+    // have been decided from a status snapshot several seconds old; keep this
+    // recheck even though callers also preflight the action.
     check_commit(&status(repo)?).map_err(refusal_error)?;
     commit_with(repo, message, Mode::NonInteractive)
 }
@@ -57,7 +60,6 @@ pub fn execute_interactive(library_root: &Path, action: &GitAction) -> Result<Ac
     let current = status(&repo)?;
     match action {
         GitAction::Backup => {
-            check_commit(&current).map_err(refusal_error)?;
             let message = super::backup_message(&current);
             backup_with(&repo, &message, Mode::Interactive, &current)
         }
@@ -133,25 +135,42 @@ fn backup_with(
     mode: Mode,
     before: &super::Status,
 ) -> Result<ActionOutcome> {
-    check_commit(before).map_err(refusal_error)?;
-    commit_with(repo, message, mode)?;
+    if let Err(refusal) = check_backup(before)
+        && refusal != super::Refusal::NothingToCommit
+    {
+        return Err(refusal_error(refusal));
+    }
+    let committed = check_commit(before).is_ok();
+    if committed {
+        commit_with(repo, message, mode)?;
+    }
     let after = status(repo)?;
     let pushed = after.upstream.is_some() && after.ahead > 0;
     if pushed {
         push_with(repo, mode).map_err(|error| {
-            SnipError::io(format!("backup was committed, but push failed: {error}"))
+            if committed {
+                SnipError::io(format!("backup was committed, but push failed: {error}"))
+            } else {
+                SnipError::io(format!("backup push failed: {error}"))
+            }
         })?;
     }
     Ok(ActionOutcome {
         action: "backup",
-        committed: true,
+        committed,
         pushed,
-        message: if pushed {
+        message: if committed && pushed {
             "backup committed and pushed".to_owned()
-        } else if after.upstream.is_none() {
+        } else if pushed {
+            "backup pushed".to_owned()
+        } else if committed && after.upstream.is_none() {
             "backup committed; set an upstream to enable push".to_owned()
-        } else {
+        } else if committed {
             "backup committed".to_owned()
+        } else if after.upstream.is_none() {
+            "backup is committed locally; set an upstream to enable push".to_owned()
+        } else {
+            "backup is already up to date".to_owned()
         },
     })
 }
@@ -162,7 +181,7 @@ fn push_error(error: SnipError) -> SnipError {
     let lower = error.message.to_ascii_lowercase();
     if lower.contains("non-fast-forward") || lower.contains("fetch first") {
         SnipError::io(format!(
-            "{error}; pull in your terminal, then try the push again"
+            "{error}\n\nsnip: pull in your terminal, then try the push again"
         ))
     } else {
         error

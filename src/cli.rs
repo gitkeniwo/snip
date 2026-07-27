@@ -497,6 +497,8 @@ pub enum GitCommand {
     },
     /// Commit all library changes and push when an upstream is configured.
     Backup,
+    /// Push commits to the configured upstream without committing.
+    Push,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -562,7 +564,7 @@ pub enum ConfigKey {
     TuiTheme,
     TuiSort,
     TuiIcons,
-    GitAutoBackupInterval,
+    GitAutoCommitInterval,
     GitBackupOnQuit,
 }
 

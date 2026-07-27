@@ -106,6 +106,7 @@ pub fn command_git(library: &Library, args: &GitArgs, output: OutputMode) -> Res
         GitCommand::Status => command_git_status(library, output),
         GitCommand::Commit { message } => command_git_commit(library, message.as_deref(), output),
         GitCommand::Backup => command_git_backup(library, output),
+        GitCommand::Push => command_git_push(library, output),
     }
 }
 
@@ -196,7 +197,8 @@ struct GitMutationReport<'a> {
     action: &'static str,
     committed: bool,
     pushed: bool,
-    message: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<&'a str>,
     outcome: &'a str,
     status: &'a Status,
 }
@@ -227,7 +229,7 @@ fn command_git_commit(
             action: "commit",
             committed: true,
             pushed: false,
-            message,
+            message: Some(message),
             outcome: "backup committed",
             status: &after,
         },
@@ -238,7 +240,6 @@ fn command_git_commit(
 fn command_git_backup(library: &Library, output: OutputMode) -> Result<()> {
     let repo = require_repo(library)?;
     let before = git::status(&repo)?;
-    git::check_commit(&before).map_err(|refusal| SnipError::conflict(refusal.to_string()))?;
     let message = git::backup_message(&before);
     let outcome = git::backup(&repo, &message)?;
     let after = git::status(&repo)?;
@@ -247,8 +248,27 @@ fn command_git_backup(library: &Library, output: OutputMode) -> Result<()> {
             action: "backup",
             committed: outcome.committed,
             pushed: outcome.pushed,
-            message: &message,
+            message: outcome.committed.then_some(message.as_str()),
             outcome: &outcome.message,
+            status: &after,
+        },
+        output,
+    )
+}
+
+fn command_git_push(library: &Library, output: OutputMode) -> Result<()> {
+    let repo = require_repo(library)?;
+    let before = git::status(&repo)?;
+    git::check_push(&before).map_err(|refusal| SnipError::conflict(refusal.to_string()))?;
+    git::push(&repo)?;
+    let after = git::status(&repo)?;
+    print_git_mutation(
+        GitMutationReport {
+            action: "push",
+            committed: false,
+            pushed: true,
+            message: None,
+            outcome: "backup pushed",
             status: &after,
         },
         output,
@@ -268,7 +288,9 @@ fn require_repo(library: &Library) -> Result<git::Repo> {
 fn print_git_mutation(report: GitMutationReport<'_>, output: OutputMode) -> Result<()> {
     if output == OutputMode::Human {
         println!("{}", report.outcome);
-        println!("message: {}", report.message);
+        if let Some(message) = report.message {
+            println!("message: {message}");
+        }
         println!(
             "ahead/behind: {}/{}",
             report.status.ahead, report.status.behind

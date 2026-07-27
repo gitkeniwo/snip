@@ -156,7 +156,7 @@ impl App {
         if !crate::git::should_auto_backup(
             &status,
             time::OffsetDateTime::now_utc().unix_timestamp(),
-            self.git.auto_backup_interval,
+            self.git.auto_commit_interval,
             self.git.auto_backup_paused,
         ) {
             return;
@@ -173,7 +173,7 @@ impl App {
                 let message = error.to_string();
                 if auto_error_transition(&mut self.git.last_auto_error, message.clone()) {
                     self.set_status(
-                        format!("automatic backup failed: {message}"),
+                        format!("automatic commit failed: {message}"),
                         StatusLevel::Error,
                     );
                 }

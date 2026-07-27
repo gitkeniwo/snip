@@ -143,7 +143,7 @@ mod tests {
         crate::git::commit(&repo, "initial").unwrap();
         let config = AppConfig {
             git: Some(GitConfig {
-                auto_backup_interval: 1,
+                auto_commit_interval: 1,
                 ..GitConfig::default()
             }),
             ..AppConfig::default()

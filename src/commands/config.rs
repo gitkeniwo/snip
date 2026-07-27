@@ -187,12 +187,12 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                     _ => return Err(SnipError::usage("tui-icons must be ascii or nerd")),
                 };
         }
-        ConfigKey::GitAutoBackupInterval => {
+        ConfigKey::GitAutoCommitInterval => {
             config
                 .git
                 .get_or_insert_with(GitConfig::default)
-                .auto_backup_interval = value.parse::<u32>().map_err(|_| {
-                SnipError::usage("git-auto-backup-interval must be a whole number of minutes")
+                .auto_commit_interval = value.parse::<u32>().map_err(|_| {
+                SnipError::usage("git-auto-commit-interval must be a whole number of minutes")
             })?;
         }
         ConfigKey::GitBackupOnQuit => {
@@ -226,11 +226,11 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         ConfigKey::TuiIcons => {
             config.tui.get_or_insert_with(TuiConfig::default).icons = TuiIconSetting::Ascii
         }
-        ConfigKey::GitAutoBackupInterval => {
+        ConfigKey::GitAutoCommitInterval => {
             config
                 .git
                 .get_or_insert_with(GitConfig::default)
-                .auto_backup_interval = 0
+                .auto_commit_interval = 0
         }
         ConfigKey::GitBackupOnQuit => {
             config

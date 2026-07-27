@@ -862,7 +862,7 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
         head_oid: Some("abcdef123".to_owned()),
         last_commit: None,
     });
-    app.git.auto_backup_interval = 15;
+    app.git.auto_commit_interval = 15;
     app.git.backup_on_quit = true;
     app.git.last_auto_error = Some("previous automatic failure".to_owned());
     terminal
@@ -884,6 +884,18 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
         app.handle_key(key(KeyCode::Char('b'))).as_slice(),
         [Effect::RunGit(GitAction::Backup)]
     ));
+    app.git.status.as_mut().unwrap().unstaged = 0;
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('b'))).as_slice(),
+        [Effect::RunGit(GitAction::Backup)]
+    ));
+    app.git.status.as_mut().unwrap().ahead = 0;
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('b'))).as_slice(),
+        [Effect::RunGit(GitAction::Backup)]
+    ));
+    app.git.status.as_mut().unwrap().ahead = 1;
+    app.git.status.as_mut().unwrap().unstaged = 2;
     assert!(matches!(
         app.handle_key(key(KeyCode::Char('c'))).as_slice(),
         [Effect::RunGit(GitAction::Commit { message: None })]
@@ -1024,6 +1036,41 @@ fn quit_backup_waits_for_its_git_effect_to_finish() {
 }
 
 #[test]
+fn quit_backup_runs_for_a_clean_worktree_with_unpushed_commits() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = Library::init(
+        &temporary.path().join("Clean ahead.sniplib"),
+        Some("Clean ahead"),
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.git.backup_on_quit = true;
+    app.git.unavailable = None;
+    app.git.status = Some(Status {
+        branch: Branch::Named {
+            name: "main".to_owned(),
+        },
+        upstream: Some("origin/main".to_owned()),
+        ahead: 4,
+        behind: 0,
+        staged: 0,
+        unstaged: 0,
+        untracked: 0,
+        conflicted: Vec::new(),
+        state: RepoState::Clean,
+        head_oid: Some("abcdef123".to_owned()),
+        last_commit: None,
+    });
+
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('q'))).as_slice(),
+        [Effect::RunGit(GitAction::Backup)]
+    ));
+    assert!(app.pending_quit);
+    assert!(!app.should_quit);
+}
+
+#[test]
 fn auto_commit_honors_interlocks_and_lock_contention() {
     if !git_available() {
         return;
@@ -1036,7 +1083,7 @@ fn auto_commit_honors_interlocks_and_lock_contention() {
     snip::git::commit(&repo, "initial").unwrap();
     let config = AppConfig {
         git: Some(GitConfig {
-            auto_backup_interval: 1,
+            auto_commit_interval: 1,
             backup_on_quit: false,
             ..GitConfig::default()
         }),

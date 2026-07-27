@@ -130,34 +130,42 @@ impl App {
     }
 
     fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
-        let refusal = match &action {
-            GitAction::Init => match self.git.unavailable.as_ref() {
-                Some(Unavailable::NotARepository) => None,
-                Some(Unavailable::ProbeFailed { .. }) => Some(Refusal::ProbeFailed),
-                Some(Unavailable::BinaryMissing) => Some(Refusal::Unavailable),
-                None => {
-                    self.set_status(
-                        "this library is already a Git repository",
-                        StatusLevel::Error,
-                    );
-                    return Vec::new();
-                }
-            },
-            GitAction::Backup | GitAction::Commit { .. } => self
-                .git
-                .status
-                .as_ref()
-                .map_or(Some(self.git_availability_refusal()), |status| {
-                    git::check_commit(status).err()
-                }),
-            GitAction::Push => self
-                .git
-                .status
-                .as_ref()
-                .map_or(Some(self.git_availability_refusal()), |status| {
-                    git::check_push(status).err()
-                }),
-        };
+        let refusal =
+            match &action {
+                GitAction::Init => match self.git.unavailable.as_ref() {
+                    Some(Unavailable::NotARepository) => None,
+                    Some(Unavailable::ProbeFailed { .. }) => Some(Refusal::ProbeFailed),
+                    Some(Unavailable::BinaryMissing) => Some(Refusal::Unavailable),
+                    None => {
+                        self.set_status(
+                            "this library is already a Git repository",
+                            StatusLevel::Error,
+                        );
+                        return Vec::new();
+                    }
+                },
+                GitAction::Backup => self.git.status.as_ref().map_or(
+                    Some(self.git_availability_refusal()),
+                    |status| match git::check_backup(status) {
+                        Err(Refusal::NothingToCommit) | Ok(()) => None,
+                        Err(refusal) => Some(refusal),
+                    },
+                ),
+                GitAction::Commit { .. } => self
+                    .git
+                    .status
+                    .as_ref()
+                    .map_or(Some(self.git_availability_refusal()), |status| {
+                        git::check_commit(status).err()
+                    }),
+                GitAction::Push => self
+                    .git
+                    .status
+                    .as_ref()
+                    .map_or(Some(self.git_availability_refusal()), |status| {
+                        git::check_push(status).err()
+                    }),
+            };
         if let Some(refusal) = refusal {
             self.set_status(refusal.to_string(), StatusLevel::Error);
             return Vec::new();
@@ -177,7 +185,7 @@ impl App {
                 .git
                 .status
                 .as_ref()
-                .is_some_and(|status| git::check_commit(status).is_ok());
+                .is_some_and(|status| git::check_backup(status).is_ok());
         if should_backup {
             self.pending_quit = true;
             self.git.operation_queued = true;
@@ -189,9 +197,9 @@ impl App {
     }
 
     fn toggle_auto_backup(&mut self) {
-        if self.git.auto_backup_interval == 0 {
+        if self.git.auto_commit_interval == 0 {
             self.set_status(
-                "automatic commits are off; set git-auto-backup-interval to enable them",
+                "automatic commits are off; set git-auto-commit-interval to enable them",
                 StatusLevel::Info,
             );
             return;
@@ -199,9 +207,9 @@ impl App {
         self.git.auto_backup_paused = !self.git.auto_backup_paused;
         self.set_status(
             if self.git.auto_backup_paused {
-                "automatic Git backup paused for this session"
+                "automatic Git commits paused for this session"
             } else {
-                "automatic Git backup resumed"
+                "automatic Git commits resumed"
             },
             StatusLevel::Info,
         );

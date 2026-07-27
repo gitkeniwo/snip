@@ -177,13 +177,18 @@ after their last use, so a tag with count 0 is normal, not corruption.
 - `snip git status` — Git backup status scoped to the library directory.
 - `snip git commit [-m <MESSAGE>]` — stage and commit library content. The
   generated message includes local time and the dirty-file count.
-- `snip git backup` — commit library content, then push when an upstream is
-  configured. It never pulls; resolve rejected pushes in Git directly.
+- `snip git backup` — commit when the library is dirty, then push whenever
+  local commits are ahead of the configured upstream. A clean-but-ahead
+  library is pushed without creating another commit. It succeeds as an
+  idempotent no-op when the library is already up to date. In JSON, `message`
+  is emitted only when this invocation created a commit.
+- `snip git push` — push ahead commits without committing, for example to retry
+  after resolving a rejected push. Neither write command ever pulls.
 
 CLI Git writes are deliberate user-triggered operations: they disable
 credential prompts and fail fast. The TUI suspends to the real terminal for
 manual operations and `backup_on_quit`, preserving interactive credentials and
-progress. With `[git].auto_backup_interval` set above zero, the TUI may create
+progress. With `[git].auto_commit_interval` set above zero, the TUI may create
 local interval commits; it never auto-pushes. `a` in the Git panel pauses these
 commits for the current session.
 
@@ -196,7 +201,7 @@ commits for the current session.
 - `snip config path|show|init|set <KEY> <VALUE>|unset <KEY>` — keys:
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
   `editor`, `pager`, `default-language`, `default-folder`, `default-tags`,
-  `tui-theme`, `tui-sort`, `tui-icons`, `git-auto-backup-interval`,
+  `tui-theme`, `tui-sort`, `tui-icons`, `git-auto-commit-interval`,
   `git-backup-on-quit`. The interval is a whole number of minutes, with `0`
   meaning off; the quit setting is boolean. Unknown keys in the file are
   preserved across writes, so hand-added settings survive.

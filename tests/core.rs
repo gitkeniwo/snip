@@ -255,7 +255,7 @@ icons = "nerd"
 accent = "#123456"
 
 [git]
-auto_backup_interval = 15
+auto_commit_interval = 15
 backup_on_quit = true
 future_remote_policy = "manual"
 "##,
@@ -286,7 +286,7 @@ future_remote_policy = "manual"
     );
     assert_eq!(
         config.git.as_ref().map(|git| (
-            git.auto_backup_interval,
+            git.auto_commit_interval,
             git.backup_on_quit,
             git.extra
                 .get("future_remote_policy")
@@ -300,4 +300,26 @@ future_remote_policy = "manual"
     assert!(saved.contains("future_gui_layout = \"wide\""));
     assert!(saved.contains("accent = \"#123456\""));
     assert!(saved.contains("future_remote_policy = \"manual\""));
+}
+
+#[test]
+fn legacy_auto_backup_interval_loads_and_is_rewritten_with_the_precise_name() {
+    let temporary = tempfile::tempdir().unwrap();
+    let path = temporary.path().join("config.toml");
+    fs::write(
+        &path,
+        "schema_version = 1\n\n[git]\nauto_backup_interval = 15\n",
+    )
+    .unwrap();
+
+    let config = AppConfig::load_from(&path).unwrap();
+    assert_eq!(
+        config.git.as_ref().map(|git| git.auto_commit_interval),
+        Some(15)
+    );
+
+    config.save_to(&path).unwrap();
+    let saved = fs::read_to_string(path).unwrap();
+    assert!(saved.contains("auto_commit_interval = 15"));
+    assert!(!saved.contains("auto_backup_interval"));
 }

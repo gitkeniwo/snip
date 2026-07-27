@@ -115,11 +115,13 @@ transactions left by a killed process.
 
 A library under Git is a good safety net for bulk work. `snip git status`
 reports backup state scoped to the library directory. `snip git commit` stages
-and commits library content, while `snip git backup` additionally pushes when
-an upstream exists. Neither command pulls or resolves conflicts.
+and commits library content, while `snip git backup` commits dirty content and
+pushes any local commits that are ahead of the upstream. `snip git push`
+retries the push without creating a commit. None of these commands pulls or
+resolves conflicts.
 
 Automatic Git behavior belongs to the user config, not the library format:
-`[git].auto_backup_interval` controls TUI-only local interval commits and
+`[git].auto_commit_interval` controls TUI-only local interval commits and
 `[git].backup_on_quit` requests an interactive backup before the TUI exits.
 Both default to off. Scheduling is derived from the repository's last commit;
 snip does not write an automatic-backup timestamp into `.snip/` or any managed

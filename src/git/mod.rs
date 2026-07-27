@@ -2,7 +2,6 @@ mod command;
 mod parse;
 mod write;
 
-use std::cell::RefCell;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,7 +30,6 @@ pub struct Repo {
     pub git_dir: PathBuf,
     pub library_prefix: Option<String>,
     pub(crate) library_root: PathBuf,
-    cached_commit: RefCell<Option<(String, Commit)>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -176,6 +174,24 @@ pub fn check_push(status: &Status) -> std::result::Result<(), Refusal> {
     Ok(())
 }
 
+/// Checks whether a backup has work to perform.
+///
+/// `NothingToCommit` means no local commit or push can be performed from the
+/// current status. `backup` treats that state as a successful no-op (while
+/// still reporting a missing upstream); callers such as backup-on-quit use
+/// this predicate to avoid launching an unnecessary action.
+pub fn check_backup(status: &Status) -> std::result::Result<(), Refusal> {
+    match check_commit(status) {
+        Ok(()) => Ok(()),
+        Err(Refusal::NothingToCommit) => match check_push(status) {
+            Ok(()) => Ok(()),
+            Err(Refusal::NoUpstream | Refusal::NothingToPush) => Err(Refusal::NothingToCommit),
+            Err(refusal) => Err(refusal),
+        },
+        Err(refusal) => Err(refusal),
+    }
+}
+
 pub fn should_auto_backup(status: &Status, now: i64, interval_minutes: u32, paused: bool) -> bool {
     if paused || interval_minutes == 0 || check_commit(status).is_err() {
         return false;
@@ -196,14 +212,15 @@ pub fn backup_message(status: &Status) -> String {
 }
 
 pub fn backup_message_at(status: &Status, timestamp: OffsetDateTime) -> String {
+    let count = status.dirty_count();
+    let unit = if count == 1 { "file" } else { "files" };
     format!(
-        "snip backup: {:04}-{:02}-{:02} {:02}:{:02} ({} files)",
+        "snip backup: {:04}-{:02}-{:02} {:02}:{:02} ({count} {unit})",
         timestamp.year(),
         u8::from(timestamp.month()),
         timestamp.day(),
         timestamp.hour(),
-        timestamp.minute(),
-        status.dirty_count()
+        timestamp.minute()
     )
 }
 
@@ -258,7 +275,6 @@ pub fn probe(library_root: &Path) -> std::result::Result<Repo, Unavailable> {
         git_dir,
         library_prefix,
         library_root,
-        cached_commit: RefCell::new(None),
     })
 }
 
@@ -295,7 +311,7 @@ pub fn status(repo: &Repo) -> Result<Status> {
     });
     let last_commit = match parsed.head_oid.as_deref() {
         None => None,
-        Some(head) => cached_or_load_commit(repo, head)?,
+        Some(_) => load_commit(repo)?,
     };
     let conflicted = parsed
         .conflicted
@@ -323,22 +339,13 @@ fn canonicalize_probe_path(path: &Path, label: &str) -> std::result::Result<Path
     })
 }
 
-fn cached_or_load_commit(repo: &Repo, head: &str) -> Result<Option<Commit>> {
-    if let Some((cached_head, commit)) = repo.cached_commit.borrow().as_ref()
-        && cached_head == head
-    {
-        return Ok(Some(commit.clone()));
-    }
+fn load_commit(repo: &Repo) -> Result<Option<Commit>> {
     let output = command::run(&repo.root, &["log", "-1", "--format=%h%x00%ct%x00%s"])
         .map_err(spawn_error)?;
     if !output.status.success() {
         return Ok(None);
     }
-    let commit = parse::parse_log(&output.stdout);
-    if let Some(commit) = &commit {
-        *repo.cached_commit.borrow_mut() = Some((head.to_owned(), commit.clone()));
-    }
-    Ok(commit)
+    Ok(parse::parse_log(&output.stdout))
 }
 
 fn repo_state(git_dir: &Path) -> RepoState {
@@ -478,6 +485,32 @@ mod write_tests {
     }
 
     #[test]
+    fn backup_accepts_committable_changes_or_pushable_commits() {
+        let dirty = clean_status();
+        assert_eq!(check_backup(&dirty), Ok(()));
+
+        let mut clean_ahead = clean_status();
+        clean_ahead.unstaged = 0;
+        clean_ahead.untracked = 0;
+        assert_eq!(check_commit(&clean_ahead), Err(Refusal::NothingToCommit));
+        assert_eq!(check_push(&clean_ahead), Ok(()));
+        assert_eq!(check_backup(&clean_ahead), Ok(()));
+
+        clean_ahead.ahead = 0;
+        assert_eq!(check_backup(&clean_ahead), Err(Refusal::NothingToCommit));
+
+        let mut conflicted = clean_status();
+        conflicted.conflicted.push("conflict.rs".to_owned());
+        assert_eq!(check_backup(&conflicted), Err(Refusal::Conflicted));
+    }
+
+    #[test]
+    fn repo_is_send_and_sync_without_status_cache_interior_mutability() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Repo>();
+    }
+
+    #[test]
     fn auto_backup_schedule_is_derived_from_git_status() {
         let now = 10_000;
         let mut status = clean_status();
@@ -542,6 +575,12 @@ mod write_tests {
         assert_eq!(
             backup_message_at(&clean_status(), timestamp),
             "snip backup: 2026-07-27 14:32 (3 files)"
+        );
+        let mut one_file = clean_status();
+        one_file.untracked = 0;
+        assert_eq!(
+            backup_message_at(&one_file, timestamp),
+            "snip backup: 2026-07-27 14:32 (1 file)"
         );
     }
 }

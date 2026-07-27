@@ -164,7 +164,7 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         ("tui-theme", "dark"),
         ("tui-sort", "modified"),
         ("tui-icons", "nerd"),
-        ("git-auto-backup-interval", "15"),
+        ("git-auto-commit-interval", "15"),
         ("git-backup-on-quit", "true"),
     ] {
         Command::cargo_bin("snip")
@@ -181,7 +181,7 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .args(["--output", "json", "config", "show"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("\"auto_backup_interval\": 15"))
+        .stdout(predicate::str::contains("\"auto_commit_interval\": 15"))
         .stdout(predicate::str::contains("\"backup_on_quit\": true"));
 
     Command::cargo_bin("snip")

@@ -176,7 +176,7 @@ snip config set default-tags 'ai,generated'
 snip config set tui-theme auto
 snip config set tui-sort modified
 snip config set tui-icons ascii
-snip config set git-auto-backup-interval 15
+snip config set git-auto-commit-interval 15
 snip config set git-backup-on-quit true
 snip config unset default-folder
 ```
@@ -202,7 +202,7 @@ sort = "manual"            # manual | title | modified | created
 icons = "ascii"            # ascii | nerd; nerd falls back to ascii in v2
 
 [git]
-auto_backup_interval = 0   # minutes; 0 disables automatic commits
+auto_commit_interval = 0   # minutes; 0 disables automatic commits
 backup_on_quit = false
 ```
 
@@ -361,10 +361,15 @@ snip init Main.sniplib --git
 snip --library Main.sniplib git commit
 snip --library Main.sniplib git commit -m "before refactoring"
 snip --library Main.sniplib git backup
+snip --library Main.sniplib git push
 ```
 
-`commit` stages and commits only library content. `backup` commits and then
-pushes when the branch has an upstream. These CLI operations are
+`commit` stages and commits only library content. `backup` commits when the
+library is dirty and pushes whenever the branch is ahead of its upstream, so it
+also handles a clean worktree with earlier local commits. `push` retries only
+the push step. `backup` is idempotent: an already committed and pushed library
+returns success with `backup is already up to date`. Its JSON `message` field
+is present only when that invocation created a commit. These CLI operations are
 non-interactive and fail rather than waiting for credentials.
 
 In the TUI, `Ctrl-g` opens the Git panel: `b` backs up, `c` commits, `p` pushes,
@@ -373,7 +378,7 @@ session, and `i` initializes a repository. Manual TUI operations temporarily
 return to the real terminal so Git credential prompts and progress remain
 visible.
 
-Automatic behavior is off by default. Set `git-auto-backup-interval` to make
+Automatic behavior is off by default. Set `git-auto-commit-interval` to make
 the TUI create a local commit when the library is dirty and the last commit is
 at least that many minutes old. These interval commits never push. Set
 `git-backup-on-quit` to run the normal interactive backup before the TUI exits;

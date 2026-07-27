@@ -38,7 +38,7 @@ pub struct GitState {
     pub status: Option<git::Status>,
     pub error: Option<String>,
     pub open: bool,
-    pub auto_backup_interval: u32,
+    pub auto_commit_interval: u32,
     pub backup_on_quit: bool,
     pub auto_backup_paused: bool,
     pub last_auto_error: Option<String>,
@@ -60,7 +60,7 @@ impl GitState {
             status: None,
             error: None,
             open: false,
-            auto_backup_interval: config.auto_backup_interval,
+            auto_commit_interval: config.auto_commit_interval,
             backup_on_quit: config.backup_on_quit,
             auto_backup_paused: false,
             last_auto_error: None,
@@ -76,7 +76,7 @@ impl GitState {
         let auto_backup_paused = self.auto_backup_paused;
         let last_auto_error = self.last_auto_error.take();
         let config = GitConfig {
-            auto_backup_interval: self.auto_backup_interval,
+            auto_commit_interval: self.auto_commit_interval,
             backup_on_quit: self.backup_on_quit,
             ..GitConfig::default()
         };

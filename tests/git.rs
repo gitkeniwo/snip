@@ -258,6 +258,13 @@ fn backup_pushes_to_a_local_bare_remote_and_clears_ahead() {
     init_repo(&root);
     let repo = git::probe(library.root()).unwrap();
     git::commit(&repo, "initial").unwrap();
+    let local_only = git::backup(&repo, "unused").unwrap();
+    assert!(!local_only.committed);
+    assert!(!local_only.pushed);
+    assert_eq!(
+        local_only.message,
+        "backup is committed locally; set an upstream to enable push"
+    );
     git_ok(
         temporary.path(),
         &["init", "--bare", bare.to_str().unwrap()],
@@ -274,7 +281,11 @@ fn backup_pushes_to_a_local_bare_remote_and_clears_ahead() {
     assert_eq!(git::status(&repo).unwrap().ahead, 0);
     assert!(git_stdout(&bare, &["log", "-1", "--format=%s"]).starts_with("snip backup:"));
 
-    append(&root.join("tags.toml"), "# cli backup\n");
+    append(&root.join("tags.toml"), "# interval commit\n");
+    git::commit(&repo, "interval auto commit").unwrap();
+    let status = git::status(&repo).unwrap();
+    assert_eq!(status.dirty_count(), 0);
+    assert_eq!(status.ahead, 1);
     Command::cargo_bin("snip")
         .unwrap()
         .args([
@@ -287,8 +298,65 @@ fn backup_pushes_to_a_local_bare_remote_and_clears_ahead() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("\"pushed\": true"));
+        .stdout(predicate::str::contains("\"committed\": false"))
+        .stdout(predicate::str::contains("\"pushed\": true"))
+        .stdout(predicate::str::contains("\"message\"").not());
     assert_eq!(git::status(&repo).unwrap().ahead, 0);
+    assert_eq!(
+        git_stdout(&bare, &["log", "-1", "--format=%s"]).trim(),
+        "interval auto commit"
+    );
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            root.to_str().unwrap(),
+            "--output",
+            "json",
+            "git",
+            "backup",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"committed\": false"))
+        .stdout(predicate::str::contains("\"pushed\": false"))
+        .stdout(predicate::str::contains(
+            "\"outcome\": \"backup is already up to date\"",
+        ))
+        .stdout(predicate::str::contains("\"message\"").not());
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", root.to_str().unwrap(), "git", "backup"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("backup is already up to date"))
+        .stdout(predicate::str::contains("message:").not());
+
+    append(&root.join("tags.toml"), "# explicit push\n");
+    git::commit(&repo, "explicit push retry").unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            root.to_str().unwrap(),
+            "--output",
+            "json",
+            "git",
+            "push",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"action\": \"push\""))
+        .stdout(predicate::str::contains("\"committed\": false"))
+        .stdout(predicate::str::contains("\"pushed\": true"))
+        .stdout(predicate::str::contains("\"message\"").not());
+    assert_eq!(git::status(&repo).unwrap().ahead, 0);
+    assert_eq!(
+        git_stdout(&bare, &["log", "-1", "--format=%s"]).trim(),
+        "explicit push retry"
+    );
 }
 
 #[test]
@@ -345,7 +413,11 @@ fn commit_uses_the_library_lock_for_its_snapshot() {
     let repo = git::probe(library.root()).unwrap();
     let library_lock = library.lock().unwrap();
     let error = git::commit(&repo, "must refuse").unwrap_err();
-    assert!(error.to_string().contains("library is locked"));
+    assert!(
+        error
+            .to_string()
+            .starts_with("library is locked by another process:")
+    );
     drop(library_lock);
 }
 

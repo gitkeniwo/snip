@@ -69,7 +69,7 @@ pub fn badge(state: &GitState, icons: IconMode, theme: TuiTheme) -> Option<(Stri
 
 fn with_auto_suffix(state: &GitState, text: impl Into<String>) -> String {
     let mut text = text.into();
-    if state.auto_backup_interval > 0 && state.auto_backup_paused {
+    if state.auto_commit_interval > 0 && state.auto_backup_paused {
         text.push_str(" [auto paused]");
     }
     text
@@ -225,12 +225,12 @@ fn repository_text(app: &App) -> Text<'static> {
         app.theme,
     ));
     lines.extend([Line::raw(""), section("AUTOMATIC", app.theme)]);
-    let auto_commit = if app.git.auto_backup_interval == 0 {
+    let auto_commit = if app.git.auto_commit_interval == 0 {
         "off".to_owned()
     } else if app.git.auto_backup_paused {
-        format!("paused (every {} min)", app.git.auto_backup_interval)
+        format!("paused (every {} min)", app.git.auto_commit_interval)
     } else {
-        format!("every {} min", app.git.auto_backup_interval)
+        format!("every {} min", app.git.auto_commit_interval)
     };
     lines.push(key_value("auto commit", auto_commit, app.theme));
     lines.push(key_value(
@@ -419,7 +419,7 @@ mod tests {
             status: Some(status),
             error: None,
             open: false,
-            auto_backup_interval: 0,
+            auto_commit_interval: 0,
             backup_on_quit: false,
             auto_backup_paused: false,
             last_auto_error: None,
