@@ -5,6 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 
 use super::app::App;
+use super::git_panel;
 use super::state::sort_indicator;
 use super::theme::TuiTheme;
 use super::widgets;
@@ -26,7 +27,10 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     } else {
         app.theme.pill_primary
     };
-    let right = top_position_pill(sort_indicator(app.sort), &counts, app.theme);
+    let git = (area.width >= 60)
+        .then(|| git_panel::badge(&app.git, app.icon_mode, app.theme))
+        .flatten();
+    let right = top_position_pill(git, sort_indicator(app.sort), &counts, app.theme);
     let right_width = right.width().min(area.width as usize) as u16;
     let regions = Layout::horizontal([
         Constraint::Min(0),
@@ -77,16 +81,42 @@ fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> 
     Line::from(spans)
 }
 
-fn top_position_pill(sort: Option<&str>, counts: &str, theme: TuiTheme) -> Line<'static> {
+fn top_position_pill(
+    git: Option<(String, ratatui::style::Color)>,
+    sort: Option<&str>,
+    counts: &str,
+    theme: TuiTheme,
+) -> Line<'static> {
     let primary = theme.pill_primary;
     let secondary = theme.pill_secondary;
     let mut spans = Vec::new();
-    if let Some(sort) = sort {
+    if let Some((git, color)) = git {
         spans.push(widgets::pill_cap(
             widgets::PILL_OPEN,
             secondary,
             theme.bar_bg,
         ));
+        spans.push(Span::styled(
+            format!(" {git} "),
+            Style::default()
+                .fg(color)
+                .bg(secondary)
+                .add_modifier(Modifier::BOLD),
+        ));
+        if sort.is_some() {
+            spans.push(Span::styled(" ", Style::default().bg(secondary)));
+        } else {
+            spans.push(widgets::pill_cap(widgets::PILL_CLOSE, secondary, primary));
+        }
+    }
+    if let Some(sort) = sort {
+        if spans.is_empty() {
+            spans.push(widgets::pill_cap(
+                widgets::PILL_OPEN,
+                secondary,
+                theme.bar_bg,
+            ));
+        }
         spans.push(Span::styled(
             format!(" {sort} "),
             Style::default()
@@ -95,7 +125,7 @@ fn top_position_pill(sort: Option<&str>, counts: &str, theme: TuiTheme) -> Line<
                 .add_modifier(Modifier::BOLD),
         ));
         spans.push(widgets::pill_cap(widgets::PILL_CLOSE, secondary, primary));
-    } else {
+    } else if spans.is_empty() {
         spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, theme.bar_bg));
     }
     spans.push(Span::styled(

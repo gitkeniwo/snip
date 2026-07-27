@@ -4,7 +4,10 @@ use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 
+use crate::git::{self, GitAction, Refusal, Unavailable};
+
 use super::super::layout::{contains, inner};
+use super::super::modal::{InputModal, Modal, ModalAction};
 use super::super::selection::SelectionPoint;
 use super::super::state::{Filter, Pane, SidebarItem, StatusLevel};
 use super::types::{App, Effect};
@@ -12,18 +15,48 @@ use super::types::{App, Effect};
 impl App {
     pub fn handle_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-            self.should_quit = true;
-            return Vec::new();
+            return self.request_quit();
         }
         if self.modal.is_some() {
             return self.handle_modal_key(key);
+        }
+        if self.git.open {
+            match key.code {
+                _ if is_ctrl_g(key) || key.code == KeyCode::Esc => self.git.open = false,
+                KeyCode::Char('r') => self.refresh_git(),
+                KeyCode::Char('b') => return self.git_effect(GitAction::Backup),
+                KeyCode::Char('c') => {
+                    return self.git_effect(GitAction::Commit { message: None });
+                }
+                KeyCode::Char('p') => return self.git_effect(GitAction::Push),
+                KeyCode::Char('C') => self.open_git_message(),
+                KeyCode::Char('a') => self.toggle_auto_backup(),
+                KeyCode::Char('i') => return self.git_effect(GitAction::Init),
+                _ => {}
+            }
+            return Vec::new();
+        }
+        if is_ctrl_g(key) {
+            if matches!(
+                self.git.unavailable.as_ref(),
+                Some(crate::git::Unavailable::BinaryMissing)
+            ) {
+                self.set_status("git not found in PATH", StatusLevel::Error);
+            } else {
+                self.show_help = false;
+                self.search.active = false;
+                self.trash.open = false;
+                self.git.open = true;
+                self.refresh_git();
+            }
+            return Vec::new();
         }
         if self.search.active {
             return self.handle_search(key);
         }
         if self.show_help {
             match key.code {
-                KeyCode::Char('q') => self.should_quit = true,
+                KeyCode::Char('q') => return self.request_quit(),
                 KeyCode::Char('?') | KeyCode::Esc => self.show_help = false,
                 _ => {}
             }
@@ -33,7 +66,7 @@ impl App {
             return self.handle_trash_key(key);
         }
         match key.code {
-            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Char('q') => return self.request_quit(),
             KeyCode::Tab => self.focus = self.focus.next(),
             KeyCode::BackTab => self.focus = self.focus.previous(),
             KeyCode::Char('h') | KeyCode::Left => self.drill_back(),
@@ -96,8 +129,119 @@ impl App {
         Vec::new()
     }
 
+    fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
+        let refusal = match &action {
+            GitAction::Init => match self.git.unavailable.as_ref() {
+                Some(Unavailable::NotARepository) => None,
+                Some(Unavailable::ProbeFailed { .. }) => Some(Refusal::ProbeFailed),
+                Some(Unavailable::BinaryMissing) => Some(Refusal::Unavailable),
+                None => {
+                    self.set_status(
+                        "this library is already a Git repository",
+                        StatusLevel::Error,
+                    );
+                    return Vec::new();
+                }
+            },
+            GitAction::Backup | GitAction::Commit { .. } => self
+                .git
+                .status
+                .as_ref()
+                .map_or(Some(self.git_availability_refusal()), |status| {
+                    git::check_commit(status).err()
+                }),
+            GitAction::Push => self
+                .git
+                .status
+                .as_ref()
+                .map_or(Some(self.git_availability_refusal()), |status| {
+                    git::check_push(status).err()
+                }),
+        };
+        if let Some(refusal) = refusal {
+            self.set_status(refusal.to_string(), StatusLevel::Error);
+            return Vec::new();
+        }
+        self.git.operation_queued = true;
+        vec![Effect::RunGit(action)]
+    }
+
+    pub(super) fn request_quit(&mut self) -> Vec<Effect> {
+        if self.git.backup_on_quit {
+            // The periodic badge may be a few seconds old; quitting is the one
+            // point where the backup decision must use a fresh worktree view.
+            self.refresh_git();
+        }
+        let should_backup = self.git.backup_on_quit
+            && self
+                .git
+                .status
+                .as_ref()
+                .is_some_and(|status| git::check_commit(status).is_ok());
+        if should_backup {
+            self.pending_quit = true;
+            self.git.operation_queued = true;
+            vec![Effect::RunGit(GitAction::Backup)]
+        } else {
+            self.should_quit = true;
+            Vec::new()
+        }
+    }
+
+    fn toggle_auto_backup(&mut self) {
+        if self.git.auto_backup_interval == 0 {
+            self.set_status(
+                "automatic commits are off; set git-auto-backup-interval to enable them",
+                StatusLevel::Info,
+            );
+            return;
+        }
+        self.git.auto_backup_paused = !self.git.auto_backup_paused;
+        self.set_status(
+            if self.git.auto_backup_paused {
+                "automatic Git backup paused for this session"
+            } else {
+                "automatic Git backup resumed"
+            },
+            StatusLevel::Info,
+        );
+    }
+
+    fn open_git_message(&mut self) {
+        let Some(status) = self.git.status.as_ref() else {
+            self.set_status(
+                self.git_availability_refusal().to_string(),
+                StatusLevel::Error,
+            );
+            return;
+        };
+        if let Err(refusal) = git::check_commit(status) {
+            self.set_status(refusal.to_string(), StatusLevel::Error);
+            return;
+        }
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Commit message",
+            git::backup_message(status),
+            ModalAction::GitCommit,
+        )));
+    }
+
+    fn git_availability_refusal(&self) -> Refusal {
+        match self.git.unavailable.as_ref() {
+            Some(Unavailable::ProbeFailed { .. }) => Refusal::ProbeFailed,
+            Some(Unavailable::BinaryMissing | Unavailable::NotARepository) | None => {
+                Refusal::Unavailable
+            }
+        }
+    }
+
     pub fn handle_mouse(&mut self, event: MouseEvent) -> Vec<Effect> {
-        if self.modal.is_some() || self.trash.open || self.show_help || self.search.active {
+        if self.modal.is_some()
+            || self.trash.open
+            || self.show_help
+            || self.git.open
+            || self.search.active
+        {
             return Vec::new();
         }
         match event.kind {
@@ -471,4 +615,8 @@ impl App {
             self.preview.invalidate();
         }
     }
+}
+
+fn is_ctrl_g(key: KeyEvent) -> bool {
+    key.code == KeyCode::Char('g') && key.modifiers.contains(KeyModifiers::CONTROL)
 }

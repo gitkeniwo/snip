@@ -168,13 +168,24 @@ after their last use, so a tag with count 0 is normal, not corruption.
 - `snip organize [--dry-run]` — normalize package directory names after titles
   change. Cosmetic; identity lives in the UUID.
 - `snip init [PATH] [--name <NAME>] [--git]` — create a library. `PATH`
-  defaults to the current directory; `--git` initializes a repository in it.
+  defaults to the current directory; `--git` initializes a dedicated
+  repository.
 - `snip import snippetslab <SOURCE> --into <LIBRARY> [--dry-run]` — import a
   SnippetsLab database. Always dry-run first and show the user the report, which
   counts snippets, folders, tags, fragments, notes, and attachments and flags
   normalized tags.
-- `snip git status|diff|log|commit` — Git scoped to the library directory, for
-  libraries kept under version control.
+- `snip git status` — Git backup status scoped to the library directory.
+- `snip git commit [-m <MESSAGE>]` — stage and commit library content. The
+  generated message includes local time and the dirty-file count.
+- `snip git backup` — commit library content, then push when an upstream is
+  configured. It never pulls; resolve rejected pushes in Git directly.
+
+CLI Git writes are deliberate user-triggered operations: they disable
+credential prompts and fail fast. The TUI suspends to the real terminal for
+manual operations and `backup_on_quit`, preserving interactive credentials and
+progress. With `[git].auto_backup_interval` set above zero, the TUI may create
+local interval commits; it never auto-pushes. `a` in the Git panel pauses these
+commits for the current session.
 
 ## Other
 
@@ -185,8 +196,10 @@ after their last use, so a tag with count 0 is normal, not corruption.
 - `snip config path|show|init|set <KEY> <VALUE>|unset <KEY>` — keys:
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
   `editor`, `pager`, `default-language`, `default-folder`, `default-tags`,
-  `tui-theme`, `tui-sort`, `tui-icons`. Unknown keys in the file are preserved
-  across writes, so hand-added settings survive.
+  `tui-theme`, `tui-sort`, `tui-icons`, `git-auto-backup-interval`,
+  `git-backup-on-quit`. The interval is a whole number of minutes, with `0`
+  meaning off; the quit setting is boolean. Unknown keys in the file are
+  preserved across writes, so hand-added settings survive.
 - `snip completion bash|zsh|fish` — shell completion script.
 - `snip tui` — interactive TUI for humans. Refuses to start without a terminal.
 

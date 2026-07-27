@@ -113,6 +113,15 @@ Never hand-edit anything under `.snip/`, and never write into `trash/` — use
 `repaired`, and `ok`. `snip doctor --repair` finishes or rolls back interrupted
 transactions left by a killed process.
 
-A library under Git is a good safety net for bulk work — `snip git status`,
-`snip git diff`, and `snip git commit` operate scoped to the library directory,
-so you can inspect exactly what a bulk change did before committing it.
+A library under Git is a good safety net for bulk work. `snip git status`
+reports backup state scoped to the library directory. `snip git commit` stages
+and commits library content, while `snip git backup` additionally pushes when
+an upstream exists. Neither command pulls or resolves conflicts.
+
+Automatic Git behavior belongs to the user config, not the library format:
+`[git].auto_backup_interval` controls TUI-only local interval commits and
+`[git].backup_on_quit` requests an interactive backup before the TUI exits.
+Both default to off. Scheduling is derived from the repository's last commit;
+snip does not write an automatic-backup timestamp into `.snip/` or any managed
+file. Interval commits only modify `.git`, so the filesystem watcher ignores
+them and cannot create a commit loop.

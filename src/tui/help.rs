@@ -111,6 +111,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
                 ("s", "cycle sort"),
                 ("T", "open trash"),
                 ("F5 / Ctrl-r", "rescan"),
+                ("Ctrl-g", "git backup"),
                 ("Esc", "close or clear"),
                 ("q", "quit"),
                 ("?", "toggle help"),

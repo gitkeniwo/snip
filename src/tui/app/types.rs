@@ -1,12 +1,13 @@
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::TuiThemeSetting;
+use crate::config::{GitConfig, TuiThemeSetting};
 use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
+use crate::git;
 use crate::search::MemoryIndex;
 
 use super::super::editor::EditRequest;
@@ -28,6 +29,62 @@ pub enum Effect {
     ForceSave(EditRequest),
     CopyToClipboard { text: String, label: String },
     OpenInVsCode { path: PathBuf },
+    RunGit(git::GitAction),
+}
+
+pub struct GitState {
+    pub repo: Option<git::Repo>,
+    pub unavailable: Option<git::Unavailable>,
+    pub status: Option<git::Status>,
+    pub error: Option<String>,
+    pub open: bool,
+    pub auto_backup_interval: u32,
+    pub backup_on_quit: bool,
+    pub auto_backup_paused: bool,
+    pub last_auto_error: Option<String>,
+    pub operation_queued: bool,
+    pub auto_attempted_at: Option<Instant>,
+    pub(crate) checked_at: Instant,
+    pub(crate) interval: Duration,
+}
+
+impl GitState {
+    pub(super) fn probe(library: &Library, config: &GitConfig) -> Self {
+        let (repo, unavailable) = match git::probe(library.root()) {
+            Ok(repo) => (Some(repo), None),
+            Err(unavailable) => (None, Some(unavailable)),
+        };
+        Self {
+            repo,
+            unavailable,
+            status: None,
+            error: None,
+            open: false,
+            auto_backup_interval: config.auto_backup_interval,
+            backup_on_quit: config.backup_on_quit,
+            auto_backup_paused: false,
+            last_auto_error: None,
+            operation_queued: false,
+            auto_attempted_at: None,
+            checked_at: Instant::now(),
+            interval: Duration::from_secs(5),
+        }
+    }
+
+    pub(super) fn reprobe(&mut self, library: &Library) {
+        let open = self.open;
+        let auto_backup_paused = self.auto_backup_paused;
+        let last_auto_error = self.last_auto_error.take();
+        let config = GitConfig {
+            auto_backup_interval: self.auto_backup_interval,
+            backup_on_quit: self.backup_on_quit,
+            ..GitConfig::default()
+        };
+        *self = Self::probe(library, &config);
+        self.open = open;
+        self.auto_backup_paused = auto_backup_paused;
+        self.last_auto_error = last_auto_error;
+    }
 }
 
 pub struct App {
@@ -53,11 +110,13 @@ pub struct App {
     pub theme_setting: TuiThemeSetting,
     pub theme_overrides: toml::Table,
     pub icon_mode: IconMode,
+    pub git: GitState,
     pub theme_checked_at: Instant,
     pub status: Option<StatusMessage>,
     pub modal: Option<Modal>,
     pub trash: TrashState,
     pub should_quit: bool,
+    pub pending_quit: bool,
     pub editor_cmd: Option<String>,
     pub vscode_cmd: Option<String>,
     pub show_help: bool,

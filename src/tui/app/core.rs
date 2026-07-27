@@ -23,6 +23,7 @@ use super::super::state::{
 use super::super::theme::TuiTheme;
 use super::super::trash::TrashState;
 use super::types::App;
+use super::types::GitState;
 
 impl App {
     pub fn new(library: Library, config: &AppConfig) -> Result<Self> {
@@ -43,6 +44,7 @@ impl App {
         }
         .effective();
         let mut app = Self {
+            git: GitState::probe(&library, &config.git.clone().unwrap_or_default()),
             library,
             catalog,
             index,
@@ -70,6 +72,7 @@ impl App {
             modal: None,
             trash: TrashState::default(),
             should_quit: false,
+            pending_quit: false,
             editor_cmd: config.editor.clone(),
             vscode_cmd: config.vscode_cmd.clone(),
             show_help: false,
@@ -84,6 +87,7 @@ impl App {
         let trash_count = trash_entries(&app.library).map_or(0, |entries| entries.len());
         sidebar::rebuild(&mut app.sidebar, &app.catalog, trash_count);
         app.refresh_visible();
+        app.refresh_git();
         Ok(app)
     }
 
@@ -122,6 +126,99 @@ impl App {
         Ok(())
     }
 
+    pub fn tick_git(&mut self) {
+        let Some(repo) = self.git.repo.as_ref() else {
+            return;
+        };
+        if self.git.checked_at.elapsed() < self.git.interval
+            || repo.git_dir.join("index.lock").exists()
+        {
+            return;
+        }
+        self.refresh_git();
+    }
+
+    pub fn tick_auto_backup(&mut self) {
+        if self.should_quit
+            || self.pending_quit
+            || self.modal.is_some()
+            || self.git.operation_queued
+            || self
+                .git
+                .auto_attempted_at
+                .is_some_and(|attempt| attempt.elapsed() < Duration::from_secs(5))
+        {
+            return;
+        }
+        let (Some(repo), Some(status)) = (self.git.repo.clone(), self.git.status.clone()) else {
+            return;
+        };
+        if !crate::git::should_auto_backup(
+            &status,
+            time::OffsetDateTime::now_utc().unix_timestamp(),
+            self.git.auto_backup_interval,
+            self.git.auto_backup_paused,
+        ) {
+            return;
+        }
+        let message = crate::git::backup_message(&status);
+        self.git.auto_attempted_at = Some(Instant::now());
+        match crate::git::commit(&repo, &message) {
+            Ok(()) => {
+                self.git.last_auto_error = None;
+                self.refresh_git();
+            }
+            Err(error) if crate::git::is_library_lock_conflict(&error) => {}
+            Err(error) => {
+                let message = error.to_string();
+                if auto_error_transition(&mut self.git.last_auto_error, message.clone()) {
+                    self.set_status(
+                        format!("automatic backup failed: {message}"),
+                        StatusLevel::Error,
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn refresh_git(&mut self) {
+        let Some(repo) = self.git.repo.as_ref() else {
+            return;
+        };
+        if repo.git_dir.join("index.lock").exists() {
+            return;
+        }
+        let started = Instant::now();
+        match crate::git::status(repo) {
+            Ok(status) => {
+                self.git.status = Some(status);
+                self.git.error = None;
+            }
+            Err(error) => {
+                // Checkouts can expose a transient state. Keep the last good badge.
+                self.git.error = Some(error.to_string());
+            }
+        }
+        self.git.checked_at = Instant::now();
+        self.git.interval = if started.elapsed() > Duration::from_millis(250) {
+            Duration::from_secs(30)
+        } else {
+            Duration::from_secs(5)
+        };
+    }
+
+    pub fn reprobe_git(&mut self) {
+        self.git.reprobe(&self.library);
+        self.refresh_git();
+    }
+
+    pub fn finish_git_operation(&mut self) {
+        self.git.operation_queued = false;
+        if self.pending_quit {
+            self.should_quit = true;
+        }
+    }
+
     pub fn rescan(&mut self) -> Result<()> {
         let catalog = self.library.scan()?;
         self.catalog = catalog.clone();
@@ -131,6 +228,7 @@ impl App {
         if self.trash.open {
             self.trash.reload(&self.library)?;
         }
+        self.refresh_git();
         Ok(())
     }
 
@@ -246,5 +344,28 @@ impl App {
                 .any(|candidate| candidate.eq_ignore_ascii_case(tag))
         });
         folder_matches && tag_matches
+    }
+}
+
+fn auto_error_transition(last: &mut Option<String>, next: String) -> bool {
+    if last.as_deref() == Some(next.as_str()) {
+        false
+    } else {
+        *last = Some(next);
+        true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::auto_error_transition;
+
+    #[test]
+    fn repeated_auto_backup_errors_are_silent_until_the_message_changes() {
+        let mut last = None;
+        assert!(auto_error_transition(&mut last, "first".to_owned()));
+        assert!(!auto_error_transition(&mut last, "first".to_owned()));
+        assert!(auto_error_transition(&mut last, "second".to_owned()));
+        assert_eq!(last.as_deref(), Some("second"));
     }
 }

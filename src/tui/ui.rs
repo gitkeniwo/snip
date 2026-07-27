@@ -6,6 +6,7 @@ use ratatui::widgets::{List, ListItem};
 
 use super::app::App;
 use super::bottom_bar;
+use super::git_panel;
 use super::help;
 use super::modal;
 use super::preview;
@@ -44,6 +45,9 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     bottom_bar::draw_bottom_bar(frame, app, vertical[2]);
     if app.show_help && app.modal.is_none() {
         help::draw_help(frame, area, app.theme);
+    }
+    if app.git.open && app.modal.is_none() {
+        git_panel::draw_git(frame, area, app);
     }
     if app.trash.open {
         trash::draw_trash(frame, app, area);

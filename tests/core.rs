@@ -253,6 +253,11 @@ icons = "nerd"
 
 [tui.colors]
 accent = "#123456"
+
+[git]
+auto_backup_interval = 15
+backup_on_quit = true
+future_remote_policy = "manual"
 "##,
     )
     .unwrap();
@@ -279,9 +284,20 @@ accent = "#123456"
             .and_then(|v| v.as_str()),
         Some("wide")
     );
+    assert_eq!(
+        config.git.as_ref().map(|git| (
+            git.auto_backup_interval,
+            git.backup_on_quit,
+            git.extra
+                .get("future_remote_policy")
+                .and_then(toml::Value::as_str)
+        )),
+        Some((15, true, Some("manual")))
+    );
 
     config.save_to(&path).unwrap();
     let saved = fs::read_to_string(path).unwrap();
     assert!(saved.contains("future_gui_layout = \"wide\""));
     assert!(saved.contains("accent = \"#123456\""));
+    assert!(saved.contains("future_remote_policy = \"manual\""));
 }

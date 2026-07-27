@@ -70,7 +70,7 @@ pub fn run(cli: &Cli) -> Result<()> {
         Command::Purge(args) => trash::command_purge(&library, args, output),
         Command::Doctor(args) => system::command_doctor(&library, args, output),
         Command::Organize(args) => system::command_organize(&library, args, output),
-        Command::Git(args) => system::command_git(&library, args),
+        Command::Git(args) => system::command_git(&library, args, output),
         Command::Config(_) | Command::Init(_) | Command::Import(_) | Command::Completion(_) => {
             unreachable!()
         }

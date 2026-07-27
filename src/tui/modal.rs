@@ -199,6 +199,7 @@ pub enum ModalAction {
     RenameTag { tag: String },
     DeleteTag { tag: String },
     PurgeSnippet { entry_id: String },
+    GitCommit,
 }
 
 fn char_byte_index(value: &str, character: usize) -> usize {

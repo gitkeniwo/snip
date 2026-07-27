@@ -2,6 +2,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::domain::Snippet;
 use crate::error::{Result, SnipError};
+use crate::git::GitAction;
 use crate::service::{
     CreateOptions, EditOptions, create_folder, create_snippet, delete_folder, delete_snippet,
     delete_tag, edit_snippet, move_folder, purge_snippet, rename_tag,
@@ -122,6 +123,12 @@ impl App {
                 if !message.is_empty() {
                     self.set_status(message, StatusLevel::Info);
                 }
+                if effects
+                    .iter()
+                    .any(|effect| matches!(effect, Effect::RunGit(_)))
+                {
+                    self.git.operation_queued = true;
+                }
                 effects
             }
             Err(error) => {
@@ -188,6 +195,18 @@ impl App {
             }
             ModalAction::ForceEdit(request) => {
                 return Ok((vec![Effect::ForceSave(request)], String::new()));
+            }
+            ModalAction::GitCommit => {
+                let message = input()?;
+                if message.is_empty() {
+                    return Err(SnipError::usage("commit message cannot be empty"));
+                }
+                return Ok((
+                    vec![Effect::RunGit(GitAction::Commit {
+                        message: Some(message.to_owned()),
+                    })],
+                    String::new(),
+                ));
             }
             ModalAction::CreateTitle => {
                 let title = input()?;

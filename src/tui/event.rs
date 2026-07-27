@@ -68,7 +68,13 @@ fn is_relevant(root: &Path, path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
+    use std::sync::mpsc::RecvTimeoutError;
     use std::time::Duration;
+
+    use crate::config::{AppConfig, GitConfig};
+    use crate::filesystem::Library;
+    use crate::tui::app::App;
 
     #[test]
     fn internal_cache_and_git_events_are_ignored() {
@@ -106,5 +112,69 @@ mod tests {
         // This specifically guards against regressions where recursive watching opens
         // one file descriptor per managed package and fails on ordinary libraries.
         let (_watcher, _receiver) = start_watcher(root).unwrap();
+    }
+
+    #[test]
+    fn automatic_commit_does_not_emit_a_filesystem_change() {
+        if !Command::new("git")
+            .arg("--version")
+            .output()
+            .is_ok_and(|output| output.status.success())
+        {
+            return;
+        }
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("Automatic.sniplib");
+        let library = Library::init(&root, Some("Automatic")).unwrap();
+        crate::git::init(&root).unwrap();
+        for (key, value) in [
+            ("user.name", "snip CI"),
+            ("user.email", "ci@example.invalid"),
+        ] {
+            assert!(
+                Command::new("git")
+                    .args(["-C", root.to_str().unwrap(), "config", key, value])
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+        let repo = crate::git::probe(&root).unwrap();
+        crate::git::commit(&repo, "initial").unwrap();
+        let config = AppConfig {
+            git: Some(GitConfig {
+                auto_backup_interval: 1,
+                ..GitConfig::default()
+            }),
+            ..AppConfig::default()
+        };
+        let mut app = App::new(library, &config).unwrap();
+        let tags_path = root.join("tags.toml");
+        let mut tags = std::fs::read_to_string(&tags_path).unwrap();
+        tags.push_str("\n# automatic\n");
+        std::fs::write(tags_path, tags).unwrap();
+        app.refresh_git();
+        app.git
+            .status
+            .as_mut()
+            .unwrap()
+            .last_commit
+            .as_mut()
+            .unwrap()
+            .timestamp -= 120;
+
+        let notify_config = notify::Config::default().with_poll_interval(Duration::from_millis(50));
+        let (_watcher, receiver) =
+            start_watcher_with::<notify::PollWatcher>(&root, notify_config).unwrap();
+        // The dirty worktree is part of the watcher's baseline. The operation
+        // below writes only .git (and the ignored .snip lock), so it must not
+        // produce a new application event.
+        std::thread::sleep(Duration::from_millis(150));
+        app.tick_auto_backup();
+        assert_eq!(crate::git::status(&repo).unwrap().dirty_count(), 0);
+        assert!(matches!(
+            receiver.recv_timeout(Duration::from_millis(750)),
+            Err(RecvTimeoutError::Timeout)
+        ));
     }
 }

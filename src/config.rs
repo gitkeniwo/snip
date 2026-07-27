@@ -61,6 +61,16 @@ pub struct TuiConfig {
     pub extra: toml::Table,
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct GitConfig {
+    #[serde(default)]
+    pub auto_backup_interval: u32,
+    #[serde(default)]
+    pub backup_on_quit: bool,
+    #[serde(flatten)]
+    pub extra: toml::Table,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub schema_version: u32,
@@ -88,6 +98,8 @@ pub struct AppConfig {
     pub default_tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tui: Option<TuiConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git: Option<GitConfig>,
     #[serde(flatten)]
     pub extra: toml::Table,
 }
@@ -108,6 +120,7 @@ impl Default for AppConfig {
             default_folder: None,
             default_tags: Vec::new(),
             tui: None,
+            git: None,
             extra: toml::Table::new(),
         }
     }

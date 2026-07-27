@@ -3,6 +3,7 @@ pub mod bottom_bar;
 pub mod clipboard;
 pub mod editor;
 pub mod event;
+pub mod git_panel;
 pub mod help;
 pub mod highlight;
 pub mod icons;
@@ -19,7 +20,7 @@ pub mod trash;
 pub mod ui;
 pub mod widgets;
 
-use std::io::{self, IsTerminal, Stdout};
+use std::io::{self, IsTerminal, Stdout, Write};
 use std::panic;
 use std::sync::Arc;
 use std::time::Duration;
@@ -78,6 +79,8 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
         if let Err(error) = app.tick_theme() {
             app.set_status(error.to_string(), StatusLevel::Error);
         }
+        app.tick_git();
+        app.tick_auto_backup();
         for effect in effects {
             execute_effect(effect, &mut app, &mut terminal, &mut guard)?;
         }
@@ -151,8 +154,44 @@ fn execute_effect(
                 }
             }
         }
+        Effect::RunGit(action) => {
+            guard.suspend()?;
+            let outcome = crate::git::execute_interactive(app.library.root(), &action);
+            if let Err(error) = &outcome {
+                eprintln!("\nsnip: {error}\n\nPress any key to continue...");
+                let _ = io::stderr().flush();
+                wait_for_key();
+            }
+            guard.resume()?;
+            *terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+            if matches!(action, crate::git::GitAction::Init) {
+                app.reprobe_git();
+            } else {
+                // Git writes repository metadata, not library content, so the
+                // catalog stays valid and a worktree rescan would be redundant.
+                app.refresh_git();
+            }
+            match outcome {
+                Ok(outcome) => app.set_status(outcome.message, StatusLevel::Info),
+                Err(error) => app.set_status(error.to_string(), StatusLevel::Error),
+            }
+            app.finish_git_operation();
+        }
     }
     Ok(())
+}
+
+fn wait_for_key() {
+    if enable_raw_mode().is_err() {
+        return;
+    }
+    loop {
+        match terminal_event::read() {
+            Ok(Event::Key(_)) | Err(_) => break,
+            Ok(_) => {}
+        }
+    }
+    let _ = disable_raw_mode();
 }
 
 struct TerminalGuard {

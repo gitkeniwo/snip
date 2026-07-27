@@ -1,10 +1,10 @@
+use serde::Serialize;
 use snip::Library;
 use snip::error::{Result, SnipError};
+use snip::git::{self, Status, Unavailable};
 use snip::importer::import_snippetslab;
 use snip::service::{doctor, organize};
-use std::fs;
 use std::path::Path;
-use std::process::Command as ProcessCommand;
 
 use super::output::{print_record, print_records};
 use crate::cli::{
@@ -101,74 +101,188 @@ pub fn command_import(args: &ImportArgs, output: OutputMode) -> Result<()> {
     Ok(())
 }
 
-pub fn command_git(library: &Library, args: &GitArgs) -> Result<()> {
+pub fn command_git(library: &Library, args: &GitArgs, output: OutputMode) -> Result<()> {
     match &args.command {
-        GitCommand::Status => stream_git(library, &["status", "--short", "--", "."]),
-        GitCommand::Diff => stream_git(library, &["diff", "--", "."]),
-        GitCommand::Log { limit } => stream_git(
-            library,
-            &["log", "--oneline", &format!("-{limit}"), "--", "."],
-        ),
-        GitCommand::Commit { message } => {
-            let top = git_output(library, &["rev-parse", "--show-toplevel"])?;
-            let top = fs::canonicalize(top.trim()).map_err(|error| {
-                SnipError::io(format!("cannot resolve Git root {:?}: {error}", top.trim()))
-            })?;
-            if top != library.root() {
-                return Err(SnipError::conflict(
-                    "snip git commit is allowed only when the library root is the Git root; use Git directly for nested libraries",
-                ));
-            }
-            stream_git(
-                library,
-                &[
-                    "add",
-                    "--",
-                    "snip.toml",
-                    "tags.toml",
-                    "snippets",
-                    "trash",
-                    ".gitignore",
-                ],
-            )?;
-            stream_git(library, &["commit", "-m", message])
-        }
+        GitCommand::Status => command_git_status(library, output),
+        GitCommand::Commit { message } => command_git_commit(library, message.as_deref(), output),
+        GitCommand::Backup => command_git_backup(library, output),
     }
 }
 
-pub fn run_process(command: &mut ProcessCommand, label: &str) -> Result<()> {
-    let status = command
-        .status()
-        .map_err(|error| SnipError::io(format!("cannot run {label}: {error}")))?;
-    if !status.success() {
-        return Err(SnipError::io(format!(
-            "{label} exited with status {status}"
-        )));
+#[derive(Serialize)]
+struct GitStatusReport<'a> {
+    available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<&'a Unavailable>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repository_root: Option<&'a Path>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    library_prefix: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    status: Option<&'a Status>,
+}
+
+fn command_git_status(library: &Library, output: OutputMode) -> Result<()> {
+    let repo = match git::probe(library.root()) {
+        Ok(repo) => repo,
+        Err(reason) => {
+            let report = GitStatusReport {
+                available: false,
+                reason: Some(&reason),
+                repository_root: None,
+                library_prefix: None,
+                status: None,
+            };
+            if output == OutputMode::Human {
+                println!(
+                    "{}",
+                    match &reason {
+                        Unavailable::BinaryMissing => "git not found in PATH",
+                        Unavailable::NotARepository => {
+                            "this library is not inside a git repository"
+                        }
+                        Unavailable::ProbeFailed { message } => message,
+                    }
+                );
+                return Ok(());
+            }
+            return print_record(&report, output);
+        }
+    };
+    let status = git::status(&repo)?;
+    let report = GitStatusReport {
+        available: true,
+        reason: None,
+        repository_root: Some(&repo.root),
+        library_prefix: repo.library_prefix.as_deref(),
+        status: Some(&status),
+    };
+    if output != OutputMode::Human {
+        return print_record(&report, output);
+    }
+    println!("repository: {}", repo.root.display());
+    println!("branch: {}", branch_label(&status));
+    println!(
+        "changes: {} staged, {} unstaged, {} untracked",
+        status.staged, status.unstaged, status.untracked
+    );
+    println!("ahead/behind: {}/{}", status.ahead, status.behind);
+    println!(
+        "upstream: {}",
+        status.upstream.as_deref().unwrap_or("not configured")
+    );
+    if let Some(commit) = &status.last_commit {
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+        println!(
+            "last commit: {} ({}) {}",
+            commit.short_id,
+            git::relative_time(commit.timestamp, now),
+            commit.subject
+        );
+    } else {
+        println!("last commit: none");
+    }
+    if !status.conflicted.is_empty() {
+        println!("conflicts: {}", status.conflicted.len());
+    }
+    if status.state != git::RepoState::Clean {
+        println!("repository state: {}", status.state.label());
     }
     Ok(())
 }
 
-fn stream_git(library: &Library, args: &[&str]) -> Result<()> {
-    run_process(
-        ProcessCommand::new("git")
-            .args(args)
-            .current_dir(library.root()),
-        "git",
+#[derive(Serialize)]
+struct GitMutationReport<'a> {
+    action: &'static str,
+    committed: bool,
+    pushed: bool,
+    message: &'a str,
+    outcome: &'a str,
+    status: &'a Status,
+}
+
+fn command_git_commit(
+    library: &Library,
+    custom_message: Option<&str>,
+    output: OutputMode,
+) -> Result<()> {
+    let repo = require_repo(library)?;
+    let before = git::status(&repo)?;
+    git::check_commit(&before).map_err(|refusal| SnipError::conflict(refusal.to_string()))?;
+    let generated;
+    let message = if let Some(message) = custom_message {
+        let message = message.trim();
+        if message.is_empty() {
+            return Err(SnipError::usage("commit message cannot be empty"));
+        }
+        message
+    } else {
+        generated = git::backup_message(&before);
+        &generated
+    };
+    git::commit(&repo, message)?;
+    let after = git::status(&repo)?;
+    print_git_mutation(
+        GitMutationReport {
+            action: "commit",
+            committed: true,
+            pushed: false,
+            message,
+            outcome: "backup committed",
+            status: &after,
+        },
+        output,
     )
 }
 
-fn git_output(library: &Library, args: &[&str]) -> Result<String> {
-    let output = ProcessCommand::new("git")
-        .args(args)
-        .current_dir(library.root())
-        .output()
-        .map_err(|error| SnipError::io(format!("cannot run git: {error}")))?;
-    if !output.status.success() {
-        return Err(SnipError::io(format!(
-            "git failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
+fn command_git_backup(library: &Library, output: OutputMode) -> Result<()> {
+    let repo = require_repo(library)?;
+    let before = git::status(&repo)?;
+    git::check_commit(&before).map_err(|refusal| SnipError::conflict(refusal.to_string()))?;
+    let message = git::backup_message(&before);
+    let outcome = git::backup(&repo, &message)?;
+    let after = git::status(&repo)?;
+    print_git_mutation(
+        GitMutationReport {
+            action: "backup",
+            committed: outcome.committed,
+            pushed: outcome.pushed,
+            message: &message,
+            outcome: &outcome.message,
+            status: &after,
+        },
+        output,
+    )
+}
+
+fn require_repo(library: &Library) -> Result<git::Repo> {
+    git::probe(library.root()).map_err(|unavailable| match unavailable {
+        Unavailable::BinaryMissing => SnipError::conflict("git not found in PATH"),
+        Unavailable::NotARepository => {
+            SnipError::conflict("this library is not inside a git repository")
+        }
+        Unavailable::ProbeFailed { message } => SnipError::conflict(message),
+    })
+}
+
+fn print_git_mutation(report: GitMutationReport<'_>, output: OutputMode) -> Result<()> {
+    if output == OutputMode::Human {
+        println!("{}", report.outcome);
+        println!("message: {}", report.message);
+        println!(
+            "ahead/behind: {}/{}",
+            report.status.ahead, report.status.behind
+        );
+        Ok(())
+    } else {
+        print_record(&report, output)
     }
-    String::from_utf8(output.stdout)
-        .map_err(|error| SnipError::validation(format!("git output is not UTF-8: {error}")))
+}
+
+fn branch_label(status: &Status) -> String {
+    match &status.branch {
+        git::Branch::Named { name } => name.clone(),
+        git::Branch::Detached { short_id } => format!("detached@{short_id}"),
+        git::Branch::Unborn => "no commits".to_owned(),
+    }
 }

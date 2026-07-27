@@ -2,6 +2,7 @@ pub mod config;
 pub mod domain;
 pub mod error;
 pub mod filesystem;
+pub mod git;
 pub mod importer;
 pub mod render;
 pub mod search;
@@ -11,8 +12,8 @@ pub mod sort;
 pub mod tui;
 
 pub use config::{
-    AppConfig, ColorSetting, OutputSetting, PreviewRenderSetting, TuiConfig, TuiIconSetting,
-    TuiThemeSetting, config_path,
+    AppConfig, ColorSetting, GitConfig, OutputSetting, PreviewRenderSetting, TuiConfig,
+    TuiIconSetting, TuiThemeSetting, config_path,
 };
 pub use domain::{
     CatalogSnapshot, ChangeSet, Fingerprint, Fragment, FragmentManifest, LibraryManifest,

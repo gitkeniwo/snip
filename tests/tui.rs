@@ -1,10 +1,14 @@
 #![cfg(feature = "tui")]
 
+use std::process::Command as ProcessCommand;
+
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use snip::git::GitAction;
+use snip::git::{Branch, RepoState, Status, Unavailable};
 use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, edit_snippet,
 };
@@ -12,10 +16,10 @@ use snip::tui::app::{App, Effect};
 use snip::tui::editor::{EditOutcome, EditTarget, force_save};
 use snip::tui::highlight::Highlighter;
 use snip::tui::icons::IconMode;
-use snip::tui::modal::{Modal, ModalAction};
+use snip::tui::modal::{InputModal, Modal, ModalAction};
 use snip::tui::state::{Pane, SidebarItem, SortMode};
 use snip::tui::theme::{Appearance, TuiTheme};
-use snip::{AppConfig, Library, TuiConfig, TuiIconSetting, TuiThemeSetting};
+use snip::{AppConfig, GitConfig, Library, TuiConfig, TuiIconSetting, TuiThemeSetting};
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
@@ -62,6 +66,31 @@ fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
         row,
         modifiers: KeyModifiers::NONE,
     }
+}
+
+fn git_available() -> bool {
+    ProcessCommand::new("git")
+        .arg("--version")
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+fn git_ok(path: &std::path::Path, arguments: &[&str]) {
+    let status = ProcessCommand::new("git")
+        .args(["-c", "init.defaultBranch=main"])
+        .args(arguments)
+        .current_dir(path)
+        .env("GIT_CONFIG_GLOBAL", path.join(".empty-gitconfig"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .status()
+        .unwrap();
+    assert!(status.success(), "git {} failed", arguments.join(" "));
+}
+
+fn init_git_repo(path: &std::path::Path) {
+    git_ok(path, &["init"]);
+    git_ok(path, &["config", "user.name", "snip CI"]);
+    git_ok(path, &["config", "user.email", "ci@example.invalid"]);
 }
 
 fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
@@ -760,6 +789,298 @@ fn snippet_metadata_mutations_flow_through_modals() {
             .any(|snippet| snippet.id == first_id)
     );
     assert_eq!(snip::service::trash_entries(&library).unwrap().len(), 1);
+}
+
+#[test]
+fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = Library::init(
+        &temporary.path().join("Git panel.sniplib"),
+        Some("Git panel"),
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    assert!(matches!(
+        app.git.unavailable,
+        Some(Unavailable::NotARepository)
+    ));
+
+    let ctrl_g = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL);
+    app.show_help = true;
+    app.handle_key(ctrl_g);
+    assert!(app.git.open);
+    assert!(!app.show_help);
+    app.handle_key(key(KeyCode::Esc));
+
+    app.trash.open = true;
+    app.handle_key(ctrl_g);
+    assert!(app.git.open);
+    assert!(!app.trash.open);
+
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("This library is not a git repository."));
+    assert!(rendered.contains("git init"));
+    assert!(rendered.contains("initialize"));
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('i'))).as_slice(),
+        [Effect::RunGit(GitAction::Init)]
+    ));
+    snip::git::init(app.library.root()).unwrap();
+    app.reprobe_git();
+    assert!(app.git.repo.is_some());
+    assert!(app.git.unavailable.is_none());
+
+    app.handle_key(key(KeyCode::Char('r')));
+    assert!(app.git.open, "refresh is swallowed by the Git panel");
+    app.handle_key(key(KeyCode::Esc));
+    assert!(!app.git.open);
+
+    app.git.unavailable = None;
+    app.git.status = Some(Status {
+        branch: Branch::Named {
+            name: "main".to_owned(),
+        },
+        upstream: Some("origin/main".to_owned()),
+        ahead: 1,
+        behind: 0,
+        staged: 0,
+        unstaged: 2,
+        untracked: 0,
+        conflicted: Vec::new(),
+        state: RepoState::Clean,
+        head_oid: Some("abcdef123".to_owned()),
+        last_commit: None,
+    });
+    app.git.auto_backup_interval = 15;
+    app.git.backup_on_quit = true;
+    app.git.last_auto_error = Some("previous automatic failure".to_owned());
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let top = row_text(terminal.backend().buffer(), 0);
+    assert!(top.contains("git:main +2 ^1"));
+
+    app.git.open = true;
+    app.handle_key(key(KeyCode::Char('a')));
+    assert!(app.git.auto_backup_paused);
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert!(row_text(terminal.backend().buffer(), 0).contains("[auto paused]"));
+    app.handle_key(key(KeyCode::Char('a')));
+    assert!(!app.git.auto_backup_paused);
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('b'))).as_slice(),
+        [Effect::RunGit(GitAction::Backup)]
+    ));
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('c'))).as_slice(),
+        [Effect::RunGit(GitAction::Commit { message: None })]
+    ));
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('p'))).as_slice(),
+        [Effect::RunGit(GitAction::Push)]
+    ));
+    app.handle_key(key(KeyCode::Char('C')));
+    let Some(Modal::Input(message)) = app.modal.as_ref() else {
+        panic!("custom Git message should open an input modal");
+    };
+    assert!(message.value.starts_with("snip backup:"));
+    replace_modal_input(&mut app, "custom backup");
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Enter)).as_slice(),
+        [Effect::RunGit(GitAction::Commit {
+            message: Some(message)
+        })] if message == "custom backup"
+    ));
+
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("REPOSITORY"));
+    assert!(rendered.contains("BACKUP"));
+    assert!(rendered.contains("AUTOMATIC"));
+    assert!(rendered.contains("every 15 min"));
+    assert!(rendered.contains("previous automatic failure"));
+    assert!(rendered.contains("origin/main"));
+    assert!(rendered.contains("backup"));
+    assert!(rendered.contains("message"));
+    app.git.open = false;
+
+    let narrow_backend = TestBackend::new(59, 24);
+    let mut narrow = Terminal::new(narrow_backend).unwrap();
+    narrow
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert!(!row_text(narrow.backend().buffer(), 0).contains("git:main"));
+
+    let status = app.git.status.as_mut().unwrap();
+    status.state = RepoState::Merging;
+    status.conflicted = vec!["one/snippet.toml".to_owned(), "two/snippet.toml".to_owned()];
+    app.git.open = true;
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("conflicts in 2 files"));
+    assert!(
+        rendered.contains("refresh"),
+        "dynamic height must keep the footer visible in attention states"
+    );
+    app.git.open = false;
+
+    app.git.status = None;
+    app.git.unavailable = Some(Unavailable::ProbeFailed {
+        message: "cannot execute git".to_owned(),
+    });
+    app.handle_key(ctrl_g);
+    assert!(app.git.open);
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("Git could not inspect this library."));
+    assert!(rendered.contains("cannot execute git"));
+    app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+    app.git.status = None;
+    app.git.unavailable = Some(Unavailable::BinaryMissing);
+    app.handle_key(ctrl_g);
+    assert!(!app.git.open);
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("git not found in PATH")
+    );
+}
+
+#[test]
+fn quit_backup_waits_for_its_git_effect_to_finish() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = Library::init(
+        &temporary.path().join("Quit backup.sniplib"),
+        Some("Quit backup"),
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.git.backup_on_quit = true;
+    app.git.unavailable = None;
+    app.git.status = Some(Status {
+        branch: Branch::Named {
+            name: "main".to_owned(),
+        },
+        upstream: None,
+        ahead: 0,
+        behind: 0,
+        staged: 0,
+        unstaged: 1,
+        untracked: 0,
+        conflicted: Vec::new(),
+        state: RepoState::Clean,
+        head_oid: Some("abcdef123".to_owned()),
+        last_commit: None,
+    });
+
+    assert!(matches!(
+        app.handle_key(key(KeyCode::Char('q'))).as_slice(),
+        [Effect::RunGit(GitAction::Backup)]
+    ));
+    assert!(app.pending_quit);
+    assert!(!app.should_quit);
+    assert!(app.git.operation_queued);
+
+    app.finish_git_operation();
+    assert!(app.should_quit);
+    assert!(!app.git.operation_queued);
+}
+
+#[test]
+fn auto_commit_honors_interlocks_and_lock_contention() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Automatic.sniplib");
+    let library = Library::init(&root, Some("Automatic")).unwrap();
+    init_git_repo(&root);
+    let repo = snip::git::probe(library.root()).unwrap();
+    snip::git::commit(&repo, "initial").unwrap();
+    let config = AppConfig {
+        git: Some(GitConfig {
+            auto_backup_interval: 1,
+            backup_on_quit: false,
+            ..GitConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library.clone(), &config).unwrap();
+
+    let tags_path = root.join("tags.toml");
+    let mut tags = std::fs::read_to_string(&tags_path).unwrap();
+    tags.push_str("\n# automatic\n");
+    std::fs::write(&tags_path, tags).unwrap();
+    app.refresh_git();
+    app.git
+        .status
+        .as_mut()
+        .unwrap()
+        .last_commit
+        .as_mut()
+        .unwrap()
+        .timestamp -= 120;
+
+    app.git.operation_queued = true;
+    app.tick_auto_backup();
+    assert!(snip::git::status(&repo).unwrap().dirty_count() > 0);
+    app.git.operation_queued = false;
+
+    app.modal = Some(Modal::Input(InputModal::new(
+        "Editing",
+        "",
+        ModalAction::GitCommit,
+    )));
+    app.tick_auto_backup();
+    assert!(snip::git::status(&repo).unwrap().dirty_count() > 0);
+    app.modal = None;
+
+    let library_lock = library.lock().unwrap();
+    app.tick_auto_backup();
+    assert!(app.git.last_auto_error.is_none());
+    assert!(app.status.is_none());
+    drop(library_lock);
+
+    app.git.auto_attempted_at = None;
+    app.tick_auto_backup();
+    assert_eq!(snip::git::status(&repo).unwrap().dirty_count(), 0);
 }
 
 #[test]

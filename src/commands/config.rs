@@ -2,17 +2,15 @@ use clap::CommandFactory;
 use serde_json::json;
 use snip::Library;
 use snip::config::{
-    AppConfig, ColorSetting, OutputSetting, PreviewRenderSetting, TuiConfig, TuiIconSetting,
-    TuiThemeSetting, config_path,
+    AppConfig, ColorSetting, GitConfig, OutputSetting, PreviewRenderSetting, TuiConfig,
+    TuiIconSetting, TuiThemeSetting, config_path,
 };
 use snip::error::{Result, SnipError};
 use snip::sort::SortMode;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command as ProcessCommand;
 
 use super::output::{print_record, resolve_output};
-use super::system::run_process;
 use crate::cli::{
     Cli, CompletionArgs, CompletionShell, ConfigArgs, ConfigCommand, ConfigKey, InitArgs,
     OutputMode,
@@ -21,12 +19,7 @@ use crate::cli::{
 pub fn command_init(args: &InitArgs, output: OutputMode) -> Result<()> {
     let library = Library::init(&args.path, args.name.as_deref())?;
     if args.git {
-        run_process(
-            ProcessCommand::new("git")
-                .arg("init")
-                .current_dir(library.root()),
-            "git init",
-        )?;
+        snip::git::init(library.root())?;
     }
     let value = json!({
         "path": library.root(),
@@ -194,6 +187,20 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                     _ => return Err(SnipError::usage("tui-icons must be ascii or nerd")),
                 };
         }
+        ConfigKey::GitAutoBackupInterval => {
+            config
+                .git
+                .get_or_insert_with(GitConfig::default)
+                .auto_backup_interval = value.parse::<u32>().map_err(|_| {
+                SnipError::usage("git-auto-backup-interval must be a whole number of minutes")
+            })?;
+        }
+        ConfigKey::GitBackupOnQuit => {
+            config
+                .git
+                .get_or_insert_with(GitConfig::default)
+                .backup_on_quit = parse_bool(value)?;
+        }
     }
     Ok(())
 }
@@ -218,6 +225,18 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         }
         ConfigKey::TuiIcons => {
             config.tui.get_or_insert_with(TuiConfig::default).icons = TuiIconSetting::Ascii
+        }
+        ConfigKey::GitAutoBackupInterval => {
+            config
+                .git
+                .get_or_insert_with(GitConfig::default)
+                .auto_backup_interval = 0
+        }
+        ConfigKey::GitBackupOnQuit => {
+            config
+                .git
+                .get_or_insert_with(GitConfig::default)
+                .backup_on_quit = false
         }
     }
 }

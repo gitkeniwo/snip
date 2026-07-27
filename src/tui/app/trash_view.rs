@@ -16,7 +16,7 @@ impl App {
 
     pub(super) fn handle_trash_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         match key.code {
-            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Char('q') => return self.request_quit(),
             KeyCode::Esc | KeyCode::Char('T') => self.trash.open = false,
             KeyCode::Char('j') | KeyCode::Down => self.trash.move_selection(1),
             KeyCode::Char('k') | KeyCode::Up => self.trash.move_selection(-1),

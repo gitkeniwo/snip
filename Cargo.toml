@@ -36,7 +36,7 @@ shlex = "2.0"
 syntect = "5.3"
 tempfile = "3.23"
 thiserror = "2.0"
-time = { version = "0.3.54", features = ["formatting", "parsing"] }
+time = { version = "0.3.54", features = ["formatting", "local-offset", "parsing"] }
 toml = "1.0"
 uuid = { version = "1.24", features = ["v4", "serde"] }
 arboard = { version = "3.6.1", optional = true, default-features = false }

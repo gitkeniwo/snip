@@ -176,6 +176,8 @@ snip config set default-tags 'ai,generated'
 snip config set tui-theme auto
 snip config set tui-sort modified
 snip config set tui-icons ascii
+snip config set git-auto-backup-interval 15
+snip config set git-backup-on-quit true
 snip config unset default-folder
 ```
 
@@ -198,6 +200,10 @@ default_tags = ["personal"]
 theme = "auto"             # auto | light | dark
 sort = "manual"            # manual | title | modified | created
 icons = "ascii"            # ascii | nerd; nerd falls back to ascii in v2
+
+[git]
+auto_backup_interval = 0   # minutes; 0 disables automatic commits
+backup_on_quit = false
 ```
 
 `SNIP_TUI_THEME=light|dark` overrides `[tui].theme`. Unknown values under a
@@ -343,12 +349,43 @@ The importer preserves snippet and fragment UUIDs, hierarchy, tags, flags,
 timestamps, content, notes, and original lexer names. Attachments are reported
 but their private SnippetsLab relationships are not imported in format v1.
 
-## Git and deletion
+## Git backup and deletion
 
-Git is optional and normal writes never auto-commit. `snip init --git` creates a
-dedicated repository. `snip git status`, `diff`, and `log` work for nested
-libraries; `snip git commit` is deliberately restricted to a library that is
-also the Git repository root.
+Git is optional. `snip git status` reports the branch, upstream, ahead/behind
+counts, uncommitted changes, conflicts, and last commit for the library. File
+counts and commits are scoped to the library when it lives inside a larger
+repository.
+
+```bash
+snip init Main.sniplib --git
+snip --library Main.sniplib git commit
+snip --library Main.sniplib git commit -m "before refactoring"
+snip --library Main.sniplib git backup
+```
+
+`commit` stages and commits only library content. `backup` commits and then
+pushes when the branch has an upstream. These CLI operations are
+non-interactive and fail rather than waiting for credentials.
+
+In the TUI, `Ctrl-g` opens the Git panel: `b` backs up, `c` commits, `p` pushes,
+`C` enters a custom message, `a` pauses automatic commits for the current
+session, and `i` initializes a repository. Manual TUI operations temporarily
+return to the real terminal so Git credential prompts and progress remain
+visible.
+
+Automatic behavior is off by default. Set `git-auto-backup-interval` to make
+the TUI create a local commit when the library is dirty and the last commit is
+at least that many minutes old. These interval commits never push. Set
+`git-backup-on-quit` to run the normal interactive backup before the TUI exits;
+the terminal remains available for credentials and Git output. Automatic
+commits skip conflicts, detached HEADs, in-progress Git operations, open
+modals, queued Git actions, and a library lock held by another snip process.
+Repeated identical failures remain visible in the Git panel without repeatedly
+spamming the status bar.
+
+snip never pulls, fetches, switches branches, or resolves conflicts. If a push
+is rejected, pull and resolve it in your terminal. Behind counts reflect the
+most recent fetch performed outside snip.
 
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
 back. Permanent deletion requires `snip purge SELECTOR --yes`.

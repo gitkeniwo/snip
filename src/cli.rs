@@ -487,16 +487,16 @@ pub struct GitArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum GitCommand {
+    /// Show read-only backup status for this library.
     Status,
-    Diff,
-    Log {
-        #[arg(long, default_value_t = 20)]
-        limit: usize,
-    },
+    /// Commit all library changes without pushing.
     Commit {
+        /// Override the generated backup message.
         #[arg(short, long)]
-        message: String,
+        message: Option<String>,
     },
+    /// Commit all library changes and push when an upstream is configured.
+    Backup,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -562,6 +562,8 @@ pub enum ConfigKey {
     TuiTheme,
     TuiSort,
     TuiIcons,
+    GitAutoBackupInterval,
+    GitBackupOnQuit,
 }
 
 #[cfg(test)]
