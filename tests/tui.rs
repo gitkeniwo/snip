@@ -22,7 +22,7 @@ use snip::tui::icons::IconMode;
 use snip::tui::modal::{InputModal, Modal, ModalAction};
 use snip::tui::state::{Pane, SidebarItem, SortMode};
 use snip::tui::theme::{Appearance, TuiTheme};
-use snip::{AppConfig, GitConfig, Library, TuiConfig, TuiIconSetting, TuiThemeSetting};
+use snip::{AppConfig, GitConfig, Library, TuiConfig, TuiDensitySetting, TuiThemeSetting};
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
@@ -1450,13 +1450,13 @@ fn create_wizard_uses_defaults_and_opens_the_new_fragment_editor() {
 }
 
 #[test]
-fn tui_config_controls_theme_sort_and_portable_icon_fallback() {
+fn tui_config_controls_theme_sort_and_density() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let config = AppConfig {
         tui: Some(TuiConfig {
             theme: TuiThemeSetting::Light,
             sort: SortMode::Title,
-            icons: TuiIconSetting::Nerd,
+            density: TuiDensitySetting::Compact,
             ..TuiConfig::default()
         }),
         ..AppConfig::default()
@@ -1464,7 +1464,37 @@ fn tui_config_controls_theme_sort_and_portable_icon_fallback() {
     let app = App::new(library, &config).unwrap();
     assert_eq!(app.theme.appearance, Appearance::Light);
     assert_eq!(app.sort, SortMode::Title);
+    assert_eq!(app.density, TuiDensitySetting::Compact);
     assert_eq!(app.icon_mode, IconMode::Ascii);
+}
+
+#[test]
+fn compact_density_keeps_pinned_state_visible() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            density: TuiDensitySetting::Compact,
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(
+        rendered.contains("★"),
+        "compact rows must expose pinned state"
+    );
 }
 
 #[test]

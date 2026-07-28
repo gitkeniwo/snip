@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::{GitConfig, TuiThemeSetting};
+use crate::config::{GitConfig, TuiDensitySetting, TuiThemeSetting};
 use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
 use crate::git;
@@ -123,6 +123,7 @@ pub struct App {
     pub preview_scroll: u16,
     pub show_line_numbers: bool,
     pub sort: SortMode,
+    pub density: TuiDensitySetting,
     pub layout: LayoutRects,
     pub preview: PreviewCache,
     pub preview_selection: PreviewSelection,

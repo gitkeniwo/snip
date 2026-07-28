@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::{AppConfig, TuiIconSetting, TuiThemeSetting};
+use crate::config::{AppConfig, TuiThemeSetting};
 use crate::domain::{FolderFilter, Snippet};
 use crate::error::Result;
 use crate::filesystem::Library;
@@ -40,11 +40,8 @@ impl App {
             .unwrap_or_default();
         let theme = TuiTheme::resolve(tui.theme).with_overrides(&theme_overrides);
         let sort = tui.sort;
-        let icon_mode = match tui.icons {
-            TuiIconSetting::Ascii => IconMode::Ascii,
-            TuiIconSetting::Nerd => IconMode::Nerd,
-        }
-        .effective();
+        let density = tui.density;
+        let icon_mode = IconMode::Ascii;
         let mut app = Self {
             git: GitState::probe(&library, &config.git.clone().unwrap_or_default()),
             library,
@@ -61,6 +58,7 @@ impl App {
             preview_scroll: 0,
             show_line_numbers: true,
             sort,
+            density,
             layout: LayoutRects::default(),
             preview: PreviewCache::default(),
             preview_selection: PreviewSelection::default(),

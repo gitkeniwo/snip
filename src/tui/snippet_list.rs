@@ -5,9 +5,10 @@ use ratatui::widgets::ListItem;
 
 use super::app::App;
 use super::icons::snippet_badge;
+use crate::config::TuiDensitySetting;
 
-/// Every snippet occupies exactly two terminal rows. Mouse hit-testing relies
-/// on this invariant, so metadata and excerpts are always folded into row two.
+/// Comfortable rows use two terminal lines; compact rows use one. Mouse
+/// hit-testing derives the row height from the same density setting.
 pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
     let width = width as usize;
     app.visible
@@ -25,15 +26,26 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             } else {
                 0
             };
+            if app.density == TuiDensitySetting::Compact {
+                let line = compact_line(app, snippet, width, date_str.filter(|_| date_width > 0));
+                let line = if app.focus != super::state::Pane::List
+                    && app.list_state.selected() == Some(index)
+                {
+                    line.style(app.theme.retained_selection())
+                } else {
+                    line
+                };
+                return Some(ListItem::new(line));
+            }
             let marker_width = usize::from(snippet.locked) * 2;
-            let left_width = 3;
+            let left_width = 4;
             let title_width = width.saturating_sub(left_width + date_width + marker_width);
             let title = truncate(&snippet.title, title_width);
             let used = left_width + text_width(&title) as usize + date_width + marker_width;
             let padding = " ".repeat(width.saturating_sub(used));
             let mut first = vec![
                 Span::styled(
-                    snippet_badge(snippet).to_owned(),
+                    format!("{:<3}", snippet_badge(snippet)),
                     Style::default().fg(app.theme.accent_alt),
                 ),
                 Span::raw(" "),
@@ -75,6 +87,83 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
         .collect()
 }
 
+fn compact_line(
+    app: &App,
+    snippet: &crate::domain::Snippet,
+    width: usize,
+    date: Option<String>,
+) -> Line<'static> {
+    let badge_width = 4;
+    let pin_width = 2;
+    let date_width = usize::from(date.is_some()) * 7;
+    let marker_width = usize::from(snippet.locked) * 2;
+    let available = width.saturating_sub(badge_width + pin_width + date_width + marker_width);
+    let folder = format!(
+        " [{}]",
+        crate::domain::folder_label(&snippet.folder).replace('/', " > ")
+    );
+    let tags = snippet
+        .tags
+        .iter()
+        .map(|tag| format!(" #{tag}"))
+        .collect::<String>();
+    let (title, folder, tags) = compact_fields(&snippet.title, &folder, &tags, available);
+    let used = badge_width
+        + pin_width
+        + text_width(&title) as usize
+        + text_width(&folder) as usize
+        + text_width(&tags) as usize
+        + date_width
+        + marker_width;
+
+    let mut spans = vec![
+        Span::styled(
+            format!("{:<3}", snippet_badge(snippet)),
+            Style::default().fg(app.theme.accent_alt),
+        ),
+        Span::raw(" "),
+        compact_pin(snippet.pinned, app.theme.warning),
+        Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(folder, Style::default().fg(app.theme.muted)),
+        Span::styled(tags, Style::default().fg(app.theme.muted)),
+        Span::raw(" ".repeat(width.saturating_sub(used))),
+    ];
+    if let Some(date) = date {
+        spans.push(Span::styled(
+            format!(" {date}"),
+            Style::default().fg(app.theme.muted),
+        ));
+    }
+    if snippet.locked {
+        spans.push(Span::styled(" ⊘", Style::default().fg(app.theme.error)));
+    }
+    Line::from(spans)
+}
+
+fn compact_fields(
+    title: &str,
+    folder: &str,
+    tags: &str,
+    available: usize,
+) -> (String, String, String) {
+    // Compact mode spends width in semantic priority order. A long title may
+    // intentionally consume the row before folder and tag metadata.
+    let title = truncate(title, available);
+    let remaining = available.saturating_sub(text_width(&title) as usize);
+    let folder = truncate(folder, remaining);
+    let remaining = remaining.saturating_sub(text_width(&folder) as usize);
+    let tags = truncate(tags, remaining);
+    (title, folder, tags)
+}
+
+fn compact_pin(pinned: bool, color: ratatui::style::Color) -> Span<'static> {
+    if pinned {
+        Span::styled("★ ", Style::default().fg(color))
+    } else {
+        Span::raw("  ")
+    }
+}
+
 fn snippet_date_yymmdd(snippet: &crate::domain::Snippet) -> Option<String> {
     let timestamp = snippet
         .modified_at
@@ -102,9 +191,9 @@ fn snippet_date_yymmdd(snippet: &crate::domain::Snippet) -> Option<String> {
 fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> Line<'static> {
     let folder_path = crate::domain::folder_label(&snippet.folder).replace('/', " > ");
     let folder = format!("[{folder_path}]");
-    // Badge (two cells) plus its separator occupy the first three cells of
+    // The three-cell badge plus its separator occupy the first four cells of
     // row one. Indenting metadata by the same amount aligns it with the title.
-    let indent = 3.min(width);
+    let indent = 4.min(width);
     let folder = truncate(&folder, width.saturating_sub(indent));
     let mut spans = vec![
         pin_gutter(app, snippet.pinned, indent),
@@ -144,7 +233,10 @@ fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> L
 
 fn pin_gutter(app: &App, pinned: bool, width: usize) -> Span<'static> {
     if pinned && width >= 3 {
-        Span::styled(" ★ ", Style::default().fg(app.theme.warning))
+        Span::styled(
+            format!(" ★ {}", " ".repeat(width - 3)),
+            Style::default().fg(app.theme.warning),
+        )
     } else {
         Span::raw(" ".repeat(width))
     }
@@ -227,14 +319,38 @@ mod tests {
         let date_str = snippet_date_yymmdd(&snippet);
         assert_eq!(date_str, Some("260726".to_owned()));
 
-        let title = truncate(&snippet.manifest.title, 20);
-        let title_w = text_width(&title) as usize;
-        let left_width = 3;
+        let left_width = 4;
         let date_width = 7;
         let marker_width = 0;
-        let used = left_width + title_w + date_width + marker_width;
         let width: usize = 30;
+        let title = truncate(
+            &snippet.manifest.title,
+            width.saturating_sub(left_width + date_width + marker_width),
+        );
+        let title_w = text_width(&title) as usize;
+        let used = left_width + title_w + date_width + marker_width;
         let padding_len = width.saturating_sub(used);
         assert_eq!(left_width + title_w + padding_len + date_width, 30);
+    }
+
+    #[test]
+    fn compact_fields_spend_width_on_title_before_metadata() {
+        let (title, folder, tags) =
+            compact_fields("Compress Video", " [Video CLI]", " #ffmpeg", 14);
+        assert_eq!(title, "Compress Video");
+        assert!(folder.is_empty());
+        assert!(tags.is_empty());
+
+        let (title, folder, tags) = compact_fields("Alpha", " [AI]", " #rust", 14);
+        assert_eq!(title, "Alpha");
+        assert_eq!(folder, " [AI]");
+        assert_eq!(tags, " #r…");
+    }
+
+    #[test]
+    fn compact_pin_uses_a_fixed_visible_gutter() {
+        let color = ratatui::style::Color::Yellow;
+        assert_eq!(compact_pin(true, color).content.as_ref(), "★ ");
+        assert_eq!(compact_pin(false, color).content.as_ref(), "  ");
     }
 }

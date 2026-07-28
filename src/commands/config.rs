@@ -3,7 +3,7 @@ use serde_json::json;
 use snip::Library;
 use snip::config::{
     AppConfig, ColorSetting, GitConfig, OutputSetting, PreviewRenderSetting, TuiConfig,
-    TuiIconSetting, TuiThemeSetting, config_path,
+    TuiDensitySetting, TuiThemeSetting, config_path,
 };
 use snip::error::{Result, SnipError};
 use snip::sort::SortMode;
@@ -189,12 +189,16 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                     }
                 };
         }
-        ConfigKey::TuiIcons => {
-            config.tui.get_or_insert_with(TuiConfig::default).icons =
+        ConfigKey::TuiDensity => {
+            config.tui.get_or_insert_with(TuiConfig::default).density =
                 match value.to_ascii_lowercase().as_str() {
-                    "ascii" => TuiIconSetting::Ascii,
-                    "nerd" => TuiIconSetting::Nerd,
-                    _ => return Err(SnipError::usage("tui-icons must be ascii or nerd")),
+                    "comfortable" => TuiDensitySetting::Comfortable,
+                    "compact" => TuiDensitySetting::Compact,
+                    _ => {
+                        return Err(SnipError::usage(
+                            "tui-density must be comfortable or compact",
+                        ));
+                    }
                 };
         }
         ConfigKey::GitAutoCommitInterval => {
@@ -236,8 +240,9 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         ConfigKey::TuiSort => {
             config.tui.get_or_insert_with(TuiConfig::default).sort = SortMode::Manual
         }
-        ConfigKey::TuiIcons => {
-            config.tui.get_or_insert_with(TuiConfig::default).icons = TuiIconSetting::Ascii
+        ConfigKey::TuiDensity => {
+            config.tui.get_or_insert_with(TuiConfig::default).density =
+                TuiDensitySetting::Comfortable
         }
         ConfigKey::GitAutoCommitInterval => {
             config

@@ -203,7 +203,7 @@ current session.
 - `snip config path|show|init|set <KEY> <VALUE>|unset <KEY>` — keys:
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
   `editor`, `pager`, `default-language`, `default-folder`, `default-tags`,
-  `tui-theme`, `tui-sort`, `tui-icons`, `git-auto-commit-interval`,
+  `tui-theme`, `tui-sort`, `tui-density`, `git-auto-commit-interval`,
   `git-auto-push`, `git-backup-on-quit`. The interval is a whole number of
   minutes, with `0` meaning all automatic Git work is off; both remaining Git
   settings are boolean. Enabling auto-push while the interval is `0` prints a

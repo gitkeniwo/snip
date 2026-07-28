@@ -173,7 +173,7 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         ("default-tags", "ai, generated, AI"),
         ("tui-theme", "dark"),
         ("tui-sort", "modified"),
-        ("tui-icons", "nerd"),
+        ("tui-density", "compact"),
         ("git-auto-commit-interval", "15"),
         ("git-backup-on-quit", "true"),
     ] {

@@ -95,6 +95,7 @@ impl App {
                 self.sort = self.sort.next();
                 self.refresh_visible();
             }
+            KeyCode::Char('z') => self.toggle_density(),
             KeyCode::Char('e') if self.focus != Pane::Sidebar => return self.edit_effect(),
             KeyCode::Char('v') if self.focus != Pane::Sidebar => return self.open_vscode_effect(),
             KeyCode::Char('E') if self.focus != Pane::Sidebar => return self.edit_note_effect(),
@@ -439,6 +440,34 @@ impl App {
         }
     }
 
+    fn toggle_density(&mut self) {
+        self.density = self.density.next();
+        let mut config = match crate::config::AppConfig::load() {
+            Ok(config) => config,
+            Err(error) => {
+                self.set_status(
+                    format!("density changed for this session: {error}"),
+                    StatusLevel::Error,
+                );
+                return;
+            }
+        };
+        config
+            .tui
+            .get_or_insert_with(crate::config::TuiConfig::default)
+            .density = self.density;
+        match config.save() {
+            Ok(()) => self.set_status(
+                format!("list density: {}", self.density.label()),
+                StatusLevel::Info,
+            ),
+            Err(error) => self.set_status(
+                format!("density changed for this session: {error}"),
+                StatusLevel::Error,
+            ),
+        }
+    }
+
     fn click_at(&mut self, column: u16, row: u16) {
         if contains(self.layout.sidebar, column, row) {
             let content = inner(self.layout.sidebar);
@@ -468,7 +497,8 @@ impl App {
                 self.focus = Pane::List;
                 return;
             }
-            let index = self.list_state.offset() + ((row - content.y) / 2) as usize;
+            let index =
+                self.list_state.offset() + ((row - content.y) / self.density.row_height()) as usize;
             if index >= self.visible.len() {
                 return;
             }

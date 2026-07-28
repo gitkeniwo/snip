@@ -5,7 +5,7 @@ use snip::service::{
     doctor, edit_snippet, restore_snippet, trash_entries,
 };
 use snip::{
-    AppConfig, ErrorKind, Fingerprint, Library, OutputSetting, SortMode, TuiIconSetting,
+    AppConfig, ErrorKind, Fingerprint, Library, OutputSetting, SortMode, TuiDensitySetting,
     TuiThemeSetting,
 };
 use std::fs;
@@ -249,7 +249,7 @@ future_gui_layout = "wide"
 [tui]
 theme = "light"
 sort = "modified"
-icons = "nerd"
+density = "compact"
 
 [tui.colors]
 accent = "#123456"
@@ -269,7 +269,7 @@ future_remote_policy = "manual"
     let tui = config.tui.as_ref().unwrap();
     assert_eq!(tui.theme, TuiThemeSetting::Light);
     assert_eq!(tui.sort, SortMode::Modified);
-    assert_eq!(tui.icons, TuiIconSetting::Nerd);
+    assert_eq!(tui.density, TuiDensitySetting::Compact);
     assert_eq!(
         tui.extra
             .get("colors")

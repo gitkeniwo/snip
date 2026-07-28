@@ -14,7 +14,7 @@ pub mod tui;
 
 pub use config::{
     AppConfig, ColorSetting, GitConfig, OutputSetting, PreviewRenderSetting, TuiConfig,
-    TuiIconSetting, TuiThemeSetting, config_path,
+    TuiDensitySetting, TuiThemeSetting, config_path,
 };
 pub use domain::{
     CatalogSnapshot, ChangeSet, Fingerprint, Fragment, FragmentManifest, LibraryManifest,

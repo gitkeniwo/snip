@@ -43,10 +43,33 @@ pub enum TuiThemeSetting {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TuiIconSetting {
+pub enum TuiDensitySetting {
     #[default]
-    Ascii,
-    Nerd,
+    Comfortable,
+    Compact,
+}
+
+impl TuiDensitySetting {
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Comfortable => Self::Compact,
+            Self::Compact => Self::Comfortable,
+        }
+    }
+
+    pub const fn row_height(self) -> u16 {
+        match self {
+            Self::Comfortable => 2,
+            Self::Compact => 1,
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Comfortable => "comfortable",
+            Self::Compact => "compact",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -56,7 +79,7 @@ pub struct TuiConfig {
     #[serde(default)]
     pub sort: SortMode,
     #[serde(default)]
-    pub icons: TuiIconSetting,
+    pub density: TuiDensitySetting,
     #[serde(flatten)]
     pub extra: toml::Table,
 }

@@ -175,7 +175,7 @@ snip config set default-folder Agents/Generated
 snip config set default-tags 'ai,generated'
 snip config set tui-theme auto
 snip config set tui-sort modified
-snip config set tui-icons ascii
+snip config set tui-density compact
 snip config set git-auto-commit-interval 15
 snip config set git-auto-push true
 snip config set git-backup-on-quit true
@@ -200,7 +200,7 @@ default_tags = ["personal"]
 [tui]
 theme = "auto"             # auto | light | dark
 sort = "manual"            # manual | title | modified | created
-icons = "ascii"            # ascii | nerd; nerd falls back to ascii in v2
+density = "comfortable"    # comfortable | compact
 
 [git]
 auto_commit_interval = 0   # minutes; 0 disables automatic Git operations
@@ -210,8 +210,7 @@ backup_on_quit = false
 
 `SNIP_TUI_THEME=light|dark` overrides `[tui].theme`. Unknown values under a
 future `[tui.colors]` table are preserved when the config is rewritten; custom
-palette consumption and actual Nerd Font glyphs are reserved for a later
-version.
+palette consumption is reserved for a later version.
 
 Config values are defaults only. Explicit CLI options override them. Library
 resolution is `--library` → `SNIP_LIBRARY` → nearest ancestor library →
