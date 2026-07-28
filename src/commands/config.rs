@@ -178,13 +178,12 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
         ConfigKey::TuiSort => {
             config.tui.get_or_insert_with(TuiConfig::default).sort =
                 match value.to_ascii_lowercase().as_str() {
-                    "manual" => SortMode::Manual,
-                    "title" => SortMode::Title,
                     "modified" => SortMode::Modified,
+                    "title" => SortMode::Title,
                     "created" => SortMode::Created,
                     _ => {
                         return Err(SnipError::usage(
-                            "tui-sort must be manual, title, modified, or created",
+                            "tui-sort must be modified, created, or title",
                         ));
                     }
                 };
@@ -238,7 +237,7 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
             config.tui.get_or_insert_with(TuiConfig::default).theme = TuiThemeSetting::Auto
         }
         ConfigKey::TuiSort => {
-            config.tui.get_or_insert_with(TuiConfig::default).sort = SortMode::Manual
+            config.tui.get_or_insert_with(TuiConfig::default).sort = SortMode::Modified
         }
         ConfigKey::TuiDensity => {
             config.tui.get_or_insert_with(TuiConfig::default).density =

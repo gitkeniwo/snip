@@ -257,6 +257,10 @@ fn list_sort_and_open_share_the_tui_vocabulary() {
         .output()
         .unwrap();
     assert!(!rejected.status.success());
+    let removed = command(&library, &["list", "--sort", "manual"])
+        .output()
+        .unwrap();
+    assert!(!removed.status.success());
 
     // `snip open` is the CLI counterpart of the TUI's `v` key: same target flags as
     // `snip path`, but the resolved path is handed to an application.

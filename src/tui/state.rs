@@ -15,12 +15,11 @@ pub enum Pane {
 /// name and apply the same orders.
 pub use crate::sort::SortMode;
 
-/// Top-bar badge for the active sort, including the default manual order.
+/// Top-bar badge for the active sort, including the default modified order.
 pub fn sort_indicator(sort: SortMode) -> Option<&'static str> {
     match sort {
-        SortMode::Manual => Some("manual"),
-        SortMode::Title => Some("↑ title"),
         SortMode::Modified => Some("↓ modified"),
+        SortMode::Title => Some("↑ title"),
         SortMode::Created => Some("↓ created"),
     }
 }

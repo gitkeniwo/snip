@@ -11,13 +11,12 @@ use crate::domain::Snippet;
 #[serde(rename_all = "lowercase")]
 #[value(rename_all = "lowercase")]
 pub enum SortMode {
-    /// Catalog order: folder, then title, as recorded on disk.
+    /// Most recently modified first. Legacy `manual` config values migrate here.
     #[default]
-    Manual,
+    #[serde(alias = "manual")]
+    Modified,
     /// Case-insensitive title, ascending.
     Title,
-    /// Most recently modified first.
-    Modified,
     /// Most recently created first.
     Created,
 }
@@ -25,18 +24,16 @@ pub enum SortMode {
 impl SortMode {
     pub fn next(self) -> Self {
         match self {
-            Self::Manual => Self::Title,
-            Self::Title => Self::Modified,
             Self::Modified => Self::Created,
-            Self::Created => Self::Manual,
+            Self::Created => Self::Title,
+            Self::Title => Self::Modified,
         }
     }
 
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Manual => "manual",
-            Self::Title => "title",
             Self::Modified => "modified",
+            Self::Title => "title",
             Self::Created => "created",
         }
     }
@@ -46,9 +43,8 @@ impl SortMode {
         (!left.pinned)
             .cmp(&(!right.pinned))
             .then_with(|| match self {
-                Self::Manual => Ordering::Equal,
-                Self::Title => left.title.to_lowercase().cmp(&right.title.to_lowercase()),
                 Self::Modified => compare_optional_desc(&left.modified_at, &right.modified_at),
+                Self::Title => left.title.to_lowercase().cmp(&right.title.to_lowercase()),
                 // `created_at` is emitted in RFC3339 UTC form by snip, so lexical ordering is
                 // chronological. Imported snippets with mixed offsets may differ slightly.
                 Self::Created => right.created_at.cmp(&left.created_at),
@@ -63,5 +59,18 @@ fn compare_optional_desc(left: &Option<String>, right: &Option<String>) -> Order
         (Some(_), None) => Ordering::Less,
         (None, Some(_)) => Ordering::Greater,
         (None, None) => Ordering::Equal,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SortMode;
+
+    #[test]
+    fn default_and_cycle_prefer_recently_modified_snippets() {
+        assert_eq!(SortMode::default(), SortMode::Modified);
+        assert_eq!(SortMode::Modified.next(), SortMode::Created);
+        assert_eq!(SortMode::Created.next(), SortMode::Title);
+        assert_eq!(SortMode::Title.next(), SortMode::Modified);
     }
 }

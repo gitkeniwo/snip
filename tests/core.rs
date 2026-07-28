@@ -248,7 +248,7 @@ future_gui_layout = "wide"
 
 [tui]
 theme = "light"
-sort = "modified"
+sort = "manual"
 density = "compact"
 
 [tui.colors]
@@ -301,6 +301,7 @@ future_remote_policy = "manual"
     let saved = fs::read_to_string(path).unwrap();
     assert!(saved.contains("future_gui_layout = \"wide\""));
     assert!(saved.contains("accent = \"#123456\""));
+    assert!(saved.contains("sort = \"modified\""));
     assert!(saved.contains("future_remote_policy = \"manual\""));
 }
 

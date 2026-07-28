@@ -118,7 +118,7 @@ pub struct FilterArgs {
     #[arg(long)]
     pub tag: Option<String>,
     /// Order of the listing. Pinned snippets always come first.
-    #[arg(long, default_value = "manual")]
+    #[arg(long, default_value = "modified")]
     pub sort: SortMode,
 }
 

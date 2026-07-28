@@ -90,7 +90,7 @@ printf 'echo hello\n' | snip create \
   --content-file -
 
 snip list
-snip list --sort modified          # manual | title | modified | created
+snip list --sort modified          # modified | created | title
 snip search hello
 snip preview Hello
 snip edit Hello
@@ -206,7 +206,7 @@ default_tags = ["personal"]
 
 [tui]
 theme = "auto"             # auto | light | dark
-sort = "manual"            # manual | title | modified | created
+sort = "modified"          # modified | created | title
 density = "comfortable"    # comfortable | compact
 
 [git]
