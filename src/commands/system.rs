@@ -107,6 +107,7 @@ pub fn command_git(library: &Library, args: &GitArgs, output: OutputMode) -> Res
         GitCommand::Commit { message } => command_git_commit(library, message.as_deref(), output),
         GitCommand::Backup => command_git_backup(library, output),
         GitCommand::Push => command_git_push(library, output),
+        GitCommand::Fetch => command_git_fetch(library, output),
     }
 }
 
@@ -269,6 +270,23 @@ fn command_git_push(library: &Library, output: OutputMode) -> Result<()> {
             pushed: true,
             message: None,
             outcome: "backup pushed",
+            status: &after,
+        },
+        output,
+    )
+}
+
+fn command_git_fetch(library: &Library, output: OutputMode) -> Result<()> {
+    let repo = require_repo(library)?;
+    git::fetch(&repo)?;
+    let after = git::status(&repo)?;
+    print_git_mutation(
+        GitMutationReport {
+            action: "fetch",
+            committed: false,
+            pushed: false,
+            message: None,
+            outcome: "remote status refreshed",
             status: &after,
         },
         output,

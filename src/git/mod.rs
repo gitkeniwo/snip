@@ -14,7 +14,7 @@ use crate::error::{Result, SnipError};
 pub use parse::relative_time;
 #[cfg(feature = "tui")]
 pub(crate) use write::is_library_lock_conflict;
-pub use write::{ActionOutcome, backup, commit, execute_interactive, init, push};
+pub use write::{ActionOutcome, backup, commit, execute_interactive, fetch, init, push};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
@@ -131,6 +131,7 @@ pub struct Status {
     pub state: RepoState,
     pub head_oid: Option<String>,
     pub last_commit: Option<Commit>,
+    pub upstream_commit: Option<Commit>,
 }
 
 impl Status {
@@ -313,9 +314,14 @@ pub fn status(repo: &Repo) -> Result<Status> {
             .take(7)
             .collect(),
     });
-    let last_commit = match parsed.head_oid.as_deref() {
-        None => None,
-        Some(_) => load_commit(repo)?,
+    let (last_commit, upstream_commit) = if parsed.head_oid.is_some() {
+        load_commits(
+            repo,
+            parsed.upstream.is_some(),
+            parsed.ahead == 0 && parsed.behind == 0,
+        )?
+    } else {
+        (None, None)
     };
     let conflicted = parsed
         .conflicted
@@ -334,6 +340,7 @@ pub fn status(repo: &Repo) -> Result<Status> {
         state: repo_state(&repo.git_dir),
         head_oid: parsed.head_oid,
         last_commit,
+        upstream_commit,
     })
 }
 
@@ -343,9 +350,46 @@ fn canonicalize_probe_path(path: &Path, label: &str) -> std::result::Result<Path
     })
 }
 
-fn load_commit(repo: &Repo) -> Result<Option<Commit>> {
-    let output = command::run(&repo.root, &["log", "-1", "--format=%h%x00%ct%x00%s"])
-        .map_err(spawn_error)?;
+fn load_commits(
+    repo: &Repo,
+    include_upstream: bool,
+    synchronized: bool,
+) -> Result<(Option<Commit>, Option<Commit>)> {
+    let mut arguments = vec!["show", "-s", "--format=%x1e%h%x00%ct%x00%s", "HEAD"];
+    if include_upstream {
+        arguments.push("@{upstream}");
+    }
+    let output = command::run(&repo.root, &arguments).map_err(spawn_error)?;
+    if !output.status.success() {
+        // A configured upstream may outlive its pruned remote-tracking ref.
+        // Preserve valid local metadata instead of letting that missing second
+        // revision make the combined query discard HEAD as well.
+        return if include_upstream {
+            Ok((load_commit(repo, "HEAD")?, None))
+        } else {
+            Ok((None, None))
+        };
+    }
+    let mut commits = parse::parse_logs(&output.stdout).into_iter();
+    let local = commits.next();
+    // `git show HEAD @{upstream}` deduplicates identical objects. When status
+    // says the refs are synchronized, that one record represents both sides.
+    let upstream = include_upstream
+        .then(|| {
+            commits
+                .next()
+                .or_else(|| synchronized.then(|| local.clone()).flatten())
+        })
+        .flatten();
+    Ok((local, upstream))
+}
+
+fn load_commit(repo: &Repo, reference: &str) -> Result<Option<Commit>> {
+    let output = command::run(
+        &repo.root,
+        &["show", "-s", "--format=%h%x00%ct%x00%s", reference],
+    )
+    .map_err(spawn_error)?;
     if !output.status.success() {
         return Ok(None);
     }
@@ -428,6 +472,7 @@ mod write_tests {
             state: RepoState::Clean,
             head_oid: Some("abcdef".to_owned()),
             last_commit: None,
+            upstream_commit: None,
         }
     }
 

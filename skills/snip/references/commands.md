@@ -183,7 +183,10 @@ after their last use, so a tag with count 0 is normal, not corruption.
   idempotent no-op when the library is already up to date. In JSON, `message`
   is emitted only when this invocation created a commit.
 - `snip git push` — push ahead commits without committing, for example to retry
-  after resolving a rejected push. Neither write command ever pulls.
+  after resolving a rejected push.
+- `snip git fetch` — fetch and prune remote-tracking refs without merging,
+  switching branches, or changing worktree files. Git mutation commands never
+  pull.
 
 CLI Git writes are deliberate user-triggered operations: they disable
 credential prompts and fail fast. The TUI suspends to the real terminal for
@@ -191,8 +194,9 @@ manual operations and `backup_on_quit`, preserving interactive credentials and
 progress. With `[git].auto_commit_interval` set above zero, the TUI may create
 local interval commits. `[git].auto_push = true` also pushes ahead commits in a
 non-prompting background worker on that same interval. An interval of `0`
-disables both. `a` in the Git panel pauses automatic commits and pushes for the
-current session.
+disables both. In the TUI Git console, `f` fetches remote status, `i` changes
+the interval, `u` toggles auto-push, `o` toggles backup-on-quit, and `a` pauses
+automatic commits and pushes for the current session.
 
 ## Other
 

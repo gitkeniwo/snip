@@ -878,6 +878,7 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
         state: RepoState::Clean,
         head_oid: Some("abcdef123".to_owned()),
         last_commit: None,
+        upstream_commit: None,
     });
     app.git.auto_commit_interval = 15;
     app.git.auto_push = true;
@@ -949,16 +950,37 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(rendered.contains("REPOSITORY"));
-    assert!(rendered.contains("BACKUP"));
-    assert!(rendered.contains("AUTOMATIC"));
-    assert!(rendered.contains("commit + push (every 15 min)"));
+    assert!(rendered.contains("WORKTREE"));
+    assert!(rendered.contains("AUTOMATION"));
+    assert!(rendered.contains("commit every 15 min"));
+    assert!(rendered.contains("push after commit"));
     assert!(rendered.contains("background push stalled"));
-    assert!(rendered.contains("C: previous comm"));
-    assert!(rendered.contains("P: previous push"));
+    assert!(rendered.contains("previous commit failure"));
+    assert!(rendered.contains("previous push failure"));
     assert!(rendered.contains("origin/main"));
     assert!(rendered.contains("backup"));
     assert!(rendered.contains("message"));
+
+    for width in [58, 50, 40] {
+        let backend = TestBackend::new(width, 32);
+        let mut narrow_console = Terminal::new(backend).unwrap();
+        narrow_console
+            .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+            .unwrap();
+        let rendered = narrow_console
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        for action in ["backup", "fetch", "on quit", "message", "close"] {
+            assert!(
+                rendered.contains(action),
+                "{action} footer action was clipped at {width} columns"
+            );
+        }
+    }
     app.git.open = false;
 
     let narrow_backend = TestBackend::new(59, 24);
@@ -1044,6 +1066,7 @@ fn quit_backup_waits_for_its_git_effect_to_finish() {
         state: RepoState::Clean,
         head_oid: Some("abcdef123".to_owned()),
         last_commit: None,
+        upstream_commit: None,
     });
 
     assert!(matches!(
@@ -1084,6 +1107,7 @@ fn quit_backup_runs_for_a_clean_worktree_with_unpushed_commits() {
         state: RepoState::Clean,
         head_oid: Some("abcdef123".to_owned()),
         last_commit: None,
+        upstream_commit: None,
     });
 
     assert!(matches!(
@@ -1197,6 +1221,7 @@ fn auto_push_requires_an_opted_in_sender_and_blocks_manual_git_while_running() {
         state: RepoState::Clean,
         head_oid: Some("abcdef123".to_owned()),
         last_commit: None,
+        upstream_commit: None,
     });
 
     app.tick_auto_backup();
@@ -1363,7 +1388,7 @@ fn repeated_background_push_failures_emit_only_one_error_transition() {
     assert!(
         app.status
             .as_ref()
-            .is_some_and(|status| status.text.contains("automatic push failed"))
+            .is_some_and(|status| status.text.contains("background push failed"))
     );
     assert!(app.git.last_push_error.is_some());
 

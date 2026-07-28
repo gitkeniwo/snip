@@ -200,6 +200,7 @@ pub enum ModalAction {
     DeleteTag { tag: String },
     PurgeSnippet { entry_id: String },
     GitCommit,
+    GitAutoCommitInterval,
 }
 
 fn char_byte_index(value: &str, character: usize) -> usize {

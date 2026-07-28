@@ -29,9 +29,20 @@ impl App {
                     return self.git_effect(GitAction::Commit { message: None });
                 }
                 KeyCode::Char('p') => return self.git_effect(GitAction::Push),
+                KeyCode::Char('f') => self.spawn_fetch(),
                 KeyCode::Char('C') => self.open_git_message(),
                 KeyCode::Char('a') => self.toggle_auto_backup(),
-                KeyCode::Char('i') => return self.git_effect(GitAction::Init),
+                KeyCode::Char('u') => self.toggle_auto_push(),
+                KeyCode::Char('o') => self.toggle_backup_on_quit(),
+                KeyCode::Char('i') => {
+                    if matches!(
+                        self.git.unavailable.as_ref(),
+                        Some(Unavailable::NotARepository)
+                    ) {
+                        return self.git_effect(GitAction::Init);
+                    }
+                    self.open_auto_commit_interval();
+                }
                 _ => {}
             }
             return Vec::new();
@@ -148,8 +159,15 @@ impl App {
     }
 
     fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
-        if self.git.push_in_flight {
-            self.set_status("a background push is running", StatusLevel::Error);
+        if self.git.push_in_flight || self.git.fetch_in_flight {
+            self.set_status(
+                if self.git.push_in_flight {
+                    "a background push is running"
+                } else {
+                    "a background fetch is running"
+                },
+                StatusLevel::Error,
+            );
             return Vec::new();
         }
         let refusal =
@@ -197,9 +215,16 @@ impl App {
     }
 
     pub(super) fn request_quit(&mut self) -> Vec<Effect> {
-        if self.git.push_in_flight {
+        if self.git.push_in_flight || self.git.fetch_in_flight {
             self.pending_quit = true;
-            self.set_status("finishing background push…", StatusLevel::Info);
+            self.set_status(
+                if self.git.push_in_flight {
+                    "finishing background push…"
+                } else {
+                    "finishing background fetch…"
+                },
+                StatusLevel::Info,
+            );
             return Vec::new();
         }
         if self.git.backup_on_quit {
@@ -248,8 +273,15 @@ impl App {
     }
 
     fn open_git_message(&mut self) {
-        if self.git.push_in_flight {
-            self.set_status("a background push is running", StatusLevel::Error);
+        if self.git.push_in_flight || self.git.fetch_in_flight {
+            self.set_status(
+                if self.git.push_in_flight {
+                    "a background push is running"
+                } else {
+                    "a background fetch is running"
+                },
+                StatusLevel::Error,
+            );
             return;
         }
         let Some(status) = self.git.status.as_ref() else {
@@ -268,6 +300,76 @@ impl App {
             git::backup_message(status),
             ModalAction::GitCommit,
         )));
+    }
+
+    fn open_auto_commit_interval(&mut self) {
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Automatic commit interval (minutes; 0 disables)",
+            self.git.auto_commit_interval.to_string(),
+            ModalAction::GitAutoCommitInterval,
+        )));
+    }
+
+    fn toggle_auto_push(&mut self) {
+        let next = !self.git.auto_push;
+        match self.persist_git_settings(None, Some(next), None) {
+            Ok(()) => self.set_status(
+                if next {
+                    "automatic push enabled"
+                } else {
+                    "automatic push disabled"
+                },
+                StatusLevel::Info,
+            ),
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
+    fn toggle_backup_on_quit(&mut self) {
+        let next = !self.git.backup_on_quit;
+        match self.persist_git_settings(None, None, Some(next)) {
+            Ok(()) => self.set_status(
+                if next {
+                    "backup on quit enabled"
+                } else {
+                    "backup on quit disabled"
+                },
+                StatusLevel::Info,
+            ),
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
+    pub(super) fn persist_git_settings(
+        &mut self,
+        interval: Option<u32>,
+        auto_push: Option<bool>,
+        backup_on_quit: Option<bool>,
+    ) -> crate::error::Result<()> {
+        let mut config = crate::config::AppConfig::load()?;
+        let git = config
+            .git
+            .get_or_insert_with(crate::config::GitConfig::default);
+        if let Some(interval) = interval {
+            git.auto_commit_interval = interval;
+        }
+        if let Some(auto_push) = auto_push {
+            git.auto_push = auto_push;
+        }
+        if let Some(backup_on_quit) = backup_on_quit {
+            git.backup_on_quit = backup_on_quit;
+        }
+        config.save()?;
+        if let Some(interval) = interval {
+            self.git.auto_commit_interval = interval;
+        }
+        if let Some(auto_push) = auto_push {
+            self.git.auto_push = auto_push;
+        }
+        if let Some(backup_on_quit) = backup_on_quit {
+            self.git.backup_on_quit = backup_on_quit;
+        }
+        Ok(())
     }
 
     fn git_availability_refusal(&self) -> Refusal {

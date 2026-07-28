@@ -208,6 +208,13 @@ impl App {
                     String::new(),
                 ));
             }
+            ModalAction::GitAutoCommitInterval => {
+                let minutes = input()?.parse::<u32>().map_err(|_| {
+                    SnipError::usage("automatic commit interval must be whole minutes")
+                })?;
+                self.persist_git_settings(Some(minutes), None, None)?;
+                return Ok((Vec::new(), format!("automatic interval: {minutes} min")));
+            }
             ModalAction::CreateTitle => {
                 let title = input()?;
                 if title.is_empty() {

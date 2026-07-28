@@ -363,19 +363,24 @@ snip --library Main.sniplib git commit
 snip --library Main.sniplib git commit -m "before refactoring"
 snip --library Main.sniplib git backup
 snip --library Main.sniplib git push
+snip --library Main.sniplib git fetch
 ```
 
 `commit` stages and commits only library content. `backup` commits when the
 library is dirty and pushes whenever the branch is ahead of its upstream, so it
 also handles a clean worktree with earlier local commits. `push` retries only
-the push step. `backup` is idempotent: an already committed and pushed library
-returns success with `backup is already up to date`. Its JSON `message` field
-is present only when that invocation created a commit. These CLI operations are
-non-interactive and fail rather than waiting for credentials.
+the push step. `fetch` refreshes and prunes remote-tracking refs without
+changing the worktree. `backup` is idempotent: an already committed and pushed
+library returns success with `backup is already up to date`. Its JSON `message`
+field is present only when that invocation created a commit. These CLI
+operations are non-interactive and fail rather than waiting for credentials.
 
-In the TUI, `Ctrl-g` opens the Git panel: `b` backs up, `c` commits, `p` pushes,
-`C` enters a custom message, `a` pauses automatic commits and pushes for the current
-session, and `i` initializes a repository. Manual TUI operations temporarily
+In the TUI, `Ctrl-g` opens the Git console: `b` backs up, `c` commits, `p`
+pushes, `f` fetches remote status in the background, and `C` enters a custom
+message. The console also makes automation discoverable and editable: `i`
+sets the commit interval, `u` toggles automatic push, `o` toggles backup on
+quit, and `a` pauses automation for the current session. In a library that is
+not yet a repository, `i` initializes it. Manual TUI operations temporarily
 return to the real terminal so Git credential prompts and progress remain
 visible.
 
@@ -388,13 +393,15 @@ and HTTP waits; manual Git and quit-time backup remain interactive. Set
 `git-backup-on-quit` to run the normal interactive backup before the TUI exits.
 Automatic work skips conflicts, detached HEADs, in-progress Git operations,
 open modals, queued Git actions, and a library lock held by another snip
-process. The TUI waits up to five seconds for an in-flight push when quitting.
+process. The TUI waits up to five seconds for an in-flight network task when
+quitting.
 Repeated identical failures remain visible in the Git panel without repeatedly
 spamming the status bar.
 
-snip never pulls, fetches, switches branches, or resolves conflicts. If a push
-is rejected, pull and resolve it in your terminal. Behind counts reflect the
-most recent fetch performed outside snip.
+snip never pulls, switches branches, or resolves conflicts. If a push is
+rejected, pull and resolve it in your terminal. The Git console's `f` action
+refreshes behind counts without touching the worktree and shows when this
+session last fetched.
 
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
 back. Permanent deletion requires `snip purge SELECTOR --yes`.

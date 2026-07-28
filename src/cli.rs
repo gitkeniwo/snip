@@ -499,6 +499,8 @@ pub enum GitCommand {
     Backup,
     /// Push commits to the configured upstream without committing.
     Push,
+    /// Fetch and prune remote-tracking refs without touching the worktree.
+    Fetch,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -563,7 +565,7 @@ pub enum ConfigKey {
     DefaultTags,
     TuiTheme,
     TuiSort,
-    TuiIcons,
+    TuiDensity,
     GitAutoCommitInterval,
     GitAutoPush,
     GitBackupOnQuit,

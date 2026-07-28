@@ -271,6 +271,14 @@ fn backup_pushes_to_a_local_bare_remote_and_clears_ahead() {
     );
     git_ok(&root, &["remote", "add", "origin", bare.to_str().unwrap()]);
     git_ok(&root, &["push", "-u", "origin", "main"]);
+    let tracked = git::status(&repo).unwrap();
+    assert_eq!(
+        tracked.last_commit.as_ref().map(|commit| &commit.short_id),
+        tracked
+            .upstream_commit
+            .as_ref()
+            .map(|commit| &commit.short_id)
+    );
 
     append(&root.join("tags.toml"), "\n# backed up\n");
     let before = git::status(&repo).unwrap();
@@ -357,6 +365,98 @@ fn backup_pushes_to_a_local_bare_remote_and_clears_ahead() {
         git_stdout(&bare, &["log", "-1", "--format=%s"]).trim(),
         "explicit push retry"
     );
+}
+
+#[test]
+fn fetch_refreshes_remote_commit_and_behind_count_without_touching_worktree() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Fetch.sniplib");
+    let bare = temporary.path().join("origin.git");
+    let peer = temporary.path().join("peer");
+    let library = Library::init(&root, Some("Fetch")).unwrap();
+    init_repo(&root);
+    let repo = git::probe(library.root()).unwrap();
+    git::commit(&repo, "initial").unwrap();
+    git_ok(
+        temporary.path(),
+        &["init", "--bare", bare.to_str().unwrap()],
+    );
+    git_ok(&root, &["remote", "add", "origin", bare.to_str().unwrap()]);
+    git_ok(&root, &["push", "-u", "origin", "main"]);
+    git_ok(
+        temporary.path(),
+        &["clone", bare.to_str().unwrap(), peer.to_str().unwrap()],
+    );
+    git_ok(&peer, &["config", "user.name", "snip CI"]);
+    git_ok(&peer, &["config", "user.email", "ci@example.invalid"]);
+    fs::write(peer.join("remote-only.txt"), "remote\n").unwrap();
+    commit_all(&peer, "remote change");
+    git_ok(&peer, &["push"]);
+
+    assert_eq!(git::status(&repo).unwrap().behind, 0);
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            root.to_str().unwrap(),
+            "--output",
+            "json",
+            "git",
+            "fetch",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"action\": \"fetch\""))
+        .stdout(predicate::str::contains(
+            "\"outcome\": \"remote status refreshed\"",
+        ));
+    let refreshed = git::status(&repo).unwrap();
+    assert_eq!(refreshed.behind, 1);
+    assert_eq!(
+        refreshed
+            .upstream_commit
+            .as_ref()
+            .map(|commit| commit.subject.as_str()),
+        Some("remote change")
+    );
+    assert!(!root.join("remote-only.txt").exists());
+}
+
+#[test]
+fn pruned_upstream_keeps_local_commit_metadata() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Pruned upstream.sniplib");
+    let bare = temporary.path().join("origin.git");
+    let library = Library::init(&root, Some("Pruned upstream")).unwrap();
+    init_repo(&root);
+    let repo = git::probe(library.root()).unwrap();
+    git::commit(&repo, "local commit survives pruning").unwrap();
+    git_ok(
+        temporary.path(),
+        &["init", "--bare", bare.to_str().unwrap()],
+    );
+    git_ok(&root, &["remote", "add", "origin", bare.to_str().unwrap()]);
+    git_ok(&root, &["push", "-u", "origin", "main"]);
+
+    git_ok(&bare, &["update-ref", "-d", "refs/heads/main"]);
+    git::fetch(&repo).unwrap();
+    let pruned = git::status(&repo).unwrap();
+
+    assert_eq!(pruned.upstream.as_deref(), Some("origin/main"));
+    assert_eq!(
+        pruned
+            .last_commit
+            .as_ref()
+            .map(|commit| commit.subject.as_str()),
+        Some("local commit survives pruning")
+    );
+    assert!(pruned.upstream_commit.is_none());
 }
 
 #[test]

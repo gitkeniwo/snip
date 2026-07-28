@@ -233,21 +233,63 @@ impl App {
         });
     }
 
+    pub fn spawn_fetch(&mut self) {
+        let (Some(repo), Some(sender)) = (self.git.repo.clone(), self.git.sender.clone()) else {
+            self.set_status("Git fetch is unavailable", StatusLevel::Error);
+            return;
+        };
+        if self.git.push_in_flight || self.git.fetch_in_flight {
+            self.set_status(
+                "a background Git network task is running",
+                StatusLevel::Error,
+            );
+            return;
+        }
+        self.git.fetch_in_flight = true;
+        std::thread::spawn(move || {
+            let outcome = crate::git::fetch(&repo)
+                .map(|()| crate::git::ActionOutcome {
+                    action: "fetch",
+                    committed: false,
+                    pushed: false,
+                    message: "remote status refreshed".to_owned(),
+                })
+                .map_err(|error| error.to_string());
+            let _ = sender.send(AppEvent::GitFinished(GitTaskResult {
+                action: "fetch",
+                outcome,
+            }));
+        });
+    }
+
     pub fn handle_git_task(&mut self, result: GitTaskResult) {
         if result.action == "push" {
             self.git.push_in_flight = false;
+        } else if result.action == "fetch" {
+            self.git.fetch_in_flight = false;
         }
         self.refresh_git();
         match result.outcome {
             Ok(_) => {
                 // Background success is visible in the badge and panel. Keep it
                 // quiet so an interval backup does not become a recurring toast.
-                self.git.last_push_error = None;
+                if result.action == "fetch" {
+                    self.git.last_fetch_error = None;
+                    self.git.fetched_at = Some(Instant::now());
+                    self.set_status("remote status refreshed", StatusLevel::Info);
+                } else {
+                    self.git.last_push_error = None;
+                }
             }
             Err(message) => {
-                if auto_error_transition(&mut self.git.last_push_error, message.clone()) {
+                let slot = if result.action == "fetch" {
+                    &mut self.git.last_fetch_error
+                } else {
+                    &mut self.git.last_push_error
+                };
+                if auto_error_transition(slot, message.clone()) {
                     self.set_status(
-                        format!("automatic {} failed: {message}", result.action),
+                        format!("background {} failed: {message}", result.action),
                         StatusLevel::Error,
                     );
                 }

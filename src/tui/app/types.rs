@@ -46,10 +46,13 @@ pub struct GitState {
     pub auto_backup_paused: bool,
     pub last_commit_error: Option<String>,
     pub last_push_error: Option<String>,
+    pub last_fetch_error: Option<String>,
     pub operation_queued: bool,
     pub auto_attempted_at: Option<Instant>,
     pub push_attempted_at: Option<Instant>,
     pub push_in_flight: bool,
+    pub fetch_in_flight: bool,
+    pub fetched_at: Option<Instant>,
     pub sender: Option<Sender<AppEvent>>,
     pub(crate) checked_at: Instant,
     pub(crate) interval: Duration,
@@ -73,10 +76,13 @@ impl GitState {
             auto_backup_paused: false,
             last_commit_error: None,
             last_push_error: None,
+            last_fetch_error: None,
             operation_queued: false,
             auto_attempted_at: None,
             push_attempted_at: None,
             push_in_flight: false,
+            fetch_in_flight: false,
+            fetched_at: None,
             sender: None,
             checked_at: Instant::now(),
             interval: Duration::from_secs(5),
@@ -88,9 +94,12 @@ impl GitState {
         let auto_backup_paused = self.auto_backup_paused;
         let last_commit_error = self.last_commit_error.take();
         let last_push_error = self.last_push_error.take();
+        let last_fetch_error = self.last_fetch_error.take();
         let sender = self.sender.clone();
         let push_attempted_at = self.push_attempted_at;
         let push_in_flight = self.push_in_flight;
+        let fetch_in_flight = self.fetch_in_flight;
+        let fetched_at = self.fetched_at;
         let config = GitConfig {
             auto_commit_interval: self.auto_commit_interval,
             auto_push: self.auto_push,
@@ -102,9 +111,12 @@ impl GitState {
         self.auto_backup_paused = auto_backup_paused;
         self.last_commit_error = last_commit_error;
         self.last_push_error = last_push_error;
+        self.last_fetch_error = last_fetch_error;
         self.sender = sender;
         self.push_attempted_at = push_attempted_at;
         self.push_in_flight = push_in_flight;
+        self.fetch_in_flight = fetch_in_flight;
+        self.fetched_at = fetched_at;
     }
 }
 

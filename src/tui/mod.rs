@@ -77,8 +77,8 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
         // `pending_quit` also marks an already-queued quit backup. Only the
         // background-push form has no manual Git operation queued yet.
         if app.pending_quit && !app.git.operation_queued {
-            if app.git.push_in_flight {
-                app.set_status("finishing background push…", StatusLevel::Info);
+            if app.git.push_in_flight || app.git.fetch_in_flight {
+                app.set_status("finishing background Git task…", StatusLevel::Info);
                 terminal.draw(|frame| ui::draw(frame, &mut app))?;
                 let deadline = Instant::now() + Duration::from_secs(5);
                 loop {

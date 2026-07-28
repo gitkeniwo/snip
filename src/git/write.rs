@@ -43,6 +43,16 @@ pub fn push(repo: &Repo) -> Result<()> {
     push_with(repo, Mode::NonInteractive)
 }
 
+pub fn fetch(repo: &Repo) -> Result<()> {
+    let output = command::run_non_interactive(&repo.library_root, &["fetch", "--prune"])
+        .map_err(spawn_error)?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(command_failed("git fetch", &output.stderr))
+    }
+}
+
 pub fn backup(repo: &Repo, message: &str) -> Result<ActionOutcome> {
     let before = status(repo)?;
     backup_with(repo, message, Mode::NonInteractive, &before)

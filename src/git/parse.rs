@@ -141,6 +141,14 @@ pub(super) fn parse_log(bytes: &[u8]) -> Option<Commit> {
     })
 }
 
+pub(super) fn parse_logs(bytes: &[u8]) -> Vec<Commit> {
+    bytes
+        .split(|byte| *byte == 0x1e)
+        .filter(|record| !record.is_empty())
+        .filter_map(parse_log)
+        .collect()
+}
+
 pub fn relative_time(timestamp: i64, now: i64) -> String {
     let seconds = now.saturating_sub(timestamp).max(0);
     match seconds {
@@ -160,7 +168,7 @@ fn plural(value: i64, unit: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_log, parse_status_v2, relative_time};
+    use super::{parse_log, parse_logs, parse_status_v2, relative_time};
     use crate::git::Branch;
 
     #[test]
@@ -221,6 +229,15 @@ mod tests {
         assert_eq!(commit.subject, "Update two snippets");
         assert!(parse_log(b"a\0not-a-time\0subject").is_none());
         assert!(parse_log(b"a\x009223372036854775807\0subject").is_none());
+    }
+
+    #[test]
+    fn parses_multiple_record_separated_commits() {
+        let commits =
+            parse_logs(b"\x1ea1b2c3d\x001690704000\0Local\n\x1ed4e5f6a\x001690704100\0Remote\n");
+        assert_eq!(commits.len(), 2);
+        assert_eq!(commits[0].subject, "Local");
+        assert_eq!(commits[1].subject, "Remote");
     }
 
     #[test]

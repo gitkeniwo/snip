@@ -2,7 +2,7 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph};
 use time::OffsetDateTime;
 
 use crate::git::{Branch, RepoState, Unavailable};
@@ -10,6 +10,7 @@ use crate::git::{Branch, RepoState, Unavailable};
 use super::app::App;
 use super::app::types::GitState;
 use super::icons::IconMode;
+use super::selection::text_width;
 use super::theme::TuiTheme;
 use super::widgets;
 
@@ -82,36 +83,36 @@ fn with_auto_suffix(state: &GitState, text: impl Into<String>) -> String {
 }
 
 pub fn draw_git(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let popup_width = 64.min(area.width);
+    // Two border cells plus four cells of padding on each side.
+    let content_width = popup_width.saturating_sub(10) as usize;
     let text = match app.git.unavailable.as_ref() {
-        Some(Unavailable::NotARepository) => not_repository_text(app),
-        Some(Unavailable::ProbeFailed { message }) => probe_failed_text(app, message),
-        Some(Unavailable::BinaryMissing) | None => repository_text(app),
+        Some(Unavailable::NotARepository) => not_repository_text(app, content_width),
+        Some(Unavailable::ProbeFailed { message }) => {
+            probe_failed_text(app, message, content_width)
+        }
+        Some(Unavailable::BinaryMissing) | None => repository_text(app, content_width),
     };
     let content_height = u16::try_from(text.lines.len()).unwrap_or(u16::MAX);
-    let popup = widgets::centered_rect(64, content_height.saturating_add(4), area);
+    let popup = widgets::centered_rect(popup_width, content_height.saturating_add(2), area);
     frame.render_widget(Clear, popup);
     let block = Block::default()
-        .title(Line::from(" Git ").centered())
+        .title(Line::from(" Git Console ").centered())
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(app.theme.accent))
-        .padding(Padding::new(4, 4, 1, 1));
+        .padding(Padding::new(4, 4, 0, 0));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
 
-    frame.render_widget(
-        Paragraph::new(text)
-            .wrap(Wrap { trim: false })
-            .alignment(Alignment::Left),
-        inner,
-    );
+    frame.render_widget(Paragraph::new(text).alignment(Alignment::Left), inner);
 }
 
-fn probe_failed_text(app: &App, message: &str) -> Text<'static> {
+fn probe_failed_text(app: &App, message: &str, width: usize) -> Text<'static> {
     Text::from(vec![
         title_line(&app.library.manifest().name, app.theme),
         Line::raw(""),
-        section("REPOSITORY", app.theme),
+        section("REPOSITORY", width, app.theme),
         Line::raw(""),
         Line::styled(
             "  Git could not inspect this library.",
@@ -119,7 +120,10 @@ fn probe_failed_text(app: &App, message: &str) -> Text<'static> {
         ),
         Line::raw(""),
         Line::styled(
-            format!("  {}", widgets::truncate_end(message, 50)),
+            format!(
+                "  {}",
+                widgets::truncate_end(message, width.saturating_sub(2))
+            ),
             Style::default().fg(app.theme.muted),
         ),
         Line::raw(""),
@@ -127,12 +131,15 @@ fn probe_failed_text(app: &App, message: &str) -> Text<'static> {
     ])
 }
 
-fn not_repository_text(app: &App) -> Text<'static> {
-    let path = widgets::truncate_end(&app.library.root().display().to_string(), 52);
+fn not_repository_text(app: &App, width: usize) -> Text<'static> {
+    let path = widgets::truncate_end(
+        &app.library.root().display().to_string(),
+        width.saturating_sub(2),
+    );
     Text::from(vec![
         title_line(&app.library.manifest().name, app.theme),
         Line::raw(""),
-        section("REPOSITORY", app.theme),
+        section("REPOSITORY", width, app.theme),
         Line::raw(""),
         Line::styled(
             "  This library is not a git repository.",
@@ -165,12 +172,12 @@ fn not_repository_text(app: &App) -> Text<'static> {
     ])
 }
 
-fn repository_text(app: &App) -> Text<'static> {
+fn repository_text(app: &App, width: usize) -> Text<'static> {
     let Some(status) = app.git.status.as_ref() else {
         return Text::from(vec![
             title_line(&app.library.manifest().name, app.theme),
             Line::raw(""),
-            section("REPOSITORY", app.theme),
+            section("REPOSITORY", width, app.theme),
             Line::raw(""),
             Line::styled(
                 app.git
@@ -184,117 +191,115 @@ fn repository_text(app: &App) -> Text<'static> {
             basic_footer(app.theme),
         ]);
     };
+    let (verdict, verdict_color) = sync_verdict(status, app.theme);
     let mut lines = vec![
-        title_line(&app.library.manifest().name, app.theme),
-        Line::raw(""),
-        section("REPOSITORY", app.theme),
-        key_value("branch", branch_text(&status.branch), app.theme),
-    ];
-    if let Some(upstream) = &status.upstream {
-        lines.push(key_value("upstream", upstream.clone(), app.theme));
-    } else {
-        lines.push(key_value(
-            "upstream",
-            "—  (not pushed anywhere)".to_owned(),
-            app.theme,
-        ));
-    }
-    if let Some(head) = status.head_oid.as_deref() {
-        lines.push(key_value("head", head.chars().take(7).collect(), app.theme));
-    }
-    lines.extend([Line::raw(""), section("BACKUP", app.theme)]);
-    if let Some(commit) = &status.last_commit {
-        let when =
-            crate::git::relative_time(commit.timestamp, OffsetDateTime::now_utc().unix_timestamp());
-        lines.push(key_value("last commit", when, app.theme));
-        lines.push(Line::styled(
-            format!(
-                "                {}",
-                widgets::truncate_end(&commit.subject, 38)
+        Line::from(vec![
+            Span::styled("● ", Style::default().fg(verdict_color)),
+            Span::styled(
+                verdict,
+                Style::default()
+                    .fg(verdict_color)
+                    .add_modifier(Modifier::BOLD),
             ),
-            Style::default().fg(app.theme.muted),
-        ));
-    } else {
-        lines.push(key_value("last commit", "none".to_owned(), app.theme));
+        ]),
+        relationship_line(status, width, app.theme),
+        relationship_time_line(status, width, app.theme),
+        Line::raw(""),
+        section("WORKTREE", width, app.theme),
+        key_value("branch", branch_text(&status.branch), width, app.theme),
+        key_value(
+            "remote",
+            status.upstream.clone().unwrap_or_else(|| "none".to_owned()),
+            width,
+            app.theme,
+        ),
+        key_value(
+            "changes",
+            format!(
+                "{} staged · {} modified · {} new",
+                status.staged, status.unstaged, status.untracked
+            ),
+            width,
+            app.theme,
+        ),
+        key_value(
+            "last fetch",
+            app.git.fetched_at.map_or_else(
+                || "not fetched this session".to_owned(),
+                |instant| elapsed_label(instant.elapsed()),
+            ),
+            width,
+            app.theme,
+        ),
+        Line::raw(""),
+        section("AUTOMATION", width, app.theme),
+        checkbox_line(
+            app.git.auto_commit_interval > 0,
+            "i",
+            if app.git.auto_commit_interval > 0 {
+                format!("commit every {} min", app.git.auto_commit_interval)
+            } else {
+                "automatic commits off".to_owned()
+            },
+            app.theme,
+        ),
+        checkbox_line(
+            app.git.auto_push,
+            "u",
+            "push after commit".to_owned(),
+            app.theme,
+        ),
+        checkbox_line(
+            app.git.backup_on_quit,
+            "o",
+            "backup on quit".to_owned(),
+            app.theme,
+        ),
+        key_value(
+            "session",
+            if app.git.auto_backup_paused {
+                "paused (a to resume)".to_owned()
+            } else {
+                "active (a to pause)".to_owned()
+            },
+            width,
+            app.theme,
+        ),
+        key_value(
+            "network",
+            if app.git.fetch_in_flight {
+                "fetching remote status…".to_owned()
+            } else if app.git.push_in_flight
+                && app
+                    .git
+                    .push_attempted_at
+                    .is_some_and(|attempt| attempt.elapsed() > std::time::Duration::from_secs(180))
+            {
+                "background push stalled".to_owned()
+            } else if app.git.push_in_flight {
+                "pushing…".to_owned()
+            } else {
+                "idle".to_owned()
+            },
+            width,
+            app.theme,
+        ),
+    ];
+    for (kind, error) in [
+        ("commit error", app.git.last_commit_error.as_deref()),
+        ("push error", app.git.last_push_error.as_deref()),
+        ("fetch error", app.git.last_fetch_error.as_deref()),
+    ] {
+        if let Some(error) = error {
+            lines.push(key_value(kind, error.to_owned(), width, app.theme));
+        }
     }
-    lines.push(key_value(
-        "unpushed",
-        format!("{} commits", status.ahead),
-        app.theme,
-    ));
-    lines.push(key_value(
-        "uncommitted",
-        format!(
-            "{} staged · {} modified · {} new",
-            status.staged, status.unstaged, status.untracked
-        ),
-        app.theme,
-    ));
-    lines.extend([Line::raw(""), section("AUTOMATIC", app.theme)]);
-    let automatic_mode = if app.git.auto_commit_interval == 0 {
-        "off".to_owned()
-    } else if app.git.auto_push {
-        format!("commit + push (every {} min)", app.git.auto_commit_interval)
-    } else {
-        format!("commit only (every {} min)", app.git.auto_commit_interval)
-    };
-    lines.push(key_value("mode", automatic_mode, app.theme));
-    lines.push(key_value(
-        "state",
-        if app.git.auto_commit_interval == 0 {
-            "off".to_owned()
-        } else if app.git.auto_backup_paused {
-            "paused".to_owned()
-        } else {
-            "active".to_owned()
-        },
-        app.theme,
-    ));
-    lines.push(key_value(
-        "push",
-        if app.git.push_in_flight
-            && app
-                .git
-                .push_attempted_at
-                .is_some_and(|attempt| attempt.elapsed() > std::time::Duration::from_secs(180))
-        {
-            "background push stalled".to_owned()
-        } else if app.git.push_in_flight {
-            "in flight".to_owned()
-        } else {
-            "idle".to_owned()
-        },
-        app.theme,
-    ));
-    lines.push(key_value(
-        "on quit",
-        if app.git.backup_on_quit {
-            "backup enabled".to_owned()
-        } else {
-            "off".to_owned()
-        },
-        app.theme,
-    ));
-    let last_errors = match (
-        app.git.last_commit_error.as_deref(),
-        app.git.last_push_error.as_deref(),
-    ) {
-        (Some(commit), Some(push)) => format!(
-            "C: {}; P: {}",
-            widgets::truncate_end(commit, 15),
-            widgets::truncate_end(push, 15)
-        ),
-        (Some(commit), None) => format!("commit: {}", widgets::truncate_end(commit, 30)),
-        (None, Some(push)) => format!("push: {}", widgets::truncate_end(push, 32)),
-        (None, None) => "—".to_owned(),
-    };
-    lines.push(key_value("last errors", last_errors, app.theme));
 
     if !status.conflicted.is_empty()
         || !matches!(status.branch, Branch::Named { .. } | Branch::Unborn)
         || status.state != RepoState::Clean
     {
-        lines.extend([Line::raw(""), section("ATTENTION", app.theme)]);
+        lines.extend([Line::raw(""), section("ATTENTION", width, app.theme)]);
         if status.state != RepoState::Clean {
             lines.push(Line::styled(
                 format!("  repository is in {} state", status.state.label()),
@@ -330,12 +335,12 @@ fn repository_text(app: &App) -> Text<'static> {
         lines.extend([
             Line::raw(""),
             Line::styled(
-                widgets::truncate_end(error, 52),
+                widgets::truncate_end(error, width),
                 Style::default().fg(app.theme.error),
             ),
         ]);
     }
-    lines.extend(repository_footer(app.theme));
+    lines.extend(repository_footer(width, app.theme));
     Text::from(lines)
 }
 
@@ -349,9 +354,15 @@ fn title_line(name: &str, theme: TuiTheme) -> Line<'static> {
     .centered()
 }
 
-fn section(label: &str, theme: TuiTheme) -> Line<'static> {
+fn section(label: &str, width: usize, theme: TuiTheme) -> Line<'static> {
+    let prefix = "── ";
+    let suffix_width = width.saturating_sub(
+        super::selection::text_width(prefix) as usize
+            + super::selection::text_width(label) as usize
+            + 1,
+    );
     Line::from(vec![
-        Span::styled("── ", Style::default().fg(theme.rule)),
+        Span::styled(prefix, Style::default().fg(theme.rule)),
         Span::styled(
             label.to_owned(),
             Style::default()
@@ -359,15 +370,145 @@ fn section(label: &str, theme: TuiTheme) -> Line<'static> {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            " ─────────────────────────────",
+            format!(" {}", "─".repeat(suffix_width)),
             Style::default().fg(theme.rule),
         ),
     ])
 }
 
-fn key_value(key: &str, value: String, theme: TuiTheme) -> Line<'static> {
+fn sync_verdict(status: &crate::git::Status, theme: TuiTheme) -> (String, Color) {
+    if !status.conflicted.is_empty() {
+        return (
+            format!(
+                "{} conflicts need terminal resolution",
+                status.conflicted.len()
+            ),
+            theme.error,
+        );
+    }
+    if status.state != RepoState::Clean {
+        return (
+            format!("repository is in {} state", status.state.label()),
+            theme.error,
+        );
+    }
+    if matches!(status.branch, Branch::Detached { .. }) {
+        return ("HEAD is detached".to_owned(), theme.warning);
+    }
+    if status.behind > 0 {
+        return (
+            format!("remote is {} commit(s) ahead", status.behind),
+            theme.warning,
+        );
+    }
+    if status.dirty_count() > 0 {
+        return (
+            format!("{} change(s) not committed", status.dirty_count()),
+            theme.warning,
+        );
+    }
+    if status.ahead > 0 {
+        return (
+            format!("{} commit(s) not pushed", status.ahead),
+            theme.warning,
+        );
+    }
+    if status.upstream.is_none() {
+        return (
+            "committed locally; no remote configured".to_owned(),
+            theme.muted,
+        );
+    }
+    ("backed up and pushed".to_owned(), theme.success)
+}
+
+fn relationship_line(status: &crate::git::Status, width: usize, theme: TuiTheme) -> Line<'static> {
+    let local = status
+        .last_commit
+        .as_ref()
+        .map_or("none", |commit| commit.short_id.as_str());
+    let remote = status
+        .upstream_commit
+        .as_ref()
+        .map_or("none", |commit| commit.short_id.as_str());
+    let arrow = match (status.ahead > 0, status.behind > 0) {
+        (true, true) => " ◀─▶ ",
+        (true, false) => " ──▶ ",
+        (false, true) => " ◀── ",
+        (false, false) => " ─── ",
+    };
+    let local = format!("local {local}");
+    let remote = format!(
+        "{} {remote}",
+        status.upstream.as_deref().unwrap_or("remote")
+    );
+    let remote_width =
+        width.saturating_sub(text_width(&local) as usize + text_width(arrow) as usize);
+    let remote = if remote_width == 0 {
+        String::new()
+    } else {
+        widgets::truncate_end(&remote, remote_width)
+    };
     Line::from(vec![
-        Span::styled(format!("  {key:<12}"), Style::default().fg(theme.muted)),
+        Span::styled(local, Style::default().fg(theme.bar_fg)),
+        Span::styled(arrow, Style::default().fg(theme.accent)),
+        Span::styled(remote, Style::default().fg(theme.bar_fg)),
+    ])
+    .centered()
+}
+
+fn relationship_time_line(
+    status: &crate::git::Status,
+    width: usize,
+    theme: TuiTheme,
+) -> Line<'static> {
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let local = status.last_commit.as_ref().map_or_else(
+        || "local none".to_owned(),
+        |commit| format!("local {}", crate::git::relative_time(commit.timestamp, now)),
+    );
+    let remote = status.upstream_commit.as_ref().map_or_else(
+        || "remote unknown".to_owned(),
+        |commit| {
+            format!(
+                "remote {}",
+                crate::git::relative_time(commit.timestamp, now)
+            )
+        },
+    );
+    Line::styled(
+        widgets::truncate_end(&format!("{local} · {remote}"), width),
+        Style::default().fg(theme.muted),
+    )
+    .centered()
+}
+
+fn elapsed_label(elapsed: std::time::Duration) -> String {
+    let seconds = i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX);
+    crate::git::relative_time(0, seconds)
+}
+
+fn checkbox_line(checked: bool, key: &str, label: String, theme: TuiTheme) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(
+            if checked { "  [x] " } else { "  [ ] " },
+            Style::default().fg(if checked { theme.success } else { theme.muted }),
+        ),
+        Span::styled(
+            key.to_owned(),
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(format!("  {label}"), Style::default().fg(theme.bar_fg)),
+    ])
+}
+
+fn key_value(key: &str, value: String, width: usize, theme: TuiTheme) -> Line<'static> {
+    let key = format!("  {key:<12}");
+    let value = widgets::truncate_end(&value, width.saturating_sub(key.len()));
+    Line::from(vec![
+        Span::styled(key, Style::default().fg(theme.muted)),
         Span::styled(value, Style::default().fg(theme.bar_fg)),
     ])
 }
@@ -405,28 +546,71 @@ fn init_footer(theme: TuiTheme) -> Line<'static> {
         &[("i", "initialize"), ("r", "refresh"), ("Esc", "close")],
         theme,
     )
+    .centered()
 }
 
-fn repository_footer(theme: TuiTheme) -> Vec<Line<'static>> {
-    vec![
-        action_line(&[("b", "backup"), ("c", "commit"), ("p", "push")], theme),
-        action_line(
+fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'static>> {
+    let compact = width < 50;
+    let entry_gap = if compact { 2 } else { 4 };
+    let key_gap = if compact { 1 } else { 2 };
+    let groups: &[&[(&str, &str)]] = if width < 40 {
+        &[
+            &[("b", "backup"), ("c", "commit")],
+            &[("p", "push"), ("f", "fetch")],
+            &[("i", "interval"), ("u", "auto push")],
+            &[("o", "on quit"), ("C", "message")],
+            &[("a", "pause"), ("r", "refresh")],
+            &[("Esc", "close")],
+        ]
+    } else {
+        &[
+            &[
+                ("b", "backup"),
+                ("c", "commit"),
+                ("p", "push"),
+                ("f", "fetch"),
+            ],
+            &[("i", "interval"), ("u", "auto push"), ("o", "on quit")],
             &[
                 ("C", "message"),
                 ("a", "pause"),
                 ("r", "refresh"),
                 ("Esc", "close"),
             ],
-            theme,
-        ),
-    ]
+        ]
+    };
+    let mut lines = groups
+        .iter()
+        .map(|entries| action_line_with_spacing(entries, theme, entry_gap, key_gap))
+        .collect::<Vec<_>>();
+    let max_width = lines.iter().map(Line::width).max().unwrap_or(0);
+    for line in &mut lines {
+        line.alignment = Some(Alignment::Center);
+        let padding = max_width.saturating_sub(line.width());
+        if padding > 0 {
+            line.spans.push(Span::raw(" ".repeat(padding)));
+        }
+    }
+    lines
 }
 
 fn action_line(entries: &[(&str, &str)], theme: TuiTheme) -> Line<'static> {
+    action_line_with_spacing(entries, theme, 4, 2)
+}
+
+fn action_line_with_spacing(
+    entries: &[(&str, &str)],
+    theme: TuiTheme,
+    entry_gap: usize,
+    key_gap: usize,
+) -> Line<'static> {
     let mut spans = Vec::new();
     for (index, (key, label)) in entries.iter().enumerate() {
         if index > 0 {
-            spans.push(Span::styled("    ", Style::default().fg(theme.muted)));
+            spans.push(Span::styled(
+                " ".repeat(entry_gap),
+                Style::default().fg(theme.muted),
+            ));
         }
         spans.push(Span::styled(
             (*key).to_owned(),
@@ -435,11 +619,11 @@ fn action_line(entries: &[(&str, &str)], theme: TuiTheme) -> Line<'static> {
                 .add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(
-            format!("  {label}"),
+            format!("{}{label}", " ".repeat(key_gap)),
             Style::default().fg(theme.muted),
         ));
     }
-    Line::from(spans).centered()
+    Line::from(spans)
 }
 
 #[cfg(test)]
@@ -463,10 +647,13 @@ mod tests {
             auto_backup_paused: false,
             last_commit_error: None,
             last_push_error: None,
+            last_fetch_error: None,
             operation_queued: false,
             auto_attempted_at: None,
             push_attempted_at: None,
             push_in_flight: false,
+            fetch_in_flight: false,
+            fetched_at: None,
             sender: None,
             checked_at: Instant::now(),
             interval: Duration::from_secs(5),
@@ -488,6 +675,7 @@ mod tests {
             state: RepoState::Clean,
             head_oid: Some("abc".to_owned()),
             last_commit: None,
+            upstream_commit: None,
         }
     }
 
@@ -541,6 +729,112 @@ mod tests {
         assert_eq!(
             badge(&state(detached), IconMode::Ascii, theme).unwrap().0,
             "git detached@abc1234"
+        );
+    }
+
+    #[test]
+    fn console_verdict_prioritizes_remote_and_worktree_risk() {
+        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let mut current = status();
+        assert_eq!(sync_verdict(&current, theme).0, "backed up and pushed");
+        current.ahead = 2;
+        assert!(sync_verdict(&current, theme).0.contains("not pushed"));
+        current.unstaged = 1;
+        assert!(sync_verdict(&current, theme).0.contains("not committed"));
+        current.behind = 3;
+        assert!(sync_verdict(&current, theme).0.contains("remote is 3"));
+        current.conflicted.push("snippet.toml".to_owned());
+        assert!(sync_verdict(&current, theme).0.contains("conflicts"));
+    }
+
+    #[test]
+    fn relationship_line_distinguishes_sync_lead_lag_and_divergence() {
+        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let text = |status: &Status| {
+            relationship_line(status, 80, theme)
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>()
+        };
+        let mut current = status();
+        assert!(text(&current).contains("───"));
+        current.ahead = 1;
+        assert!(text(&current).contains("──▶"));
+        current.ahead = 0;
+        current.behind = 1;
+        assert!(text(&current).contains("◀──"));
+        current.ahead = 1;
+        assert!(text(&current).contains("◀─▶"));
+    }
+
+    #[test]
+    fn unicode_sections_and_narrow_footers_respect_display_width() {
+        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        for width in [30, 40, 48, 54] {
+            assert_eq!(section("AUTOMATION", width, theme).width(), width);
+        }
+        for width in [30, 40] {
+            let footer = repository_footer(width, theme);
+            assert!(footer.iter().all(|line| line.width() <= width));
+            let rendered = footer
+                .iter()
+                .flat_map(|line| line.spans.iter())
+                .map(|span| span.content.as_ref())
+                .collect::<String>();
+            for label in [
+                "backup",
+                "commit",
+                "push",
+                "fetch",
+                "interval",
+                "auto push",
+                "on quit",
+                "message",
+                "pause",
+                "refresh",
+                "close",
+            ] {
+                assert!(rendered.contains(label), "missing footer action {label}");
+            }
+        }
+    }
+
+    #[test]
+    fn narrow_console_values_end_with_an_ellipsis() {
+        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let value = key_value(
+            "changes",
+            "0 staged · 0 modified · 1 new".to_owned(),
+            30,
+            theme,
+        );
+        assert!(value.width() <= 30);
+        assert!(value.spans.iter().any(|span| span.content.ends_with('…')));
+
+        let mut current = status();
+        let commit = crate::git::Commit {
+            short_id: "abc1234".to_owned(),
+            timestamp: 0,
+            subject: "initial".to_owned(),
+        };
+        current.last_commit = Some(commit.clone());
+        current.upstream_commit = Some(commit);
+        let relationship = relationship_line(&current, 30, theme);
+        assert!(relationship.width() <= 30);
+        assert!(
+            relationship
+                .spans
+                .iter()
+                .any(|span| span.content.ends_with('…'))
+        );
+        let relationship = relationship_time_line(&current, 30, theme);
+        assert!(relationship.width() <= 30);
+        assert!(
+            relationship
+                .spans
+                .iter()
+                .any(|span| span.content.ends_with('…'))
         );
     }
 }
