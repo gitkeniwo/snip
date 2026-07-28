@@ -75,3 +75,97 @@ jobs:
             artifacts/*/*.tar.gz
             artifacts/*/*.zip
           generate_release_notes: true
+
+  tap:
+    name: Update Homebrew tap
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for a tap token
+        id: guard
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN is not set; skipping the tap update." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v5
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          path: artifacts
+
+      - uses: actions/checkout@v6
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          repository: gitkeniwo/homebrew-snip
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Rewrite the formula
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, pathlib, re, sys
+
+          version = os.environ["VERSION"].lstrip("v")
+          sums = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in pathlib.Path("artifacts").rglob("snip-*.tar.gz")
+          }
+          if not sums:
+              sys.exit("no release archives were downloaded")
+
+          formula = pathlib.Path("tap/Formula/snip.rb")
+          text = re.sub(
+              r"/releases/download/v[^/]+/",
+              f"/releases/download/v{version}/",
+              formula.read_text(),
+          )
+
+          missing = []
+
+          def swap(match):
+              asset = match.group("asset")
+              if asset not in sums:
+                  missing.append(asset)
+                  return match.group(0)
+              return match.group(1) + sums[asset] + match.group(3)
+
+          text, count = re.subn(
+              r'(url "[^"]*/(?P<asset>snip-[^"/]+\.tar\.gz)"\n\s*sha256 ")'
+              r'[0-9a-f]{64}(")',
+              swap,
+              text,
+          )
+
+          if missing:
+              sys.exit("no release archive for: " + ", ".join(missing))
+          if count != len(sums):
+              sys.exit(f"rewrote {count} platforms but built {len(sums)} archives")
+
+          formula.write_text(text)
+          print(f"updated {count} platforms to {version}")
+          PY
+
+      - name: Commit and push
+        if: steps.guard.outputs.ready == 'true'
+        working-directory: tap
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          if git diff --quiet; then
+            echo "Formula was already up to date." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "snip ${VERSION#v}"
+          git push
