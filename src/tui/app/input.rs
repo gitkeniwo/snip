@@ -214,6 +214,32 @@ impl App {
             KeyCode::Char(']') => self.next_fragment(),
             KeyCode::Char('{') => crate::tui::preview::jump_paragraph(self, false),
             KeyCode::Char('}') => crate::tui::preview::jump_paragraph(self, true),
+            KeyCode::Char('1')
+            | KeyCode::Char('2')
+            | KeyCode::Char('3')
+            | KeyCode::Char('4')
+            | KeyCode::Char('5')
+            | KeyCode::Char('6')
+            | KeyCode::Char('7')
+            | KeyCode::Char('8')
+            | KeyCode::Char('9')
+            | KeyCode::Char('0')
+                if !key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                let KeyCode::Char(c) = key.code else {
+                    unreachable!()
+                };
+                let index = if c == '0' {
+                    9
+                } else {
+                    (c as usize) - ('1' as usize)
+                };
+                match self.focus {
+                    Pane::Sidebar => self.select_sidebar(index),
+                    Pane::List => self.select_list(index),
+                    Pane::Preview => self.select_fragment(index),
+                }
+            }
             _ => self.handle_pane_key(key),
         }
         Vec::new()
@@ -854,6 +880,19 @@ impl App {
             self.fragment_index += 1;
             self.preview_scroll = 0;
             self.preview.invalidate();
+        }
+    }
+    fn select_fragment(&mut self, index: usize) {
+        let count = self
+            .selected_snippet()
+            .map_or(0, |snippet| snippet.loaded_fragments.len());
+        if count > 0 {
+            let target = index.min(count.saturating_sub(1));
+            if self.fragment_index != target {
+                self.fragment_index = target;
+                self.preview_scroll = 0;
+                self.preview.invalidate();
+            }
         }
     }
 }

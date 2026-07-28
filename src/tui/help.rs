@@ -20,6 +20,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             ("h / ←   l / →", "back / drill in"),
             ("j / ↓   k / ↑", "next / previous item"),
             ("g   G", "first / last item"),
+            ("1-9 / 0", "jump to 1st-10th item"),
             ("Ctrl-d / Ctrl-u", "page down / up"),
             ("[   ]", "previous / next fragment"),
             ("{   }", "previous / next paragraph"),
@@ -326,6 +327,12 @@ mod tests {
                 }
                 for token in label.split_whitespace() {
                     if token == "/" {
+                        continue;
+                    }
+                    if token == "1-9" {
+                        for character in '1'..='9' {
+                            documented.insert(character);
+                        }
                         continue;
                     }
                     let mut characters = token.chars();

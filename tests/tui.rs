@@ -2161,3 +2161,54 @@ fn ctrl_modified_keys_do_not_trigger_plain_actions() {
         "Ctrl-p should not toggle pin state from true to false"
     );
 }
+#[test]
+fn digit_keys_jump_to_items_or_fragments_in_panes() {
+    let (_temporary, library, first_id, second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+    // 1. Sidebar Pane navigation
+    app.focus = Pane::Sidebar;
+    app.handle_key(key(KeyCode::Char('2')));
+    assert_eq!(app.sidebar.list_state.selected(), Some(1));
+
+    app.handle_key(key(KeyCode::Char('1')));
+    assert_eq!(app.sidebar.list_state.selected(), Some(0));
+
+    // 2. List Pane navigation
+    app.focus = Pane::List;
+    app.handle_key(key(KeyCode::Char('2')));
+    assert_eq!(app.selected_id, Some(second_id));
+    assert_eq!(app.list_state.selected(), Some(1));
+
+    app.handle_key(key(KeyCode::Char('1')));
+    assert_eq!(app.selected_id, Some(first_id));
+    assert_eq!(app.list_state.selected(), Some(0));
+
+    // 3. Preview Pane fragment navigation
+    // Add a second fragment to second snippet
+    add_fragment(
+        &app.library,
+        &second_id.to_string(),
+        &FragmentAddOptions {
+            title: "script.sh".to_owned(),
+            language: "bash".to_owned(),
+            content: "echo second fragment\n".to_owned(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    app.rescan().unwrap();
+    app.selected_id = Some(second_id);
+    app.refresh_visible();
+    app.focus = Pane::Preview;
+
+    assert_eq!(app.fragment_index, 0);
+
+    // Jump to 2nd fragment
+    app.handle_key(key(KeyCode::Char('2')));
+    assert_eq!(app.fragment_index, 1);
+
+    // Jump back to 1st fragment
+    app.handle_key(key(KeyCode::Char('1')));
+    assert_eq!(app.fragment_index, 0);
+}
