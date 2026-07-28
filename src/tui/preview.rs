@@ -144,13 +144,13 @@ pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         .get(&snippet, app.fragment_index, &app.highlighter, app.theme)
     {
         Ok(document) => {
-            let text = compose_preview(
+            let lines = compose_preview(
                 document,
                 app.show_line_numbers,
                 app.theme,
                 content_area.width.max(1),
             );
-            let rendered = wrap_preview(text, content_area.width.max(1), app.show_line_numbers);
+            let rendered = wrap_preview(lines, content_area.width.max(1), app.show_line_numbers);
             app.preview_selection.prepare(
                 SelectionKey {
                     snippet_id: snippet.id,
@@ -357,25 +357,41 @@ fn draw_preview_header(
     widgets::draw_rule(frame, rule_area, app.theme);
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WrapMode {
+    Character,
+    Word,
+}
+
+struct PreviewLine {
+    line: Line<'static>,
+    wrap: WrapMode,
+}
+
 fn compose_preview(
     document: PreviewDocument,
     show_line_numbers: bool,
     theme: TuiTheme,
     width: u16,
-) -> Text<'static> {
+) -> Vec<PreviewLine> {
     let mut lines = Vec::new();
     let prose_inset = usize::from(show_line_numbers);
     if let Some(note) = document.note {
-        lines.push(inset_preview_line(note_header(theme), prose_inset));
-        lines.extend(
-            note.lines
-                .into_iter()
-                .map(|line| inset_preview_line(line, prose_inset)),
-        );
-        lines.push(inset_preview_line(
-            note_footer(theme, width.saturating_sub(prose_inset as u16)),
-            prose_inset,
-        ));
+        lines.push(PreviewLine {
+            line: inset_preview_line(note_header(theme), prose_inset),
+            wrap: WrapMode::Character,
+        });
+        lines.extend(note.lines.into_iter().map(|line| PreviewLine {
+            line: inset_preview_line(line, prose_inset),
+            wrap: WrapMode::Word,
+        }));
+        lines.push(PreviewLine {
+            line: inset_preview_line(
+                note_footer(theme, width.saturating_sub(prose_inset as u16)),
+                prose_inset,
+            ),
+            wrap: WrapMode::Character,
+        });
     }
 
     let number_width = document.fragment.lines.len().max(1).to_string().len();
@@ -389,26 +405,33 @@ fn compose_preview(
                 Span::styled("│ ", Style::default().fg(theme.rule)),
             ];
             spans.extend(line.spans);
-            lines.push(Line::from(spans));
+            lines.push(PreviewLine {
+                line: Line::from(spans),
+                wrap: WrapMode::Character,
+            });
         } else {
-            lines.push(line);
+            lines.push(PreviewLine {
+                line,
+                wrap: WrapMode::Character,
+            });
         }
     }
 
     if let Some(readme) = document.readme {
-        lines.push(Line::default());
-        lines.push(inset_preview_line(
-            content_section_rule("readme", theme),
-            prose_inset,
-        ));
-        lines.extend(
-            readme
-                .lines
-                .into_iter()
-                .map(|line| inset_preview_line(line, prose_inset)),
-        );
+        lines.push(PreviewLine {
+            line: Line::default(),
+            wrap: WrapMode::Character,
+        });
+        lines.push(PreviewLine {
+            line: inset_preview_line(content_section_rule("readme", theme), prose_inset),
+            wrap: WrapMode::Character,
+        });
+        lines.extend(readme.lines.into_iter().map(|line| PreviewLine {
+            line: inset_preview_line(line, prose_inset),
+            wrap: WrapMode::Word,
+        }));
     }
-    Text::from(lines)
+    lines
 }
 
 fn inset_preview_line(mut line: Line<'static>, inset: usize) -> Line<'static> {
@@ -450,10 +473,14 @@ struct WrappedPreview {
     rows: Vec<SelectionRow>,
 }
 
-fn wrap_preview(text: Text<'static>, width: u16, show_line_numbers: bool) -> WrappedPreview {
+fn wrap_preview(
+    preview_lines: Vec<PreviewLine>,
+    width: u16,
+    show_line_numbers: bool,
+) -> WrappedPreview {
     let mut lines = Vec::new();
     let mut rows = Vec::new();
-    for line in text.lines {
+    for PreviewLine { line, wrap } in preview_lines {
         let plain = line
             .spans
             .iter()
@@ -514,9 +541,51 @@ fn wrap_preview(text: Text<'static>, width: u16, show_line_numbers: bool) -> Wra
         let mut row_text = String::new();
         let mut row_width = 0_u16;
         let mut row_gutter = line_gutter;
+        let mut continuation_chars = 0;
         for span in line.spans {
             for character in span.content.chars() {
                 let character_width = char_width(character);
+                if row_width > 0
+                    && row_width.saturating_add(character_width) > width
+                    && wrap == WrapMode::Word
+                    && let Some(break_at) = spans
+                        .iter()
+                        .enumerate()
+                        .skip(continuation_chars)
+                        .rev()
+                        .find_map(|(index, span): (usize, &Span<'static>)| {
+                            span.content
+                                .chars()
+                                .next()
+                                .is_some_and(char::is_whitespace)
+                                .then_some(index + 1)
+                        })
+                    && break_at < spans.len()
+                {
+                    let tail = spans.split_off(break_at);
+                    let head_text = spans_text(&spans);
+                    let head_width = spans_width(&spans);
+                    push_preview_row(
+                        &mut lines,
+                        &mut rows,
+                        std::mem::take(&mut spans),
+                        head_text,
+                        head_width,
+                        row_gutter,
+                        false,
+                    );
+                    let (mut next_spans, next_text) = continuation.as_ref().map_or_else(
+                        || (Vec::new(), String::new()),
+                        |(prefix, text)| (expand_spans(prefix), text.clone()),
+                    );
+                    continuation_chars = next_spans.len();
+                    next_spans.extend(tail);
+                    spans = next_spans;
+                    row_text =
+                        format!("{next_text}{}", spans_text_from(&spans, continuation_chars));
+                    row_width = spans_width(&spans);
+                    row_gutter = line_gutter;
+                }
                 if row_width > 0 && row_width.saturating_add(character_width) > width {
                     push_preview_row(
                         &mut lines,
@@ -528,11 +597,13 @@ fn wrap_preview(text: Text<'static>, width: u16, show_line_numbers: bool) -> Wra
                         false,
                     );
                     if let Some((continuation_spans, continuation_text)) = &continuation {
-                        spans = continuation_spans.clone();
+                        spans = expand_spans(continuation_spans);
+                        continuation_chars = spans.len();
                         row_text = continuation_text.clone();
                         row_width = line_gutter;
                         row_gutter = line_gutter;
                     } else {
+                        continuation_chars = 0;
                         row_width = 0;
                         row_gutter = 0;
                     }
@@ -556,6 +627,36 @@ fn wrap_preview(text: Text<'static>, width: u16, show_line_numbers: bool) -> Wra
         text: Text::from(lines),
         rows,
     }
+}
+
+fn expand_spans(spans: &[Span<'static>]) -> Vec<Span<'static>> {
+    spans
+        .iter()
+        .flat_map(|span| {
+            span.content
+                .chars()
+                .map(|character| Span::styled(character.to_string(), span.style))
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn spans_text(spans: &[Span<'static>]) -> String {
+    spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect::<String>()
+}
+
+fn spans_text_from(spans: &[Span<'static>], start: usize) -> String {
+    spans_text(&spans[start.min(spans.len())..])
+}
+
+fn spans_width(spans: &[Span<'static>]) -> u16 {
+    spans
+        .iter()
+        .map(|span| text_width(span.content.as_ref()))
+        .fold(0, u16::saturating_add)
 }
 
 fn is_preview_decoration(value: &str) -> bool {
@@ -604,5 +705,72 @@ fn draw_preview_selection(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 cell.bg = app.theme.selection_bg;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rendered_lines(preview: &WrappedPreview) -> Vec<String> {
+        preview
+            .text
+            .lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn prose_wraps_at_words_while_code_keeps_character_columns() {
+        let prose = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("understanding complex topics"),
+                wrap: WrapMode::Word,
+            }],
+            15,
+            false,
+        );
+        assert_eq!(rendered_lines(&prose), ["understanding ", "complex topics"]);
+        assert_eq!(prose.text.lines.len(), prose.rows.len());
+        assert!(!prose.rows[0].ends_line);
+        assert!(prose.rows[1].ends_line);
+        assert_eq!(
+            prose
+                .rows
+                .iter()
+                .map(|row| row.text.as_str())
+                .collect::<String>(),
+            "understanding complex topics"
+        );
+
+        let code = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("averylongidentifier"),
+                wrap: WrapMode::Character,
+            }],
+            8,
+            false,
+        );
+        assert_eq!(rendered_lines(&code), ["averylon", "gidentif", "ier"]);
+    }
+
+    #[test]
+    fn cjk_prose_falls_back_to_valid_character_boundaries() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("中文内容没有空格"),
+                wrap: WrapMode::Word,
+            }],
+            6,
+            false,
+        );
+        assert_eq!(rendered_lines(&preview), ["中文内", "容没有", "空格"]);
+        assert_eq!(preview.text.lines.len(), preview.rows.len());
     }
 }
