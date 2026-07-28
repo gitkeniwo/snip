@@ -81,25 +81,7 @@ pub fn note_relative_path(index: usize) -> String {
 }
 
 pub fn extension_for_language(language: &str) -> Option<&'static str> {
-    match language.to_ascii_lowercase().as_str() {
-        "bash" | "shell" | "sh" => Some("sh"),
-        "fish" => Some("fish"),
-        "python" => Some("py"),
-        "rust" => Some("rs"),
-        "javascript" | "js" => Some("js"),
-        "typescript" | "ts" => Some("ts"),
-        "json" => Some("json"),
-        "yaml" | "yml" => Some("yaml"),
-        "toml" => Some("toml"),
-        "markdown" | "md" => Some("md"),
-        "html" => Some("html"),
-        "css" => Some("css"),
-        "sql" => Some("sql"),
-        "go" | "golang" => Some("go"),
-        "tcl" => Some("tcl"),
-        "dockerfile" | "makefile" | "text" | "plain" => None,
-        _ => None,
-    }
+    crate::language::info(language).and_then(|info| info.extension)
 }
 
 pub fn resolve_managed_path(package: &Path, relative: &str) -> Result<PathBuf> {
