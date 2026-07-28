@@ -51,7 +51,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             ("m", "move snippet"),
             ("t", "edit tags"),
             ("f", "edit language"),
-            ("p", "toggle pin"),
+            ("P", "toggle pin"),
             ("L", "toggle lock"),
             ("d", "move to trash"),
         ],
@@ -59,11 +59,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
     ),
     (
         "COPY",
-        &[
-            ("y", "content"),
-            ("Y", "snippet ID"),
-            ("P / c", "managed path"),
-        ],
+        &[("y", "content"), ("Y", "snippet ID"), ("p", "managed path")],
         HelpColor::Success,
     ),
     (

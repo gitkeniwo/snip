@@ -174,7 +174,7 @@ impl App {
             {
                 self.open_edit_language()
             }
-            KeyCode::Char('p')
+            KeyCode::Char('P')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
@@ -207,9 +207,7 @@ impl App {
             KeyCode::Char('Y') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return self.copy_id_effect();
             }
-            KeyCode::Char('P') | KeyCode::Char('c')
-                if !key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
+            KeyCode::Char('p') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return self.copy_path_effect();
             }
             KeyCode::Char('[') => self.previous_fragment(),

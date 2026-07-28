@@ -787,7 +787,7 @@ fn snippet_metadata_mutations_flow_through_modals() {
     assert_eq!(app.selected_snippet().unwrap().folder, "Code/Shell");
 
     let pinned = app.selected_snippet().unwrap().pinned;
-    app.handle_key(key(KeyCode::Char('p')));
+    app.handle_key(key(KeyCode::Char('P')));
     assert_eq!(app.selected_snippet().unwrap().pinned, !pinned);
     app.handle_key(key(KeyCode::Char('L')));
     assert!(app.selected_snippet().unwrap().locked);
@@ -1874,23 +1874,12 @@ fn copy_snippet_path_effect_copies_absolute_path() {
         .display()
         .to_string();
 
-    let effects = app.handle_key(key(KeyCode::Char('P')));
+    let effects = app.handle_key(key(KeyCode::Char('p')));
     let Effect::CopyToClipboard { text, label } = &effects[0] else {
         panic!("expected copy to clipboard effect");
     };
     assert_eq!(text, &expected_path);
     assert_eq!(label, "snippet path");
-
-    let effects_c = app.handle_key(key(KeyCode::Char('c')));
-    let Effect::CopyToClipboard {
-        text: text_c,
-        label: label_c,
-    } = &effects_c[0]
-    else {
-        panic!("expected copy to clipboard effect");
-    };
-    assert_eq!(text_c, &expected_path);
-    assert_eq!(label_c, "snippet path");
 }
 
 #[test]

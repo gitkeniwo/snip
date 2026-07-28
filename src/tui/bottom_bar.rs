@@ -163,7 +163,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     ("r", "rename"),
                     ("m", "move"),
                     ("y", "copy"),
-                    ("P", "path"),
+                    ("p", "path"),
                 ],
                 &[("n", "create"), ("e", "edit"), ("t", "tags"), ("y", "copy")],
                 &[("n", ""), ("e", ""), ("y", "")],

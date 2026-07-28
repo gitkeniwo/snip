@@ -116,7 +116,8 @@ preview on the right. Selecting a folder or tag filters the list as you move.
 | `v` | open in VS Code (`snip open`) |
 | `r` | rename a snippet, or the selected folder or tag |
 | `m` | move a snippet to a folder, or reparent the selected folder |
-| `t`, `f`, `p`, `L` | edit tags, edit current fragment language, toggle pin, toggle lock |
+| `t`, `f`, `P`, `L` | edit tags, edit current fragment language, toggle pin, toggle lock |
+| `y`, `Y`, `p` | copy content (`y`), snippet ID (`Y`), managed path (`p`) |
 | `d`, `T` | move to trash; open the restore/purge view |
 | `s`, `N` | change sort order; toggle preview line numbers |
 | `F5`, `Ctrl-r` | rescan now (the watcher usually does this for you) |
