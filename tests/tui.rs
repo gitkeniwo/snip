@@ -302,6 +302,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("Alpha Rust"));
     assert!(rendered.contains("snip"));
     assert!(rendered.contains("~ › All snippets"));
+    assert!(rendered.contains("manual"));
     assert!(rendered.contains("#1/2"));
     assert!(rendered.contains("fragment 1/1"));
     assert!(rendered.contains("Tab"));
