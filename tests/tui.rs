@@ -2072,3 +2072,31 @@ fn both_rescan_bindings_work_independently() {
     app.handle_key(key(KeyCode::Char('r')));
     assert!(matches!(app.modal, Some(Modal::Input(_))), "r opens rename");
 }
+#[test]
+fn ctrl_d_scrolls_list_instead_of_triggering_delete() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+    app.list_state.select(Some(0));
+
+    let ctrl_d = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+    app.handle_key(ctrl_d);
+
+    assert!(
+        app.modal.is_none(),
+        "Ctrl-d must not trigger delete confirmation modal"
+    );
+    let expected_selected = app.visible.len().saturating_sub(1);
+    assert_eq!(
+        app.list_state.selected(),
+        Some(expected_selected),
+        "Ctrl-d should move selection down (clamped to list end)"
+    );
+
+    // Plain `d` must still trigger delete.
+    app.handle_key(key(KeyCode::Char('d')));
+    assert!(
+        matches!(app.modal, Some(Modal::Confirm(_))),
+        "plain d must open delete confirmation modal"
+    );
+}

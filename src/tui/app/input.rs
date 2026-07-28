@@ -129,7 +129,9 @@ impl App {
             KeyCode::Char('E') if self.focus != Pane::Sidebar => return self.edit_note_effect(),
             KeyCode::Char('R') if self.focus != Pane::Sidebar => return self.edit_readme_effect(),
             KeyCode::Char('n') => self.open_new_for_context(),
-            KeyCode::Char('d') => self.open_delete_for_context(),
+            KeyCode::Char('d') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.open_delete_for_context()
+            }
             KeyCode::Char('r') => self.open_rename_for_context(),
             KeyCode::Char('m') => self.open_move_for_context(),
             KeyCode::Char('t') if self.focus != Pane::Sidebar => self.open_edit_tags(),
