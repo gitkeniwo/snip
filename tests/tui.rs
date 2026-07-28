@@ -305,7 +305,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("↓ modified"));
     assert!(rendered.contains("#1/2"));
     assert!(rendered.contains("fragment 1/1"));
-    assert!(rendered.contains("Tab"));
+    assert!(rendered.contains("←/→"));
     assert!(rendered.contains('/'));
     assert!(rendered.contains("001-Alpha Rust.rs rs"));
     assert!(rendered.contains("1│ fn alpha() {}"));
