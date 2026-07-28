@@ -266,9 +266,10 @@ fn validated_library_path(path: &Path) -> Result<PathBuf> {
 }
 
 fn expand_user_path(value: &str) -> Result<PathBuf> {
-    if value == "~" || value.starts_with("~/") {
+    if value == "~" || value.starts_with("~/") || value.starts_with("~\\") {
         let home = std::env::var_os("HOME")
-            .ok_or_else(|| SnipError::io("cannot expand ~: HOME is not set"))?;
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .ok_or_else(|| SnipError::io("cannot expand ~: HOME or USERPROFILE is not set"))?;
         let mut path = PathBuf::from(home);
         if value.len() > 2 {
             path.push(&value[2..]);

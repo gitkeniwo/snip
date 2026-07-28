@@ -219,7 +219,8 @@ pub fn config_path() -> Result<PathBuf> {
         return Ok(PathBuf::from(root).join("snip/config.toml"));
     }
     let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| SnipError::io("cannot locate config: HOME is not set"))?;
+        .ok_or_else(|| SnipError::io("cannot locate config: HOME or USERPROFILE is not set"))?;
     Ok(PathBuf::from(home).join(".config/snip/config.toml"))
 }
