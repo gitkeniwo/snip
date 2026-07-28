@@ -22,6 +22,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             ("g   G", "first / last item"),
             ("Ctrl-d / Ctrl-u", "page down / up"),
             ("[   ]", "previous / next fragment"),
+            ("{   }", "previous / next paragraph"),
         ],
         HelpColor::Accent,
     ),

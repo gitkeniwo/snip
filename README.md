@@ -110,7 +110,7 @@ preview on the right. Selecting a folder or tag filters the list as you move.
 |---|---|
 | `/` | search; `Tab` cycles panes |
 | `h`/`←`, `l`/`→` | back out, or drill in |
-| `j`/`k` | move; `[`/`]` switch fragments |
+| `j`/`k` | move; `[`/`]` switch fragments; `{`/`}` jump paragraphs |
 | `n` | create a snippet, or a folder from the sidebar |
 | `e`, `E`, `R` | edit content, note, or README in `$EDITOR` |
 | `v` | open in VS Code (`snip open`) |

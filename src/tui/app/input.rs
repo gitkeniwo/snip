@@ -156,6 +156,8 @@ impl App {
             KeyCode::Char('P') | KeyCode::Char('c') => return self.copy_path_effect(),
             KeyCode::Char('[') => self.previous_fragment(),
             KeyCode::Char(']') => self.next_fragment(),
+            KeyCode::Char('{') => crate::tui::preview::jump_paragraph(self, false),
+            KeyCode::Char('}') => crate::tui::preview::jump_paragraph(self, true),
             _ => self.handle_pane_key(key),
         }
         Vec::new()
@@ -535,6 +537,8 @@ impl App {
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.preview_scroll = self.preview_scroll.saturating_sub(10)
             }
+            KeyCode::Char('{') => crate::tui::preview::jump_paragraph(self, false),
+            KeyCode::Char('}') => crate::tui::preview::jump_paragraph(self, true),
             _ => {}
         }
     }

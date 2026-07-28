@@ -181,6 +181,71 @@ pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         }
     }
 }
+pub fn jump_paragraph(app: &mut App, forward: bool) {
+    let Some(snippet) = app.selected_snippet().cloned() else {
+        return;
+    };
+    let width = app.layout.preview_content.width.max(1);
+    let Ok(document) = app
+        .preview
+        .get(&snippet, app.fragment_index, &app.highlighter, app.theme)
+    else {
+        return;
+    };
+    let lines = compose_preview(document, app.show_line_numbers, app.theme, width);
+    let rendered = wrap_preview(lines, width, app.show_line_numbers);
+    let total_lines = rendered.text.lines.len();
+    if total_lines == 0 {
+        return;
+    }
+
+    let is_blank = |line: &ratatui::text::Line| {
+        let plain = line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        let stripped = if let Some(pos) = plain.find('│') {
+            &plain[pos + '│'.len_utf8()..]
+        } else {
+            &plain
+        };
+        stripped.trim().is_empty()
+    };
+
+    let current = usize::from(app.preview_scroll);
+    let target = if forward {
+        let mut i = current.saturating_add(1);
+        if i >= total_lines {
+            total_lines.saturating_sub(1)
+        } else {
+            if is_blank(&rendered.text.lines[current]) {
+                while i < total_lines && is_blank(&rendered.text.lines[i]) {
+                    i += 1;
+                }
+            }
+            while i < total_lines && !is_blank(&rendered.text.lines[i]) {
+                i += 1;
+            }
+            i.min(total_lines.saturating_sub(1))
+        }
+    } else if current == 0 {
+        0
+    } else {
+        let mut i = current.saturating_sub(1);
+        if is_blank(&rendered.text.lines[current]) {
+            while i > 0 && is_blank(&rendered.text.lines[i]) {
+                i -= 1;
+            }
+        }
+        while i > 0 && !is_blank(&rendered.text.lines[i]) {
+            i -= 1;
+        }
+        i
+    };
+
+    app.preview_scroll = u16::try_from(target).unwrap_or(u16::MAX);
+}
 
 struct PreviewHeaderAreas {
     title: Rect,

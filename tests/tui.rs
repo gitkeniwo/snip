@@ -2100,3 +2100,51 @@ fn ctrl_d_scrolls_list_instead_of_triggering_delete() {
         "plain d must open delete confirmation modal"
     );
 }
+#[test]
+fn paragraph_jump_keys_work_in_preview() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let snippet = create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Multi Paragraph".to_owned(),
+            content:
+                "para 1 line A\npara 1 line B\n\npara 2 line A\npara 2 line B\n\npara 3 line A"
+                    .to_owned(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+    app.selected_id = Some(snippet.id);
+    app.refresh_visible();
+    app.focus = Pane::Preview;
+
+    assert_eq!(app.preview_scroll, 0);
+
+    // Jump forward to first blank line
+    app.handle_key(key(KeyCode::Char('}')));
+    assert!(
+        app.preview_scroll > 0,
+        "should jump to first paragraph boundary"
+    );
+    let first_jump = app.preview_scroll;
+
+    // Jump forward again to second blank line
+    app.handle_key(key(KeyCode::Char('}')));
+    assert!(
+        app.preview_scroll > first_jump,
+        "should jump to second paragraph boundary"
+    );
+
+    // Jump backward
+    app.handle_key(key(KeyCode::Char('{')));
+    assert_eq!(
+        app.preview_scroll, first_jump,
+        "should jump back to first paragraph boundary"
+    );
+
+    app.handle_key(key(KeyCode::Char('{')));
+    assert_eq!(app.preview_scroll, 0, "should jump back to top");
+}
