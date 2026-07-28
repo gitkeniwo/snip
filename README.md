@@ -1,6 +1,6 @@
 # snip
 
-<img width="887" height="629" alt="Screenshot 2026-07-23 at 22 08 34" src="https://github.com/user-attachments/assets/29012f73-975e-4d84-889c-8b85820487eb" />
+<img width="993" height="657" alt="image" src="https://github.com/user-attachments/assets/9d72c109-f3bb-4b35-b0d4-436c2220e2ad" />
 
 `snip` keeps a snippet library in plain files. Source code, Markdown notes, and
 metadata stay as ordinary text you can open in any editor, grep, diff, and put
