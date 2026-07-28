@@ -495,17 +495,18 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(rendered.contains("NAVIGATION"));
-    assert!(rendered.contains("SNIPPETS"));
-    assert!(rendered.contains("LIBRARY & GLOBAL"));
-    assert!(rendered.contains("PREVIEW & MOUSE"));
+    assert!(rendered.contains("MOVE — ALL PANES"));
+    assert!(rendered.contains("SIDEBAR — WHEN THE LEFT PANE HAS FOCUS"));
+    assert!(rendered.contains("SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS"));
+    assert!(rendered.contains("GIT CONSOLE — WHEN OPEN"));
     for label in [
         "Help",
         "snip TUI",
-        "NAVIGATION",
-        "SNIPPETS",
-        "LIBRARY & GLOBAL",
-        "PREVIEW & MOUSE",
+        "MOVE — ALL PANES",
+        "SIDEBAR — WHEN THE LEFT PANE HAS FOCUS",
+        "SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS",
+        "VIEW & GLOBAL",
+        "GIT CONSOLE — WHEN OPEN",
     ] {
         let (y, x) = (0..buffer.area.height)
             .find_map(|y| text_x(buffer, y, label).map(|x| (y, x)))
@@ -522,15 +523,16 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rows.iter().all(|row| !row.contains("g / G")));
     assert!(rows.iter().all(|row| !row.contains("r / m / t")));
     assert!(rows.iter().all(|row| !row.contains("e / E / R")));
-    assert!(rendered.contains("first item"));
+    assert!(rendered.contains("first / last item"));
     assert!(rendered.contains("last item"));
     assert!(rendered.contains("rename snippet"));
     assert!(rendered.contains("move snippet"));
     assert!(rendered.contains("edit tags"));
     let tab_y = (0..buffer.area.height)
-        .find(|&y| text_x(buffer, y, "next pane").is_some())
+        .find(|&y| text_x(buffer, y, "Tab / Shift-Tab").is_some())
         .unwrap();
-    assert!(text_x(buffer, tab_y, "Tab").unwrap() >= 13);
+    assert!(row_text(buffer, tab_y).contains("next / previous"));
+    assert!(rendered.contains("Ctrl-d / Ctrl-u"));
 }
 
 #[test]
@@ -705,6 +707,18 @@ fn preview_drag_selection_copies_text_without_line_number_gutter() {
     let buffer = terminal.backend().buffer();
     assert_ne!(buffer.cell((x, y)).unwrap().bg, app.theme.selection_bg);
     assert_eq!(buffer.cell((x + 3, y)).unwrap().bg, app.theme.selection_bg);
+}
+
+#[test]
+fn help_overlay_accepts_mouse_wheel_scrolling() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.show_help = true;
+
+    let _ = app.handle_mouse(mouse(MouseEventKind::ScrollDown, 40, 12));
+    assert_eq!(app.help_scroll, 3);
+    let _ = app.handle_mouse(mouse(MouseEventKind::ScrollUp, 40, 12));
+    assert_eq!(app.help_scroll, 0);
 }
 
 #[test]

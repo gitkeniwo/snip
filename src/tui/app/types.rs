@@ -142,6 +142,7 @@ pub struct App {
     pub editor_cmd: Option<String>,
     pub vscode_cmd: Option<String>,
     pub show_help: bool,
+    pub help_scroll: u16,
     pub default_language: String,
     pub default_folder: Option<String>,
     pub default_tags: Vec<String>,

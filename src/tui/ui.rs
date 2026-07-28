@@ -44,7 +44,7 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
 
     bottom_bar::draw_bottom_bar(frame, app, vertical[2]);
     if app.show_help && app.modal.is_none() {
-        help::draw_help(frame, area, app.theme);
+        help::draw_help(frame, area, app);
     }
     if app.git.open && app.modal.is_none() {
         git_panel::draw_git(frame, area, app);

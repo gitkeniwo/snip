@@ -1,35 +1,166 @@
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph};
 
+use super::app::App;
 use super::selection::text_width;
 use super::theme::TuiTheme;
 use super::widgets;
 
-pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
-    let popup = widgets::centered_rect(108, 40, area);
+type Entry = (&'static str, &'static str);
+const HELP_KEY_WIDTH: usize = 15;
+
+const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
+    (
+        "MOVE — ALL PANES",
+        &[
+            ("Tab / Shift-Tab", "next / previous pane"),
+            ("h / ←   l / →", "back / drill in"),
+            ("j / ↓   k / ↑", "next / previous item"),
+            ("g   G", "first / last item"),
+            ("Ctrl-d / Ctrl-u", "page down / up"),
+            ("[   ]", "previous / next fragment"),
+        ],
+        HelpColor::Accent,
+    ),
+    (
+        "SIDEBAR — WHEN THE LEFT PANE HAS FOCUS",
+        &[
+            ("Space", "expand / collapse folder"),
+            ("Enter", "apply selected filter"),
+            ("n", "create folder"),
+            ("r", "rename folder or tag"),
+            ("m", "move folder"),
+            ("d", "delete folder or tag"),
+        ],
+        HelpColor::Tag,
+    ),
+    (
+        "SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS",
+        &[
+            ("Enter", "enter preview"),
+            ("n", "create snippet"),
+            ("e", "edit content"),
+            ("E", "edit note"),
+            ("R", "edit README"),
+            ("v", "open in VS Code"),
+            ("r", "rename snippet"),
+            ("m", "move snippet"),
+            ("t", "edit tags"),
+            ("p", "toggle pin"),
+            ("L", "toggle lock"),
+            ("d", "move to trash"),
+        ],
+        HelpColor::Alt,
+    ),
+    (
+        "COPY",
+        &[
+            ("y", "content"),
+            ("Y", "snippet ID"),
+            ("P / c", "managed path"),
+        ],
+        HelpColor::Success,
+    ),
+    (
+        "VIEW & GLOBAL",
+        &[
+            ("/", "search"),
+            ("s", "cycle sort"),
+            ("N", "toggle line numbers"),
+            ("z", "toggle list density"),
+            ("T", "open trash"),
+            ("Ctrl-g", "Git console"),
+            ("F5 / Ctrl-r", "rescan library"),
+            ("?", "toggle help"),
+            ("Esc", "close or clear"),
+            ("q", "quit"),
+            ("Ctrl-c", "force quit"),
+        ],
+        HelpColor::Warning,
+    ),
+    (
+        "MOUSE",
+        &[
+            ("wheel", "scroll hovered pane"),
+            ("click", "select item or fragment"),
+            ("double-click", "drill into preview"),
+            ("drag", "select preview text"),
+            ("mouse up", "copy selection"),
+        ],
+        HelpColor::Success,
+    ),
+    (
+        "TRASH — WHEN OPEN",
+        &[
+            ("j / k", "move"),
+            ("u", "restore"),
+            ("x", "purge permanently"),
+        ],
+        HelpColor::Error,
+    ),
+    (
+        "GIT CONSOLE — WHEN OPEN",
+        &[
+            ("b", "backup"),
+            ("c", "commit"),
+            ("p", "push"),
+            ("f", "fetch remote status"),
+            ("C", "custom commit message"),
+            ("a", "pause this session"),
+            ("i", "set automatic interval"),
+            ("u", "toggle automatic push"),
+            ("o", "toggle backup on quit"),
+            ("r", "refresh local status"),
+            ("Esc / Ctrl-g", "close console"),
+        ],
+        HelpColor::Alt,
+    ),
+];
+
+#[derive(Clone, Copy)]
+enum HelpColor {
+    Accent,
+    Alt,
+    Tag,
+    Success,
+    Warning,
+    Error,
+}
+
+pub fn draw_help(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let popup_width = area.width.saturating_sub(4).min(120);
+    // Two border cells plus three cells of padding on each side.
+    let content_width = popup_width.saturating_sub(8) as usize;
+    let columns = if content_width >= 108 {
+        3
+    } else if content_width >= 68 {
+        2
+    } else {
+        1
+    };
+    let content = help_content(columns, content_width, app.theme);
+    let desired_height = u16::try_from(content.lines.len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(7);
+    let popup = widgets::centered_rect(
+        popup_width,
+        desired_height.min(area.height.saturating_sub(2)),
+        area,
+    );
     frame.render_widget(Clear, popup);
     let block = Block::default()
         .title(Line::from(" Help ").centered())
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme.accent))
-        .padding(Padding::new(4, 4, 1, 1));
+        .border_style(Style::default().fg(app.theme.accent))
+        .padding(Padding::new(3, 3, 1, 1));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
-
     let rows = Layout::vertical([
         Constraint::Length(2),
-        Constraint::Length(1),
-        Constraint::Length(7),
-        Constraint::Length(1),
-        Constraint::Length(8),
-        Constraint::Length(1),
-        Constraint::Length(7),
-        Constraint::Length(1),
-        Constraint::Length(4),
         Constraint::Min(0),
         Constraint::Length(1),
     ])
@@ -39,126 +170,75 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
             Line::from(Span::styled(
                 "snip TUI",
                 Style::default()
-                    .fg(theme.accent)
+                    .fg(app.theme.accent)
                     .add_modifier(Modifier::BOLD),
             ))
             .centered(),
-            Line::from(Span::styled(
-                "keyboard & mouse reference",
-                Style::default().fg(theme.muted),
-            ))
+            Line::styled(
+                "keys are grouped by the pane or console that owns them",
+                Style::default().fg(app.theme.muted),
+            )
             .centered(),
         ])),
         rows[0],
     );
-
+    let max_scroll = content
+        .lines
+        .len()
+        .saturating_sub(rows[1].height as usize)
+        .min(u16::MAX as usize) as u16;
     frame.render_widget(
-        help_panel(
-            "NAVIGATION",
-            &[
-                ("Tab", "next pane"),
-                ("Shift-Tab", "previous pane"),
-                ("h / ←", "back"),
-                ("l / →", "drill in"),
-                ("j / ↓", "next item"),
-                ("k / ↑", "previous item"),
-                ("g", "first item"),
-                ("G", "last item"),
-                ("Ctrl-d", "page down"),
-                ("Ctrl-u", "page up"),
-                ("[", "previous fragment"),
-                ("]", "next fragment"),
-            ],
-            theme.accent,
-            theme,
-        ),
-        rows[2],
+        Paragraph::new(content).scroll((app.help_scroll.min(max_scroll), 0)),
+        rows[1],
     );
-    frame.render_widget(
-        help_panel(
-            "SNIPPETS",
-            &[
-                ("n", "create snippet"),
-                ("e", "edit content"),
-                ("v", "open in vscode"),
-                ("E", "edit note"),
-                ("R", "edit README"),
-                ("r", "rename snippet"),
-                ("m", "move snippet"),
-                ("t", "edit tags"),
-                ("d", "move to trash"),
-                ("p", "toggle pin"),
-                ("L", "toggle lock"),
-                ("y", "copy content"),
-                ("Y", "copy ID"),
-                ("P", "copy path"),
-            ],
-            theme.accent_alt,
-            theme,
-        ),
-        rows[4],
-    );
-
-    frame.render_widget(
-        help_panel(
-            "LIBRARY & GLOBAL",
-            &[
-                ("n", "create folder"),
-                ("r", "rename folder or tag"),
-                ("m", "move folder"),
-                ("d", "delete folder or tag"),
-                ("/", "search"),
-                ("s", "cycle sort"),
-                ("T", "open trash"),
-                ("F5 / Ctrl-r", "rescan"),
-                ("Ctrl-g", "git backup"),
-                ("Esc", "close or clear"),
-                ("q", "quit"),
-                ("?", "toggle help"),
-            ],
-            theme.tag,
-            theme,
-        ),
-        rows[6],
-    );
-    frame.render_widget(
-        help_panel(
-            "PREVIEW & MOUSE",
-            &[
-                ("N", "toggle line numbers"),
-                ("wheel", "scroll hovered pane"),
-                ("click", "select item or tab"),
-                ("double-click", "drill into preview"),
-                ("drag", "select preview text"),
-                ("mouse up", "copy selection"),
-            ],
-            theme.success,
-            theme,
-        ),
-        rows[8],
-    );
-
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(
-                "Esc",
+                "wheel · j/k · Ctrl-d/u",
                 Style::default()
-                    .fg(theme.warning)
+                    .fg(app.theme.warning)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled("  close help", Style::default().fg(theme.muted)),
+            Span::styled("  scroll    ", Style::default().fg(app.theme.muted)),
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(app.theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  close help", Style::default().fg(app.theme.muted)),
         ]))
         .alignment(Alignment::Center),
-        rows[10],
+        rows[2],
     );
+}
+
+fn help_content(columns: usize, width: usize, theme: TuiTheme) -> Text<'static> {
+    let mut lines = Vec::new();
+    for (label, entries, color) in GROUPS {
+        if !lines.is_empty() {
+            lines.push(Line::raw(""));
+        }
+        lines.extend(help_panel(
+            label,
+            entries,
+            columns,
+            width,
+            resolve_color(*color, theme),
+            theme,
+        ));
+    }
+    Text::from(lines)
 }
 
 fn help_panel(
     label: &str,
-    entries: &[(&str, &str)],
-    key_color: ratatui::style::Color,
+    entries: &[Entry],
+    columns: usize,
+    width: usize,
+    key_color: Color,
     theme: TuiTheme,
-) -> Paragraph<'static> {
+) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::from(vec![
             Span::styled("── ", Style::default().fg(theme.rule)),
@@ -170,26 +250,123 @@ fn help_panel(
         ])
         .centered(),
     ];
-    lines.extend(entries.chunks(2).map(|pair| {
-        let left = pair[0];
-        let right = pair.get(1).copied().unwrap_or(("", ""));
-        Line::from(vec![
-            Span::styled(
-                format!("  {}", pad_display(left.0, 15)),
+    let rows = entries.len().div_ceil(columns);
+    let column_width = width / columns;
+    let extra_columns = width % columns;
+    for row in 0..rows {
+        let mut spans = Vec::new();
+        for column in 0..columns {
+            let index = row + column * rows;
+            let entry = entries.get(index).copied().unwrap_or(("", ""));
+            let cell_width = column_width + usize::from(column < extra_columns);
+            let key_width = HELP_KEY_WIDTH.min(cell_width.saturating_sub(2));
+            let description_width = cell_width.saturating_sub(key_width + 2);
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled(
+                pad_display(entry.0, key_width),
                 Style::default().fg(key_color).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(pad_display(left.1, 30), Style::default().fg(theme.muted)),
-            Span::styled(
-                pad_display(right.0, 15),
-                Style::default().fg(key_color).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(right.1.to_owned(), Style::default().fg(theme.muted)),
-        ])
-    }));
-    Paragraph::new(Text::from(lines))
+            ));
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled(
+                pad_display(entry.1, description_width),
+                Style::default().fg(theme.muted),
+            ));
+        }
+        lines.push(Line::from(spans));
+    }
+    lines
+}
+
+fn resolve_color(color: HelpColor, theme: TuiTheme) -> Color {
+    match color {
+        HelpColor::Accent => theme.accent,
+        HelpColor::Alt => theme.accent_alt,
+        HelpColor::Tag => theme.tag,
+        HelpColor::Success => theme.success,
+        HelpColor::Warning => theme.warning,
+        HelpColor::Error => theme.error,
+    }
 }
 
 fn pad_display(value: &str, width: usize) -> String {
-    let used = text_width(value) as usize;
+    let value = widgets::truncate_end(value, width);
+    let used = text_width(&value) as usize;
     format!("{value}{}", " ".repeat(width.saturating_sub(used)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::*;
+
+    #[test]
+    fn help_documents_every_literal_character_binding_in_input_routing() {
+        let mut bound = BTreeSet::new();
+        for source in [
+            include_str!("app/input.rs"),
+            include_str!("app/trash_view.rs"),
+        ] {
+            for tail in source.split("KeyCode::Char('").skip(1) {
+                if let Some(character) = tail.chars().next() {
+                    bound.insert(character);
+                }
+            }
+        }
+        let mut documented = BTreeSet::new();
+        for (group, entries, _) in GROUPS {
+            for (label, description) in *entries {
+                assert!(
+                    !group.is_empty() && !description.is_empty(),
+                    "every documented key needs an owning context and action"
+                );
+                if *label == "Space" {
+                    documented.insert(' ');
+                }
+                if *label == "/" {
+                    documented.insert('/');
+                }
+                for token in label.split_whitespace() {
+                    if token == "/" {
+                        continue;
+                    }
+                    let mut characters = token.chars();
+                    if let (Some(character), None) = (characters.next(), characters.next())
+                        && character.is_ascii()
+                    {
+                        documented.insert(character);
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            documented, bound,
+            "Help and literal character routing must match as exact key tokens"
+        );
+    }
+
+    #[test]
+    fn help_cells_preserve_keys_and_explicitly_ellipsize_descriptions() {
+        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let lines = help_panel(
+            GROUPS[0].0,
+            GROUPS[0].1,
+            3,
+            108,
+            resolve_color(GROUPS[0].2, theme),
+            theme,
+        );
+        assert!(lines.iter().all(|line| line.width() <= 108));
+        let rendered = lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(rendered.contains("Tab / Shift-Tab"));
+        assert!(rendered.contains("Ctrl-d / Ctrl-u"));
+        assert!(
+            rendered.contains('…'),
+            "a clipped description must advertise truncation"
+        );
+    }
 }

@@ -76,6 +76,7 @@ impl App {
             editor_cmd: config.editor.clone(),
             vscode_cmd: config.vscode_cmd.clone(),
             show_help: false,
+            help_scroll: 0,
             default_language: config
                 .default_language
                 .clone()

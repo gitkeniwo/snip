@@ -58,6 +58,18 @@ impl App {
             match key.code {
                 KeyCode::Char('q') => return self.request_quit(),
                 KeyCode::Char('?') | KeyCode::Esc => self.show_help = false,
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.help_scroll = self.help_scroll.saturating_add(1)
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.help_scroll = self.help_scroll.saturating_sub(1)
+                }
+                KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.help_scroll = self.help_scroll.saturating_add(10)
+                }
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.help_scroll = self.help_scroll.saturating_sub(10)
+                }
                 _ => {}
             }
             return Vec::new();
@@ -83,7 +95,12 @@ impl App {
                     self.refresh_visible();
                 }
             }
-            KeyCode::Char('?') => self.show_help = !self.show_help,
+            KeyCode::Char('?') => {
+                self.show_help = !self.show_help;
+                if self.show_help {
+                    self.help_scroll = 0;
+                }
+            }
             // Kept as two arms on purpose: a guard on `F(5) | Char('r')` would apply
             // to both alternatives and quietly require Ctrl-F5. Plain `r` must still
             // fall through to rename below, so only the Char arm carries the guard.
@@ -263,12 +280,15 @@ impl App {
     }
 
     pub fn handle_mouse(&mut self, event: MouseEvent) -> Vec<Effect> {
-        if self.modal.is_some()
-            || self.trash.open
-            || self.show_help
-            || self.git.open
-            || self.search.active
-        {
+        if self.modal.is_some() || self.trash.open || self.git.open || self.search.active {
+            return Vec::new();
+        }
+        if self.show_help {
+            match event.kind {
+                MouseEventKind::ScrollUp => self.help_scroll = self.help_scroll.saturating_sub(3),
+                MouseEventKind::ScrollDown => self.help_scroll = self.help_scroll.saturating_add(3),
+                _ => {}
+            }
             return Vec::new();
         }
         match event.kind {
