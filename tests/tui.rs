@@ -388,10 +388,10 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         app.theme.retained_bg,
         "a retained selection only highlights the title row"
     );
-    assert_eq!(buffer.cell((29, 2)).unwrap().symbol(), "A");
-    assert_eq!(buffer.cell((29, 3)).unwrap().symbol(), "[");
+    assert_eq!(buffer.cell((30, 2)).unwrap().symbol(), "A");
+    assert_eq!(buffer.cell((30, 3)).unwrap().symbol(), "[");
     assert_eq!(buffer.cell((27, 3)).unwrap().symbol(), "★");
-    assert!(row_text_from(buffer, 3, 29).starts_with("[Code > Rust]"));
+    assert!(row_text_from(buffer, 3, 30).starts_with("[Code > Rust]"));
     assert_eq!(
         buffer.cell((2, 10)).unwrap().symbol(),
         "#",
