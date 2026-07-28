@@ -2148,3 +2148,27 @@ fn paragraph_jump_keys_work_in_preview() {
     app.handle_key(key(KeyCode::Char('{')));
     assert_eq!(app.preview_scroll, 0, "should jump back to top");
 }
+#[test]
+fn ctrl_modified_keys_do_not_trigger_plain_actions() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+
+    // Ctrl-u should scroll instead of doing any plain 'u' action
+    let ctrl_u = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+    app.handle_key(ctrl_u);
+    assert!(app.modal.is_none());
+
+    // Ctrl-n should not open create modal
+    let ctrl_n = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL);
+    app.handle_key(ctrl_n);
+    assert!(app.modal.is_none());
+
+    // Ctrl-p should not toggle pin
+    let ctrl_p = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL);
+    app.handle_key(ctrl_p);
+    assert!(
+        app.selected_snippet().unwrap().pinned,
+        "Ctrl-p should not toggle pin state from true to false"
+    );
+}

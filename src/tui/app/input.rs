@@ -119,26 +119,74 @@ impl App {
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.rescan_now()
             }
-            KeyCode::Char('s') => {
+            KeyCode::Char('s') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.sort = self.sort.next();
                 self.refresh_visible();
             }
-            KeyCode::Char('z') => self.toggle_density(),
-            KeyCode::Char('e') if self.focus != Pane::Sidebar => return self.edit_effect(),
-            KeyCode::Char('v') if self.focus != Pane::Sidebar => return self.open_vscode_effect(),
-            KeyCode::Char('E') if self.focus != Pane::Sidebar => return self.edit_note_effect(),
-            KeyCode::Char('R') if self.focus != Pane::Sidebar => return self.edit_readme_effect(),
-            KeyCode::Char('n') => self.open_new_for_context(),
+            KeyCode::Char('z') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.toggle_density()
+            }
+            KeyCode::Char('e')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                return self.edit_effect();
+            }
+            KeyCode::Char('v')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                return self.open_vscode_effect();
+            }
+            KeyCode::Char('E')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                return self.edit_note_effect();
+            }
+            KeyCode::Char('R')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                return self.edit_readme_effect();
+            }
+            KeyCode::Char('n') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.open_new_for_context()
+            }
             KeyCode::Char('d') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.open_delete_for_context()
             }
-            KeyCode::Char('r') => self.open_rename_for_context(),
-            KeyCode::Char('m') => self.open_move_for_context(),
-            KeyCode::Char('t') if self.focus != Pane::Sidebar => self.open_edit_tags(),
-            KeyCode::Char('f') if self.focus != Pane::Sidebar => self.open_edit_language(),
-            KeyCode::Char('p') if self.focus != Pane::Sidebar => self.toggle_pin(),
-            KeyCode::Char('L') if self.focus != Pane::Sidebar => self.toggle_lock(),
-            KeyCode::Char('N') => {
+            KeyCode::Char('r') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.open_rename_for_context()
+            }
+            KeyCode::Char('m') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.open_move_for_context()
+            }
+            KeyCode::Char('t')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                self.open_edit_tags()
+            }
+            KeyCode::Char('f')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                self.open_edit_language()
+            }
+            KeyCode::Char('p')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                self.toggle_pin()
+            }
+            KeyCode::Char('L')
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.focus != Pane::Sidebar =>
+            {
+                self.toggle_lock()
+            }
+            KeyCode::Char('N') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.show_line_numbers = !self.show_line_numbers;
                 self.preview_selection.clear();
                 self.set_status(
@@ -150,10 +198,20 @@ impl App {
                     StatusLevel::Info,
                 );
             }
-            KeyCode::Char('T') => self.open_trash(),
-            KeyCode::Char('y') => return self.copy_content_effect(),
-            KeyCode::Char('Y') => return self.copy_id_effect(),
-            KeyCode::Char('P') | KeyCode::Char('c') => return self.copy_path_effect(),
+            KeyCode::Char('T') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.open_trash()
+            }
+            KeyCode::Char('y') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.copy_content_effect();
+            }
+            KeyCode::Char('Y') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.copy_id_effect();
+            }
+            KeyCode::Char('P') | KeyCode::Char('c')
+                if !key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                return self.copy_path_effect();
+            }
             KeyCode::Char('[') => self.previous_fragment(),
             KeyCode::Char(']') => self.next_fragment(),
             KeyCode::Char('{') => crate::tui::preview::jump_paragraph(self, false),
