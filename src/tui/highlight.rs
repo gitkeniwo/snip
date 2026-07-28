@@ -19,7 +19,7 @@ pub struct Highlighter {
 
 impl Highlighter {
     pub fn new(theme: TuiTheme) -> Result<Self> {
-        let syntaxes = SyntaxSet::load_defaults_newlines();
+        let syntaxes = two_face::syntax::extra_newlines();
         let themes = ThemeSet::load_defaults();
         let preferred = match theme.appearance {
             Appearance::Light => "InspiredGitHub",

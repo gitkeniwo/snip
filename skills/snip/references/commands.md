@@ -77,7 +77,9 @@ correct way to pipe snippet content into another program.
 
 Human-facing rendering with syntax highlighting and rendered Markdown. Use
 `--render plain` if you need to read it yourself; prefer `show`/`cat` for
-anything you parse.
+anything you parse. Highlighting uses the expanded two-face syntax set; the TUI
+language picker recognizes canonical names, aliases, and extensions while still
+accepting custom language values.
 
 ### `snip path <SELECTOR>`
 `--fragment <F>` | `--readme` | `--metadata`

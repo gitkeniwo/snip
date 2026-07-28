@@ -61,7 +61,7 @@ fn render_plain(snippet: &Snippet) -> String {
 }
 
 fn render_ansi(snippet: &Snippet) -> Result<String> {
-    let syntax_set = SyntaxSet::load_defaults_newlines();
+    let syntax_set = two_face::syntax::extra_newlines();
     let theme_set = ThemeSet::load_defaults();
     let theme = select_theme(&theme_set)?;
     let mut output = format!("\x1b[1;36m{}\x1b[0m\n", snippet.title);
@@ -108,7 +108,7 @@ fn render_ansi(snippet: &Snippet) -> Result<String> {
 }
 
 fn render_html(snippet: &Snippet) -> Result<String> {
-    let syntax_set = SyntaxSet::load_defaults_newlines();
+    let syntax_set = two_face::syntax::extra_newlines();
     let theme_set = ThemeSet::load_defaults();
     let theme = select_theme(&theme_set)?;
     let mut output = String::from(
