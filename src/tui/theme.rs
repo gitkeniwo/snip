@@ -74,17 +74,17 @@ impl TuiTheme {
                 accent_alt: Color::Rgb(210, 168, 255),
                 border: Color::Rgb(110, 118, 129),
                 muted: Color::Rgb(139, 148, 158),
-                selection_bg: Color::Rgb(31, 82, 128),
+                selection_bg: Color::Rgb(17, 88, 199),
                 selection_fg: Color::White,
-                retained_bg: Color::Rgb(28, 39, 50),
-                pill_primary: Color::Rgb(0, 113, 118),
-                pill_secondary: Color::Rgb(52, 59, 66),
+                retained_bg: Color::Rgb(12, 45, 107),
+                pill_primary: Color::Rgb(31, 111, 235),
+                pill_secondary: Color::Rgb(48, 54, 61),
                 bar_bg: Color::Rgb(36, 41, 47),
                 bar_fg: Color::Rgb(218, 223, 228),
                 tag: Color::Rgb(227, 179, 65),
-                rule: Color::Rgb(60, 66, 74),
+                rule: Color::Rgb(68, 76, 86),
                 success: Color::Rgb(63, 185, 80),
-                warning: Color::Rgb(227, 179, 65),
+                warning: Color::Rgb(240, 136, 62),
                 error: Color::Rgb(248, 81, 73),
             },
         }
@@ -162,6 +162,35 @@ fn resolve_appearance(setting: TuiThemeSetting, environment: Option<&str>) -> Ap
 mod tests {
     use super::*;
 
+    const DARK_PANEL_BG: Color = Color::Rgb(13, 17, 23);
+
+    fn rgb(color: Color) -> [u8; 3] {
+        match color {
+            Color::Rgb(red, green, blue) => [red, green, blue],
+            Color::White => [255, 255, 255],
+            other => panic!("palette invariant requires an RGB color, got {other:?}"),
+        }
+    }
+
+    fn relative_luminance(color: Color) -> f64 {
+        let [red, green, blue] = rgb(color);
+        let channel = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    }
+
+    fn contrast(left: Color, right: Color) -> f64 {
+        let left = relative_luminance(left);
+        let right = relative_luminance(right);
+        (left.max(right) + 0.05) / (left.min(right) + 0.05)
+    }
+
     #[test]
     fn light_and_dark_palettes_have_distinct_selection_colors() {
         let light = TuiTheme::for_appearance(Appearance::Light);
@@ -191,5 +220,46 @@ mod tests {
             resolve_appearance(TuiThemeSetting::Dark, None),
             Appearance::Dark
         );
+    }
+
+    #[test]
+    fn dark_semantic_roles_are_distinct_and_legible() {
+        let dark = TuiTheme::for_appearance(Appearance::Dark);
+        let roles = [
+            ("accent", dark.accent),
+            ("accent_alt", dark.accent_alt),
+            ("muted", dark.muted),
+            ("selection_bg", dark.selection_bg),
+            ("retained_bg", dark.retained_bg),
+            ("pill_primary", dark.pill_primary),
+            ("pill_secondary", dark.pill_secondary),
+            ("tag", dark.tag),
+            ("warning", dark.warning),
+            ("success", dark.success),
+            ("error", dark.error),
+        ];
+        for (index, (left_name, left)) in roles.iter().enumerate() {
+            for (right_name, right) in roles.iter().skip(index + 1) {
+                assert_ne!(
+                    left, right,
+                    "dark palette roles {left_name} and {right_name} must remain distinct"
+                );
+            }
+        }
+
+        assert!(contrast(dark.selection_fg, dark.selection_bg) >= 4.5);
+        for (name, color) in [
+            ("muted", dark.muted),
+            ("bar_fg", dark.bar_fg),
+            ("tag", dark.tag),
+            ("warning", dark.warning),
+            ("error", dark.error),
+            ("success", dark.success),
+        ] {
+            assert!(
+                contrast(color, DARK_PANEL_BG) >= 3.0,
+                "{name} must remain legible against the dark panel"
+            );
+        }
     }
 }
