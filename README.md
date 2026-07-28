@@ -2,79 +2,52 @@
 
 <img width="993" height="657" alt="image" src="https://github.com/user-attachments/assets/9d72c109-f3bb-4b35-b0d4-436c2220e2ad" />
 
-`snip` keeps a snippet library in plain files. Source code, Markdown notes, and
-metadata stay as ordinary text you can open in any editor, grep, diff, and put
-under version control.
+`snip` is a snippet manager that keeps its library in plain files. Code, notes,
+and metadata are ordinary text you can grep, diff, edit in any editor, and put
+under Git. It ships as a CLI and a terminal browser.
 
-It replaces SnippetsLab, which keeps its library in a database only that app can
-read. That design makes the snippets hard to reach from anywhere else, and it
-means edits made outside the app never show up inside it. Using the filesystem
-instead removes the middleman: an editor, a shell script, and an AI agent can
-all work on one library at the same time.
+It grew out of wanting SnippetsLab's library available while coding with an AI
+agent. SnippetsLab stores everything in a database only that app can read, so
+nothing else — a script, an editor, an agent — can reach it. Files remove that
+limitation: every command speaks JSON, snippets are addressed by UUID, and
+writes are guarded by a content fingerprint so two writers can share one library
+without clobbering each other.
 
-Letting several writers share a library is the interesting problem, and it is
-what the CLI is built around. Every command can emit JSON, snippets are
-addressed by UUID, and writes are guarded by a content fingerprint, so one
-writer cannot silently overwrite work it never read. Deletion goes to a trash
-directory rather than disappearing.
+Runs on Linux, macOS, and Windows.
 
-The bundled terminal browser covers the other half — reading, skimming, and
-editing by hand. It watches the library, so a change an agent makes in one
-terminal shows up in the other while you are looking at it.
+## Install
+
+Homebrew, on macOS or Linux:
 
 ```bash
-snip tui                              # or plain `snip` in an interactive terminal
-snip --library ./Main.sniplib tui
+brew install gitkeniwo/snip/snip
 ```
 
-See [Terminal browser](#terminal-browser) for what it can do,
-[Agent-friendly operations](#agent-friendly-operations) for the JSON and
-concurrency contract, and [FORMAT.md](FORMAT.md) for the on-disk format.
+Or download a binary from the [latest release](https://github.com/gitkeniwo/snip/releases/latest):
 
-## Build
-
-Rust 1.89 or newer is recommended. Dependencies are pinned in `Cargo.lock`.
+| Platform | Asset |
+|---|---|
+| macOS (Apple Silicon) | `snip-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `snip-x86_64-apple-darwin.tar.gz` |
+| Linux x86_64 | `snip-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux arm64 | `snip-aarch64-unknown-linux-gnu.tar.gz` |
+| Windows x86_64 | `snip-x86_64-pc-windows-msvc.zip` |
 
 ```bash
-cd /path/to/snip
-cargo build --release
+curl -L https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-apple-darwin.tar.gz | tar xz
+install -m 755 snip /usr/local/bin/snip
 ```
 
-The binary is `target/release/snip`.
-
-## Testing and CI
-
-The repository uses three GitHub Actions workflows:
-
-- `CI` runs on pushes and pull requests. It checks formatting, Clippy, the full
-  default build on Linux and Apple Silicon macOS, Rust 1.89 compatibility, and
-  the slim `--no-default-features` agent build.
-- `Deep tests` is manually dispatched for the complete deterministic suite, the
-  synthetic SnippetsLab importer fixture, the recursive-watcher regression, or
-  an LCOV coverage report.
-- `Release build` runs for `v*` tags and manual dispatch, producing tarballs for
-  Linux x86_64/arm64, macOS arm64, and macOS Intel.
-
-Run the equivalent local checks before pushing:
+Or build from source (Rust 1.89 or newer):
 
 ```bash
-cargo fmt --check
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-features
-cargo test --locked --no-default-features
-cargo build --locked --release --all-features
+git clone https://github.com/gitkeniwo/snip.git
+cd snip
+cargo install --path .
 ```
 
-For a local development library, bind `./Main.sniplib` as the default:
-
-```bash
-./target/release/snip config set default-library ./Main.sniplib
-./target/release/snip info
-```
-
-`Main.sniplib/` is local working data and is ignored by the source repository.
-It can be deleted and recreated with `snip init ./Main.sniplib --name Main`
-without affecting the Rust project.
+For a smaller binary without the terminal browser, build with
+`--no-default-features`.
 
 ## Quick start
 
@@ -94,24 +67,54 @@ snip list --sort modified          # modified | created | title
 snip search hello
 snip preview Hello
 snip edit Hello
-snip open Hello                    # hand a managed path to an app, like the TUI's `v`
+snip open Hello                    # hand a managed path to an app
 ```
 
-When `--library` is omitted, `SNIP_LIBRARY` is checked next, followed by walking
-from the current directory toward the filesystem root for `snip.toml`, and
-finally `default_library` in the user config.
+Then open the terminal browser:
+
+```bash
+snip tui                              # or plain `snip` in an interactive terminal
+snip --library ./Main.sniplib tui
+```
+
+When `--library` is omitted, `SNIP_LIBRARY` is checked next, then the nearest
+`snip.toml` walking up from the current directory, and finally `default_library`
+in the user config. Commands run inside a library never jump to the global
+default.
+
+## What it does
+
+- **Plain-file library.** One directory per snippet, holding fragments, notes, a
+  README, and a TOML manifest. [FORMAT.md](FORMAT.md) specifies it normatively.
+- **CLI for everything.** Create, list, search, show, edit, move, tag, trash,
+  restore, import, and repair, with `--output json` or `jsonl` on every command.
+- **Terminal browser.** Three-pane TUI with syntax highlighting, live reload,
+  and mouse support.
+- **Concurrency-safe writes.** Library lock, atomic writes, and `--if-hash`
+  fingerprint checks so a writer cannot overwrite a version it never read.
+- **Structure-aware search.** Regex, field filters, and context lines, so it
+  replaces `grep`/`rg` over the library.
+- **SnippetsLab import.** Preserves UUIDs, hierarchy, tags, flags, timestamps,
+  content, and notes.
+- **Optional Git backup.** Commit, push, and fetch scoped to the library, with
+  an interactive console in the TUI.
+- **Agent skill.** [`skills/snip`](skills/snip/SKILL.md) packages the CLI
+  contract for coding agents.
 
 ## Terminal browser
 
 Three panes: folders and tags on the left, the snippet list in the middle, a
-preview on the right. Selecting a folder or tag filters the list as you move.
+preview on the right. Selecting a folder or tag filters the list as you move. A
+file watcher picks up changes made elsewhere while you are looking at them.
 
 | Key | |
 |---|---|
-| `/` | search; `Tab` cycles panes |
+| `/` | search |
+| `Tab` / `Shift-Tab` | next / previous pane |
 | `h`/`←`, `l`/`→` | back out, or drill in |
+| `j`/`k` | move; `g`/`G` first/last; `Ctrl-d`/`Ctrl-u` page |
 | `1`-`9`, `0` | jump to 1st-10th item (folder, snippet, or fragment) |
-| `j`/`k` | move; `[`/`]` switch fragments; `{`/`}` jump paragraphs |
+| `[`/`]`, `{`/`}` | switch fragments; jump paragraphs |
 | `n` | create a snippet, or a folder from the sidebar |
 | `e`, `E`, `R` | edit content, note, or README in `$EDITOR` |
 | `v` | open in VS Code (`snip open`) |
@@ -120,7 +123,8 @@ preview on the right. Selecting a folder or tag filters the list as you move.
 | `t`, `f`, `P`, `L` | edit tags, edit current fragment language, toggle pin, toggle lock |
 | `y`, `Y`, `p` | copy content (`y`), snippet ID (`Y`), managed path (`p`) |
 | `d`, `T` | move to trash; open the restore/purge view |
-| `s`, `N` | change sort order; toggle preview line numbers |
+| `s`, `N`, `z` | change sort order; toggle line numbers; toggle row density |
+| `Ctrl-g` | Git console |
 | `F5`, `Ctrl-r` | rescan now (the watcher usually does this for you) |
 | `?` | the full key map |
 
@@ -132,12 +136,9 @@ a fragment tab, and scroll the pane under the cursor. Dragging across the
 preview selects text and releasing copies it, without the line-number gutter.
 
 The create wizard's language step is a searchable picker with 74 built-in
-languages backed by 220 syntax definitions. Canonical names, common aliases,
-and extensions all match (`ts` finds TypeScript, `yml` finds YAML), while a
-language not in the built-in list can still be entered and used as-is.
-
-The TUI ships by default. For a smaller agent-only binary, build with
-`cargo build --no-default-features`.
+languages backed by 220 syntax definitions. Canonical names, common aliases, and
+extensions all match (`ts` finds TypeScript, `yml` finds YAML), and a language
+not in the list can still be entered and used as-is.
 
 ### Appearance
 
@@ -150,82 +151,8 @@ SNIP_TUI_THEME=light snip     # or: snip config set tui-theme light
 ```
 
 Language badges are plain ASCII (`[rs]`, `[py]`, `[sh]`, `[md]`) so they render
-in any font. Syntax highlighting uses the expanded two-face syntax set rather
-than syntect's smaller legacy defaults. The rounded caps on the top and bottom
-bars are Powerline glyphs, which need a Nerd Font or another
-Powerline-patched terminal font.
-
-## User configuration
-
-The config lives at `$XDG_CONFIG_HOME/snip/config.toml`, or
-`~/.config/snip/config.toml` when `XDG_CONFIG_HOME` is unset. Create it and bind
-a default library with:
-
-```bash
-snip config init --library /path/to/Main.sniplib
-snip config show
-snip config path
-```
-
-Replace `/path/to/Main.sniplib` with the library you want to use by default.
-
-You can safely change supported values without editing TOML by hand:
-
-```bash
-snip config set default-library /path/to/Main.sniplib
-snip config set output json
-snip config set color auto
-snip config set preview-render ansi
-snip config set preview-pager false
-snip config set editor 'nvim -f'
-snip config set pager 'less -R'
-snip config set default-language rust
-snip config set default-folder Agents/Generated
-snip config set default-tags 'ai,generated'
-snip config set tui-theme auto
-snip config set tui-sort modified
-snip config set tui-density compact
-snip config set git-auto-commit-interval 15
-snip config set git-auto-push true
-snip config set git-backup-on-quit true
-snip config unset default-folder
-```
-
-The complete schema is:
-
-```toml
-schema_version = 1
-default_library = "/path/to/Main.sniplib"
-output = "human"             # human | json | jsonl
-color = "auto"               # auto | always | never
-preview_render = "ansi"      # ansi | plain | html
-preview_pager = false
-editor = "nvim -f"
-pager = "less -R"
-default_language = "text"
-default_folder = ""
-default_tags = ["personal"]
-
-[tui]
-theme = "auto"             # auto | light | dark
-sort = "modified"          # modified | created | title
-density = "comfortable"    # comfortable | compact
-
-[git]
-auto_commit_interval = 0   # minutes; 0 disables automatic Git operations
-auto_push = false          # push ahead commits in the background
-backup_on_quit = false
-```
-
-`SNIP_TUI_THEME=light|dark` overrides `[tui].theme`. Unknown values under a
-future `[tui.colors]` table are preserved when the config is rewritten; custom
-palette consumption is reserved for a later version.
-
-Config values are defaults only. Explicit CLI options override them. Library
-resolution is `--library` → `SNIP_LIBRARY` → nearest ancestor library →
-`default_library`, so commands run inside a library never jump unexpectedly to
-the global default. Unknown TOML fields are preserved when `snip config set` or
-`unset` rewrites the file, allowing future GUI settings to coexist.
+in any font. The rounded caps on the top and bottom bars are Powerline glyphs,
+which need a Nerd Font or another Powerline-patched terminal font.
 
 ## Agent-friendly operations
 
@@ -287,6 +214,69 @@ mkdir -p ~/.claude/skills && ln -s "$PWD/skills/snip" ~/.claude/skills/snip
 
 See [`skills/README.md`](skills/README.md) for other runtimes.
 
+## Configuration
+
+The config lives at `$XDG_CONFIG_HOME/snip/config.toml`, or
+`~/.config/snip/config.toml` when `XDG_CONFIG_HOME` is unset.
+
+```bash
+snip config init --library /path/to/Main.sniplib
+snip config show
+snip config path
+```
+
+Supported values can be changed without editing TOML by hand:
+
+```bash
+snip config set default-library /path/to/Main.sniplib
+snip config set output json
+snip config set color auto
+snip config set preview-render ansi
+snip config set preview-pager false
+snip config set editor 'nvim -f'
+snip config set pager 'less -R'
+snip config set default-language rust
+snip config set default-folder Agents/Generated
+snip config set default-tags 'ai,generated'
+snip config set tui-theme auto
+snip config set tui-sort modified
+snip config set tui-density compact
+snip config set git-auto-commit-interval 15
+snip config set git-auto-push true
+snip config set git-backup-on-quit true
+snip config unset default-folder
+```
+
+The complete schema is:
+
+```toml
+schema_version = 1
+default_library = "/path/to/Main.sniplib"
+output = "human"             # human | json | jsonl
+color = "auto"               # auto | always | never
+preview_render = "ansi"      # ansi | plain | html
+preview_pager = false
+editor = "nvim -f"
+pager = "less -R"
+default_language = "text"
+default_folder = ""
+default_tags = ["personal"]
+
+[tui]
+theme = "auto"             # auto | light | dark
+sort = "modified"          # modified | created | title
+density = "comfortable"    # comfortable | compact
+
+[git]
+auto_commit_interval = 0   # minutes; 0 disables automatic Git operations
+auto_push = false          # push ahead commits in the background
+backup_on_quit = false
+```
+
+`SNIP_TUI_THEME=light|dark` overrides `[tui].theme`. Config values are defaults
+only; explicit CLI options override them. Unknown TOML fields are preserved when
+`snip config set` or `unset` rewrites the file, so future settings can coexist.
+
 ## Files are the database
 
 ```text
@@ -312,14 +302,11 @@ moved or renamed manually. UUIDs in the manifest remain the stable identity.
 
 [FORMAT.md](FORMAT.md) specifies all of this normatively — manifests, path
 rules, the fingerprint algorithm, and the transaction protocol — so another tool
-can read and write a library without going through snip. That specification is
-what makes "your snippets are not locked in an app" a checkable claim rather
-than a slogan.
+can read and write a library without going through snip.
 
 Direct editor changes are discovered on the next scan. CLI mutations use a
-library lock and atomic writes. `--if-hash` prevents an agent from overwriting a
-version it did not read. `snip doctor --repair` recovers interrupted package
-transactions.
+library lock and atomic writes. `snip doctor --repair` recovers interrupted
+package transactions, and `snip organize` normalizes package directory names.
 
 Nothing under `.snip/` is user data — it holds locks and in-flight transactions,
 and may later hold a search cache. Deleting it while snip is not running must
@@ -336,8 +323,9 @@ snip preview ID --pager
 
 `snip edit ID` copies the first fragment to a temporary file and opens the
 configured `editor`, then `$VISUAL`, then `$EDITOR`, then `vi`. It checks the
-original fingerprint before committing the result. Additional editor targets are available with
-`--fragment`, `--note-editor`, `--readme-editor`, and `--metadata-editor`.
+original fingerprint before committing the result. Additional editor targets are
+available with `--fragment`, `--note-editor`, `--readme-editor`, and
+`--metadata-editor`.
 
 ## SnippetsLab migration
 
@@ -379,38 +367,25 @@ snip --library Main.sniplib git fetch
 library is dirty and pushes whenever the branch is ahead of its upstream, so it
 also handles a clean worktree with earlier local commits. `push` retries only
 the push step. `fetch` refreshes and prunes remote-tracking refs without
-changing the worktree. `backup` is idempotent: an already committed and pushed
-library returns success with `backup is already up to date`. Its JSON `message`
-field is present only when that invocation created a commit. These CLI
-operations are non-interactive and fail rather than waiting for credentials.
+changing the worktree. `backup` is idempotent. These CLI operations are
+non-interactive and fail rather than waiting for credentials.
 
 In the TUI, `Ctrl-g` opens the Git console: `b` backs up, `c` commits, `p`
 pushes, `f` fetches remote status in the background, and `C` enters a custom
-message. The console also makes automation discoverable and editable: `i`
-sets the commit interval, `u` toggles automatic push, `o` toggles backup on
-quit, and `a` pauses automation for the current session. In a library that is
-not yet a repository, `i` initializes it. Manual TUI operations temporarily
-return to the real terminal so Git credential prompts and progress remain
-visible.
+message. Automation is editable there too: `i` sets the commit interval, `u`
+toggles automatic push, `o` toggles backup on quit, and `a` pauses automation
+for the current session. In a library that is not yet a repository, `i`
+initializes it.
 
-Automatic behavior is off by default. Set `git-auto-commit-interval` to make
-the TUI create a local commit when the library is dirty and the last commit is
-at least that many minutes old. Set `git-auto-push` to push ahead commits in a
-background worker on the same interval. An interval of `0` disables both
-automatic commit and push. Background pushes never prompt and use bounded SSH
-and HTTP waits; manual Git and quit-time backup remain interactive. Set
-`git-backup-on-quit` to run the normal interactive backup before the TUI exits.
-Automatic work skips conflicts, detached HEADs, in-progress Git operations,
-open modals, queued Git actions, and a library lock held by another snip
-process. The TUI waits up to five seconds for an in-flight network task when
-quitting.
-Repeated identical failures remain visible in the Git panel without repeatedly
-spamming the status bar.
+Automatic behavior is off by default. Set `git-auto-commit-interval` to make the
+TUI create a local commit when the library is dirty and the last commit is at
+least that many minutes old. Set `git-auto-push` to push ahead commits in a
+background worker on the same interval. Automatic work skips conflicts, detached
+HEADs, in-progress Git operations, open modals, and a library lock held by
+another snip process.
 
 snip never pulls, switches branches, or resolves conflicts. If a push is
-rejected, pull and resolve it in your terminal. The Git console's `f` action
-refreshes behind counts without touching the worktree and shows when this
-session last fetched.
+rejected, pull and resolve it in your terminal.
 
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
 back. Permanent deletion requires `snip purge SELECTOR --yes`.
@@ -422,11 +397,46 @@ snip completion zsh > ~/.zfunc/_snip
 snip completion fish > ~/.config/fish/completions/snip.fish
 ```
 
-## Development checks
+Bash, Elvish, and PowerShell are also supported.
+
+## Development
+
+Rust 1.89 or newer. Dependencies are pinned in `Cargo.lock`.
 
 ```bash
 cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-features
-cargo build --release
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-features
+cargo test --locked --no-default-features
+cargo build --locked --release --all-features
 ```
+
+For a local development library, bind `./Main.sniplib` as the default:
+
+```bash
+./target/release/snip config set default-library ./Main.sniplib
+./target/release/snip info
+```
+
+`Main.sniplib/` is local working data and is ignored by the repository. It can
+be deleted and recreated with `snip init ./Main.sniplib --name Main` without
+affecting the Rust project.
+
+### CI
+
+- `CI` runs on pushes and pull requests: formatting, Clippy on both feature
+  sets, and tests on Linux (stable, 1.89 MSRV, and `--no-default-features`),
+  macOS arm64, and Windows.
+- `Deep tests` is manually dispatched for the complete deterministic suite, the
+  synthetic SnippetsLab importer fixture, the recursive-watcher regression, and
+  an LCOV coverage report.
+- `Release build` runs for `v*` tags and manual dispatch, producing archives for
+  Linux x86_64/arm64, macOS arm64/Intel, and Windows x86_64. On a tag it also
+  bumps the formula in
+  [gitkeniwo/homebrew-snip](https://github.com/gitkeniwo/homebrew-snip), which
+  needs a `HOMEBREW_TAP_TOKEN` secret with write access to that repository. The
+  step is skipped when the secret is absent.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
