@@ -118,6 +118,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ("←/→", "nav"),
         ("Tab", "pane"),
         ("/", "search"),
+        ("^g", "git"),
         ("?", "help"),
         ("q", "quit"),
     ];
@@ -125,6 +126,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ("←/→", "nav"),
         ("Tab", "pane"),
         ("/", "search"),
+        ("^g", "git"),
         ("?", "help"),
     ];
     let navigation_compact: ShortcutSet<'_> = &[("←/→", ""), ("Tab", ""), ("/", ""), ("?", "")];
