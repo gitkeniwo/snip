@@ -1471,10 +1471,11 @@ fn create_wizard_uses_defaults_and_opens_the_new_fragment_editor() {
     };
     assert_eq!(picker.selected_value().as_deref(), Some("Code/Rust"));
     app.handle_key(key(KeyCode::Enter));
-    let Some(Modal::Input(language)) = app.modal.as_ref() else {
-        panic!("expected language input");
+    let Some(Modal::Picker(language)) = app.modal.as_ref() else {
+        panic!("expected language picker");
     };
-    assert_eq!(language.value, "python");
+    assert_eq!(language.selected_value().as_deref(), Some("python"));
+    assert!(language.allow_custom);
     let effects = app.handle_key(key(KeyCode::Enter));
     let Effect::SpawnEditor(request) = effects.into_iter().next().unwrap() else {
         panic!("expected editor for newly created snippet");
@@ -1486,6 +1487,187 @@ fn create_wizard_uses_defaults_and_opens_the_new_fragment_editor() {
     assert_eq!(created.title, "Generated helper");
     assert_eq!(created.folder, "Code/Rust");
     assert_eq!(created.tags, ["generated"]);
+}
+
+#[test]
+fn create_language_picker_accepts_aliases_and_custom_values() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+
+    app.handle_key(key(KeyCode::Char('n')));
+    replace_modal_input(&mut app, "Typed helper");
+    app.handle_key(key(KeyCode::Enter));
+    app.handle_key(key(KeyCode::Enter));
+    for character in "ts".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected language picker");
+    };
+    assert_eq!(picker.selected_value().as_deref(), Some("typescript"));
+
+    app.handle_key(key(KeyCode::Backspace));
+    app.handle_key(key(KeyCode::Backspace));
+    for character in "my-dsl".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected language picker");
+    };
+    assert_eq!(picker.selected, 0);
+    assert_eq!(picker.selected_value().as_deref(), Some("my-dsl"));
+}
+
+#[test]
+fn edit_language_keeps_manifest_file_badge_and_preview_in_sync() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+    let old_path = app.selected_snippet().unwrap().loaded_fragments[0]
+        .absolute_path
+        .clone();
+
+    app.handle_key(key(KeyCode::Char('f')));
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected language picker");
+    };
+    assert_eq!(picker.current_value.as_deref(), Some("rust"));
+    assert_eq!(picker.selected_value().as_deref(), Some("rust"));
+    for character in "python".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    app.handle_key(key(KeyCode::Enter));
+
+    let snippet = app.selected_snippet().unwrap();
+    let fragment = &snippet.loaded_fragments[0];
+    assert_eq!(fragment.language, "python");
+    assert_eq!(fragment.file, "fragments/001-Alpha Rust.py");
+    assert!(fragment.absolute_path.exists());
+    assert!(!old_path.exists());
+    assert_eq!(snip::tui::icons::language_badge(&fragment.language), "py");
+
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("001-Alpha Rust.py py"));
+}
+
+#[test]
+fn edit_language_only_changes_the_current_fragment() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    add_fragment(
+        &library,
+        &first_id.to_string(),
+        &FragmentAddOptions {
+            title: "Helper".to_owned(),
+            language: "bash".to_owned(),
+            content: "echo helper\n".to_owned(),
+            ..FragmentAddOptions::default()
+        },
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::Preview;
+    app.fragment_index = 1;
+
+    app.handle_key(key(KeyCode::Char('f')));
+    for character in "typescript".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    app.handle_key(key(KeyCode::Enter));
+
+    let snippet = app.selected_snippet().unwrap();
+    assert_eq!(snippet.loaded_fragments[0].language, "rust");
+    assert_eq!(
+        snippet.loaded_fragments[0].file,
+        "fragments/001-Alpha Rust.rs"
+    );
+    assert_eq!(snippet.loaded_fragments[1].language, "typescript");
+    assert_eq!(snippet.loaded_fragments[1].file, "fragments/002-Helper.ts");
+    assert_eq!(snip::tui::icons::snippet_badge(snippet), "mix");
+}
+
+#[test]
+fn edit_language_refuses_locked_snippets() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    edit_snippet(
+        &library,
+        &first_id.to_string(),
+        &EditOptions {
+            locked: Some(true),
+            ..EditOptions::default()
+        },
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+
+    app.handle_key(key(KeyCode::Char('f')));
+
+    assert!(app.modal.is_none());
+    assert!(app.status.as_ref().unwrap().text.contains("locked"));
+    assert_eq!(
+        app.selected_snippet().unwrap().loaded_fragments[0].language,
+        "rust"
+    );
+}
+
+#[test]
+fn edit_language_accepts_a_custom_value_without_an_extension() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+
+    app.handle_key(key(KeyCode::Char('f')));
+    for character in "my-dsl".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    app.handle_key(key(KeyCode::Enter));
+
+    let fragment = &app.selected_snippet().unwrap().loaded_fragments[0];
+    assert_eq!(fragment.language, "my-dsl");
+    assert_eq!(fragment.file, "fragments/001-Alpha Rust");
+    assert!(fragment.absolute_path.exists());
+    assert_eq!(snip::tui::icons::language_badge(&fragment.language), "?");
+}
+
+#[test]
+fn list_and_preview_share_the_same_bottom_bar_actions() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let render = |app: &mut App| {
+        let backend = TestBackend::new(140, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| snip::tui::ui::draw(frame, app))
+            .unwrap();
+        row_text(terminal.backend().buffer(), 23)
+    };
+
+    app.focus = Pane::List;
+    let list = render(&mut app);
+    app.focus = Pane::Preview;
+    let preview = render(&mut app);
+
+    assert_eq!(list, preview);
+    for action in ["create", "edit", "tags", "rename", "move", "copy", "path"] {
+        assert!(
+            list.contains(action),
+            "missing {action} from full bottom bar"
+        );
+    }
+    assert!(!list.contains("language"));
+    assert!(!list.contains("vscode"));
 }
 
 #[test]

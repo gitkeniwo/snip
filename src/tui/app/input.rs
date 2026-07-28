@@ -133,6 +133,7 @@ impl App {
             KeyCode::Char('r') => self.open_rename_for_context(),
             KeyCode::Char('m') => self.open_move_for_context(),
             KeyCode::Char('t') if self.focus != Pane::Sidebar => self.open_edit_tags(),
+            KeyCode::Char('f') if self.focus != Pane::Sidebar => self.open_edit_language(),
             KeyCode::Char('p') if self.focus != Pane::Sidebar => self.toggle_pin(),
             KeyCode::Char('L') if self.focus != Pane::Sidebar => self.toggle_lock(),
             KeyCode::Char('N') => {

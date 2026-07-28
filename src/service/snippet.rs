@@ -13,8 +13,8 @@ use crate::domain::{
 };
 use crate::error::{Result, SnipError};
 use crate::filesystem::{
-    Library, atomic_write, fragment_relative_path, normalize_tags, note_relative_path, now_rfc3339,
-    package_name, resolve_managed_path, write_snippet_manifest,
+    Library, atomic_write, extension_for_language, fragment_relative_path, normalize_tags,
+    note_relative_path, now_rfc3339, package_name, resolve_managed_path, write_snippet_manifest,
 };
 
 pub fn create_snippet(library: &Library, options: &CreateOptions) -> Result<Snippet> {
@@ -199,7 +199,27 @@ pub fn edit_snippet(
                 if language.trim().is_empty() {
                     return Err(SnipError::usage("fragment language cannot be empty"));
                 }
-                fragment.language = language.trim().to_owned();
+                let language = language.trim();
+                let current_name = Path::new(&fragment.file)
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or(&fragment.title);
+                let prefix = format!("{:03}-", index + 1);
+                let current_title = current_name.strip_prefix(&prefix).unwrap_or(current_name);
+                let derived_title = extension_for_language(&fragment.language)
+                    .and_then(|extension| current_title.strip_suffix(&format!(".{extension}")))
+                    .unwrap_or(current_title);
+                let new_file = fragment_relative_path(index + 1, derived_title, language);
+                if new_file != fragment.file {
+                    let old_path = resolve_managed_path(stage, &fragment.file)?;
+                    let new_path = resolve_managed_path(stage, &new_file)?;
+                    if let Some(parent) = new_path.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+                    fs::rename(old_path, new_path)?;
+                    fragment.file = new_file;
+                }
+                fragment.language = language.to_owned();
                 fields.push(format!("fragments[{}].language", index + 1));
             }
             if let Some(content) = &options.content {

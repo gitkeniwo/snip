@@ -49,6 +49,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             ("r", "rename snippet"),
             ("m", "move snippet"),
             ("t", "edit tags"),
+            ("f", "edit language"),
             ("p", "toggle pin"),
             ("L", "toggle lock"),
             ("d", "move to trash"),

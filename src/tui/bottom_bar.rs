@@ -155,36 +155,18 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 &[("n", "create"), ("r", "rename"), ("d", "delete")],
                 &[("n", ""), ("r", ""), ("d", "")],
             ),
-            Pane::List => (
+            Pane::List | Pane::Preview => (
                 &[
                     ("n", "create"),
                     ("e", "edit"),
-                    ("v", "vscode"),
+                    ("t", "tags"),
                     ("r", "rename"),
                     ("m", "move"),
-                    ("t", "tags"),
-                    ("P", "path"),
-                ],
-                &[
-                    ("n", "create"),
-                    ("e", "edit"),
-                    ("v", "vscode"),
-                    ("P", "path"),
-                ],
-                &[("n", ""), ("e", ""), ("v", ""), ("P", "")],
-            ),
-            Pane::Preview => (
-                &[
-                    ("e", "code"),
-                    ("v", "vscode"),
-                    ("E", "note"),
-                    ("R", "readme"),
-                    ("N", "lines"),
                     ("y", "copy"),
                     ("P", "path"),
                 ],
-                &[("e", "edit"), ("v", "vscode"), ("y", "copy"), ("P", "path")],
-                &[("e", ""), ("v", ""), ("y", ""), ("P", "")],
+                &[("n", "create"), ("e", "edit"), ("t", "tags"), ("y", "copy")],
+                &[("n", ""), ("e", ""), ("y", "")],
             ),
         }
     };

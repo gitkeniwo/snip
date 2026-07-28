@@ -116,7 +116,7 @@ preview on the right. Selecting a folder or tag filters the list as you move.
 | `v` | open in VS Code (`snip open`) |
 | `r` | rename a snippet, or the selected folder or tag |
 | `m` | move a snippet to a folder, or reparent the selected folder |
-| `t`, `p`, `L` | edit tags, toggle pin, toggle lock |
+| `t`, `f`, `p`, `L` | edit tags, edit current fragment language, toggle pin, toggle lock |
 | `d`, `T` | move to trash; open the restore/purge view |
 | `s`, `N` | change sort order; toggle preview line numbers |
 | `F5`, `Ctrl-r` | rescan now (the watcher usually does this for you) |
@@ -128,6 +128,11 @@ Keys are named after the CLI commands they run, so `r` on a folder is
 The mouse works too: click to focus and select, double-click to drill in, click
 a fragment tab, and scroll the pane under the cursor. Dragging across the
 preview selects text and releasing copies it, without the line-number gutter.
+
+The create wizard's language step is a searchable picker with 74 built-in
+languages backed by 220 syntax definitions. Canonical names, common aliases,
+and extensions all match (`ts` finds TypeScript, `yml` finds YAML), while a
+language not in the built-in list can still be entered and used as-is.
 
 The TUI ships by default. For a smaller agent-only binary, build with
 `cargo build --no-default-features`.
@@ -143,8 +148,10 @@ SNIP_TUI_THEME=light snip     # or: snip config set tui-theme light
 ```
 
 Language badges are plain ASCII (`[rs]`, `[py]`, `[sh]`, `[md]`) so they render
-in any font. The rounded caps on the top and bottom bars are Powerline glyphs,
-which need a Nerd Font or another Powerline-patched terminal font.
+in any font. Syntax highlighting uses the expanded two-face syntax set rather
+than syntect's smaller legacy defaults. The rounded caps on the top and bottom
+bars are Powerline glyphs, which need a Nerd Font or another
+Powerline-patched terminal font.
 
 ## User configuration
 

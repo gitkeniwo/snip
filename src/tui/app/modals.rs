@@ -70,7 +70,7 @@ impl App {
                     KeyCode::End => picker.selected = picker.filtered().len().saturating_sub(1),
                     KeyCode::Backspace => {
                         picker.filter.pop();
-                        picker.clamp();
+                        picker.selected = 0;
                         picker.error = None;
                     }
                     KeyCode::Char(value)
@@ -189,6 +189,18 @@ impl App {
                 )?;
                 "tags updated".to_owned()
             }
+            ModalAction::EditLanguage { id, fragment_index } => {
+                edit_snippet(
+                    &self.library,
+                    &id.to_string(),
+                    &EditOptions {
+                        fragment_selector: Some((fragment_index + 1).to_string()),
+                        language: Some(input()?.to_owned()),
+                        ..EditOptions::default()
+                    },
+                )?;
+                "language updated".to_owned()
+            }
             ModalAction::DeleteSnippet { id } => {
                 delete_snippet(&self.library, &id.to_string(), None, false)?;
                 "snippet moved to trash".to_owned()
@@ -242,14 +254,23 @@ impl App {
                 return Ok((Vec::new(), String::new()));
             }
             ModalAction::CreateFolder { title } => {
-                self.modal = Some(Modal::Input(InputModal::new(
+                let current = self.default_language.clone();
+                let mut picker = PickerModal::new(
                     "Language",
-                    self.default_language.clone(),
+                    self.language_picker_items(),
                     ModalAction::CreateLanguage {
                         title,
                         folder: input()?.to_owned(),
                     },
-                )));
+                )
+                .allow_custom()
+                .with_current_value(current.clone());
+                if let Some(language) = crate::language::info(&current) {
+                    picker.select_value(language.aliases[0]);
+                } else {
+                    picker.filter = current;
+                }
+                self.modal = Some(Modal::Picker(picker));
                 return Ok((Vec::new(), String::new()));
             }
             ModalAction::CreateLanguage { title, folder } => {
@@ -476,6 +497,19 @@ impl App {
         items
     }
 
+    pub(super) fn language_picker_items(&self) -> Vec<PickerItem> {
+        crate::language::all()
+            .iter()
+            .map(|language| {
+                PickerItem::with_keywords(
+                    language.canonical_name,
+                    language.aliases[0],
+                    language.aliases.iter().copied().chain(language.extension),
+                )
+            })
+            .collect()
+    }
+
     pub(super) fn open_move_for_context(&mut self) {
         if self.focus == Pane::Sidebar {
             let Some(SidebarItem::Folder(path)) = self.sidebar.selected().map(|row| &row.item)
@@ -516,6 +550,31 @@ impl App {
             snippet.tags.join(", "),
             ModalAction::EditTags { id: snippet.id },
         )));
+    }
+
+    pub(super) fn open_edit_language(&mut self) {
+        let fragment_index = self.fragment_index;
+        let Some((id, current)) = self.mutable_selected().and_then(|snippet| {
+            snippet
+                .loaded_fragments
+                .get(fragment_index)
+                .map(|fragment| (snippet.id, fragment.language.clone()))
+        }) else {
+            return;
+        };
+        let mut picker = PickerModal::new(
+            "Language",
+            self.language_picker_items(),
+            ModalAction::EditLanguage { id, fragment_index },
+        )
+        .allow_custom()
+        .with_current_value(current.clone());
+        if let Some(language) = crate::language::info(&current) {
+            picker.select_value(language.aliases[0]);
+        } else {
+            picker.filter = current;
+        }
+        self.modal = Some(Modal::Picker(picker));
     }
 
     pub(super) fn toggle_pin(&mut self) {
