@@ -63,3 +63,11 @@ jobs:
         with:
           key: ${{ matrix.name }}
       - run: cargo test --locked ${{ matrix.cargo_args }}
+      - name: Check generated man pages
+        if: matrix.name == 'linux-msrv-full'
+        run: cargo run --locked --all-features --example generate-man -- --check
+      - name: Lint man pages
+        if: matrix.name == 'macos-arm64-full'
+        # clap_mangen emits constructs that mandoc flags as style warnings.
+        # Parse every page while failing only on syntax errors or worse.
+        run: mandoc -W error -T utf8 man/*.1 > /dev/null
