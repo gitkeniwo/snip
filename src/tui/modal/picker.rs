@@ -1,4 +1,6 @@
 use super::ModalAction;
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo_matcher::{Config, Matcher, Utf32Str};
 
 /// A picker row. `label` is what the user reads and filters on; `value` is what the
 /// action receives. They differ for the library root, shown as `Uncategorized` but
@@ -9,6 +11,7 @@ pub struct PickerItem {
     pub label: String,
     pub value: String,
     pub keywords: Vec<String>,
+    fallback_keywords: Vec<String>,
     custom: bool,
 }
 
@@ -18,6 +21,7 @@ impl PickerItem {
             label: label.into(),
             value: value.into(),
             keywords: Vec::new(),
+            fallback_keywords: Vec::new(),
             custom: false,
         }
     }
@@ -31,6 +35,22 @@ impl PickerItem {
             label: label.into(),
             value: value.into(),
             keywords: keywords.into_iter().map(Into::into).collect(),
+            fallback_keywords: Vec::new(),
+            custom: false,
+        }
+    }
+
+    pub fn with_keywords_and_fallbacks(
+        label: impl Into<String>,
+        value: impl Into<String>,
+        keywords: impl IntoIterator<Item = impl Into<String>>,
+        fallback_keywords: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            value: value.into(),
+            keywords: keywords.into_iter().map(Into::into).collect(),
+            fallback_keywords: fallback_keywords.into_iter().map(Into::into).collect(),
             custom: false,
         }
     }
@@ -42,6 +62,7 @@ impl PickerItem {
             label: value.clone(),
             value,
             keywords: Vec::new(),
+            fallback_keywords: Vec::new(),
             custom: false,
         }
     }
@@ -51,30 +72,45 @@ impl PickerItem {
             label: format!("use “{value}”"),
             value: value.to_owned(),
             keywords: Vec::new(),
+            fallback_keywords: Vec::new(),
             custom: true,
         }
     }
 
-    fn match_rank(&self, query: &str) -> Option<u8> {
-        let label = self.label.to_lowercase();
-        let value = self.value.to_lowercase();
-        let keywords = self
-            .keywords
+    fn match_score(&self, query: &str, pattern: &Pattern, matcher: &mut Matcher) -> Option<u32> {
+        [self.label.as_str(), self.value.as_str()]
+            .into_iter()
+            .chain(self.keywords.iter().map(String::as_str))
+            .chain(self.fallback_keywords.iter().map(String::as_str))
+            .filter_map(|candidate| {
+                let mut buffer = Vec::new();
+                pattern.score(Utf32Str::new(candidate, &mut buffer), matcher)
+            })
+            .max()
+            .map(|score| score.saturating_add(self.tier_bonus(query)))
+    }
+
+    fn tier_bonus(&self, query: &str) -> u32 {
+        const EXACT: u32 = 1 << 24;
+        const EXACT_FALLBACK: u32 = 1 << 22;
+        const PREFIX: u32 = 1 << 20;
+
+        if self.has_exact_match(query) {
+            EXACT
+        } else if self
+            .fallback_keywords
             .iter()
-            .map(|keyword| keyword.to_lowercase())
-            .collect::<Vec<_>>();
-        if label == query || value == query || keywords.iter().any(|keyword| keyword == query) {
-            Some(0)
-        } else if label.starts_with(query) || value.starts_with(query) {
-            Some(1)
-        } else if keywords.iter().any(|keyword| keyword.starts_with(query)) {
-            Some(2)
-        } else if label.contains(query) || value.contains(query) {
-            Some(3)
-        } else if keywords.iter().any(|keyword| keyword.contains(query)) {
-            Some(4)
+            .any(|keyword| keyword.eq_ignore_ascii_case(query))
+        {
+            EXACT_FALLBACK
+        } else if [self.label.as_str(), self.value.as_str()]
+            .into_iter()
+            .chain(self.keywords.iter().map(String::as_str))
+            .any(|candidate| starts_with_ignore_ascii_case(candidate, query))
+        {
+            PREFIX
         } else {
-            None
+            0
         }
     }
 
@@ -88,20 +124,28 @@ impl PickerItem {
     }
 }
 
+fn starts_with_ignore_ascii_case(value: &str, prefix: &str) -> bool {
+    value
+        .get(..prefix.len())
+        .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+}
+
 #[derive(Clone, Debug)]
 pub struct PickerModal {
     pub label: String,
-    pub items: Vec<PickerItem>,
-    pub filter: String,
+    items: Vec<PickerItem>,
+    filter: String,
     pub selected: usize,
     pub action: ModalAction,
     pub error: Option<String>,
     pub allow_custom: bool,
     pub current_value: Option<String>,
+    filtered: Vec<PickerItem>,
 }
 
 impl PickerModal {
     pub fn new(label: impl Into<String>, items: Vec<PickerItem>, action: ModalAction) -> Self {
+        let filtered = items.clone();
         Self {
             label: label.into(),
             items,
@@ -111,6 +155,7 @@ impl PickerModal {
             error: None,
             allow_custom: false,
             current_value: None,
+            filtered,
         }
     }
 
@@ -132,30 +177,65 @@ impl PickerModal {
             .unwrap_or(0);
     }
 
-    pub fn filtered(&self) -> Vec<PickerItem> {
-        let query = self.filter.trim().to_lowercase();
+    pub fn items(&self) -> &[PickerItem] {
+        &self.items
+    }
+
+    pub fn replace_items(&mut self, items: Vec<PickerItem>) {
+        self.items = items;
+        self.rebuild_filtered();
+        self.clamp();
+    }
+
+    pub fn set_filter(&mut self, filter: impl Into<String>) {
+        self.filter = filter.into();
+        self.rebuild_filtered();
+    }
+
+    pub fn filter(&self) -> &str {
+        &self.filter
+    }
+
+    pub fn push_filter(&mut self, value: char) {
+        self.filter.push(value);
+        self.rebuild_filtered();
+    }
+
+    pub fn pop_filter(&mut self) {
+        self.filter.pop();
+        self.rebuild_filtered();
+    }
+
+    pub fn filtered(&self) -> &[PickerItem] {
+        &self.filtered
+    }
+
+    fn rebuild_filtered(&mut self) {
+        let query = self.filter.trim();
         if query.is_empty() {
-            return self.items.clone();
+            self.filtered.clone_from(&self.items);
+            return;
         }
-        let exact_match = self.items.iter().any(|item| item.has_exact_match(&query));
+        let exact_match = self.items.iter().any(|item| item.has_exact_match(query));
+        let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
+        let mut matcher = Matcher::new(Config::DEFAULT);
         let mut matches = self
             .items
             .iter()
             .enumerate()
             .filter_map(|(index, item)| {
-                item.match_rank(&query)
-                    .map(|rank| (rank, index, item.clone()))
+                item.match_score(query, &pattern, &mut matcher)
+                    .map(|score| (score, index, item.clone()))
             })
             .collect::<Vec<_>>();
-        matches.sort_by_key(|(rank, index, _)| (*rank, *index));
-        let mut items = matches
+        matches.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(&right.1)));
+        self.filtered = matches
             .into_iter()
             .map(|(_, _, item)| item)
             .collect::<Vec<_>>();
         if self.allow_custom && !exact_match {
-            items.push(PickerItem::custom(self.filter.trim()));
+            self.filtered.push(PickerItem::custom(query));
         }
-        items
     }
 
     pub fn selected_value(&self) -> Option<String> {
@@ -174,11 +254,7 @@ impl PickerModal {
             .current_value
             .as_deref()
             .map_or_else(String::new, |value| format!(" ({value})"));
-        let matches = self
-            .filtered()
-            .into_iter()
-            .filter(|item| !item.custom)
-            .count();
+        let matches = self.filtered().iter().filter(|item| !item.custom).count();
         let direct_use = if self.allow_custom && !self.filter.trim().is_empty() && matches == 0 {
             " · ⏎ direct use"
         } else {

@@ -223,7 +223,7 @@ impl App {
         if let Some(language) = crate::language::info(&current) {
             picker.select_value(language.aliases[0]);
         } else {
-            picker.filter = current;
+            picker.set_filter(current);
         }
         self.modal = Some(Modal::Picker(picker));
     }

@@ -65,7 +65,7 @@ impl App {
                     KeyCode::Home => picker.selected = 0,
                     KeyCode::End => picker.selected = picker.filtered().len().saturating_sub(1),
                     KeyCode::Backspace => {
-                        picker.filter.pop();
+                        picker.pop_filter();
                         picker.selected = 0;
                         picker.error = None;
                     }
@@ -74,7 +74,7 @@ impl App {
                             .modifiers
                             .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
                     {
-                        picker.filter.push(value);
+                        picker.push_filter(value);
                         picker.selected = 0;
                         picker.error = None;
                     }

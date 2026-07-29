@@ -116,7 +116,7 @@ impl App {
                     },
                 );
                 picker.selected = picker
-                    .items
+                    .items()
                     .iter()
                     .position(|item| item.value == preferred)
                     .unwrap_or(0);
@@ -138,7 +138,7 @@ impl App {
                 if let Some(language) = crate::language::info(&current) {
                     picker.select_value(language.aliases[0]);
                 } else {
-                    picker.filter = current;
+                    picker.set_filter(current);
                 }
                 self.modal = Some(Modal::Picker(picker));
                 return Ok((Vec::new(), String::new()));

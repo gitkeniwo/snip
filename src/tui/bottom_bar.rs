@@ -69,7 +69,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Modal::Picker(picker) => frame.render_widget(
                 Paragraph::new(Line::from(vec![
                     Span::styled("/ ", Style::default().fg(app.theme.accent)),
-                    Span::raw(picker.filter.clone()),
+                    Span::raw(picker.filter()),
                     Span::styled(
                         "  ↑/↓ move  Enter select  Esc cancel",
                         Style::default().fg(app.theme.muted),

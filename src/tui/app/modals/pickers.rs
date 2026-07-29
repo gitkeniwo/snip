@@ -14,10 +14,11 @@ impl App {
         crate::language::all()
             .iter()
             .map(|language| {
-                PickerItem::with_keywords(
+                PickerItem::with_keywords_and_fallbacks(
                     language.canonical_name,
                     language.aliases[0],
-                    language.aliases.iter().copied().chain(language.extension),
+                    language.aliases.iter().copied(),
+                    language.extension,
                 )
             })
             .collect()

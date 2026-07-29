@@ -81,7 +81,7 @@ mod tests {
     #[test]
     fn picker_ranks_exact_primary_matches_before_substrings() {
         let mut picker = language_picker();
-        picker.filter = "c".to_owned();
+        picker.set_filter("c");
         let filtered = picker.filtered();
         assert_eq!(filtered[0].label, "C");
         assert_eq!(filtered[1].label, "JavaScript");
@@ -90,12 +90,12 @@ mod tests {
     #[test]
     fn picker_searches_keywords_and_only_offers_custom_values_without_an_exact_match() {
         let mut picker = language_picker();
-        picker.filter = "ts".to_owned();
+        picker.set_filter("ts");
         let filtered = picker.filtered();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].value, "typescript");
 
-        picker.filter = "my-dsl".to_owned();
+        picker.set_filter("my-dsl");
         let filtered = picker.filtered();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].label, "use “my-dsl”");
@@ -109,7 +109,16 @@ mod tests {
     #[test]
     fn picker_title_reports_current_value_and_real_match_count() {
         let mut picker = language_picker();
-        picker.filter = "script".to_owned();
+        picker.set_filter("script");
         assert_eq!(picker.title(), "Language (javascript) · 2 matches");
+    }
+
+    #[test]
+    fn replacing_items_rebuilds_the_filtered_cache() {
+        let mut picker = language_picker();
+        picker.set_filter("python");
+        picker.replace_items(vec![PickerItem::new("Python", "python")]);
+        assert_eq!(picker.filtered().len(), 1);
+        assert_eq!(picker.filtered()[0].value, "python");
     }
 }

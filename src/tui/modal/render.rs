@@ -56,10 +56,10 @@ pub fn draw_modal(frame: &mut Frame<'_>, area: Rect, modal: &mut Modal, theme: T
                             .title(format!(" {} ", picker.title()))
                             .title_bottom(format!(
                                 " /{} ",
-                                if picker.filter.is_empty() {
+                                if picker.filter().is_empty() {
                                     "type to filter"
                                 } else {
-                                    picker.filter.as_str()
+                                    picker.filter()
                                 }
                             ))
                             .borders(Borders::ALL)
