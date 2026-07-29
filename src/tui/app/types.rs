@@ -150,6 +150,7 @@ pub struct App {
     pub status: Option<StatusMessage>,
     pub modal: Option<Modal>,
     pub palette: PaletteState,
+    pub(crate) session_state_extra: toml::Table,
     pub trash: TrashState,
     pub should_quit: bool,
     pub pending_quit: bool,

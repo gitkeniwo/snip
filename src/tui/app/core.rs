@@ -16,6 +16,7 @@ use super::super::event::{AppEvent, GitTaskResult};
 use super::super::highlight::Highlighter;
 use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
+use super::super::persist::SessionState;
 use super::super::preview::PreviewCache;
 use super::super::selection::PreviewSelection;
 use super::super::sidebar;
@@ -29,6 +30,19 @@ use super::types::GitState;
 
 impl App {
     pub fn new(library: Library, config: &AppConfig) -> Result<Self> {
+        Self::new_with_session_state(library, config, SessionState::load())
+    }
+
+    pub(crate) fn new_with_session_state(
+        library: Library,
+        config: &AppConfig,
+        session_state: SessionState,
+    ) -> Result<Self> {
+        let SessionState {
+            recent_commands,
+            extra,
+            ..
+        } = session_state;
         let catalog = library.scan()?;
         let index = MemoryIndex::new(catalog.clone());
         let tui = config.tui.clone().unwrap_or_default();
@@ -71,6 +85,7 @@ impl App {
             status: None,
             modal: None,
             palette: Default::default(),
+            session_state_extra: extra,
             trash: TrashState::default(),
             should_quit: false,
             pending_quit: false,
@@ -86,11 +101,30 @@ impl App {
             default_tags: config.default_tags.clone(),
             last_click: None,
         };
+        app.palette.set_recent(
+            recent_commands
+                .iter()
+                .filter_map(|slug| crate::tui::command::by_slug(slug))
+                .collect(),
+        );
         let trash_count = trash_entries(&app.library).map_or(0, |entries| entries.len());
         sidebar::rebuild(&mut app.sidebar, &app.catalog, trash_count);
         app.refresh_visible();
         app.refresh_git();
         Ok(app)
+    }
+
+    pub(crate) fn session_state(&self) -> SessionState {
+        SessionState {
+            schema_version: crate::tui::persist::STATE_SCHEMA_VERSION,
+            recent_commands: self
+                .palette
+                .recent()
+                .iter()
+                .map(|id| crate::tui::command::get(*id).slug.to_owned())
+                .collect(),
+            extra: self.session_state_extra.clone(),
+        }
     }
 
     pub fn selected_snippet(&self) -> Option<&Snippet> {
@@ -524,7 +558,10 @@ fn auto_error_transition(last: &mut Option<String>, next: String) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::auto_error_transition;
+    use super::*;
+    use crate::config::AppConfig;
+    use crate::tui::command::CommandId;
+    use crate::tui::persist::SessionState;
 
     #[test]
     fn repeated_auto_backup_errors_are_silent_until_the_message_changes() {
@@ -533,5 +570,49 @@ mod tests {
         assert!(!auto_error_transition(&mut last, "first".to_owned()));
         assert!(auto_error_transition(&mut last, "second".to_owned()));
         assert_eq!(last.as_deref(), Some("second"));
+    }
+
+    #[test]
+    fn persisted_recent_commands_round_trip_and_ignore_unknown_slugs() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Recent.sniplib"), None).unwrap();
+        let mut app = App::new(library.clone(), &AppConfig::default()).unwrap();
+        app.run_command(CommandId::ViewCycleSort);
+        app.run_command(CommandId::ViewToggleDensity);
+        let path = temporary.path().join("state.toml");
+        let mut extra = toml::Table::new();
+        extra.insert(
+            "future_setting".to_owned(),
+            toml::Value::String("kept".to_owned()),
+        );
+        SessionState {
+            recent_commands: app
+                .palette
+                .recent()
+                .iter()
+                .map(|id| crate::tui::command::get(*id).slug.to_owned())
+                .chain(std::iter::once("snippet.does-not-exist".to_owned()))
+                .collect(),
+            extra,
+            ..SessionState::default()
+        }
+        .save_to(&path)
+        .unwrap();
+        let state = SessionState::load_from(&path);
+        let mut reopened =
+            App::new_with_session_state(library, &AppConfig::default(), state).unwrap();
+        reopened.palette.open();
+        reopened.refresh_palette();
+        assert_eq!(reopened.palette.matches[0].id, CommandId::ViewToggleDensity);
+        assert_eq!(reopened.palette.matches[1].id, CommandId::ViewCycleSort);
+        assert_eq!(reopened.palette.recent().len(), 2);
+        reopened.session_state().save_to(&path).unwrap();
+        assert_eq!(
+            SessionState::load_from(&path)
+                .extra
+                .get("future_setting")
+                .and_then(toml::Value::as_str),
+            Some("kept")
+        );
     }
 }

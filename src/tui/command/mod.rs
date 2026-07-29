@@ -131,3 +131,10 @@ pub fn get(id: CommandId) -> &'static Command {
         .find(|command| command.id == id)
         .expect("every CommandId is registered")
 }
+
+pub fn by_slug(slug: &str) -> Option<CommandId> {
+    registry()
+        .iter()
+        .find(|command| command.slug == slug)
+        .map(|command| command.id)
+}

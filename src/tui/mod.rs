@@ -11,6 +11,7 @@ pub mod icons;
 pub mod layout;
 pub mod modal;
 pub mod palette;
+pub mod persist;
 pub mod preview;
 pub mod selection;
 pub mod sidebar;
@@ -120,6 +121,7 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
             execute_effect(effect, &mut app, &mut terminal, &mut guard)?;
         }
     }
+    let _ = app.session_state().save();
     Ok(())
 }
 

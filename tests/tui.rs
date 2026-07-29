@@ -15,7 +15,7 @@ use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, edit_snippet,
 };
 use snip::tui::app::{App, Effect};
-use snip::tui::command::CommandId;
+use snip::tui::command::{CommandId, registry};
 use snip::tui::editor::{EditOutcome, EditTarget, force_save};
 use snip::tui::event::AppEvent;
 use snip::tui::highlight::Highlighter;
@@ -237,6 +237,85 @@ fn command_palette_resets_selection_when_the_query_changes() {
     assert_eq!(app.palette.selected, 0);
     assert_eq!(app.palette.scroll, 0);
     assert_eq!(app.palette.matches[0].id, CommandId::GitPush);
+}
+
+#[test]
+fn command_palette_shows_position_only_when_results_overflow() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char(':')));
+    let backend = TestBackend::new(60, 12);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let first_count = format!("1/{}", registry().len());
+    assert!((0..12).any(|row| row_text(terminal.backend().buffer(), row).contains(&first_count)));
+    for _ in 0..3 {
+        app.handle_key(key(KeyCode::Down));
+    }
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let selected_count = format!("4/{}", registry().len());
+    assert!(
+        (0..12).any(|row| row_text(terminal.backend().buffer(), row).contains(&selected_count))
+    );
+    app.palette.input.value = "copy id".to_owned();
+    app.palette.input.cursor = "copy id".chars().count();
+    app.refresh_palette();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert!(!(0..12).any(|row| row_text(terminal.backend().buffer(), row).contains("1/1")));
+}
+
+#[test]
+fn picker_prefers_common_language_aliases_and_the_uncategorized_root() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+    for (query, expected) in [("yml", "YAML"), ("ts", "TypeScript"), ("js", "JavaScript")] {
+        app.handle_key(key(KeyCode::Char('f')));
+        for character in query.chars() {
+            app.handle_key(key(KeyCode::Char(character)));
+        }
+        let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+            panic!("expected language picker");
+        };
+        assert_eq!(picker.filtered()[0].label, expected, "query: {query}");
+        app.handle_key(key(KeyCode::Esc));
+    }
+    app.handle_key(key(KeyCode::Char('m')));
+    for character in "unc".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected folder picker");
+    };
+    assert_eq!(picker.filtered()[0].label, snip::UNCATEGORIZED);
+}
+
+#[test]
+fn language_picker_matches_cli_language_resolution() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::List;
+    for language in snip::language::all() {
+        for query in language.aliases.iter().copied().chain(language.extension) {
+            if query.is_empty() {
+                continue;
+            }
+            let expected = snip::language::info(query).unwrap().canonical_name;
+            app.handle_key(key(KeyCode::Char('f')));
+            let Some(Modal::Picker(picker)) = app.modal.as_mut() else {
+                panic!("expected language picker");
+            };
+            picker.set_filter(query);
+            assert_eq!(picker.filtered()[0].label, expected, "query: {query}");
+            app.handle_key(key(KeyCode::Esc));
+        }
+    }
 }
 
 #[test]
@@ -2215,7 +2294,7 @@ fn picker_filter_accepts_j_and_k_and_navigates_with_arrows() {
         panic!("expected folder picker");
     };
     // `j`/`k` must reach the filter instead of moving the selection.
-    assert_eq!(picker.filter, "Docker");
+    assert_eq!(picker.filter(), "Docker");
     assert_eq!(picker.selected_value().as_deref(), Some("Docker"));
 
     app.handle_key(key(KeyCode::Backspace));
@@ -2255,8 +2334,8 @@ fn folder_pickers_label_the_library_root_the_way_the_cli_prints_it() {
     };
     // The root reads as `Uncategorized` (as in `snip list`) but submits an empty
     // folder path, so a real folder of that name could never shadow it.
-    assert_eq!(picker.items[0].label, snip::UNCATEGORIZED);
-    assert_eq!(picker.items[0].value, "");
+    assert_eq!(picker.items()[0].label, snip::UNCATEGORIZED);
+    assert_eq!(picker.items()[0].value, "");
     app.handle_key(key(KeyCode::Enter));
     assert_eq!(app.selected_snippet().unwrap().folder, "");
 }
@@ -2291,7 +2370,10 @@ fn folder_rename_keeps_the_parent_and_move_reparents() {
         panic!("expected folder picker");
     };
     assert!(
-        !picker.items.iter().any(|item| item.value == "Code/Rustic"),
+        !picker
+            .items()
+            .iter()
+            .any(|item| item.value == "Code/Rustic"),
         "a folder cannot move into itself"
     );
     picker.selected = picker

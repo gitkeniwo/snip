@@ -12,11 +12,6 @@ use super::modal::TextInput;
 use super::selection::text_width;
 use super::widgets;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PaletteSource {
-    Commands,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaletteMatch {
     pub id: CommandId,
@@ -26,7 +21,6 @@ pub struct PaletteMatch {
 
 pub struct PaletteState {
     pub open: bool,
-    pub source: PaletteSource,
     pub input: TextInput,
     pub matches: Vec<PaletteMatch>,
     pub selected: usize,
@@ -40,7 +34,6 @@ impl Default for PaletteState {
     fn default() -> Self {
         Self {
             open: false,
-            source: PaletteSource::Commands,
             input: TextInput::default(),
             matches: Vec::new(),
             selected: 0,
@@ -65,6 +58,16 @@ impl PaletteState {
     pub fn record_recent(&mut self, id: CommandId) {
         self.recent.retain(|recent| *recent != id);
         self.recent.insert(0, id);
+        self.recent.truncate(MAX_RECENT);
+    }
+    pub fn set_recent(&mut self, recent: Vec<CommandId>) {
+        self.recent.clear();
+        for id in recent {
+            if !self.recent.contains(&id) {
+                self.recent.push(id);
+            }
+        }
+        self.recent.truncate(MAX_RECENT);
     }
     pub fn refresh(&mut self, hidden: &std::collections::HashSet<CommandId>) {
         let query = self.input.value.trim();
@@ -160,11 +163,12 @@ impl PaletteState {
     pub fn selected_id(&self) -> Option<CommandId> {
         self.matches.get(self.selected).map(|matched| matched.id)
     }
-    #[cfg(test)]
     pub fn recent(&self) -> &[CommandId] {
         &self.recent
     }
 }
+
+pub const MAX_RECENT: usize = 20;
 
 pub fn draw_palette(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
     if !app.palette.open {
@@ -193,15 +197,25 @@ pub fn draw_palette(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
         .saturating_add(area.height / 6)
         .min(overlay.bottom().saturating_sub(height));
     frame.render_widget(Clear, popup);
-    let block = Block::default()
+    app.palette.visible_rows = (popup.height.saturating_sub(4) as usize).max(1);
+    app.palette.ensure_selected_visible();
+    let mut block = Block::default()
         .title(" Commands ")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(app.theme.accent));
+    if app.palette.matches.len() > app.palette.visible_rows {
+        block = block.title_bottom(
+            Line::from(format!(
+                " {}/{} ",
+                app.palette.selected + 1,
+                app.palette.matches.len()
+            ))
+            .right_aligned(),
+        );
+    }
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
-    app.palette.visible_rows = (inner.height.saturating_sub(2) as usize).max(1);
-    app.palette.ensure_selected_visible();
     let cursor = app
         .palette
         .input
