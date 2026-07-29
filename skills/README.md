@@ -15,13 +15,26 @@ Copy or symlink the skill directory into the agent's skills folder. Symlinking
 keeps it current as the CLI evolves:
 
 ```bash
-# Claude Code / Claude Desktop, available in every project
-mkdir -p ~/.claude/skills
-ln -s "$PWD/skills/snip" ~/.claude/skills/snip
+mkdir -p ~/.agents/skills && ln -s "$PWD/skills/snip" ~/.agents/skills/snip
 ```
 
+`~/.agents/skills/` is the vendor-neutral location. Support for it is still
+uneven, so also link it into the directory your agent actually reads:
+`~/.claude/skills/` (Claude Code), `~/.codex/skills/` (Codex),
+`~/.opencode/skills/` (opencode), `~/.omp/skills/` (oh-my-pi). One pass covers
+whichever of them exist:
+
 ```bash
-# Scoped to one project instead
+for dir in ~/.agents ~/.claude ~/.codex ~/.opencode ~/.omp; do
+  [ -d "$dir" ] || continue
+  mkdir -p "$dir/skills"
+  ln -sfn "$PWD/skills/snip" "$dir/skills/snip"
+done
+```
+
+To scope the skill to one project, use that project's skills directory instead:
+
+```bash
 mkdir -p /path/to/project/.claude/skills
 ln -s "$PWD/skills/snip" /path/to/project/.claude/skills/snip
 ```
@@ -30,7 +43,7 @@ For the Claude Agent SDK, point your skills directory at `skills/`. For agents
 that take a system prompt rather than skill files, paste `snip/SKILL.md` and
 attach `snip/references/*.md` as needed.
 
-The skill assumes `snip` is on `PATH` and that a library is reachable — via
+The skill assumes `snip` is on `PATH` and that a library is reachable, via
 `--library`, `$SNIP_LIBRARY`, an ancestor `snip.toml`, or the `default_library`
 config key. Install the binary with `cargo install --path .` from the repository
 root.

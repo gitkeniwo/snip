@@ -178,61 +178,32 @@ default.
 
 ## Terminal browser
 
-Three panes: folders and tags on the left, the snippet list in the middle, a
-preview on the right. Selecting a folder or tag filters the list as you move. A
-file watcher picks up changes made elsewhere while you are looking at them.
+Three panes: folders and tags on the left, snippets in the middle, a preview on
+the right. Selecting a folder or tag filters the list. A file watcher picks up
+changes made outside the browser.
 
 | Key | |
 |---|---|
+| `?` | the full key map |
 | `:` / `Ctrl-P` | command palette |
 | `/` | search |
-| `Tab` / `Shift-Tab` | next / previous pane |
-| `h`/`←`, `l`/`→` | back out, or drill in |
-| `j`/`k` | move; `g`/`G` first/last; `Ctrl-d`/`Ctrl-u` page |
-| `1`-`9`, `0` | jump to 1st-10th item (folder, snippet, or fragment) |
-| `[`/`]`, `{`/`}` | switch fragments; jump paragraphs |
-| `n` | create a snippet, or a folder from the sidebar |
-| `e`, `E`, `R` | edit content, note, or README in `$EDITOR` |
-| `v` | open in VS Code (`snip open`) |
-| `r` | rename a snippet, or the selected folder or tag |
-| `m` | move a snippet to a folder, or reparent the selected folder |
-| `t`, `f`, `P`, `L` | edit tags, edit current fragment language, toggle pin, toggle lock |
-| `y`, `Y`, `p` | copy content (`y`), snippet ID (`Y`), managed path (`p`) |
-| `d`, `T` | move to trash; open the restore/purge view |
-| `s`, `N`, `z` | change sort order; toggle line numbers; toggle row density |
+| `Tab`, `h`/`l` | switch pane; back out or drill in |
+| `j`/`k`, `g`/`G` | move; first/last |
+| `n`, `e`, `d` | create, edit in `$EDITOR`, move to trash |
+| `y` | copy content |
 | `Ctrl-g` | Git console |
-| `F5`, `Ctrl-r` | rescan now (the watcher usually does this for you) |
-| `?` | the full key map |
 
-Keys are named after the CLI commands they run, so `r` on a folder is
-`snip folder rename` and `m` is `snip folder move`.
+Keys are named after the CLI commands they run, so `r` on a folder is `snip
+folder rename`. The mouse works as expected: click to focus, double-click to
+drill in, scroll the pane under the cursor, drag across the preview to copy.
 
 ### Command palette
 
-`:` or `Ctrl-P` opens a palette over whatever you are looking at. Type to
-fuzzy-match, `↑`/`↓` (or `Ctrl-p`/`Ctrl-n`) to move, `Enter` to run, `Esc` to
-close. It also opens over the help overlay, the trash view, and the Git console.
-
-Keys act on what is in front of you: `r` renames the folder under the sidebar
-cursor, or the selected snippet, depending on which pane has focus. The palette
-is the other half — every command is spelled out (`Folder: Rename` and
-`Snippet: Rename` are separate entries) and runs regardless of focus. Git is
-grouped the same way: `Git: Commit`, `Git: Push to Remote`, `Git: Commit with
-Message…`.
-
-Commands that cannot run right now stay in the list, greyed out with the reason
-on the right (`no snippet selected`, `not a Git repository`) rather than
-disappearing. Everything else shows its key binding there instead, so the
-palette doubles as a way to pick up the shortcuts.
-
-The mouse works too: click to focus and select, double-click to drill in, click
-a fragment tab, and scroll the pane under the cursor. Dragging across the
-preview selects text and releasing copies it, without the line-number gutter.
-
-The create wizard's language step is a searchable picker with 74 built-in
-languages backed by 220 syntax definitions. Canonical names, common aliases, and
-extensions all match (`ts` finds TypeScript, `yml` finds YAML), and a language
-not in the list can still be entered and used as-is.
+`:` or `Ctrl-P` opens a fuzzy-matched list of every command, each spelled out
+(`Folder: Rename`, `Snippet: Rename`, `Git: Commit`) and runnable regardless of
+which pane has focus. Commands that cannot run right now stay visible, greyed
+out with the reason; the rest show their key binding, so the palette doubles as
+a way to learn the shortcuts.
 
 ### Appearance
 
@@ -250,8 +221,9 @@ which need a Nerd Font or another Powerline-patched terminal font.
 
 ## Agent-friendly operations
 
-Use UUIDs from JSON output for deterministic operations. Human-readable titles
-are accepted only when they identify exactly one snippet.
+Every command takes `--output json` or `jsonl`. Use UUIDs from that output for
+deterministic operations; titles are accepted only when they identify exactly one
+snippet.
 
 ```bash
 snip --output json list
@@ -272,15 +244,10 @@ replacement content
 EOF
 ```
 
-Search results carry the snippet's `fingerprint`, so a metadata change (retag,
-move, rename, delete) can go straight from `search` to `--if-hash` without a
-separate `show`. Replacing content still means reading the content first —
-`--if-hash` proves nobody else edited the snippet, not that the change is right.
-
-External editing (`snip edit` with no structured change, `--metadata-editor`,
-`--readme-editor`, `--note-editor`) requires an interactive terminal and exits
-with a usage error otherwise, so scripts fail fast instead of blocking on an
-editor that can never appear.
+`search` results carry the snippet's `fingerprint`, so a metadata change can go
+straight to `--if-hash` without a separate `show`. Commands that would open an
+editor fail with a usage error when stdout is not a terminal, so scripts never
+block on an editor that cannot appear.
 
 Structured stdout is kept separate from errors. Exit codes are stable:
 
@@ -293,20 +260,59 @@ Structured stdout is kept separate from errors. Exit codes are stable:
 | 4 | lock or fingerprint conflict |
 | 5 | invalid library data |
 
-`--output jsonl` emits one JSON value per line for lists and search results.
-`cat` always emits only the raw fragment content.
+## AI agent skills
 
-### Installable agent skill
-
-[`skills/snip`](skills/snip/SKILL.md) packages the above into a skill any agent
-can load — vocabulary, selectors, JSON payload shapes, the `--if-hash` workflow,
-and the on-disk format. Symlink it into an agent's skills directory:
+[`skills/snip`](skills/snip/SKILL.md) packages all of the above into a skill any
+agent can load: vocabulary, selectors, JSON payload shapes, and the `--if-hash`
+workflow. Symlinking keeps it current as the CLI evolves.
 
 ```bash
-mkdir -p ~/.claude/skills && ln -s "$PWD/skills/snip" ~/.claude/skills/snip
+mkdir -p ~/.agents/skills && ln -s "$PWD/skills/snip" ~/.agents/skills/snip
 ```
 
-See [`skills/README.md`](skills/README.md) for other runtimes.
+`~/.agents/skills/` is the vendor-neutral location. Support for it is still
+uneven, so also link it into the directory your agent actually reads:
+`~/.claude/skills/` (Claude Code), `~/.codex/skills/` (Codex),
+`~/.opencode/skills/` (opencode), `~/.omp/skills/` (oh-my-pi). One pass covers
+whichever of them exist:
+
+```bash
+for dir in ~/.agents ~/.claude ~/.codex ~/.opencode ~/.omp; do
+  [ -d "$dir" ] || continue
+  mkdir -p "$dir/skills"
+  ln -sfn "$PWD/skills/snip" "$dir/skills/snip"
+done
+```
+
+Or hand the job to the agent itself:
+
+```text
+Install the snip agent skill from
+https://github.com/gitkeniwo/snip/tree/main/skills/snip
+
+Fetch that directory (SKILL.md plus everything under references/) and put it at
+~/.agents/skills/snip if you read that location, otherwise your own skills
+directory. If the snip repository is already cloned locally, symlink its
+skills/snip instead of copying, so the skill tracks the CLI. Then tell me the
+path you used and confirm `snip --version` runs.
+```
+
+Once loaded, the agent works the library directly:
+
+```text
+Save the fish function we just wrote to snip under Shell/Fish, tag it fish and
+clipboard, and add a note explaining why the pbcopy fallback is there.
+
+My fish config drifted from the copy in snip. Diff ~/.config/fish/config.fish
+against that snippet and update whichever is stale, keeping the note intact.
+
+Run brew bundle dump, compare it with the Brewfile snippet in snip, and commit
+the update to the library's Git repo if anything changed.
+```
+
+The skill assumes `snip` is on `PATH` and a library is reachable. See
+[`skills/README.md`](skills/README.md) for project-scoped installs, the Claude
+Agent SDK, and runtimes that take a system prompt instead of skill files.
 
 ## Configuration
 
@@ -392,21 +398,17 @@ Main.sniplib/
 └── .gitignore
 ```
 
-The physical path below `snippets/` is the folder hierarchy. A snippet package
-is recognized by `snippet.toml`; its directory name is descriptive and can be
-moved or renamed manually. UUIDs in the manifest remain the stable identity.
+The path below `snippets/` *is* the folder hierarchy, and a directory is a
+snippet if it contains `snippet.toml`. Directory names are descriptive only, so
+you can move or rename them by hand; the UUID in the manifest is the stable
+identity. Nothing under `.snip/` is user data, and deleting it while snip is not
+running never loses anything.
 
-[FORMAT.md](FORMAT.md) specifies all of this normatively — manifests, path
-rules, the fingerprint algorithm, and the transaction protocol — so another tool
-can read and write a library without going through snip.
+Editor changes are picked up on the next scan. CLI writes take a library lock
+and are atomic, so `snip doctor --repair` can recover an interrupted one.
 
-Direct editor changes are discovered on the next scan. CLI mutations use a
-library lock and atomic writes. `snip doctor --repair` recovers interrupted
-package transactions, and `snip organize` normalizes package directory names.
-
-Nothing under `.snip/` is user data — it holds locks and in-flight transactions,
-and may later hold a search cache. Deleting it while snip is not running must
-never lose anything from the library.
+[FORMAT.md](FORMAT.md) specifies the format normatively, so another tool can
+read and write a library without going through snip.
 
 ## Preview and editing
 
@@ -510,48 +512,37 @@ cargo test --locked --no-default-features
 cargo build --locked --release --all-features
 ```
 
-For a local development library, bind `./Main.sniplib` as the default:
-
-```bash
-./target/release/snip config set default-library ./Main.sniplib
-./target/release/snip info
-```
-
-`Main.sniplib/` is local working data and is ignored by the repository. It can
-be deleted and recreated with `snip init ./Main.sniplib --name Main` without
-affecting the Rust project.
+`Main.sniplib/` is a scratch library for development, ignored by the repository.
+Recreate it any time with `snip init ./Main.sniplib --name Main`.
 
 ### CI
 
-- `CI` runs on pushes and pull requests: formatting, Clippy on both feature
-  sets, and tests on Linux (stable, 1.89 MSRV, and `--no-default-features`),
-  macOS arm64, and Windows.
-- `Deep tests` is manually dispatched for the complete deterministic suite, the
-  synthetic SnippetsLab importer fixture, the recursive-watcher regression, and
-  an LCOV coverage report.
-- `Release build` runs for `v*` tags and manual dispatch, producing archives for
-  Linux x86_64/arm64, macOS arm64/Intel, and Windows x86_64. On a tag it also
-  bumps the formula in
-  [gitkeniwo/homebrew-snip](https://github.com/gitkeniwo/homebrew-snip) (needs
-  `HOMEBREW_TAP_TOKEN`), updates the AUR package `sniplab` (needs
-  `AUR_SSH_PRIVATE_KEY`), and publishes the crate to crates.io (needs
-  `CARGO_REGISTRY_TOKEN`). Steps are skipped when secrets are absent.
+| Workflow | |
+|---|---|
+| `CI` | pushes and PRs: fmt, Clippy on both feature sets, tests on Linux (stable, 1.89 MSRV, `--no-default-features`), macOS arm64, and Windows |
+| `Deep tests` | manual: full deterministic suite, importer fixture, watcher regression, coverage |
+| `Release build` | `v*` tags and manual: builds every platform, then publishes (see below) |
 
 ### Releasing
 
-The tag is the single source of truth for the version, so the release job first
-checks that `v<tag>` matches the `version` field in `Cargo.toml` and fails the
-run if they disagree.
-
 1. Bump `version` in `Cargo.toml` and add the release to
    [CHANGELOG.md](CHANGELOG.md).
-2. Commit, then tag the commit `vX.Y.Z` and push the tag.
-3. `Release build` builds every platform, attaches the archives to a GitHub
-   release, publishes `sniplab` to crates.io, and updates the Homebrew formula,
-   AUR package, and Scoop bucket.
+2. Commit, then tag `vX.Y.Z` and push the tag.
 
-Publishing to crates.io is idempotent: if that version is already on the
-registry the step reports it and skips, so a workflow re-run is safe.
+The tag is the source of truth: the run fails if it disagrees with `Cargo.toml`.
+It then attaches the archives to a GitHub release and updates each downstream
+package, every one gated on its own secret and skipped when that secret is
+absent:
+
+| Target | Secret |
+|---|---|
+| crates.io | `CARGO_REGISTRY_TOKEN` |
+| [homebrew-snip](https://github.com/gitkeniwo/homebrew-snip) | `HOMEBREW_TAP_TOKEN` |
+| AUR (`sniplab`) | `AUR_SSH_PRIVATE_KEY` |
+| [scoop-snip](https://github.com/gitkeniwo/scoop-snip) | `SCOOP_BUCKET_TOKEN` |
+
+Re-running a release is safe: the crates.io step skips a version already on the
+registry, and the package updates are no-ops when nothing changed.
 
 ## License
 
