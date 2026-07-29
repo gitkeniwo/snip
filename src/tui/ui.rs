@@ -9,6 +9,7 @@ use super::bottom_bar;
 use super::git_panel;
 use super::help;
 use super::modal;
+use super::palette;
 use super::preview;
 use super::selection::text_width;
 use super::snippet_list;
@@ -52,6 +53,7 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     if app.trash.open {
         trash::draw_trash(frame, app, area);
     }
+    palette::draw_palette(frame, area, app);
     if let Some(ref mut modal) = app.modal {
         modal::draw_modal(frame, area, modal, app.theme);
     }

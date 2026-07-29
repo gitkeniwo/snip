@@ -15,6 +15,7 @@ use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, edit_snippet,
 };
 use snip::tui::app::{App, Effect};
+use snip::tui::command::CommandId;
 use snip::tui::editor::{EditOutcome, EditTarget, force_save};
 use snip::tui::event::AppEvent;
 use snip::tui::highlight::Highlighter;
@@ -143,6 +144,216 @@ fn select_sidebar_item(app: &mut App, item: SidebarItem) {
         .unwrap();
     app.sidebar.list_state.select(Some(index));
     app.focus = Pane::Sidebar;
+}
+
+#[test]
+fn command_palette_fuzzy_match_and_recent_order() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.palette.open();
+    app.refresh_palette();
+    app.palette.input.value = "gp".to_owned();
+    app.palette.input.cursor = 2;
+    app.refresh_palette();
+    assert!(
+        app.palette
+            .matches
+            .iter()
+            .take(3)
+            .any(|matched| matched.id == CommandId::GitPush)
+    );
+    app.palette.input.value = "commit".to_owned();
+    app.palette.input.cursor = 6;
+    app.refresh_palette();
+    let commit = app
+        .palette
+        .matches
+        .iter()
+        .position(|matched| matched.id == CommandId::GitCommit)
+        .unwrap();
+    let message = app
+        .palette
+        .matches
+        .iter()
+        .position(|matched| matched.id == CommandId::GitCommitWithMessage)
+        .unwrap();
+    assert!(commit < message);
+    app.palette.input.value = "push".to_owned();
+    app.palette.input.cursor = 4;
+    app.refresh_palette();
+    assert_eq!(app.palette.matches[0].id, CommandId::GitPush);
+    app.run_command(CommandId::ViewCycleSort);
+    app.run_command(CommandId::ViewToggleDensity);
+    app.palette.open();
+    app.refresh_palette();
+    assert_eq!(app.palette.matches[0].id, CommandId::ViewToggleDensity);
+    assert_eq!(app.palette.matches[1].id, CommandId::ViewCycleSort);
+}
+
+#[test]
+fn command_palette_disabled_commands_report_status() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = None;
+    assert!(app.run_command(CommandId::SnippetEditContent).is_empty());
+    assert_eq!(
+        app.status.as_ref().unwrap().level,
+        snip::tui::state::StatusLevel::Error
+    );
+    assert_eq!(app.status.as_ref().unwrap().text, "no snippet selected");
+}
+
+#[test]
+fn command_palette_handles_input_and_executes_selected_command() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char(':')));
+    assert!(app.palette.open);
+    for character in "copy id".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    assert_eq!(app.palette.matches[0].id, CommandId::CopySnippetId);
+    let effects = app.handle_key(key(KeyCode::Enter));
+    assert!(!app.palette.open);
+    assert!(matches!(
+        effects.as_slice(),
+        [Effect::CopyToClipboard { .. }]
+    ));
+}
+
+#[test]
+fn command_palette_resets_selection_when_the_query_changes() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char(':')));
+    for character in "git".chars() {
+        app.handle_key(key(KeyCode::Char(character)));
+    }
+    for _ in 0..3 {
+        app.handle_key(key(KeyCode::Down));
+    }
+    assert_eq!(app.palette.selected, 3);
+    app.handle_key(key(KeyCode::Char('p')));
+    assert_eq!(app.palette.selected, 0);
+    assert_eq!(app.palette.scroll, 0);
+    assert_eq!(app.palette.matches[0].id, CommandId::GitPush);
+}
+
+#[test]
+fn command_palette_opens_over_help_and_filters_hidden_commands() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char('?')));
+    assert!(app.show_help);
+    app.handle_key(key(KeyCode::Char(':')));
+    assert!(app.palette.open);
+
+    let hidden = std::collections::HashSet::from([CommandId::GitPush]);
+    app.palette.refresh(&hidden);
+    assert!(
+        !app.palette
+            .matches
+            .iter()
+            .any(|matched| matched.id == CommandId::GitPush)
+    );
+}
+
+#[test]
+fn command_palette_uses_the_rendered_viewport_on_short_terminals() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char(':')));
+    let backend = TestBackend::new(60, 12);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.palette.visible_rows, 7);
+    for _ in 0..8 {
+        app.handle_key(key(KeyCode::Down));
+    }
+    assert_eq!(app.palette.selected, 8);
+    assert_eq!(app.palette.scroll, 2);
+    assert!(
+        (app.palette.scroll..app.palette.scroll + app.palette.visible_rows)
+            .contains(&app.palette.selected)
+    );
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    assert!(
+        row_text(buffer, 11).contains("←/→"),
+        "palette must not clear the bottom bar"
+    );
+}
+
+#[test]
+fn command_palette_reclamps_scroll_after_a_terminal_resize() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char(':')));
+    let mut large = Terminal::new(TestBackend::new(80, 40)).unwrap();
+    large
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.palette.visible_rows, 10);
+    for _ in 0..9 {
+        app.handle_key(key(KeyCode::Down));
+    }
+    assert_eq!((app.palette.selected, app.palette.scroll), (9, 0));
+
+    let mut small = Terminal::new(TestBackend::new(60, 10)).unwrap();
+    small
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.palette.visible_rows, 5);
+    assert_eq!(app.palette.scroll, 5);
+    assert!(
+        (app.palette.scroll..app.palette.scroll + app.palette.visible_rows)
+            .contains(&app.palette.selected)
+    );
+}
+
+#[test]
+fn command_palette_renders_one_result_on_an_extremely_short_terminal() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char(':')));
+    let mut terminal = Terminal::new(TestBackend::new(40, 5)).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.palette.visible_rows, 1);
+    let rendered = (0..5)
+        .map(|row| row_text(terminal.backend().buffer(), row))
+        .collect::<String>();
+    assert!(rendered.contains("New Snippet"));
+}
+
+#[test]
+fn git_commands_explain_when_the_git_binary_is_missing() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.git.repo = None;
+    app.git.unavailable = Some(Unavailable::BinaryMissing);
+    assert!(app.run_command(CommandId::GitPush).is_empty());
+    assert_eq!(app.status.as_ref().unwrap().text, "git not found in PATH");
+}
+
+#[test]
+fn git_commands_explain_when_repository_probe_fails() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.git.repo = None;
+    app.git.unavailable = Some(Unavailable::ProbeFailed {
+        message: "permission denied".to_owned(),
+    });
+    assert!(app.run_command(CommandId::GitPush).is_empty());
+    assert_eq!(
+        app.status.as_ref().unwrap().text,
+        "git could not inspect this repository"
+    );
 }
 
 #[test]

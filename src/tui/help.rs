@@ -67,6 +67,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
         "VIEW & GLOBAL",
         &[
             ("/", "search"),
+            (": / Ctrl-Shift-P", "open command palette"),
             ("s", "cycle sort"),
             ("N", "toggle line numbers"),
             ("z", "toggle list density"),
@@ -373,5 +374,50 @@ mod tests {
             rendered.contains('…'),
             "a clipped description must advertise truncation"
         );
+    }
+
+    #[test]
+    fn help_key_hints_do_not_drift_from_registered_commands() {
+        let group = |label| {
+            GROUPS
+                .iter()
+                .find(|(group, _, _)| *group == label)
+                .map(|(_, entries, _)| *entries)
+                .expect("help group should exist")
+        };
+        let entries_for = |category| match category {
+            "Snippet" => group("SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS"),
+            "Copy" => group("COPY"),
+            "Folder" | "Tag" => group("SIDEBAR — WHEN THE LEFT PANE HAS FOCUS"),
+            "View" | "Library" | "App" => group("VIEW & GLOBAL"),
+            "Trash" => group("TRASH — WHEN OPEN"),
+            "Git" => group("GIT CONSOLE — WHEN OPEN"),
+            _ => panic!("missing help mapping for command category {category}"),
+        };
+        let global_entries = group("VIEW & GLOBAL");
+        for command in crate::tui::command::registry() {
+            let Some(hint) = command.key_hint else {
+                continue;
+            };
+            if command.category == "Git" && hint == "Ctrl-g" {
+                assert!(global_entries.iter().any(|(label, _)| *label == "Ctrl-g"));
+            } else if command.category == "Git" {
+                let key = hint.strip_prefix("Ctrl-g ").expect("Git hints use Ctrl-g");
+                assert!(global_entries.iter().any(|(label, _)| *label == "Ctrl-g"));
+                assert!(
+                    entries_for("Git").iter().any(|(label, _)| *label == key),
+                    "{} ({hint}) is missing from Git help",
+                    command.slug
+                );
+            } else {
+                assert!(
+                    entries_for(command.category)
+                        .iter()
+                        .any(|(label, _)| *label == hint),
+                    "{} ({hint}) is missing from its help group",
+                    command.slug
+                );
+            }
+        }
     }
 }
