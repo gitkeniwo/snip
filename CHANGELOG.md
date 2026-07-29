@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-29
+
+### Added
+
+- `snip git init` makes an existing library a Git repository. Previously only
+  `snip init --git` could do it, at creation time, so a library created without
+  that flag had no supported way back — while the terminal browser could do it
+  from the Git console. Idempotent: it reports `created: false` and succeeds on
+  a library that is already a repository, and creates no commit.
+- `tui-line-numbers` config key. The preview gutter was the one display
+  preference that could not be persisted; toggling it with `N` now saves, the
+  same way density does. Defaults to on, and configs written before the key
+  existed keep that behaviour.
+
+### Fixed
+
+- `App::new` no longer reads the on-disk `state.toml`. Loading it in a
+  constructor meant every test inherited whatever the developer's own recent
+  commands happened to be, so two palette tests passed or failed depending on
+  the machine. The real entry point loads it explicitly instead.
+- The help overlay documents `i` in the Git console as initializing a
+  repository as well as setting the automatic interval — the key does both
+  depending on whether the library is a repo, but only one meaning was listed.
+
+### Documentation
+
+- The agent skill's main page covers `snip git`, `snip info`, and `snip init`,
+  and says which commands it deliberately leaves to the reference.
+- Corrected the claim that the TUI suspends the terminal for manual Git
+  operations; that changed in 0.2.0.
+
 ## [0.2.0] - 2026-07-29
 
 First release published to [crates.io](https://crates.io/crates/sniplab). The
@@ -77,5 +108,6 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.2.1]: https://github.com/gitkeniwo/snip/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/gitkeniwo/snip/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/gitkeniwo/snip/releases/tag/v0.1.0
