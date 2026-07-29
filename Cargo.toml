@@ -1,10 +1,21 @@
 [package]
-name = "snip"
-version = "0.1.0"
+name = "sniplab"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.89"
-description = "A filesystem-native snippet library and agent-friendly CLI"
+description = "A filesystem-native snippet library and agent-friendly CLI, installed as `snip`"
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/gitkeniwo/snip"
+homepage = "https://github.com/gitkeniwo/snip"
+documentation = "https://docs.rs/sniplab"
+keywords = ["snippet", "cli", "tui", "notes", "ratatui"]
+categories = ["command-line-utilities", "development-tools", "text-editors"]
+exclude = [
+    ".github/",
+    "examples/",
+    "opencode.jsonc",
+]
 
 [lib]
 name = "snip"

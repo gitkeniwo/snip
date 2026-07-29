@@ -23,6 +23,12 @@ Homebrew, on macOS or Linux:
 brew install gitkeniwo/snip/snip
 ```
 
+From crates.io (the crate is `sniplab`; the binary it installs is `snip`):
+
+```bash
+cargo install sniplab
+```
+
 Or download a binary from the [latest release](https://github.com/gitkeniwo/snip/releases/latest):
 
 | Platform | Asset |
@@ -48,6 +54,8 @@ cargo install --path .
 
 For a smaller binary without the terminal browser, build with
 `--no-default-features`.
+
+Release history is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick start
 
@@ -453,8 +461,24 @@ affecting the Rust project.
   Linux x86_64/arm64, macOS arm64/Intel, and Windows x86_64. On a tag it also
   bumps the formula in
   [gitkeniwo/homebrew-snip](https://github.com/gitkeniwo/homebrew-snip), which
-  needs a `HOMEBREW_TAP_TOKEN` secret with write access to that repository. The
-  step is skipped when the secret is absent.
+  needs a `HOMEBREW_TAP_TOKEN` secret with write access to that repository, and
+  publishes the crate to crates.io, which needs a `CARGO_REGISTRY_TOKEN` secret.
+  Either step is skipped when its secret is absent.
+
+### Releasing
+
+The tag is the single source of truth for the version, so the release job first
+checks that `v<tag>` matches the `version` field in `Cargo.toml` and fails the
+run if they disagree.
+
+1. Bump `version` in `Cargo.toml` and add the release to
+   [CHANGELOG.md](CHANGELOG.md).
+2. Commit, then tag the commit `vX.Y.Z` and push the tag.
+3. `Release build` builds every platform, attaches the archives to a GitHub
+   release, publishes `sniplab` to crates.io, and updates the Homebrew formula.
+
+Publishing to crates.io is idempotent: if that version is already on the
+registry the step reports it and skips, so a workflow re-run is safe.
 
 ## License
 
