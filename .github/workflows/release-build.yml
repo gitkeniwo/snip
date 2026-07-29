@@ -254,6 +254,88 @@ jobs:
           git commit -am "snip ${VERSION#v}"
           git push
 
+  copr:
+    name: Build in Fedora Copr
+    needs: [version, publish]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container: fedora:latest
+    env:
+      COPR_PROJECT: gitkeniwo/snip
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check for a Copr API token
+        id: guard
+        env:
+          COPR_API_CONFIG: ${{ secrets.COPR_API_CONFIG }}
+        run: |
+          if [ -z "$COPR_API_CONFIG" ]; then
+            echo "COPR_API_CONFIG is not set; skipping the Copr build." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install build tooling
+        if: steps.guard.outputs.ready == 'true'
+        run: dnf install -y --setopt=install_weak_deps=False
+          copr-cli rpm-build rpmdevtools cargo git-core tar
+
+      - uses: actions/checkout@v6
+        if: steps.guard.outputs.ready == 'true'
+
+      - name: Vendor the crate dependencies
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          SOURCE_URL: https://github.com/gitkeniwo/snip/archive/refs/tags/v${{ needs.version.outputs.version }}.tar.gz
+        run: |
+          rpmdev-setuptree
+          sources=~/rpmbuild/SOURCES
+          curl --fail --location --retry 3 \
+            --output "$sources/snip-$VERSION.tar.gz" "$SOURCE_URL"
+
+          # Vendoring must run against the exact tree the spec unpacks, so use
+          # the release tarball rather than this checkout.
+          workdir="$(mktemp -d)"
+          tar -C "$workdir" -xzf "$sources/snip-$VERSION.tar.gz"
+          ( cd "$workdir/snip-$VERSION" && cargo vendor --locked vendor )
+          tar -C "$workdir/snip-$VERSION" -czf \
+            "$sources/sniplab-$VERSION-vendor.tar.gz" vendor
+
+      - name: Render the spec
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          DATE="$(LC_ALL=C date -u '+%a %b %d %Y')" python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          spec = Path("packaging/copr/sniplab.spec.in").read_text()
+          spec = spec.replace("@VERSION@", os.environ["VERSION"])
+          spec = spec.replace("@DATE@", os.environ["DATE"])
+          out = Path.home() / "rpmbuild" / "SPECS" / "sniplab.spec"
+          out.write_text(spec)
+          PY
+
+      - name: Build the SRPM
+        if: steps.guard.outputs.ready == 'true'
+        run: rpmbuild -bs ~/rpmbuild/SPECS/sniplab.spec
+
+      - name: Submit to Copr
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          COPR_API_CONFIG: ${{ secrets.COPR_API_CONFIG }}
+        run: |
+          install -m 700 -d ~/.config
+          printf '%s\n' "$COPR_API_CONFIG" > ~/.config/copr
+          chmod 600 ~/.config/copr
+          srpm="$(ls ~/rpmbuild/SRPMS/sniplab-$VERSION-*.src.rpm)"
+          copr-cli build "$COPR_PROJECT" "$srpm"
+          echo "Submitted $(basename "$srpm") to $COPR_PROJECT" \
+            >> "$GITHUB_STEP_SUMMARY"
+
   aur:
     name: Update AUR package
     needs: [version, publish]

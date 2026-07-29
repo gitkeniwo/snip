@@ -53,9 +53,17 @@ On arm64, swap `x86_64` for `aarch64`.
 
 ### Fedora / Enterprise Linux
 
-For Fedora 40+ and the Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux
-10.0+, AlmaLinux 10.0+, Oracle Linux 10+, CentOS Stream 10+ — all of which ship
-glibc 2.39 or newer:
+From [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/). Builds
+from source on Fedora's infrastructure, and `dnf upgrade` picks up new releases:
+
+```bash
+sudo dnf copr enable gitkeniwo/snip
+sudo dnf install sniplab
+```
+
+Or grab the standalone `.rpm` from a release. This works on Fedora 40+ and the
+Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux 10.0+, AlmaLinux 10.0+,
+Oracle Linux 10+, CentOS Stream 10+ — all of which ship glibc 2.39 or newer:
 
 ```bash
 curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm
@@ -538,8 +546,12 @@ run if they disagree.
    [CHANGELOG.md](CHANGELOG.md).
 2. Commit, then tag the commit `vX.Y.Z` and push the tag.
 3. `Release build` builds every platform, attaches the archives to a GitHub
-   release, publishes `sniplab` to crates.io, and updates the Homebrew formula
-   and AUR package.
+   release, publishes `sniplab` to crates.io, updates the Homebrew formula and
+   AUR package, and submits an SRPM to Fedora Copr.
+
+The Copr job vendors the crate dependencies into the SRPM, because Copr builds
+run in mock without network access. It is skipped when `COPR_API_CONFIG` is
+unset.
 
 Publishing to crates.io is idempotent: if that version is already on the
 registry the step reports it and skips, so a workflow re-run is safe.
