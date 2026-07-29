@@ -512,6 +512,17 @@ cargo test --locked --no-default-features
 cargo build --locked --release --all-features
 ```
 
+Man pages are generated from the clap command tree and committed in `man/`.
+Update them after changing CLI help, check that they are current, or preview a
+page locally:
+
+```bash
+cargo run --locked --all-features --example generate-man
+cargo run --locked --all-features --example generate-man -- --check
+cargo run --locked --all-features --example generate-man -- --preview
+cargo run --locked --all-features --example generate-man -- --preview snip-create
+```
+
 `Main.sniplib/` is a scratch library for development, ignored by the repository.
 Recreate it any time with `snip init ./Main.sniplib --name Main`.
 
@@ -519,7 +530,7 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
 
 | Workflow | |
 |---|---|
-| `CI` | pushes and PRs: fmt, Clippy on both feature sets, tests on Linux (stable, 1.89 MSRV, `--no-default-features`), macOS arm64, and Windows |
+| `CI` | pushes and PRs: fmt, Clippy on both feature sets, tests on Linux (stable, 1.89 MSRV, `--no-default-features`), macOS arm64, and Windows; checks generated man pages and lints their roff |
 | `Deep tests` | manual: full deterministic suite, importer fixture, watcher regression, coverage |
 | `Release build` | `v*` tags and manual: builds every platform, then publishes (see below) |
 
