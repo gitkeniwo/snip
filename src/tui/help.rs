@@ -67,7 +67,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
         "VIEW & GLOBAL",
         &[
             ("/", "search"),
-            (": / Ctrl-Shift-P", "open command palette"),
+            (": / Ctrl-P", "open command palette"),
             ("s", "cycle sort"),
             ("N", "toggle line numbers"),
             ("z", "toggle list density"),

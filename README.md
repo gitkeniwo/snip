@@ -109,6 +109,7 @@ file watcher picks up changes made elsewhere while you are looking at them.
 
 | Key | |
 |---|---|
+| `:` / `Ctrl-P` | command palette |
 | `/` | search |
 | `Tab` / `Shift-Tab` | next / previous pane |
 | `h`/`←`, `l`/`→` | back out, or drill in |
@@ -130,6 +131,24 @@ file watcher picks up changes made elsewhere while you are looking at them.
 
 Keys are named after the CLI commands they run, so `r` on a folder is
 `snip folder rename` and `m` is `snip folder move`.
+
+### Command palette
+
+`:` or `Ctrl-P` opens a palette over whatever you are looking at. Type to
+fuzzy-match, `↑`/`↓` (or `Ctrl-p`/`Ctrl-n`) to move, `Enter` to run, `Esc` to
+close. It also opens over the help overlay, the trash view, and the Git console.
+
+Keys act on what is in front of you: `r` renames the folder under the sidebar
+cursor, or the selected snippet, depending on which pane has focus. The palette
+is the other half — every command is spelled out (`Folder: Rename` and
+`Snippet: Rename` are separate entries) and runs regardless of focus. Git is
+grouped the same way: `Git: Commit`, `Git: Push to Remote`, `Git: Commit with
+Message…`.
+
+Commands that cannot run right now stay in the list, greyed out with the reason
+on the right (`no snippet selected`, `not a Git repository`) rather than
+disappearing. Everything else shows its key binding there instead, so the
+palette doubles as a way to pick up the shortcuts.
 
 The mouse works too: click to focus and select, double-click to drill in, click
 a fragment tab, and scroll the pane under the cursor. Dragging across the
