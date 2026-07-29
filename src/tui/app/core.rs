@@ -29,8 +29,13 @@ use super::types::App;
 use super::types::GitState;
 
 impl App {
+    /// Builds an app with no carried-over session state.
+    ///
+    /// Loading the on-disk state belongs to the real entry point, not to a
+    /// constructor: reading it here would make every caller — tests included —
+    /// silently inherit whatever the developer's own `state.toml` holds.
     pub fn new(library: Library, config: &AppConfig) -> Result<Self> {
-        Self::new_with_session_state(library, config, SessionState::load())
+        Self::new_with_session_state(library, config, SessionState::default())
     }
 
     pub(crate) fn new_with_session_state(
@@ -577,8 +582,10 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let library = Library::init(&temporary.path().join("Recent.sniplib"), None).unwrap();
         let mut app = App::new(library.clone(), &AppConfig::default()).unwrap();
+        // Both commands are session-only. A command that persists (density,
+        // line numbers) would rewrite the developer's real config.toml.
         app.run_command(CommandId::ViewCycleSort);
-        app.run_command(CommandId::ViewToggleDensity);
+        app.run_command(CommandId::ViewToggleHelp);
         let path = temporary.path().join("state.toml");
         let mut extra = toml::Table::new();
         extra.insert(
@@ -603,7 +610,7 @@ mod tests {
             App::new_with_session_state(library, &AppConfig::default(), state).unwrap();
         reopened.palette.open();
         reopened.refresh_palette();
-        assert_eq!(reopened.palette.matches[0].id, CommandId::ViewToggleDensity);
+        assert_eq!(reopened.palette.matches[0].id, CommandId::ViewToggleHelp);
         assert_eq!(reopened.palette.matches[1].id, CommandId::ViewCycleSort);
         assert_eq!(reopened.palette.recent().len(), 2);
         reopened.session_state().save_to(&path).unwrap();

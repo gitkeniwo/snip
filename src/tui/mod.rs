@@ -56,7 +56,7 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     let _panic_hook = PanicHookGuard::install();
     let mut guard = TerminalGuard::new()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
-    let mut app = App::new(library, config)?;
+    let mut app = App::new_with_session_state(library, config, persist::SessionState::load())?;
     let (sender, receiver) = mpsc::channel();
     app.set_git_sender(sender.clone());
     let _watcher = event::start_watcher(app.library.root(), sender)?;
