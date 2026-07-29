@@ -76,6 +76,15 @@ yay -S sniplab
 `paru -S sniplab` works too, or clone `https://aur.archlinux.org/sniplab.git`
 and run `makepkg -si`.
 
+### Windows (Scoop)
+
+```bash
+scoop bucket add snip https://github.com/gitkeniwo/scoop-snip
+scoop install snip
+```
+
+`scoop update snip` picks up new releases. x86_64 only for now.
+
 ### Manual download
 
 Binaries and packages are on the
@@ -538,8 +547,8 @@ run if they disagree.
    [CHANGELOG.md](CHANGELOG.md).
 2. Commit, then tag the commit `vX.Y.Z` and push the tag.
 3. `Release build` builds every platform, attaches the archives to a GitHub
-   release, publishes `sniplab` to crates.io, and updates the Homebrew formula
-   and AUR package.
+   release, publishes `sniplab` to crates.io, and updates the Homebrew formula,
+   AUR package, and Scoop bucket.
 
 Publishing to crates.io is idempotent: if that version is already on the
 registry the step reports it and skips, so a workflow re-run is safe.

@@ -254,6 +254,87 @@ jobs:
           git commit -am "snip ${VERSION#v}"
           git push
 
+  scoop:
+    name: Update Scoop bucket
+    needs: [version, publish]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check for a bucket token
+        id: guard
+        env:
+          BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        run: |
+          if [ -z "$BUCKET_TOKEN" ]; then
+            echo "SCOOP_BUCKET_TOKEN is not set; skipping the Scoop bucket update." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.guard.outputs.ready == 'true'
+
+      - uses: actions/download-artifact@v5
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          name: snip-x86_64-pc-windows-msvc
+          path: artifacts
+
+      - uses: actions/checkout@v6
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          repository: gitkeniwo/scoop-snip
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          path: bucket-repo
+
+      - name: Render the manifest
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          archive = Path("artifacts/snip-x86_64-pc-windows-msvc.zip")
+          if not archive.is_file():
+              sys.exit(f"{archive} was not downloaded")
+
+          manifest = Path("packaging/scoop/snip.json.in").read_text()
+          manifest = manifest.replace("@VERSION@", version)
+          manifest = manifest.replace(
+              "@SHA256@", hashlib.sha256(archive.read_bytes()).hexdigest()
+          )
+
+          # Parse before writing so a malformed template fails the release
+          # rather than shipping a manifest Scoop cannot read.
+          json.loads(manifest)
+
+          out = Path("bucket-repo/bucket/snip.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(manifest)
+          print(f"rendered snip.json for {version}")
+          PY
+
+      - name: Commit and push
+        if: steps.guard.outputs.ready == 'true'
+        working-directory: bucket-repo
+        run: |
+          git add bucket/snip.json
+          if git diff --cached --quiet; then
+            echo "Scoop manifest was already up to date." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "snip release bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "snip $VERSION"
+          git push
+
   aur:
     name: Update AUR package
     needs: [version, publish]
