@@ -17,19 +17,69 @@ Runs on Linux, macOS, and Windows.
 
 ## Install
 
-Homebrew, on macOS or Linux:
+The crate is `sniplab`; the binary it installs is `snip`.
+
+### macOS / Linux (Homebrew)
 
 ```bash
 brew install gitkeniwo/snip/snip
 ```
 
-From crates.io (the crate is `sniplab`; the binary it installs is `snip`):
+### Cargo
+
+Prebuilt binary via [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), no compilation:
+
+```bash
+cargo binstall sniplab
+```
+
+Or build from crates.io (Rust 1.89 or newer):
 
 ```bash
 cargo install sniplab
 ```
 
-Or download a binary from the [latest release](https://github.com/gitkeniwo/snip/releases/latest):
+### Debian / Ubuntu
+
+For Ubuntu 24.04+, Debian 13+, and derivatives (Mint 22, Pop!_OS 24.04,
+elementary OS 8, Zorin OS 17):
+
+```bash
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb
+sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
+```
+
+On arm64, swap `x86_64` for `aarch64`.
+
+### Fedora / Enterprise Linux
+
+For Fedora 40+ and the Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux
+10.0+, AlmaLinux 10.0+, Oracle Linux 10+, CentOS Stream 10+ — all of which ship
+glibc 2.39 or newer:
+
+```bash
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm
+sudo dnf install ./snip-x86_64-unknown-linux-gnu.rpm
+```
+
+On arm64, swap `x86_64` for `aarch64`.
+
+### Arch Linux
+
+From the AUR. Builds from release source rather than repackaging the
+Ubuntu-built binary:
+
+```bash
+yay -S sniplab
+```
+
+`paru -S sniplab` works too, or clone `https://aur.archlinux.org/sniplab.git`
+and run `makepkg -si`.
+
+### Manual download
+
+Binaries and packages are on the
+[latest release](https://github.com/gitkeniwo/snip/releases/latest):
 
 | Platform | Asset |
 |---|---|
@@ -44,67 +94,7 @@ curl -L https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-
 install -m 755 snip /usr/local/bin/snip
 ```
 
-### Linux Distros
-
-Each release also provides native Linux package files. These are local packages,
-not an apt or dnf repository: download the newer release file again when you
-want to upgrade.
-
-The current Linux binaries are built on Ubuntu 24.04. The `.deb` packages are
-intended for Ubuntu 24.04 and newer, Debian 13 and newer, and their derivatives
-(including Linux Mint 22, Pop!_OS 24.04, elementary OS 8, and Zorin OS 17).
-Choose the command matching your CPU.
-
-#### Debian / Ubuntu family
-
-```bash
-# x86_64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb
-sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
-
-#  arm64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.deb
-sudo apt install ./snip-aarch64-unknown-linux-gnu.deb
-```
-
-The `.rpm` packages are intended for Fedora 40 and newer. They are available for
-both x86_64 and arm64:
-
-#### Fedora and derivatives
-
-```bash
-# x86_64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm
-sudo dnf install ./snip-x86_64-unknown-linux-gnu.rpm
-
-# arm64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.rpm
-sudo dnf install ./snip-aarch64-unknown-linux-gnu.rpm
-```
-
-### Arch Linux and derivatives
-
-Install `snip` from the AUR using an AUR helper:
-
-```bash
-yay -S sniplab
-```
-
-Or with `paru`:
-```bash
-paru -S sniplab
-```
-
-Or manually:
-```bash
-git clone https://aur.archlinux.org/sniplab.git
-cd sniplab
-makepkg -si
-```
-
-The AUR package builds from the release source on your machine, rather than
-repackaging an Ubuntu-built binary.
-Or build from source (Rust 1.89 or newer):
+### From source
 
 ```bash
 git clone https://github.com/gitkeniwo/snip.git
@@ -112,8 +102,16 @@ cd snip
 cargo install --path .
 ```
 
-For a smaller binary without the terminal browser, build with
-`--no-default-features`.
+For a smaller binary without the terminal browser, add `--no-default-features`.
+
+### Notes
+
+Linux binaries are built on Ubuntu 24.04, so they need glibc 2.39 or newer.
+Older systems — RHEL/Rocky/AlmaLinux/Oracle/CentOS Stream 9 and older
+(glibc 2.34), Amazon Linux 2023 (2.34), Amazon Linux 2 (2.26), Ubuntu 22.04
+(2.35), Debian 12 (2.36), openSUSE Leap 15 (2.31) — fall short; install with
+`cargo install sniplab` there. Upgrading a `.deb`/`.rpm` means downloading the newer
+file again.
 
 Release history is in [CHANGELOG.md](CHANGELOG.md).
 
