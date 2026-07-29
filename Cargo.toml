@@ -14,6 +14,7 @@ categories = ["command-line-utilities", "development-tools", "text-editors"]
 exclude = [
     ".github/",
     "examples/",
+    "man/",
     "opencode.jsonc",
 ]
 
@@ -96,6 +97,7 @@ regex = { version = "1.13.1", default-features = false, features = ["std", "perf
 
 [dev-dependencies]
 assert_cmd = "2.1"
+clap_mangen = "0.3"
 predicates = "3.1"
 
 [profile.release]

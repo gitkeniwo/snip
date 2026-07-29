@@ -1,0 +1,121 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-edit 1  "edit " 
+.SH NAME
+snip\-edit \- Modify a snippet or launch an external editor
+.SH SYNOPSIS
+\fBsnip edit\fR [\fB\-\-library\fR] [\fB\-\-title\fR] [\fB\-\-folder\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-tag\fR] [\fB\-\-clear\-tags\fR] [\fB\-\-pin\fR] [\fB\-\-unpin\fR] [\fB\-\-lock\fR] [\fB\-\-unlock\fR] [\fB\-\-fragment\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-clear\-readme\fR] [\fB\-\-metadata\-editor\fR] [\fB\-\-readme\-editor\fR] [\fB\-\-note\-editor\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+.SH DESCRIPTION
+Modify a snippet or launch an external editor
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-title\fR \fI<TITLE>\fR
+
+.TP
+\fB\-\-folder\fR \fI<FOLDER>\fR
+
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-\-tag\fR \fI<TAGS>\fR
+
+.TP
+\fB\-\-clear\-tags\fR
+
+.TP
+\fB\-\-pin\fR
+
+.TP
+\fB\-\-unpin\fR
+
+.TP
+\fB\-\-lock\fR
+
+.TP
+\fB\-\-unlock\fR
+
+.TP
+\fB\-\-fragment\fR \fI<FRAGMENT>\fR
+Target fragment for structured changes or external editing
+.TP
+\fB\-\-fragment\-title\fR \fI<FRAGMENT_TITLE>\fR
+
+.TP
+\fB\-\-language\fR \fI<LANGUAGE>\fR
+
+.TP
+\fB\-\-content\fR \fI<CONTENT>\fR
+Replacement fragment content, given inline
+.TP
+\fB\-\-content\-file\fR \fI<CONTENT_FILE>\fR
+
+.TP
+\fB\-\-note\fR \fI<NOTE>\fR
+Replacement fragment note (Markdown), given inline
+.TP
+\fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
+
+.TP
+\fB\-\-clear\-note\fR
+
+.TP
+\fB\-\-readme\fR \fI<README>\fR
+Replacement snippet README (Markdown), given inline
+.TP
+\fB\-\-readme\-file\fR \fI<README_FILE>\fR
+
+.TP
+\fB\-\-clear\-readme\fR
+
+.TP
+\fB\-\-metadata\-editor\fR
+Edit snippet.toml in the external editor when no structured change is given
+.TP
+\fB\-\-readme\-editor\fR
+Edit README.md in the external editor when no structured change is given
+.TP
+\fB\-\-note\-editor\fR
+Edit the selected fragment note instead of its content
+.TP
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+
+.TP
+\fB\-\-force\fR
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+

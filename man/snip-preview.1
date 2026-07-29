@@ -1,0 +1,68 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-preview 1  "preview " 
+.SH NAME
+snip\-preview \- Render a snippet for terminal or HTML preview
+.SH SYNOPSIS
+\fBsnip preview\fR [\fB\-\-library\fR] [\fB\-\-render\fR] [\fB\-\-output\fR] [\fB\-\-pager\fR] [\fB\-\-color\fR] [\fB\-\-no\-pager\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+.SH DESCRIPTION
+Render a snippet for terminal or HTML preview
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-render\fR \fI<RENDER>\fR
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+ansi
+.IP \(bu 2
+plain
+.IP \(bu 2
+html
+.RE
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-pager\fR
+Send output through the configured pager or $PAGER
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-\-no\-pager\fR
+Disable a pager enabled in the config file
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+

@@ -1,0 +1,127 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip 1  "snip 0.2.1" 
+.SH NAME
+snip \- Filesystem\-native snippets for humans, scripts, and AI agents
+.SH SYNOPSIS
+\fBsnip\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
+.SH DESCRIPTION
+Filesystem\-native snippets for humans, scripts, and AI agents
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
+.SH SUBCOMMANDS
+.TP
+snip\-tui(1)
+Open the interactive terminal browser
+.TP
+snip\-config(1)
+Inspect and modify ~/.config/snip/config.toml
+.TP
+snip\-init(1)
+Create a new filesystem snippet library
+.TP
+snip\-info(1)
+Show library metadata and counts
+.TP
+snip\-list(1)
+List snippets without their full content
+.TP
+snip\-search(1)
+Search titles, tags, notes, and fragment content
+.TP
+snip\-show(1)
+Show a complete snippet
+.TP
+snip\-cat(1)
+Print one fragment with no decorations
+.TP
+snip\-preview(1)
+Render a snippet for terminal or HTML preview
+.TP
+snip\-path(1)
+Print a managed filesystem path
+.TP
+snip\-open(1)
+Open a managed path in an external application
+.TP
+snip\-create(1)
+Create a snippet
+.TP
+snip\-edit(1)
+Modify a snippet or launch an external editor
+.TP
+snip\-fragment(1)
+Manage snippet fragments
+.TP
+snip\-folder(1)
+Manage physical folder paths
+.TP
+snip\-tag(1)
+Rename or remove tags across snippets
+.TP
+snip\-delete(1)
+Move a snippet to the library trash
+.TP
+snip\-trash(1)
+List deleted snippets
+.TP
+snip\-restore(1)
+Restore a deleted snippet
+.TP
+snip\-purge(1)
+Permanently remove a trash entry
+.TP
+snip\-doctor(1)
+Validate the library and optionally recover interrupted transactions
+.TP
+snip\-organize(1)
+Normalize snippet package directory names
+.TP
+snip\-import(1)
+Import another snippet format
+.TP
+snip\-git(1)
+Run Git operations scoped to this library
+.TP
+snip\-completion(1)
+Generate shell completion code
+.SH VERSION
+v0.2.1

@@ -1,0 +1,90 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-config-set 1  "set " 
+.SH NAME
+snip\-config\-set \- Set one supported config key
+.SH SYNOPSIS
+\fBsnip config set\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
+.SH DESCRIPTION
+Set one supported config key
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIKEY\fR>
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+default\-library
+.IP \(bu 2
+output
+.IP \(bu 2
+color
+.IP \(bu 2
+preview\-render
+.IP \(bu 2
+preview\-pager
+.IP \(bu 2
+editor
+.IP \(bu 2
+pager
+.IP \(bu 2
+default\-language
+.IP \(bu 2
+default\-folder
+.IP \(bu 2
+default\-tags
+.IP \(bu 2
+tui\-theme
+.IP \(bu 2
+tui\-sort
+.IP \(bu 2
+tui\-density
+.IP \(bu 2
+tui\-line\-numbers
+.IP \(bu 2
+git\-auto\-commit\-interval
+.IP \(bu 2
+git\-auto\-push
+.IP \(bu 2
+git\-backup\-on\-quit
+.RE
+.TP
+<\fIVALUE\fR>
+

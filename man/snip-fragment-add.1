@@ -1,0 +1,72 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-fragment-add 1  "add " 
+.SH NAME
+snip\-fragment\-add
+.SH SYNOPSIS
+\fBsnip fragment add\fR [\fB\-\-library\fR] <\fB\-\-title\fR> [\fB\-\-language\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+.SH DESCRIPTION
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-title\fR \fI<TITLE>\fR
+
+.TP
+\fB\-\-language\fR \fI<LANGUAGE>\fR
+
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-\-content\fR \fI<CONTENT>\fR
+Fragment content, given inline
+.TP
+\fB\-\-content\-file\fR \fI<CONTENT_FILE>\fR
+
+.TP
+\fB\-\-note\fR \fI<NOTE>\fR
+Fragment note (Markdown), given inline
+.TP
+\fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
+
+.TP
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+
+.TP
+\fB\-\-force\fR
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+

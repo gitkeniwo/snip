@@ -1,0 +1,65 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-git 1  "git " 
+.SH NAME
+snip\-git \- Run Git operations scoped to this library
+.SH SYNOPSIS
+\fBsnip git\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+.SH DESCRIPTION
+Run Git operations scoped to this library
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH SUBCOMMANDS
+.TP
+snip\-git\-status(1)
+Show read\-only backup status for this library
+.TP
+snip\-git\-init(1)
+Make this library a Git repository when it is not one already
+.TP
+snip\-git\-commit(1)
+Commit all library changes without pushing
+.TP
+snip\-git\-backup(1)
+Commit all library changes and push when an upstream is configured
+.TP
+snip\-git\-push(1)
+Push commits to the configured upstream without committing
+.TP
+snip\-git\-fetch(1)
+Fetch and prune remote\-tracking refs without touching the worktree

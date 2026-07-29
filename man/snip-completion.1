@@ -1,0 +1,63 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-completion 1  "completion " 
+.SH NAME
+snip\-completion \- Generate shell completion code
+.SH SYNOPSIS
+\fBsnip completion\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
+.SH DESCRIPTION
+Generate shell completion code
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISHELL\fR>
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+bash
+.IP \(bu 2
+elvish
+.IP \(bu 2
+fish
+.IP \(bu 2
+powershell
+.IP \(bu 2
+zsh
+.RE

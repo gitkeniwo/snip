@@ -1,0 +1,85 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-create 1  "create " 
+.SH NAME
+snip\-create \- Create a snippet
+.SH SYNOPSIS
+\fBsnip create\fR [\fB\-\-library\fR] <\fB\-\-title\fR> [\fB\-\-folder\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-tag\fR] [\fB\-\-language\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-pin\fR] [\fB\-\-lock\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH DESCRIPTION
+Create a snippet
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-title\fR \fI<TITLE>\fR
+
+.TP
+\fB\-\-folder\fR \fI<FOLDER>\fR
+
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-\-tag\fR \fI<TAGS>\fR
+
+.TP
+\fB\-\-language\fR \fI<LANGUAGE>\fR
+
+.TP
+\fB\-\-fragment\-title\fR \fI<FRAGMENT_TITLE>\fR [default: Fragment]
+
+.TP
+\fB\-\-content\fR \fI<CONTENT>\fR
+Initial fragment content, given inline
+.TP
+\fB\-\-content\-file\fR \fI<CONTENT_FILE>\fR
+Read initial fragment content from a UTF\-8 file; use \- for stdin
+.TP
+\fB\-\-note\fR \fI<NOTE>\fR
+Fragment note (Markdown), given inline
+.TP
+\fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
+
+.TP
+\fB\-\-readme\fR \fI<README>\fR
+Snippet README (Markdown), given inline
+.TP
+\fB\-\-readme\-file\fR \fI<README_FILE>\fR
+
+.TP
+\fB\-\-pin\fR
+
+.TP
+\fB\-\-lock\fR
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
