@@ -44,7 +44,7 @@ curl -L https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-
 install -m 755 snip /usr/local/bin/snip
 ```
 
-### Linux packages
+### Linux Distros
 
 Each release also provides native Linux package files. These are local packages,
 not an apt or dnf repository: download the newer release file again when you
@@ -53,43 +53,57 @@ want to upgrade.
 The current Linux binaries are built on Ubuntu 24.04. The `.deb` packages are
 intended for Ubuntu 24.04 and newer, Debian 13 and newer, and their derivatives
 (including Linux Mint 22, Pop!_OS 24.04, elementary OS 8, and Zorin OS 17).
-Choose the command matching your CPU:
+Choose the command matching your CPU.
+
+#### Debian / Ubuntu family
 
 ```bash
-# Debian / Ubuntu family, x86_64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb && sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
+# x86_64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb
+sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
 
-# Debian / Ubuntu family, arm64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.deb && sudo apt install ./snip-aarch64-unknown-linux-gnu.deb
+#  arm64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.deb
+sudo apt install ./snip-aarch64-unknown-linux-gnu.deb
 ```
 
 The `.rpm` packages are intended for Fedora 40 and newer. They are available for
 both x86_64 and arm64:
 
+#### Fedora and derivatives
+
 ```bash
-# Fedora, x86_64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm && sudo dnf install ./snip-x86_64-unknown-linux-gnu.rpm
+# x86_64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm
+sudo dnf install ./snip-x86_64-unknown-linux-gnu.rpm
 
-# Fedora, arm64
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.rpm && sudo dnf install ./snip-aarch64-unknown-linux-gnu.rpm
+# arm64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.rpm
+sudo dnf install ./snip-aarch64-unknown-linux-gnu.rpm
 ```
-
-RHEL, Rocky Linux, AlmaLinux, CentOS Stream, Ubuntu 22.04, Debian 12, and
-openSUSE Leap use older system libraries than the current builds. Build from
-source on those systems for now (for example, `cargo install sniplab`).
 
 ### Arch Linux and derivatives
 
-After the first AUR publication, install `snip` with an AUR helper:
+Install `snip` from the AUR using an AUR helper:
 
 ```bash
-yay -S snip
-# or: paru -S snip
+yay -S sniplab
+```
+
+Or with `paru`:
+```bash
+paru -S sniplab
+```
+
+Or manually:
+```bash
+git clone https://aur.archlinux.org/sniplab.git
+cd sniplab
+makepkg -si
 ```
 
 The AUR package builds from the release source on your machine, rather than
 repackaging an Ubuntu-built binary.
-
 Or build from source (Rust 1.89 or newer):
 
 ```bash
@@ -511,10 +525,10 @@ affecting the Rust project.
 - `Release build` runs for `v*` tags and manual dispatch, producing archives for
   Linux x86_64/arm64, macOS arm64/Intel, and Windows x86_64. On a tag it also
   bumps the formula in
-  [gitkeniwo/homebrew-snip](https://github.com/gitkeniwo/homebrew-snip), which
-  needs a `HOMEBREW_TAP_TOKEN` secret with write access to that repository, and
-  publishes the crate to crates.io, which needs a `CARGO_REGISTRY_TOKEN` secret.
-  Either step is skipped when its secret is absent.
+  [gitkeniwo/homebrew-snip](https://github.com/gitkeniwo/homebrew-snip) (needs
+  `HOMEBREW_TAP_TOKEN`), updates the AUR package `sniplab` (needs
+  `AUR_SSH_PRIVATE_KEY`), and publishes the crate to crates.io (needs
+  `CARGO_REGISTRY_TOKEN`). Steps are skipped when secrets are absent.
 
 ### Releasing
 
@@ -526,7 +540,8 @@ run if they disagree.
    [CHANGELOG.md](CHANGELOG.md).
 2. Commit, then tag the commit `vX.Y.Z` and push the tag.
 3. `Release build` builds every platform, attaches the archives to a GitHub
-   release, publishes `sniplab` to crates.io, and updates the Homebrew formula.
+   release, publishes `sniplab` to crates.io, and updates the Homebrew formula
+   and AUR package.
 
 Publishing to crates.io is idempotent: if that version is already on the
 registry the step reports it and skips, so a workflow re-run is safe.

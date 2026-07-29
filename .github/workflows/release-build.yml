@@ -262,7 +262,7 @@ jobs:
     permissions:
       contents: read
     env:
-      AUR_PACKAGE: snip
+      AUR_PACKAGE: sniplab
       VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
