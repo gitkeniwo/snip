@@ -104,6 +104,7 @@ pub fn command_import(args: &ImportArgs, output: OutputMode) -> Result<()> {
 pub fn command_git(library: &Library, args: &GitArgs, output: OutputMode) -> Result<()> {
     match &args.command {
         GitCommand::Status => command_git_status(library, output),
+        GitCommand::Init => command_git_init(library, output),
         GitCommand::Commit { message } => command_git_commit(library, message.as_deref(), output),
         GitCommand::Backup => command_git_backup(library, output),
         GitCommand::Push => command_git_push(library, output),
@@ -288,6 +289,50 @@ fn command_git_fetch(library: &Library, output: OutputMode) -> Result<()> {
             message: None,
             outcome: "remote status refreshed",
             status: &after,
+        },
+        output,
+    )
+}
+
+#[derive(Serialize)]
+struct GitInitReport<'a> {
+    action: &'static str,
+    created: bool,
+    repository_root: &'a Path,
+    outcome: &'a str,
+}
+
+fn command_git_init(library: &Library, output: OutputMode) -> Result<()> {
+    // Initializing twice is not a failure, the same way `git init` itself is
+    // idempotent: a caller that just wants a repository to exist should not
+    // have to probe first and branch on the answer.
+    let created = match git::probe(library.root()) {
+        Ok(_) => false,
+        Err(Unavailable::NotARepository) => {
+            git::init(library.root())?;
+            true
+        }
+        Err(Unavailable::BinaryMissing) => {
+            return Err(SnipError::conflict("git not found in PATH"));
+        }
+        Err(Unavailable::ProbeFailed { message }) => return Err(SnipError::conflict(message)),
+    };
+    let repo = require_repo(library)?;
+    let outcome = if created {
+        "initialized a Git repository"
+    } else {
+        "already a Git repository"
+    };
+    if output == OutputMode::Human {
+        println!("{outcome}: {}", repo.root.display());
+        return Ok(());
+    }
+    print_record(
+        &GitInitReport {
+            action: "init",
+            created,
+            repository_root: &repo.root,
+            outcome,
         },
         output,
     )

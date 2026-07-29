@@ -489,6 +489,8 @@ pub struct GitArgs {
 pub enum GitCommand {
     /// Show read-only backup status for this library.
     Status,
+    /// Make this library a Git repository when it is not one already.
+    Init,
     /// Commit all library changes without pushing.
     Commit {
         /// Override the generated backup message.

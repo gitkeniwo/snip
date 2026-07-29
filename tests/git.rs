@@ -575,6 +575,48 @@ fn cli_status_is_structured_and_unavailable_is_not_an_error() {
 }
 
 #[test]
+fn cli_git_init_creates_a_repository_and_is_idempotent() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Init.sniplib");
+    Library::init(&root, Some("Init")).unwrap();
+    let library = root.to_str().unwrap();
+
+    assert!(matches!(
+        git::probe(&root),
+        Err(Unavailable::NotARepository)
+    ));
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "--output", "json", "git", "init"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"created\": true"));
+    assert!(git::probe(&root).is_ok());
+
+    // Running it again must not fail: this is the whole reason a caller can
+    // ask for a repository without probing for one first.
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "--output", "json", "git", "init"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"created\": false"));
+
+    // And the repository it made is usable, not just present.
+    git_ok(&root, &["config", "user.name", "snip CI"]);
+    git_ok(&root, &["config", "user.email", "ci@example.invalid"]);
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "git", "commit"])
+        .assert()
+        .success();
+}
+
+#[test]
 fn cli_restores_init_git_and_noninteractive_commit() {
     if !git_available() {
         return;
