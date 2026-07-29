@@ -72,7 +72,7 @@ impl TuiDensitySetting {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TuiConfig {
     #[serde(default)]
     pub theme: TuiThemeSetting,
@@ -80,8 +80,28 @@ pub struct TuiConfig {
     pub sort: SortMode,
     #[serde(default)]
     pub density: TuiDensitySetting,
+    // Line numbers are on unless the user turns them off, so this one field
+    // cannot lean on `Default::default()` the way its neighbours do.
+    #[serde(default = "default_line_numbers")]
+    pub line_numbers: bool,
     #[serde(flatten)]
     pub extra: toml::Table,
+}
+
+pub(crate) const fn default_line_numbers() -> bool {
+    true
+}
+
+impl Default for TuiConfig {
+    fn default() -> Self {
+        Self {
+            theme: TuiThemeSetting::default(),
+            sort: SortMode::default(),
+            density: TuiDensitySetting::default(),
+            line_numbers: default_line_numbers(),
+            extra: toml::Table::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

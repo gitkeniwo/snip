@@ -200,6 +200,12 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                     }
                 };
         }
+        ConfigKey::TuiLineNumbers => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .line_numbers = parse_bool(value)?;
+        }
         ConfigKey::GitAutoCommitInterval => {
             config
                 .git
@@ -242,6 +248,12 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         ConfigKey::TuiDensity => {
             config.tui.get_or_insert_with(TuiConfig::default).density =
                 TuiDensitySetting::Comfortable
+        }
+        ConfigKey::TuiLineNumbers => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .line_numbers = TuiConfig::default().line_numbers
         }
         ConfigKey::GitAutoCommitInterval => {
             config

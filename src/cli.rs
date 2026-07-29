@@ -566,6 +566,7 @@ pub enum ConfigKey {
     TuiTheme,
     TuiSort,
     TuiDensity,
+    TuiLineNumbers,
     GitAutoCommitInterval,
     GitAutoPush,
     GitBackupOnQuit,

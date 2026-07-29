@@ -2046,6 +2046,32 @@ fn tui_config_controls_theme_sort_and_density() {
 }
 
 #[test]
+fn tui_config_controls_line_numbers() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    // The default has to stay on: it is the behaviour every release before the
+    // setting existed shipped, and configs written then carry no such field.
+    let app = App::new(library, &AppConfig::default()).unwrap();
+    assert!(app.show_line_numbers);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            line_numbers: false,
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let app = App::new(library, &config).unwrap();
+    assert!(!app.show_line_numbers);
+}
+
+#[test]
+fn tui_config_defaults_line_numbers_on_when_absent() {
+    let config: TuiConfig = toml::from_str("theme = \"light\"\n").unwrap();
+    assert!(config.line_numbers);
+}
+
+#[test]
 fn compact_density_keeps_pinned_state_visible() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let config = AppConfig {

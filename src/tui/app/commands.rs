@@ -164,7 +164,7 @@ effect!(cycle_sort, app => app.set_sort(app.sort.next()));
 effect!(sort_modified, app => app.set_sort(SortMode::Modified));
 effect!(sort_title, app => app.set_sort(SortMode::Title));
 effect!(sort_created, app => app.set_sort(SortMode::Created));
-effect!(toggle_line_numbers, app => { app.show_line_numbers = !app.show_line_numbers; app.preview_selection.clear(); app.set_status(if app.show_line_numbers { "line numbers on" } else { "line numbers off" }, StatusLevel::Info); });
+effect!(toggle_line_numbers, app => app.toggle_line_numbers());
 effect!(toggle_density, app => app.toggle_density());
 effect!(toggle_help, app => { app.show_help = !app.show_help; app.help_scroll = 0; });
 effect!(library_search, app => app.search.active = true);

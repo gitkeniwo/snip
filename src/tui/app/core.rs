@@ -60,6 +60,7 @@ impl App {
         let theme = TuiTheme::resolve(tui.theme).with_overrides(&theme_overrides);
         let sort = tui.sort;
         let density = tui.density;
+        let show_line_numbers = tui.line_numbers;
         let icon_mode = IconMode::Ascii;
         let mut app = Self {
             git: GitState::probe(&library, &config.git.clone().unwrap_or_default()),
@@ -75,7 +76,7 @@ impl App {
             selected_id: None,
             fragment_index: 0,
             preview_scroll: 0,
-            show_line_numbers: true,
+            show_line_numbers,
             sort,
             density,
             layout: LayoutRects::default(),
