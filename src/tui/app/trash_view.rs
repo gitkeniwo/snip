@@ -25,32 +25,40 @@ impl App {
                 self.trash.selected = self.trash.entries.len().saturating_sub(1)
             }
             KeyCode::Enter | KeyCode::Char('u') => {
-                let Some(entry) = self.trash.selected().cloned() else {
-                    return Vec::new();
-                };
-                match restore_snippet(&self.library, &entry.entry_id, None) {
-                    Ok(_) => match self.rescan() {
-                        Ok(()) => self.set_status("snippet restored", StatusLevel::Info),
-                        Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
-                    },
-                    Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
-                }
+                return self.run_command(crate::tui::command::CommandId::TrashRestoreSelected);
             }
             KeyCode::Char('x') => {
-                let Some(entry) = self.trash.selected().cloned() else {
-                    return Vec::new();
-                };
-                self.modal = Some(Modal::Confirm(ConfirmModal::new(
-                    "Permanently delete?",
-                    format!("Purge {:?}? This cannot be undone.", entry.title),
-                    ModalAction::PurgeSnippet {
-                        entry_id: entry.entry_id,
-                    },
-                    true,
-                )));
+                return self.run_command(crate::tui::command::CommandId::TrashPurgeSelected);
             }
             _ => {}
         }
         Vec::new()
+    }
+
+    pub(super) fn restore_selected_trash(&mut self) {
+        let Some(entry) = self.trash.selected().cloned() else {
+            return;
+        };
+        match restore_snippet(&self.library, &entry.entry_id, None) {
+            Ok(_) => match self.rescan() {
+                Ok(()) => self.set_status("snippet restored", StatusLevel::Info),
+                Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+            },
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
+    pub(super) fn purge_selected_trash(&mut self) {
+        let Some(entry) = self.trash.selected().cloned() else {
+            return;
+        };
+        self.modal = Some(Modal::Confirm(ConfirmModal::new(
+            "Permanently delete?",
+            format!("Purge {:?}? This cannot be undone.", entry.title),
+            ModalAction::PurgeSnippet {
+                entry_id: entry.entry_id,
+            },
+            true,
+        )));
     }
 }

@@ -384,13 +384,21 @@ impl App {
 
     pub(super) fn open_new_for_context(&mut self) {
         if self.focus != Pane::Sidebar {
-            self.modal = Some(Modal::Input(InputModal::new(
-                "Title",
-                "",
-                ModalAction::CreateTitle,
-            )));
+            let _ = self.run_command(crate::tui::command::CommandId::SnippetNew);
             return;
         }
+        let _ = self.run_command(crate::tui::command::CommandId::FolderNew);
+    }
+
+    pub(super) fn open_new_snippet(&mut self) {
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Title",
+            "",
+            ModalAction::CreateTitle,
+        )));
+    }
+
+    pub(super) fn open_new_folder(&mut self) {
         let parent = match self.sidebar.selected().map(|row| &row.item) {
             Some(SidebarItem::Folder(path)) => Some(path.clone()),
             Some(SidebarItem::All) | Some(SidebarItem::Uncategorized) => None,
@@ -418,27 +426,20 @@ impl App {
         if self.focus == Pane::Sidebar {
             let selected = self.sidebar.selected().cloned();
             match selected.map(|row| row.item) {
-                Some(SidebarItem::Folder(path)) => {
-                    self.modal = Some(Modal::Confirm(ConfirmModal::new(
-                        "Delete folder?",
-                        format!("Delete empty folder {path:?}?"),
-                        ModalAction::DeleteFolder { path },
-                        true,
-                    )));
+                Some(SidebarItem::Folder(_)) => {
+                    let _ = self.run_command(crate::tui::command::CommandId::FolderDelete);
                 }
-                Some(SidebarItem::Tag(tag)) => {
-                    let count = self.sidebar.selected().map_or(0, |row| row.count);
-                    self.modal = Some(Modal::Confirm(ConfirmModal::new(
-                        "Delete tag?",
-                        format!("Remove #{tag} from {count} snippets?"),
-                        ModalAction::DeleteTag { tag },
-                        true,
-                    )));
+                Some(SidebarItem::Tag(_)) => {
+                    let _ = self.run_command(crate::tui::command::CommandId::TagDelete);
                 }
                 _ => {}
             }
             return;
         }
+        let _ = self.run_command(crate::tui::command::CommandId::SnippetMoveToTrash);
+    }
+
+    pub(super) fn open_delete_snippet(&mut self) {
         let Some(snippet) = self.mutable_selected() else {
             return;
         };
@@ -450,35 +451,51 @@ impl App {
         )));
     }
 
+    pub(super) fn open_delete_folder(&mut self) {
+        let Some(SidebarItem::Folder(path)) = self.sidebar.selected().map(|row| &row.item) else {
+            return;
+        };
+        let path = path.clone();
+        self.modal = Some(Modal::Confirm(ConfirmModal::new(
+            "Delete folder?",
+            format!("Delete empty folder {path:?}?"),
+            ModalAction::DeleteFolder { path },
+            true,
+        )));
+    }
+
+    pub(super) fn open_delete_tag(&mut self) {
+        let Some(SidebarItem::Tag(tag)) = self.sidebar.selected().map(|row| &row.item) else {
+            return;
+        };
+        let tag = tag.clone();
+        let count = self.sidebar.selected().map_or(0, |row| row.count);
+        self.modal = Some(Modal::Confirm(ConfirmModal::new(
+            "Delete tag?",
+            format!("Remove #{tag} from {count} snippets?"),
+            ModalAction::DeleteTag { tag },
+            true,
+        )));
+    }
+
     pub(super) fn open_rename_for_context(&mut self) {
         if self.focus == Pane::Sidebar {
             let selected = self.sidebar.selected().cloned();
             match selected.map(|row| row.item) {
-                Some(SidebarItem::Folder(path)) => {
-                    // Like `snip folder rename`, this edits the folder name only; the
-                    // parent path is fixed. Use `m` to reparent.
-                    let name = std::path::Path::new(&path)
-                        .file_name()
-                        .and_then(|value| value.to_str())
-                        .unwrap_or(&path)
-                        .to_owned();
-                    self.modal = Some(Modal::Input(InputModal::new(
-                        "Rename folder",
-                        name,
-                        ModalAction::RenameFolder { path },
-                    )));
+                Some(SidebarItem::Folder(_)) => {
+                    let _ = self.run_command(crate::tui::command::CommandId::FolderRename);
                 }
-                Some(SidebarItem::Tag(tag)) => {
-                    self.modal = Some(Modal::Input(InputModal::new(
-                        "Rename tag",
-                        tag.clone(),
-                        ModalAction::RenameTag { tag },
-                    )));
+                Some(SidebarItem::Tag(_)) => {
+                    let _ = self.run_command(crate::tui::command::CommandId::TagRename);
                 }
                 _ => {}
             }
             return;
         }
+        let _ = self.run_command(crate::tui::command::CommandId::SnippetRename);
+    }
+
+    pub(super) fn open_rename_snippet(&mut self) {
         let Some(snippet) = self.mutable_selected() else {
             return;
         };
@@ -486,6 +503,35 @@ impl App {
             "Rename",
             snippet.title.clone(),
             ModalAction::RenameSnippet { id: snippet.id },
+        )));
+    }
+
+    pub(super) fn open_rename_folder(&mut self) {
+        let Some(SidebarItem::Folder(path)) = self.sidebar.selected().map(|row| &row.item) else {
+            return;
+        };
+        let path = path.clone();
+        let name = std::path::Path::new(&path)
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or(&path)
+            .to_owned();
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Rename folder",
+            name,
+            ModalAction::RenameFolder { path },
+        )));
+    }
+
+    pub(super) fn open_rename_tag(&mut self) {
+        let Some(SidebarItem::Tag(tag)) = self.sidebar.selected().map(|row| &row.item) else {
+            return;
+        };
+        let tag = tag.clone();
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Rename tag",
+            tag.clone(),
+            ModalAction::RenameTag { tag },
         )));
     }
 
@@ -512,25 +558,13 @@ impl App {
 
     pub(super) fn open_move_for_context(&mut self) {
         if self.focus == Pane::Sidebar {
-            let Some(SidebarItem::Folder(path)) = self.sidebar.selected().map(|row| &row.item)
-            else {
-                return;
-            };
-            let path = path.clone();
-            // A folder cannot move inside itself, and the root is spelled `Uncategorized`
-            // to match `snip list`.
-            let items = self
-                .folder_picker_items()
-                .into_iter()
-                .filter(|item| item.value != path && !item.value.starts_with(&format!("{path}/")))
-                .collect::<Vec<_>>();
-            self.modal = Some(Modal::Picker(PickerModal::new(
-                "Move folder into",
-                items,
-                ModalAction::MoveFolder { path },
-            )));
+            let _ = self.run_command(crate::tui::command::CommandId::FolderMove);
             return;
         }
+        let _ = self.run_command(crate::tui::command::CommandId::SnippetMove);
+    }
+
+    pub(super) fn open_move_snippet(&mut self) {
         let Some(snippet) = self.mutable_selected() else {
             return;
         };
@@ -538,6 +572,23 @@ impl App {
             "Move to folder",
             self.folder_picker_items(),
             ModalAction::MoveSnippet { id: snippet.id },
+        )));
+    }
+
+    pub(super) fn open_move_folder(&mut self) {
+        let Some(SidebarItem::Folder(path)) = self.sidebar.selected().map(|row| &row.item) else {
+            return;
+        };
+        let path = path.clone();
+        let items = self
+            .folder_picker_items()
+            .into_iter()
+            .filter(|item| item.value != path && !item.value.starts_with(&format!("{path}/")))
+            .collect::<Vec<_>>();
+        self.modal = Some(Modal::Picker(PickerModal::new(
+            "Move folder into",
+            items,
+            ModalAction::MoveFolder { path },
         )));
     }
 

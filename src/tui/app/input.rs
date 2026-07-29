@@ -6,6 +6,7 @@ use ratatui::crossterm::event::{
 
 use crate::git::{self, GitAction, Refusal, Unavailable};
 
+use super::super::command::CommandId;
 use super::super::layout::{contains, inner};
 use super::super::modal::{InputModal, Modal, ModalAction};
 use super::super::selection::SelectionPoint;
@@ -15,33 +16,35 @@ use super::types::{App, Effect};
 impl App {
     pub fn handle_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-            return self.request_quit();
+            return self.run_command(CommandId::AppQuit);
         }
         if self.modal.is_some() {
             return self.handle_modal_key(key);
         }
+        if self.palette.open {
+            return self.handle_palette_key(key);
+        }
         if self.git.open {
             match key.code {
                 _ if is_ctrl_g(key) || key.code == KeyCode::Esc => self.git.open = false,
-                KeyCode::Char('r') => self.refresh_git(),
-                KeyCode::Char('b') => return self.git_effect(GitAction::Backup),
-                KeyCode::Char('c') => {
-                    return self.git_effect(GitAction::Commit { message: None });
-                }
-                KeyCode::Char('p') => return self.git_effect(GitAction::Push),
-                KeyCode::Char('f') => self.spawn_fetch(),
-                KeyCode::Char('C') => self.open_git_message(),
-                KeyCode::Char('a') => self.toggle_auto_backup(),
-                KeyCode::Char('u') => self.toggle_auto_push(),
-                KeyCode::Char('o') => self.toggle_backup_on_quit(),
+                _ if is_palette_trigger(key) => self.open_palette(),
+                KeyCode::Char('r') => return self.run_command(CommandId::GitRefreshLocalStatus),
+                KeyCode::Char('b') => return self.run_command(CommandId::GitBackup),
+                KeyCode::Char('c') => return self.run_command(CommandId::GitCommit),
+                KeyCode::Char('p') => return self.run_command(CommandId::GitPush),
+                KeyCode::Char('f') => return self.run_command(CommandId::GitFetchRemoteStatus),
+                KeyCode::Char('C') => return self.run_command(CommandId::GitCommitWithMessage),
+                KeyCode::Char('a') => return self.run_command(CommandId::GitPauseAutoBackup),
+                KeyCode::Char('u') => return self.run_command(CommandId::GitToggleAutoPush),
+                KeyCode::Char('o') => return self.run_command(CommandId::GitToggleBackupOnQuit),
                 KeyCode::Char('i') => {
                     if matches!(
                         self.git.unavailable.as_ref(),
                         Some(Unavailable::NotARepository)
                     ) {
-                        return self.git_effect(GitAction::Init);
+                        return self.run_command(CommandId::GitInitRepository);
                     }
-                    self.open_auto_commit_interval();
+                    return self.run_command(CommandId::GitSetAutoCommitInterval);
                 }
                 _ => {}
             }
@@ -54,11 +57,7 @@ impl App {
             ) {
                 self.set_status("git not found in PATH", StatusLevel::Error);
             } else {
-                self.show_help = false;
-                self.search.active = false;
-                self.trash.open = false;
-                self.git.open = true;
-                self.refresh_git();
+                return self.run_command(CommandId::GitOpenConsole);
             }
             return Vec::new();
         }
@@ -67,7 +66,8 @@ impl App {
         }
         if self.show_help {
             match key.code {
-                KeyCode::Char('q') => return self.request_quit(),
+                _ if is_palette_trigger(key) => self.open_palette(),
+                KeyCode::Char('q') => return self.run_command(CommandId::AppQuit),
                 KeyCode::Char('?') | KeyCode::Esc => self.show_help = false,
                 KeyCode::Char('j') | KeyCode::Down => {
                     self.help_scroll = self.help_scroll.saturating_add(1)
@@ -86,15 +86,20 @@ impl App {
             return Vec::new();
         }
         if self.trash.open {
+            if is_palette_trigger(key) {
+                self.open_palette();
+                return Vec::new();
+            }
             return self.handle_trash_key(key);
         }
         match key.code {
-            KeyCode::Char('q') => return self.request_quit(),
+            _ if is_palette_trigger(key) => self.open_palette(),
+            KeyCode::Char('q') => return self.run_command(CommandId::AppQuit),
             KeyCode::Tab => self.focus = self.focus.next(),
             KeyCode::BackTab => self.focus = self.focus.previous(),
             KeyCode::Char('h') | KeyCode::Left => self.drill_back(),
             KeyCode::Char('l') | KeyCode::Right => self.drill_forward(),
-            KeyCode::Char('/') => self.search.active = true,
+            KeyCode::Char('/') => return self.run_command(CommandId::LibrarySearch),
             KeyCode::Esc => {
                 if self.show_help {
                     self.show_help = false;
@@ -106,49 +111,43 @@ impl App {
                     self.refresh_visible();
                 }
             }
-            KeyCode::Char('?') => {
-                self.show_help = !self.show_help;
-                if self.show_help {
-                    self.help_scroll = 0;
-                }
-            }
+            KeyCode::Char('?') => return self.run_command(CommandId::ViewToggleHelp),
             // Kept as two arms on purpose: a guard on `F(5) | Char('r')` would apply
             // to both alternatives and quietly require Ctrl-F5. Plain `r` must still
             // fall through to rename below, so only the Char arm carries the guard.
-            KeyCode::F(5) => self.rescan_now(),
+            KeyCode::F(5) => return self.run_command(CommandId::LibraryRescan),
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.rescan_now()
+                return self.run_command(CommandId::LibraryRescan);
             }
             KeyCode::Char('s') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.sort = self.sort.next();
-                self.refresh_visible();
+                return self.run_command(CommandId::ViewCycleSort);
             }
             KeyCode::Char('z') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.toggle_density()
+                return self.run_command(CommandId::ViewToggleDensity);
             }
             KeyCode::Char('e')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                return self.edit_effect();
+                return self.run_command(CommandId::SnippetEditContent);
             }
             KeyCode::Char('v')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                return self.open_vscode_effect();
+                return self.run_command(CommandId::SnippetOpenVsCode);
             }
             KeyCode::Char('E')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                return self.edit_note_effect();
+                return self.run_command(CommandId::SnippetEditNote);
             }
             KeyCode::Char('R')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                return self.edit_readme_effect();
+                return self.run_command(CommandId::SnippetEditReadme);
             }
             KeyCode::Char('n') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.open_new_for_context()
@@ -166,49 +165,40 @@ impl App {
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                self.open_edit_tags()
+                return self.run_command(CommandId::SnippetEditTags);
             }
             KeyCode::Char('f')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                self.open_edit_language()
+                return self.run_command(CommandId::SnippetEditLanguage);
             }
             KeyCode::Char('P')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                self.toggle_pin()
+                return self.run_command(CommandId::SnippetTogglePin);
             }
             KeyCode::Char('L')
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
                     && self.focus != Pane::Sidebar =>
             {
-                self.toggle_lock()
+                return self.run_command(CommandId::SnippetToggleLock);
             }
             KeyCode::Char('N') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.show_line_numbers = !self.show_line_numbers;
-                self.preview_selection.clear();
-                self.set_status(
-                    if self.show_line_numbers {
-                        "line numbers on"
-                    } else {
-                        "line numbers off"
-                    },
-                    StatusLevel::Info,
-                );
+                return self.run_command(CommandId::ViewToggleLineNumbers);
             }
             KeyCode::Char('T') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.open_trash()
+                return self.run_command(CommandId::LibraryOpenTrash);
             }
             KeyCode::Char('y') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.copy_content_effect();
+                return self.run_command(CommandId::CopyContent);
             }
             KeyCode::Char('Y') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.copy_id_effect();
+                return self.run_command(CommandId::CopySnippetId);
             }
             KeyCode::Char('p') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.copy_path_effect();
+                return self.run_command(CommandId::CopyManagedPath);
             }
             KeyCode::Char('[') => self.previous_fragment(),
             KeyCode::Char(']') => self.next_fragment(),
@@ -245,7 +235,56 @@ impl App {
         Vec::new()
     }
 
-    fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
+    fn handle_palette_key(&mut self, key: KeyEvent) -> Vec<Effect> {
+        use KeyCode::*;
+        match key.code {
+            Esc => self.palette.close(),
+            Enter => {
+                let id = self.palette.selected_id();
+                self.palette.close();
+                if let Some(id) = id {
+                    return self.run_command(id);
+                }
+            }
+            Up => self.palette.move_selection(-1),
+            Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.palette.move_selection(-1)
+            }
+            Down => self.palette.move_selection(1),
+            Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.palette.move_selection(1)
+            }
+            Left => self.palette.input.cursor = self.palette.input.cursor.saturating_sub(1),
+            Right => {
+                self.palette.input.cursor =
+                    (self.palette.input.cursor + 1).min(self.palette.input.value.chars().count())
+            }
+            Home => self.palette.input.cursor = 0,
+            Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.palette.input.cursor = 0
+            }
+            End => self.palette.input.cursor = self.palette.input.value.chars().count(),
+            Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.palette.input.cursor = self.palette.input.value.chars().count()
+            }
+            Backspace => {
+                self.palette.input.backspace();
+                self.refresh_palette();
+            }
+            Delete => {
+                self.palette.input.delete();
+                self.refresh_palette();
+            }
+            Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.palette.input.insert(character);
+                self.refresh_palette();
+            }
+            _ => {}
+        }
+        Vec::new()
+    }
+
+    pub(super) fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
         if self.git.push_in_flight || self.git.fetch_in_flight {
             self.set_status(
                 if self.git.push_in_flight {
@@ -340,7 +379,7 @@ impl App {
         self.request_quit()
     }
 
-    fn toggle_auto_backup(&mut self) {
+    pub(super) fn toggle_auto_backup(&mut self) {
         if self.git.auto_commit_interval == 0 {
             self.set_status(
                 "automatic Git operations are off; set git-auto-commit-interval to enable them",
@@ -359,7 +398,7 @@ impl App {
         );
     }
 
-    fn open_git_message(&mut self) {
+    pub(super) fn open_git_message(&mut self) {
         if self.git.push_in_flight || self.git.fetch_in_flight {
             self.set_status(
                 if self.git.push_in_flight {
@@ -389,7 +428,7 @@ impl App {
         )));
     }
 
-    fn open_auto_commit_interval(&mut self) {
+    pub(super) fn open_auto_commit_interval(&mut self) {
         self.modal = Some(Modal::Input(InputModal::new(
             "Automatic commit interval (minutes; 0 disables)",
             self.git.auto_commit_interval.to_string(),
@@ -397,7 +436,7 @@ impl App {
         )));
     }
 
-    fn toggle_auto_push(&mut self) {
+    pub(super) fn toggle_auto_push(&mut self) {
         let next = !self.git.auto_push;
         match self.persist_git_settings(None, Some(next), None) {
             Ok(()) => self.set_status(
@@ -412,7 +451,7 @@ impl App {
         }
     }
 
-    fn toggle_backup_on_quit(&mut self) {
+    pub(super) fn toggle_backup_on_quit(&mut self) {
         let next = !self.git.backup_on_quit;
         match self.persist_git_settings(None, None, Some(next)) {
             Ok(()) => self.set_status(
@@ -469,7 +508,12 @@ impl App {
     }
 
     pub fn handle_mouse(&mut self, event: MouseEvent) -> Vec<Effect> {
-        if self.modal.is_some() || self.trash.open || self.git.open || self.search.active {
+        if self.modal.is_some()
+            || self.palette.open
+            || self.trash.open
+            || self.git.open
+            || self.search.active
+        {
             return Vec::new();
         }
         if self.show_help {
@@ -651,7 +695,7 @@ impl App {
         }
     }
 
-    fn toggle_density(&mut self) {
+    pub(super) fn toggle_density(&mut self) {
         self.density = self.density.next();
         let mut config = match crate::config::AppConfig::load() {
             Ok(config) => config,
@@ -899,4 +943,10 @@ impl App {
 
 fn is_ctrl_g(key: KeyEvent) -> bool {
     key.code == KeyCode::Char('g') && key.modifiers.contains(KeyModifiers::CONTROL)
+}
+
+fn is_palette_trigger(key: KeyEvent) -> bool {
+    (key.code == KeyCode::Char(':') && !key.modifiers.contains(KeyModifiers::CONTROL))
+        || (key.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(key.code, KeyCode::Char('p') | KeyCode::Char('P')))
 }
