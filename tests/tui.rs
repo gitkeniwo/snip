@@ -1112,42 +1112,82 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
     assert!(row_text(terminal.backend().buffer(), 0).contains("[auto paused]"));
     app.handle_key(key(KeyCode::Char('a')));
     assert!(!app.git.auto_backup_paused);
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Char('b'))).as_slice(),
-        [Effect::RunGit(GitAction::Backup)]
-    ));
-    app.git.status.as_mut().unwrap().unstaged = 0;
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Char('b'))).as_slice(),
-        [Effect::RunGit(GitAction::Backup)]
-    ));
-    app.git.status.as_mut().unwrap().ahead = 0;
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Char('b'))).as_slice(),
-        [Effect::RunGit(GitAction::Backup)]
-    ));
-    app.git.status.as_mut().unwrap().ahead = 1;
-    app.git.status.as_mut().unwrap().unstaged = 2;
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Char('c'))).as_slice(),
-        [Effect::RunGit(GitAction::Commit { message: None })]
-    ));
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Char('p'))).as_slice(),
-        [Effect::RunGit(GitAction::Push)]
-    ));
+
+    // Manual git operations are now dispatched as background tasks.
+    // Set up a sender so spawn_git_operation can fire the thread.
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
+
+    // Helper: drain the background result and restore synthetic status so the
+    // next keypress still sees the values we control.
+    let drain = |app: &mut App, receiver: &mpsc::Receiver<AppEvent>, status: Status| {
+        let AppEvent::GitFinished(result) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+        else {
+            panic!("expected GitFinished");
+        };
+        assert!(result.manual);
+        app.handle_git_task(result);
+        app.git.status = Some(status);
+    };
+    let base_status = || Status {
+        branch: Branch::Named {
+            name: "main".to_owned(),
+        },
+        upstream: Some("origin/main".to_owned()),
+        ahead: 1,
+        behind: 0,
+        staged: 0,
+        unstaged: 2,
+        untracked: 0,
+        conflicted: Vec::new(),
+        state: RepoState::Clean,
+        head_oid: Some("abcdef123".to_owned()),
+        last_commit: None,
+        upstream_commit: None,
+    };
+
+    // backup with unstaged changes
+    assert!(app.handle_key(key(KeyCode::Char('b'))).is_empty());
+    assert!(app.git.operation_queued);
+    drain(&mut app, &receiver, base_status());
+
+    // backup with nothing to commit but ahead > 0
+    let mut no_dirty = base_status();
+    no_dirty.unstaged = 0;
+    app.git.status = Some(no_dirty.clone());
+    assert!(app.handle_key(key(KeyCode::Char('b'))).is_empty());
+    assert!(app.git.operation_queued);
+    drain(&mut app, &receiver, base_status());
+
+    // backup with ahead=0 and nothing dirty — still dispatched (backup() handles as no-op)
+    let mut nothing = base_status();
+    nothing.unstaged = 0;
+    nothing.ahead = 0;
+    app.git.status = Some(nothing);
+    assert!(app.handle_key(key(KeyCode::Char('b'))).is_empty());
+    assert!(app.git.operation_queued);
+    drain(&mut app, &receiver, base_status());
+
+    // commit
+    assert!(app.handle_key(key(KeyCode::Char('c'))).is_empty());
+    assert!(app.git.operation_queued);
+    drain(&mut app, &receiver, base_status());
+
+    // push
+    assert!(app.handle_key(key(KeyCode::Char('p'))).is_empty());
+    assert!(app.git.operation_queued);
+    drain(&mut app, &receiver, base_status());
+
+    // custom commit message via modal
     app.handle_key(key(KeyCode::Char('C')));
     let Some(Modal::Input(message)) = app.modal.as_ref() else {
         panic!("custom Git message should open an input modal");
     };
     assert!(message.value.starts_with("snip backup:"));
     replace_modal_input(&mut app, "custom backup");
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Enter)).as_slice(),
-        [Effect::RunGit(GitAction::Commit {
-            message: Some(message)
-        })] if message == "custom backup"
-    ));
+    assert!(app.handle_key(key(KeyCode::Enter)).is_empty());
+    assert!(app.git.operation_queued);
+    drain(&mut app, &receiver, base_status());
 
     app.git.push_in_flight = true;
     app.git.push_attempted_at = Some(Instant::now() - Duration::from_secs(181));
@@ -1255,79 +1295,104 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
 
 #[test]
 fn quit_backup_waits_for_its_git_effect_to_finish() {
+    if !git_available() {
+        return;
+    }
     let temporary = tempfile::tempdir().unwrap();
-    let library = Library::init(
-        &temporary.path().join("Quit backup.sniplib"),
-        Some("Quit backup"),
-    )
-    .unwrap();
+    let root = temporary.path().join("Quit backup.sniplib");
+    let library = Library::init(&root, Some("Quit backup")).unwrap();
+    init_git_repo(&root);
+    let repo = snip::git::probe(library.root()).unwrap();
+    snip::git::commit(&repo, "initial").unwrap();
+
+    // Create a genuinely dirty file so refresh_git (called by request_quit)
+    // still sees committable changes after re-reading the real status.
+    std::fs::write(root.join("dirty.txt"), "uncommitted\n").unwrap();
+
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
     app.git.backup_on_quit = true;
     app.git.unavailable = None;
-    app.git.status = Some(Status {
-        branch: Branch::Named {
-            name: "main".to_owned(),
-        },
-        upstream: None,
-        ahead: 0,
-        behind: 0,
-        staged: 0,
-        unstaged: 1,
-        untracked: 0,
-        conflicted: Vec::new(),
-        state: RepoState::Clean,
-        head_oid: Some("abcdef123".to_owned()),
-        last_commit: None,
-        upstream_commit: None,
-    });
+    app.git.repo = Some(repo);
+    app.refresh_git();
 
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Char('q'))).as_slice(),
-        [Effect::RunGit(GitAction::Backup)]
-    ));
+    assert!(app.handle_key(key(KeyCode::Char('q'))).is_empty());
     assert!(app.pending_quit);
     assert!(!app.should_quit);
     assert!(app.git.operation_queued);
 
-    app.finish_git_operation();
+    let AppEvent::GitFinished(result) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+    else {
+        panic!("expected GitFinished");
+    };
+    assert!(result.manual);
+    app.handle_git_task(result);
     assert!(app.should_quit);
     assert!(!app.git.operation_queued);
 }
 
 #[test]
 fn quit_backup_runs_for_a_clean_worktree_with_unpushed_commits() {
+    if !git_available() {
+        return;
+    }
     let temporary = tempfile::tempdir().unwrap();
-    let library = Library::init(
-        &temporary.path().join("Clean ahead.sniplib"),
-        Some("Clean ahead"),
-    )
-    .unwrap();
+    let root = temporary.path().join("Clean ahead.sniplib");
+    let bare = temporary.path().join("origin.git");
+    let library = Library::init(&root, Some("Clean ahead")).unwrap();
+    init_git_repo(&root);
+    let repo = snip::git::probe(library.root()).unwrap();
+    snip::git::commit(&repo, "initial").unwrap();
+    git_ok(
+        temporary.path(),
+        &["init", "--bare", bare.to_str().unwrap()],
+    );
+    git_ok(&root, &["remote", "add", "origin", bare.to_str().unwrap()]);
+    git_ok(&root, &["push", "-u", "origin", "main"]);
+
+    // Commit on top of the pushed history, then leave the worktree clean:
+    // this is the "nothing to commit, but ahead > 0" branch of check_backup,
+    // distinct from the dirty-worktree case covered above.
+    let mut tags = std::fs::read_to_string(root.join("tags.toml")).unwrap();
+    tags.push_str("\n# ahead\n");
+    std::fs::write(root.join("tags.toml"), tags).unwrap();
+    snip::git::commit(&repo, "ahead of origin").unwrap();
+
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
     app.git.backup_on_quit = true;
     app.git.unavailable = None;
-    app.git.status = Some(Status {
-        branch: Branch::Named {
-            name: "main".to_owned(),
-        },
-        upstream: Some("origin/main".to_owned()),
-        ahead: 4,
-        behind: 0,
-        staged: 0,
-        unstaged: 0,
-        untracked: 0,
-        conflicted: Vec::new(),
-        state: RepoState::Clean,
-        head_oid: Some("abcdef123".to_owned()),
-        last_commit: None,
-        upstream_commit: None,
-    });
+    app.git.repo = Some(repo);
+    app.refresh_git();
+    let status_before = app.git.status.clone().unwrap();
+    assert_eq!(status_before.unstaged, 0);
+    assert_eq!(status_before.staged, 0);
+    assert_eq!(status_before.untracked, 0);
+    assert_eq!(status_before.ahead, 1);
 
-    assert!(matches!(
-        app.handle_key(key(KeyCode::Char('q'))).as_slice(),
-        [Effect::RunGit(GitAction::Backup)]
-    ));
+    assert!(app.handle_key(key(KeyCode::Char('q'))).is_empty());
     assert!(app.pending_quit);
     assert!(!app.should_quit);
+    assert!(app.git.operation_queued);
+
+    let AppEvent::GitFinished(result) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+    else {
+        panic!("expected GitFinished");
+    };
+    assert!(result.manual);
+    assert!(matches!(
+        result.outcome,
+        Ok(ref outcome) if outcome.pushed && !outcome.committed
+    ));
+    // A stale banner from an earlier automatic push failure must not survive a
+    // successful manual push.
+    app.git.last_push_error = Some("background push failed earlier".to_owned());
+    app.handle_git_task(result);
+    assert!(app.should_quit);
+    assert_eq!(app.git.status.as_ref().unwrap().ahead, 0);
+    assert!(app.git.last_push_error.is_none());
 }
 
 #[test]
