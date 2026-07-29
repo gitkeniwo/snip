@@ -268,6 +268,7 @@ snip config set default-tags 'ai,generated'
 snip config set tui-theme auto
 snip config set tui-sort modified
 snip config set tui-density compact
+snip config set tui-line-numbers false
 snip config set git-auto-commit-interval 15
 snip config set git-auto-push true
 snip config set git-backup-on-quit true
@@ -293,6 +294,7 @@ default_tags = ["personal"]
 theme = "auto"             # auto | light | dark
 sort = "modified"          # modified | created | title
 density = "comfortable"    # comfortable | compact
+line_numbers = true        # preview gutter; toggled with `N`
 
 [git]
 auto_commit_interval = 0   # minutes; 0 disables automatic Git operations
@@ -383,6 +385,7 @@ repository.
 
 ```bash
 snip init Main.sniplib --git
+snip --library Main.sniplib git init
 snip --library Main.sniplib git commit
 snip --library Main.sniplib git commit -m "before refactoring"
 snip --library Main.sniplib git backup
@@ -390,6 +393,8 @@ snip --library Main.sniplib git push
 snip --library Main.sniplib git fetch
 ```
 
+`snip init --git` only applies at creation time; `snip git init` makes an
+existing library a repository, and is idempotent when it already is one.
 `commit` stages and commits only library content. `backup` commits when the
 library is dirty and pushes whenever the branch is ahead of its upstream, so it
 also handles a clean worktree with earlier local commits. `push` retries only

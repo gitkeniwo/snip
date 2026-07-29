@@ -63,6 +63,11 @@ If the user has one library configured, plain commands just work. When you are
 scripting several commands, exporting `SNIP_LIBRARY` once is cleaner than
 repeating `--library`.
 
+`snip info --output json` reports the resolved library and its counts — the
+cheapest way to confirm you are pointed where you think you are. `snip init
+<path> --name <NAME> [--git]` creates a new one, with `--git` making it a
+repository from the start.
+
 ## Addressing a snippet
 
 Most commands take a `<SELECTOR>`, resolved in this order:
@@ -237,6 +242,37 @@ behalf when they ask. `purge` is not reversible and deliberately requires
 `--yes`; confirm with the user before running it rather than adding the flag to
 get past the error.
 
+## Backing up
+
+A library can be a Git repository, and `snip git` operates on it scoped to the
+library directory:
+
+```bash
+snip git status --output json    # ahead/behind, dirty counts, upstream
+snip git init                    # make the library a repo; idempotent
+snip git commit -m "…"           # stage and commit library content
+snip git backup                  # commit if dirty, then push when ahead
+snip git push                    # push without committing
+snip git fetch                   # refresh remote-tracking refs only
+```
+
+**Before any bulk or irreversible change — a retag across many snippets, a
+folder move, a `--force` write, `purge` — run `snip git status`.** It answers
+with `available` plus, when true, a `status` object carrying `ahead`, `behind`,
+`staged`/`unstaged`/`untracked`, and `state`. A clean repo means the user can
+undo you with one `git checkout`; a dirty one means you should say so before
+adding your changes to the pile.
+
+An unavailable library is **not an error** — `available: false` with a
+`reason.kind` of `not_a_repository`, `binary_missing`, or `probe_failed`, and
+exit 0. Branch on `available`, not on the exit code. When it is false the safety
+net does not exist; tell the user instead of assuming it does.
+
+Git commands never pull, never switch branches, and never prompt for
+credentials — a push needing a passphrase fails fast instead of hanging you.
+Automatic commits and pushes are a TUI feature driven by user config; do not
+count on them having run.
+
 ## Errors
 
 Errors print one JSON object under `--output json` and set a distinct exit code,
@@ -271,6 +307,9 @@ first when a library behaves strangely.
 - `references/commands.md` — every command and flag, with the JSON payload
   shapes for list, show, search, mutations, and trash. Read it when you need a
   flag this page did not mention or need to know a field name before parsing.
+  It also covers the commands this page leaves out because they are rarely
+  yours to run: `import` (SnippetsLab migration), `config`, `preview`, `open`,
+  and `completion`.
 - `references/data-model.md` — the on-disk layout, what a fingerprint covers,
   and the rules for touching files directly instead of going through the CLI.
   Read it when the user wants bulk/scripted changes, is migrating data, or asks

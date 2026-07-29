@@ -110,7 +110,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             ("f", "fetch remote status"),
             ("C", "custom commit message"),
             ("a", "pause this session"),
-            ("i", "set automatic interval"),
+            ("i", "initialize repository, or set automatic interval"),
             ("u", "toggle automatic push"),
             ("o", "toggle backup on quit"),
             ("r", "refresh local status"),

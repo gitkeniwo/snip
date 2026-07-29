@@ -177,6 +177,10 @@ after their last use, so a tag with count 0 is normal, not corruption.
   counts snippets, folders, tags, fragments, notes, and attachments and flags
   normalized tags.
 - `snip git status` — Git backup status scoped to the library directory.
+- `snip git init` — make the library a Git repository when it is not one
+  already. Idempotent: on a library that is already inside a repository it
+  reports `created: false` and succeeds rather than failing, so it is safe to
+  run unconditionally. Creates no commit.
 - `snip git commit [-m <MESSAGE>]` — stage and commit library content. The
   generated message includes local time and the dirty-file count.
 - `snip git backup` — commit when the library is dirty, then push whenever
@@ -191,9 +195,10 @@ after their last use, so a tag with count 0 is normal, not corruption.
   pull.
 
 CLI Git writes are deliberate user-triggered operations: they disable
-credential prompts and fail fast. The TUI suspends to the real terminal for
-manual operations and `backup_on_quit`, preserving interactive credentials and
-progress. With `[git].auto_commit_interval` set above zero, the TUI may create
+credential prompts and fail fast. The TUI runs manual operations on a
+background thread without suspending, and suspends to the real terminal only
+for `backup_on_quit`, where interactive credentials and progress still matter.
+With `[git].auto_commit_interval` set above zero, the TUI may create
 local interval commits. `[git].auto_push = true` also pushes ahead commits in a
 non-prompting background worker on that same interval. An interval of `0`
 disables both. In the TUI Git console, `f` fetches remote status, `i` changes
@@ -209,8 +214,10 @@ automatic commits and pushes for the current session.
 - `snip config path|show|init|set <KEY> <VALUE>|unset <KEY>` — keys:
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
   `editor`, `pager`, `default-language`, `default-folder`, `default-tags`,
-  `tui-theme`, `tui-sort`, `tui-density`, `git-auto-commit-interval`,
-  `git-auto-push`, `git-backup-on-quit`. The interval is a whole number of
+  `tui-theme`, `tui-sort`, `tui-density`, `tui-line-numbers`,
+  `git-auto-commit-interval`,
+  `git-auto-push`, `git-backup-on-quit`. `tui-line-numbers` is boolean and
+  defaults to on. The interval is a whole number of
   minutes, with `0` meaning all automatic Git work is off; both remaining Git
   settings are boolean. Enabling auto-push while the interval is `0` prints a
   warning. Unknown keys in the file are preserved across writes, so hand-added
