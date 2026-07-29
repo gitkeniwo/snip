@@ -72,18 +72,30 @@ jobs:
         if: runner.os != 'Windows'
       - run: .\target\release\snip.exe --version
         if: runner.os == 'Windows'
+      - name: Install Linux package builders
+        if: runner.os == 'Linux'
+        run: |
+          cargo install cargo-deb --version 3.7.0 --locked
+          cargo install cargo-generate-rpm --version 0.21.0 --locked
       - name: Create portable archive (Unix)
         if: runner.os != 'Windows'
         run: tar -C target/release -czf ${{ matrix.asset }}.tar.gz snip
       - name: Create portable archive (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path target/release/snip.exe -DestinationPath ${{ matrix.asset }}.zip
+      - name: Create Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          cargo deb --no-build --output ${{ matrix.asset }}.deb
+          cargo generate-rpm -o ${{ matrix.asset }}.rpm
       - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.asset }}
           path: |
             *.tar.gz
             *.zip
+            *.deb
+            *.rpm
           if-no-files-found: error
           retention-days: 14
   publish:
@@ -100,6 +112,8 @@ jobs:
           files: |
             artifacts/*/*.tar.gz
             artifacts/*/*.zip
+            artifacts/*/*.deb
+            artifacts/*/*.rpm
           generate_release_notes: true
 
   crates-io:

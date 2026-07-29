@@ -38,6 +38,28 @@ pkg-fmt = "tgz"
 pkg-url = "{ repo }/releases/download/v{ version }/snip-{ target }.zip"
 pkg-fmt = "zip"
 
+# `cargo-generate-rpm` needs an explicit list of packaged files.  The .deb
+# package uses cargo-deb's automatic binary discovery, while both formats ship
+# the same `snip` executable built by the release workflow.
+[package.metadata.generate-rpm]
+
+[[package.metadata.generate-rpm.assets]]
+source = "target/release/snip"
+dest = "/usr/bin/snip"
+mode = "0755"
+
+[[package.metadata.generate-rpm.assets]]
+source = "LICENSE"
+dest = "/usr/share/licenses/sniplab/LICENSE"
+mode = "0644"
+doc = true
+
+[[package.metadata.generate-rpm.assets]]
+source = "README.md"
+dest = "/usr/share/doc/sniplab/README.md"
+mode = "0644"
+doc = true
+
 [features]
 default = ["tui"]
 tui = [

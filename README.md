@@ -35,14 +35,48 @@ Or download a binary from the [latest release](https://github.com/gitkeniwo/snip
 |---|---|
 | macOS (Apple Silicon) | `snip-aarch64-apple-darwin.tar.gz` |
 | macOS (Intel) | `snip-x86_64-apple-darwin.tar.gz` |
-| Linux x86_64 | `snip-x86_64-unknown-linux-gnu.tar.gz` |
-| Linux arm64 | `snip-aarch64-unknown-linux-gnu.tar.gz` |
+| Linux x86_64 | `snip-x86_64-unknown-linux-gnu.tar.gz`, `.deb`, `.rpm` |
+| Linux arm64 | `snip-aarch64-unknown-linux-gnu.tar.gz`, `.deb`, `.rpm` |
 | Windows x86_64 | `snip-x86_64-pc-windows-msvc.zip` |
 
 ```bash
 curl -L https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-apple-darwin.tar.gz | tar xz
 install -m 755 snip /usr/local/bin/snip
 ```
+
+### Linux packages
+
+Each release also provides native Linux package files. These are local packages,
+not an apt or dnf repository: download the newer release file again when you
+want to upgrade.
+
+The current Linux binaries are built on Ubuntu 24.04. The `.deb` packages are
+intended for Ubuntu 24.04 and newer, Debian 13 and newer, and their derivatives
+(including Linux Mint 22, Pop!_OS 24.04, elementary OS 8, and Zorin OS 17).
+Choose the command matching your CPU:
+
+```bash
+# Debian / Ubuntu family, x86_64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb && sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
+
+# Debian / Ubuntu family, arm64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.deb && sudo apt install ./snip-aarch64-unknown-linux-gnu.deb
+```
+
+The `.rpm` packages are intended for Fedora 40 and newer. They are available for
+both x86_64 and arm64:
+
+```bash
+# Fedora, x86_64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm && sudo dnf install ./snip-x86_64-unknown-linux-gnu.rpm
+
+# Fedora, arm64
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.rpm && sudo dnf install ./snip-aarch64-unknown-linux-gnu.rpm
+```
+
+RHEL, Rocky Linux, AlmaLinux, CentOS Stream, Ubuntu 22.04, Debian 12, and
+openSUSE Leap use older system libraries than the current builds. Build from
+source on those systems for now (for example, `cargo install sniplab`).
 
 Or build from source (Rust 1.89 or newer):
 
