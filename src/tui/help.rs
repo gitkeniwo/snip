@@ -304,7 +304,10 @@ mod tests {
     fn help_documents_every_literal_character_binding_in_input_routing() {
         let mut bound = BTreeSet::new();
         for source in [
-            include_str!("app/input.rs"),
+            include_str!("app/input/mod.rs"),
+            include_str!("app/input/git.rs"),
+            include_str!("app/input/overlay.rs"),
+            include_str!("app/input/panes.rs"),
             include_str!("app/trash_view.rs"),
         ] {
             for tail in source.split("KeyCode::Char('").skip(1) {
