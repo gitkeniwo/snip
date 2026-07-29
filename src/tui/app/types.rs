@@ -17,6 +17,7 @@ use super::super::highlight::Highlighter;
 use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
 use super::super::modal::Modal;
+use super::super::palette::PaletteState;
 use super::super::preview::PreviewCache;
 use super::super::selection::PreviewSelection;
 use super::super::state::{
@@ -148,6 +149,7 @@ pub struct App {
     pub theme_checked_at: Instant,
     pub status: Option<StatusMessage>,
     pub modal: Option<Modal>,
+    pub palette: PaletteState,
     pub trash: TrashState,
     pub should_quit: bool,
     pub pending_quit: bool,

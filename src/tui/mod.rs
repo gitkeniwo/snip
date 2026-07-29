@@ -1,6 +1,7 @@
 pub mod app;
 pub mod bottom_bar;
 pub mod clipboard;
+pub mod command;
 pub mod editor;
 pub mod event;
 pub mod git_panel;
@@ -9,6 +10,7 @@ pub mod highlight;
 pub mod icons;
 pub mod layout;
 pub mod modal;
+pub mod palette;
 pub mod preview;
 pub mod selection;
 pub mod sidebar;

@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod core;
 pub mod effects;
 pub mod input;

@@ -70,6 +70,7 @@ impl App {
             theme_checked_at: Instant::now(),
             status: None,
             modal: None,
+            palette: Default::default(),
             trash: TrashState::default(),
             should_quit: false,
             pending_quit: false,
