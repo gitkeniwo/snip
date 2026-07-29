@@ -78,6 +78,18 @@ RHEL, Rocky Linux, AlmaLinux, CentOS Stream, Ubuntu 22.04, Debian 12, and
 openSUSE Leap use older system libraries than the current builds. Build from
 source on those systems for now (for example, `cargo install sniplab`).
 
+### Arch Linux and derivatives
+
+After the first AUR publication, install `snip` with an AUR helper:
+
+```bash
+yay -S snip
+# or: paru -S snip
+```
+
+The AUR package builds from the release source on your machine, rather than
+repackaging an Ubuntu-built binary.
+
 Or build from source (Rust 1.89 or newer):
 
 ```bash
