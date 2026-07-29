@@ -12,9 +12,9 @@ use time::{OffsetDateTime, UtcOffset};
 use crate::error::{Result, SnipError};
 
 pub use parse::relative_time;
-#[cfg(feature = "tui")]
-pub(crate) use write::is_library_lock_conflict;
 pub use write::{ActionOutcome, backup, commit, execute_interactive, fetch, init, push};
+#[cfg(feature = "tui")]
+pub(crate) use write::{execute_non_interactive, is_library_lock_conflict};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]

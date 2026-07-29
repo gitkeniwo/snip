@@ -69,18 +69,31 @@ pub fn execute_interactive(library_root: &Path, action: &GitAction) -> Result<Ac
         });
     }
     let repo = probe(library_root).map_err(super::unavailable_error)?;
-    let current = status(&repo)?;
+    execute_with(&repo, action, Mode::Interactive)
+}
+
+/// Runs a manual Backup/Commit/Push action non-interactively, for callers
+/// (like the TUI's background dispatcher) that already hold a probed `Repo`
+/// and cannot suspend the terminal. `Init` is not supported here; it needs
+/// the interactive flow to prompt for first-time setup.
+#[cfg(feature = "tui")]
+pub fn execute_non_interactive(repo: &Repo, action: &GitAction) -> Result<ActionOutcome> {
+    execute_with(repo, action, Mode::NonInteractive)
+}
+
+fn execute_with(repo: &Repo, action: &GitAction, mode: Mode) -> Result<ActionOutcome> {
+    let current = status(repo)?;
     match action {
         GitAction::Backup => {
             let message = super::backup_message(&current);
-            backup_with(&repo, &message, Mode::Interactive, &current)
+            backup_with(repo, &message, mode, &current)
         }
         GitAction::Commit { message } => {
             check_commit(&current).map_err(refusal_error)?;
             let message = message
                 .clone()
                 .unwrap_or_else(|| super::backup_message(&current));
-            commit_with(&repo, &message, Mode::Interactive)?;
+            commit_with(repo, &message, mode)?;
             Ok(ActionOutcome {
                 action: "commit",
                 committed: true,
@@ -90,7 +103,7 @@ pub fn execute_interactive(library_root: &Path, action: &GitAction) -> Result<Ac
         }
         GitAction::Push => {
             check_push(&current).map_err(refusal_error)?;
-            push_with(&repo, Mode::Interactive)?;
+            push_with(repo, mode)?;
             Ok(ActionOutcome {
                 action: "push",
                 committed: false,
