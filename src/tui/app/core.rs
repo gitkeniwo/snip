@@ -230,6 +230,7 @@ impl App {
             let _ = sender.send(AppEvent::GitFinished(GitTaskResult {
                 action: "push",
                 outcome,
+                manual: false,
             }));
         });
     }
@@ -259,40 +260,88 @@ impl App {
             let _ = sender.send(AppEvent::GitFinished(GitTaskResult {
                 action: "fetch",
                 outcome,
+                manual: false,
+            }));
+        });
+    }
+
+    /// Spawns a manual git operation (backup, commit, push) as a background
+    /// task. The caller must have already set `operation_queued = true` and
+    /// validated preconditions. Results arrive via `AppEvent::GitFinished`.
+    pub(super) fn spawn_git_operation(&mut self, action: crate::git::GitAction) {
+        let (action_name, pending) = match &action {
+            crate::git::GitAction::Backup => ("backup", "backing up…"),
+            crate::git::GitAction::Commit { .. } => ("commit", "committing…"),
+            crate::git::GitAction::Push => ("push", "pushing…"),
+            crate::git::GitAction::Init => {
+                debug_assert!(false, "Init must use the interactive RunGit effect");
+                self.set_status("git init requires the interactive flow", StatusLevel::Error);
+                self.finish_git_operation();
+                return;
+            }
+        };
+        let (Some(repo), Some(sender)) = (self.git.repo.clone(), self.git.sender.clone()) else {
+            self.set_status("Git is unavailable", StatusLevel::Error);
+            self.finish_git_operation();
+            return;
+        };
+        self.set_status(pending, StatusLevel::Info);
+        std::thread::spawn(move || {
+            let outcome =
+                crate::git::execute_non_interactive(&repo, &action).map_err(|e| e.to_string());
+            let _ = sender.send(AppEvent::GitFinished(GitTaskResult {
+                action: action_name,
+                outcome,
+                manual: true,
             }));
         });
     }
 
     pub fn handle_git_task(&mut self, result: GitTaskResult) {
-        if result.action == "push" {
+        if result.action == "push" && !result.manual {
             self.git.push_in_flight = false;
         } else if result.action == "fetch" {
             self.git.fetch_in_flight = false;
         }
         self.refresh_git();
-        match result.outcome {
-            Ok(_) => {
-                // Background success is visible in the badge and panel. Keep it
-                // quiet so an interval backup does not become a recurring toast.
-                if result.action == "fetch" {
-                    self.git.last_fetch_error = None;
-                    self.git.fetched_at = Some(Instant::now());
-                    self.set_status("remote status refreshed", StatusLevel::Info);
-                } else {
-                    self.git.last_push_error = None;
+        if result.manual {
+            // Manual user-triggered operation: always show result.
+            match &result.outcome {
+                Ok(outcome) => {
+                    // A successful manual push retires the stale panel banner
+                    // left behind by an earlier automatic push failure.
+                    if outcome.pushed {
+                        self.git.last_push_error = None;
+                    }
+                    self.set_status(&outcome.message, StatusLevel::Info);
                 }
+                Err(message) => self.set_status(message, StatusLevel::Error),
             }
-            Err(message) => {
-                let slot = if result.action == "fetch" {
-                    &mut self.git.last_fetch_error
-                } else {
-                    &mut self.git.last_push_error
-                };
-                if auto_error_transition(slot, message.clone()) {
-                    self.set_status(
-                        format!("background {} failed: {message}", result.action),
-                        StatusLevel::Error,
-                    );
+            self.finish_git_operation();
+        } else {
+            // Automatic background task: quiet on success, throttled on error.
+            match result.outcome {
+                Ok(_) => {
+                    if result.action == "fetch" {
+                        self.git.last_fetch_error = None;
+                        self.git.fetched_at = Some(Instant::now());
+                        self.set_status("remote status refreshed", StatusLevel::Info);
+                    } else {
+                        self.git.last_push_error = None;
+                    }
+                }
+                Err(message) => {
+                    let slot = if result.action == "fetch" {
+                        &mut self.git.last_fetch_error
+                    } else {
+                        &mut self.git.last_push_error
+                    };
+                    if auto_error_transition(slot, message.clone()) {
+                        self.set_status(
+                            format!("background {} failed: {message}", result.action),
+                            StatusLevel::Error,
+                        );
+                    }
                 }
             }
         }

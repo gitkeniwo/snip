@@ -123,12 +123,6 @@ impl App {
                 if !message.is_empty() {
                     self.set_status(message, StatusLevel::Info);
                 }
-                if effects
-                    .iter()
-                    .any(|effect| matches!(effect, Effect::RunGit(_)))
-                {
-                    self.git.operation_queued = true;
-                }
                 effects
             }
             Err(error) => {
@@ -213,12 +207,10 @@ impl App {
                 if message.is_empty() {
                     return Err(SnipError::usage("commit message cannot be empty"));
                 }
-                return Ok((
-                    vec![Effect::RunGit(GitAction::Commit {
-                        message: Some(message.to_owned()),
-                    })],
-                    String::new(),
-                ));
+                self.git_effect(GitAction::Commit {
+                    message: Some(message.to_owned()),
+                });
+                return Ok((Vec::new(), String::new()));
             }
             ModalAction::GitAutoCommitInterval => {
                 let minutes = input()?.parse::<u32>().map_err(|_| {

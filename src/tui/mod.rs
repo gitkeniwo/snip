@@ -197,6 +197,12 @@ fn execute_effect(
             }
         }
         Effect::RunGit(action) => {
+            // Only Init uses interactive mode (needs terminal for first-time
+            // setup). All other actions are spawned as background tasks.
+            debug_assert!(
+                matches!(action, crate::git::GitAction::Init),
+                "non-Init git actions should be spawned as background tasks"
+            );
             guard.suspend()?;
             let outcome = crate::git::execute_interactive(app.library.root(), &action);
             if let Err(error) = &outcome {
@@ -206,13 +212,7 @@ fn execute_effect(
             }
             guard.resume()?;
             *terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
-            if matches!(action, crate::git::GitAction::Init) {
-                app.reprobe_git();
-            } else {
-                // Git writes repository metadata, not library content, so the
-                // catalog stays valid and a worktree rescan would be redundant.
-                app.refresh_git();
-            }
+            app.reprobe_git();
             match outcome {
                 Ok(outcome) => app.set_status(outcome.message, StatusLevel::Info),
                 Err(error) => app.set_status(error.to_string(), StatusLevel::Error),

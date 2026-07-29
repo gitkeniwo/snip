@@ -18,6 +18,10 @@ pub enum AppEvent {
 pub struct GitTaskResult {
     pub action: &'static str,
     pub outcome: std::result::Result<ActionOutcome, String>,
+    /// Whether this was triggered by a manual user action (as opposed to an
+    /// automatic background task). Manual results show a status toast and clear
+    /// the `operation_queued` flag.
+    pub manual: bool,
 }
 
 pub struct WatchHandle {

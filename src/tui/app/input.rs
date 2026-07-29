@@ -337,7 +337,12 @@ impl App {
             return Vec::new();
         }
         self.git.operation_queued = true;
-        vec![Effect::RunGit(action)]
+        if matches!(action, GitAction::Init) {
+            vec![Effect::RunGit(action)]
+        } else {
+            self.spawn_git_operation(action);
+            Vec::new()
+        }
     }
 
     pub(super) fn request_quit(&mut self) -> Vec<Effect> {
@@ -367,7 +372,8 @@ impl App {
         if should_backup {
             self.pending_quit = true;
             self.git.operation_queued = true;
-            vec![Effect::RunGit(GitAction::Backup)]
+            self.spawn_git_operation(GitAction::Backup);
+            Vec::new()
         } else {
             self.should_quit = true;
             Vec::new()
