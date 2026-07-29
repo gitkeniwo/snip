@@ -1,114 +1,16 @@
-use ratatui::Frame;
-use ratatui::layout::{Alignment, Rect};
+use ratatui::layout::Alignment;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph};
 use time::OffsetDateTime;
 
-use crate::git::{Branch, RepoState, Unavailable};
+use crate::git::{Branch, RepoState};
 
-use super::app::App;
-use super::app::types::GitState;
-use super::icons::IconMode;
-use super::selection::text_width;
-use super::theme::TuiTheme;
-use super::widgets;
+use super::super::app::App;
+use super::super::selection::text_width;
+use super::super::theme::TuiTheme;
+use super::super::widgets;
 
-pub fn badge(state: &GitState, icons: IconMode, theme: TuiTheme) -> Option<(String, Color)> {
-    let status = state.status.as_ref()?;
-    if !status.conflicted.is_empty() {
-        return Some((with_auto_suffix(state, "git !conflict"), theme.error));
-    }
-    if status.state != RepoState::Clean {
-        return Some((
-            with_auto_suffix(state, format!("git {}", status.state.label())),
-            theme.warning,
-        ));
-    }
-    match &status.branch {
-        Branch::Detached { short_id } => {
-            return Some((
-                with_auto_suffix(state, format!("git detached@{short_id}")),
-                theme.warning,
-            ));
-        }
-        Branch::Unborn => {
-            return Some((with_auto_suffix(state, "git no commits"), theme.muted));
-        }
-        Branch::Named { .. } => {}
-    }
-
-    let branch = status.branch.name().unwrap_or("git");
-    let dirty = status.dirty_count();
-    let (prefix, changed, up, down, clean) = match icons {
-        IconMode::Nerd => ("⎇ ", " ✚", " ↑", " ↓", " ✓"),
-        IconMode::Ascii => ("git:", " +", " ^", " v", " ok"),
-    };
-    let mut text = format!("{prefix}{branch}");
-    if dirty > 0 {
-        text.push_str(&format!("{changed}{dirty}"));
-    }
-    if status.ahead > 0 {
-        text.push_str(&format!("{up}{}", status.ahead));
-    }
-    if status.behind > 0 {
-        text.push_str(&format!("{down}{}", status.behind));
-    }
-    if state.push_in_flight {
-        text.push_str(match icons {
-            IconMode::Nerd => " ⇡",
-            IconMode::Ascii => " >>",
-        });
-    }
-    let backed_up = dirty == 0 && status.ahead == 0 && !state.push_in_flight;
-    if backed_up {
-        text.push_str(clean);
-    }
-    Some((
-        with_auto_suffix(state, text),
-        if backed_up {
-            theme.success
-        } else {
-            theme.warning
-        },
-    ))
-}
-
-fn with_auto_suffix(state: &GitState, text: impl Into<String>) -> String {
-    let mut text = text.into();
-    if state.auto_commit_interval > 0 && state.auto_backup_paused {
-        text.push_str(" [auto paused]");
-    }
-    text
-}
-
-pub fn draw_git(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let popup_width = 64.min(area.width);
-    // Two border cells plus four cells of padding on each side.
-    let content_width = popup_width.saturating_sub(10) as usize;
-    let text = match app.git.unavailable.as_ref() {
-        Some(Unavailable::NotARepository) => not_repository_text(app, content_width),
-        Some(Unavailable::ProbeFailed { message }) => {
-            probe_failed_text(app, message, content_width)
-        }
-        Some(Unavailable::BinaryMissing) | None => repository_text(app, content_width),
-    };
-    let content_height = u16::try_from(text.lines.len()).unwrap_or(u16::MAX);
-    let popup = widgets::centered_rect(popup_width, content_height.saturating_add(2), area);
-    frame.render_widget(Clear, popup);
-    let block = Block::default()
-        .title(Line::from(" Git Console ").centered())
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(app.theme.accent))
-        .padding(Padding::new(4, 4, 0, 0));
-    let inner = block.inner(popup);
-    frame.render_widget(block, popup);
-
-    frame.render_widget(Paragraph::new(text).alignment(Alignment::Left), inner);
-}
-
-fn probe_failed_text(app: &App, message: &str, width: usize) -> Text<'static> {
+pub(super) fn probe_failed_text(app: &App, message: &str, width: usize) -> Text<'static> {
     Text::from(vec![
         title_line(&app.library.manifest().name, app.theme),
         Line::raw(""),
@@ -131,7 +33,7 @@ fn probe_failed_text(app: &App, message: &str, width: usize) -> Text<'static> {
     ])
 }
 
-fn not_repository_text(app: &App, width: usize) -> Text<'static> {
+pub(super) fn not_repository_text(app: &App, width: usize) -> Text<'static> {
     let path = widgets::truncate_end(
         &app.library.root().display().to_string(),
         width.saturating_sub(2),
@@ -172,7 +74,7 @@ fn not_repository_text(app: &App, width: usize) -> Text<'static> {
     ])
 }
 
-fn repository_text(app: &App, width: usize) -> Text<'static> {
+pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
     let Some(status) = app.git.status.as_ref() else {
         return Text::from(vec![
             title_line(&app.library.manifest().name, app.theme),
@@ -354,13 +256,10 @@ fn title_line(name: &str, theme: TuiTheme) -> Line<'static> {
     .centered()
 }
 
-fn section(label: &str, width: usize, theme: TuiTheme) -> Line<'static> {
+pub(super) fn section(label: &str, width: usize, theme: TuiTheme) -> Line<'static> {
     let prefix = "── ";
-    let suffix_width = width.saturating_sub(
-        super::selection::text_width(prefix) as usize
-            + super::selection::text_width(label) as usize
-            + 1,
-    );
+    let suffix_width =
+        width.saturating_sub(text_width(prefix) as usize + text_width(label) as usize + 1);
     Line::from(vec![
         Span::styled(prefix, Style::default().fg(theme.rule)),
         Span::styled(
@@ -376,7 +275,7 @@ fn section(label: &str, width: usize, theme: TuiTheme) -> Line<'static> {
     ])
 }
 
-fn sync_verdict(status: &crate::git::Status, theme: TuiTheme) -> (String, Color) {
+pub(super) fn sync_verdict(status: &crate::git::Status, theme: TuiTheme) -> (String, Color) {
     if !status.conflicted.is_empty() {
         return (
             format!(
@@ -422,7 +321,11 @@ fn sync_verdict(status: &crate::git::Status, theme: TuiTheme) -> (String, Color)
     ("backed up and pushed".to_owned(), theme.success)
 }
 
-fn relationship_line(status: &crate::git::Status, width: usize, theme: TuiTheme) -> Line<'static> {
+pub(super) fn relationship_line(
+    status: &crate::git::Status,
+    width: usize,
+    theme: TuiTheme,
+) -> Line<'static> {
     let local = status
         .last_commit
         .as_ref()
@@ -457,7 +360,7 @@ fn relationship_line(status: &crate::git::Status, width: usize, theme: TuiTheme)
     .centered()
 }
 
-fn relationship_time_line(
+pub(super) fn relationship_time_line(
     status: &crate::git::Status,
     width: usize,
     theme: TuiTheme,
@@ -504,7 +407,7 @@ fn checkbox_line(checked: bool, key: &str, label: String, theme: TuiTheme) -> Li
     ])
 }
 
-fn key_value(key: &str, value: String, width: usize, theme: TuiTheme) -> Line<'static> {
+pub(super) fn key_value(key: &str, value: String, width: usize, theme: TuiTheme) -> Line<'static> {
     let key = format!("  {key:<12}");
     let value = widgets::truncate_end(&value, width.saturating_sub(key.len()));
     Line::from(vec![
@@ -549,7 +452,7 @@ fn init_footer(theme: TuiTheme) -> Line<'static> {
     .centered()
 }
 
-fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'static>> {
+pub(super) fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'static>> {
     let compact = width < 50;
     let entry_gap = if compact { 2 } else { 4 };
     let key_gap = if compact { 1 } else { 2 };
@@ -624,217 +527,4 @@ fn action_line_with_spacing(
         ));
     }
     Line::from(spans)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::{Duration, Instant};
-
-    use crate::git::{Branch, RepoState, Status};
-
-    use super::*;
-
-    fn state(status: Status) -> GitState {
-        GitState {
-            repo: None,
-            unavailable: None,
-            status: Some(status),
-            error: None,
-            open: false,
-            auto_commit_interval: 0,
-            auto_push: false,
-            backup_on_quit: false,
-            auto_backup_paused: false,
-            last_commit_error: None,
-            last_push_error: None,
-            last_fetch_error: None,
-            operation_queued: false,
-            auto_attempted_at: None,
-            push_attempted_at: None,
-            push_in_flight: false,
-            fetch_in_flight: false,
-            fetched_at: None,
-            sender: None,
-            checked_at: Instant::now(),
-            interval: Duration::from_secs(5),
-        }
-    }
-
-    fn status() -> Status {
-        Status {
-            branch: Branch::Named {
-                name: "main".to_owned(),
-            },
-            upstream: Some("origin/main".to_owned()),
-            ahead: 0,
-            behind: 0,
-            staged: 0,
-            unstaged: 0,
-            untracked: 0,
-            conflicted: Vec::new(),
-            state: RepoState::Clean,
-            head_oid: Some("abc".to_owned()),
-            last_commit: None,
-            upstream_commit: None,
-        }
-    }
-
-    #[test]
-    fn badge_supports_ascii_and_icon_columns() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
-        let clean = state(status());
-        assert_eq!(
-            badge(&clean, IconMode::Ascii, theme).unwrap().0,
-            "git:main ok"
-        );
-        assert_eq!(badge(&clean, IconMode::Nerd, theme).unwrap().0, "⎇ main ✓");
-
-        let mut changed = status();
-        changed.unstaged = 2;
-        changed.ahead = 1;
-        changed.behind = 3;
-        assert_eq!(
-            badge(&state(changed), IconMode::Ascii, theme).unwrap().0,
-            "git:main +2 ^1 v3"
-        );
-
-        let mut pushing = state(status());
-        pushing.status.as_mut().unwrap().ahead = 2;
-        pushing.push_in_flight = true;
-        assert_eq!(
-            badge(&pushing, IconMode::Ascii, theme).unwrap().0,
-            "git:main ^2 >>"
-        );
-        assert_eq!(
-            badge(&pushing, IconMode::Nerd, theme).unwrap().0,
-            "⎇ main ↑2 ⇡"
-        );
-    }
-
-    #[test]
-    fn badge_prioritizes_conflicts_and_special_states() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
-        let mut conflicted = status();
-        conflicted.conflicted = vec!["snippet.toml".to_owned()];
-        conflicted.state = RepoState::Merging;
-        assert_eq!(
-            badge(&state(conflicted), IconMode::Ascii, theme).unwrap().0,
-            "git !conflict"
-        );
-
-        let mut detached = status();
-        detached.branch = Branch::Detached {
-            short_id: "abc1234".to_owned(),
-        };
-        assert_eq!(
-            badge(&state(detached), IconMode::Ascii, theme).unwrap().0,
-            "git detached@abc1234"
-        );
-    }
-
-    #[test]
-    fn console_verdict_prioritizes_remote_and_worktree_risk() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
-        let mut current = status();
-        assert_eq!(sync_verdict(&current, theme).0, "backed up and pushed");
-        current.ahead = 2;
-        assert!(sync_verdict(&current, theme).0.contains("not pushed"));
-        current.unstaged = 1;
-        assert!(sync_verdict(&current, theme).0.contains("not committed"));
-        current.behind = 3;
-        assert!(sync_verdict(&current, theme).0.contains("remote is 3"));
-        current.conflicted.push("snippet.toml".to_owned());
-        assert!(sync_verdict(&current, theme).0.contains("conflicts"));
-    }
-
-    #[test]
-    fn relationship_line_distinguishes_sync_lead_lag_and_divergence() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
-        let text = |status: &Status| {
-            relationship_line(status, 80, theme)
-                .spans
-                .iter()
-                .map(|span| span.content.as_ref())
-                .collect::<String>()
-        };
-        let mut current = status();
-        assert!(text(&current).contains("───"));
-        current.ahead = 1;
-        assert!(text(&current).contains("──▶"));
-        current.ahead = 0;
-        current.behind = 1;
-        assert!(text(&current).contains("◀──"));
-        current.ahead = 1;
-        assert!(text(&current).contains("◀─▶"));
-    }
-
-    #[test]
-    fn unicode_sections_and_narrow_footers_respect_display_width() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
-        for width in [30, 40, 48, 54] {
-            assert_eq!(section("AUTOMATION", width, theme).width(), width);
-        }
-        for width in [30, 40] {
-            let footer = repository_footer(width, theme);
-            assert!(footer.iter().all(|line| line.width() <= width));
-            let rendered = footer
-                .iter()
-                .flat_map(|line| line.spans.iter())
-                .map(|span| span.content.as_ref())
-                .collect::<String>();
-            for label in [
-                "backup",
-                "commit",
-                "push",
-                "fetch",
-                "interval",
-                "auto push",
-                "on quit",
-                "message",
-                "pause",
-                "refresh",
-                "close",
-            ] {
-                assert!(rendered.contains(label), "missing footer action {label}");
-            }
-        }
-    }
-
-    #[test]
-    fn narrow_console_values_end_with_an_ellipsis() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
-        let value = key_value(
-            "changes",
-            "0 staged · 0 modified · 1 new".to_owned(),
-            30,
-            theme,
-        );
-        assert!(value.width() <= 30);
-        assert!(value.spans.iter().any(|span| span.content.ends_with('…')));
-
-        let mut current = status();
-        let commit = crate::git::Commit {
-            short_id: "abc1234".to_owned(),
-            timestamp: 0,
-            subject: "initial".to_owned(),
-        };
-        current.last_commit = Some(commit.clone());
-        current.upstream_commit = Some(commit);
-        let relationship = relationship_line(&current, 30, theme);
-        assert!(relationship.width() <= 30);
-        assert!(
-            relationship
-                .spans
-                .iter()
-                .any(|span| span.content.ends_with('…'))
-        );
-        let relationship = relationship_time_line(&current, 30, theme);
-        assert!(relationship.width() <= 30);
-        assert!(
-            relationship
-                .spans
-                .iter()
-                .any(|span| span.content.ends_with('…'))
-        );
-    }
 }
