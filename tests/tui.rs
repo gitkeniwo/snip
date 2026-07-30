@@ -2208,6 +2208,27 @@ fn trash_overlay_restores_and_purges_entries() {
     assert!(app.trash.entries.is_empty());
 }
 
+#[test]
+fn trash_overlay_uses_its_border_color_for_bottom_bar_shortcuts() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char('T')));
+
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let bottom = row_text(buffer, 29);
+    let restore_x = text_column_from_end(&bottom, "restore");
+    assert_eq!(
+        buffer.cell((restore_x - 3, 29)).unwrap().bg,
+        app.theme.accent_alt
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn external_editor_command_saves_through_optimistic_service() {

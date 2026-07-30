@@ -185,7 +185,15 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         .unwrap_or((navigation_minimal, &actions_compact[..1]));
 
     let left = shortcut_pills(navigation, app.theme);
-    let right = shortcut_pills(actions, app.theme);
+    let right = shortcut_pills_with_primary(
+        actions,
+        app.theme,
+        if app.trash.open {
+            app.theme.accent_alt
+        } else {
+            app.theme.pill_primary
+        },
+    );
     let right_width = right.width().min(area.width as usize) as u16;
     let regions =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).split(area);
@@ -212,7 +220,14 @@ fn shortcut_pills_width(commands: ShortcutSet<'_>) -> usize {
 }
 
 fn shortcut_pills(commands: ShortcutSet<'_>, theme: TuiTheme) -> Line<'static> {
-    let primary = theme.pill_primary;
+    shortcut_pills_with_primary(commands, theme, theme.pill_primary)
+}
+
+fn shortcut_pills_with_primary(
+    commands: ShortcutSet<'_>,
+    theme: TuiTheme,
+    primary: ratatui::style::Color,
+) -> Line<'static> {
     let secondary = theme.pill_secondary;
     let mut spans = Vec::new();
     for (index, (key, action)) in commands.iter().enumerate() {
