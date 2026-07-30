@@ -229,7 +229,7 @@ fn layout(prefix: Option<&Path>) -> Result<Layout> {
     if let Some(data_home) = env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
         return Ok(Layout {
             root: PathBuf::from(data_home),
-            pages_relative: PathBuf::from("man/man1"),
+            pages_relative: PathBuf::from("man").join("man1"),
             manifest_relative: PathBuf::from(MANIFEST_RELATIVE),
         });
     }
