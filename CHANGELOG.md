@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-30
+
+### Added
+
+- **Manual pages.** One section 1 page per command, generated from the clap
+  command tree and committed under `man/`. The Homebrew, `.deb`, `.rpm`, and AUR
+  packages install them, so `man snip` and `man snip-create` work after any
+  packaged install. CI fails when the checked-in pages drift from the CLI and
+  lints their roff, so the pages cannot quietly fall behind `--help`.
+- **`snip man`**, for the installations no package manager owns — `cargo install`
+  or a downloaded archive. The pages are embedded in the binary, so nothing is
+  regenerated on your machine: `snip man path`, `snip man install`,
+  `snip man uninstall`, `snip man show [PAGE]`, and `snip man generate DIR`.
+  Installs are user-level (`$XDG_DATA_HOME/man/man1`, otherwise
+  `~/.local/share/man/man1`) unless `--prefix` says otherwise, and snip never
+  invokes `sudo` itself. Installing warns when the destination is missing from
+  your `MANPATH`, which is the usual reason a freshly installed page cannot be
+  found.
+- `snip man install` refuses to overwrite a page it did not write, and
+  `snip man uninstall` removes only files whose contents still match its own
+  manifest. A page you edited by hand, or one owned by a package manager, is
+  reported and left in place.
+- **Debian/Ubuntu and Fedora/Enterprise Linux packages.** Every release now
+  attaches `.deb` and `.rpm` artifacts next to the portable archives.
+- **AUR package** `sniplab`, which builds from the release source rather than
+  repackaging the Ubuntu-built binary.
+- **Scoop bucket** for Windows: add `gitkeniwo/scoop-snip`, then
+  `scoop install snip`.
+- `cargo binstall sniplab` metadata, so the prebuilt binary can be installed
+  without compiling it.
+
+### Changed
+
+- The Unix release archives now contain `snip` plus a `man/` directory; they
+  held only the executable before. The executable is still at the archive root,
+  so `cargo binstall` and the Homebrew formula are unaffected, but a script that
+  unpacks an archive into a shared directory now receives `man/` as well.
+
 ## [0.2.1] - 2026-07-29
 
 ### Added
@@ -108,6 +146,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.3.0]: https://github.com/gitkeniwo/snip/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/gitkeniwo/snip/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/gitkeniwo/snip/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/gitkeniwo/snip/releases/tag/v0.1.0
