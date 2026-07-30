@@ -79,7 +79,17 @@ jobs:
           cargo install cargo-generate-rpm --version 0.21.0 --locked
       - name: Create portable archive (Unix)
         if: runner.os != 'Windows'
-        run: tar -C target/release -czf ${{ matrix.asset }}.tar.gz snip
+        run: |
+          stage="$RUNNER_TEMP/snip-archive"
+          mkdir -p "$stage/man"
+          cp target/release/snip "$stage/snip"
+          cp man/*.1 "$stage/man/"
+          tar -C "$stage" -czf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" snip man
+      - name: Verify portable archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tar -tzf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" |
+            grep -qx 'man/snip.1'
       - name: Create portable archive (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path target/release/snip.exe -DestinationPath ${{ matrix.asset }}.zip
