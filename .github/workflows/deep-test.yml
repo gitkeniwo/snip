@@ -51,7 +51,7 @@ jobs:
         run: cargo llvm-cov --locked --all-features --lcov --output-path lcov.info
       - name: Upload coverage report
         if: inputs.suite == 'coverage'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: lcov
           path: lcov.info
