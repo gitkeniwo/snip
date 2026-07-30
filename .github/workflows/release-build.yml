@@ -77,6 +77,9 @@ jobs:
         run: |
           cargo install cargo-deb --version 3.7.0 --locked
           cargo install cargo-generate-rpm --version 0.21.0 --locked
+          # `rpm` is only needed to list the built package back for verification.
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends rpm
       - name: Create portable archive (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -98,6 +101,19 @@ jobs:
         run: |
           cargo deb --no-build --output ${{ matrix.asset }}.deb
           cargo generate-rpm -o ${{ matrix.asset }}.rpm
+      - name: Verify Linux packages
+        if: runner.os == 'Linux'
+        # Both builders use explicit asset lists, so a missing entry is silent.
+        run: |
+          pages="$(printf '%s\n' man/*.1 | wc -l)"
+          dpkg-deb -c ${{ matrix.asset }}.deb > "$RUNNER_TEMP/deb.list"
+          grep -q ' \./usr/bin/snip$' "$RUNNER_TEMP/deb.list"
+          grep -q ' \./usr/share/doc/sniplab/README.md$' "$RUNNER_TEMP/deb.list"
+          test "$(grep -c '\./usr/share/man/man1/.*\.1\.gz$' "$RUNNER_TEMP/deb.list")" -eq "$pages"
+          rpm -qlp ${{ matrix.asset }}.rpm > "$RUNNER_TEMP/rpm.list"
+          grep -qx '/usr/bin/snip' "$RUNNER_TEMP/rpm.list"
+          grep -qx '/usr/share/doc/sniplab/README.md' "$RUNNER_TEMP/rpm.list"
+          test "$(grep -c '^/usr/share/man/man1/.*\.1$' "$RUNNER_TEMP/rpm.list")" -eq "$pages"
       - uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.asset }}

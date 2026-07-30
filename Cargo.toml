@@ -44,6 +44,7 @@ pkg-fmt = "zip"
 assets = [
     ["target/release/snip", "usr/bin/", "755"],
     ["man/*.1", "usr/share/man/man1/", "644"],
+    ["README.md", "usr/share/doc/sniplab/README.md", "644"],
 ]
 
 [package.metadata.generate-rpm]
