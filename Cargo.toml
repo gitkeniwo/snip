@@ -14,7 +14,6 @@ categories = ["command-line-utilities", "development-tools", "text-editors"]
 exclude = [
     ".github/",
     "examples/",
-    "man/",
     "opencode.jsonc",
 ]
 
@@ -39,15 +38,26 @@ pkg-fmt = "tgz"
 pkg-url = "{ repo }/releases/download/v{ version }/snip-{ target }.zip"
 pkg-fmt = "zip"
 
-# `cargo-generate-rpm` needs an explicit list of packaged files.  The .deb
-# package uses cargo-deb's automatic binary discovery, while both formats ship
-# the same `snip` executable built by the release workflow.
+# Both Linux package builders use explicit asset lists so the executable and
+# generated manual pages stay in sync.
+[package.metadata.deb]
+assets = [
+    ["target/release/snip", "usr/bin/", "755"],
+    ["man/*.1", "usr/share/man/man1/", "644"],
+]
+
 [package.metadata.generate-rpm]
 
 [[package.metadata.generate-rpm.assets]]
 source = "target/release/snip"
 dest = "/usr/bin/snip"
 mode = "0755"
+
+[[package.metadata.generate-rpm.assets]]
+source = "man/*.1"
+dest = "/usr/share/man/man1/"
+mode = "0644"
+doc = true
 
 [[package.metadata.generate-rpm.assets]]
 source = "LICENSE"

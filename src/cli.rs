@@ -92,6 +92,8 @@ pub enum Command {
     Import(ImportArgs),
     /// Run Git operations scoped to this library.
     Git(GitArgs),
+    /// Install, inspect, or export the embedded manual pages.
+    Man(ManArgs),
     /// Generate shell completion code.
     Completion(CompletionArgs),
 }
@@ -503,6 +505,47 @@ pub enum GitCommand {
     Push,
     /// Fetch and prune remote-tracking refs without touching the worktree.
     Fetch,
+}
+
+#[derive(Args, Debug)]
+pub struct ManArgs {
+    #[command(subcommand)]
+    pub command: ManCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ManCommand {
+    /// Print the resolved man page installation directory.
+    Path {
+        /// Resolve the directory below PREFIX/share instead of the user data directory.
+        #[arg(long)]
+        prefix: Option<PathBuf>,
+    },
+    /// Install all manual pages.
+    Install {
+        /// Install below PREFIX/share instead of the user data directory.
+        #[arg(long)]
+        prefix: Option<PathBuf>,
+        /// Replace pages not recorded in snip's installation manifest.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Remove unmodified pages recorded by snip.
+    Uninstall {
+        /// Uninstall below PREFIX/share instead of the user data directory.
+        #[arg(long)]
+        prefix: Option<PathBuf>,
+    },
+    /// Show an embedded manual page with the system man viewer.
+    Show {
+        /// Page stem, such as snip or snip-create.
+        page: Option<String>,
+    },
+    /// Export all embedded manual pages to a directory.
+    Generate {
+        /// Destination directory.
+        directory: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]

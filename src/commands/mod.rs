@@ -1,5 +1,8 @@
 pub mod config;
 pub mod folder_tag;
+mod install;
+pub mod man;
+mod man_pages;
 pub mod output;
 pub mod query;
 pub mod snippet;
@@ -23,6 +26,9 @@ pub fn run(cli: &Cli) -> Result<()> {
     }
     if let Some(Command::Config(args)) = &cli.command {
         return config::command_config(args, cli.output);
+    }
+    if let Some(Command::Man(args)) = &cli.command {
+        return man::command_man(args, cli.output);
     }
     let config = AppConfig::load()?;
     let output = resolve_output(cli.output, &config);
@@ -71,7 +77,11 @@ pub fn run(cli: &Cli) -> Result<()> {
         Command::Doctor(args) => system::command_doctor(&library, args, output),
         Command::Organize(args) => system::command_organize(&library, args, output),
         Command::Git(args) => system::command_git(&library, args, output),
-        Command::Config(_) | Command::Init(_) | Command::Import(_) | Command::Completion(_) => {
+        Command::Config(_)
+        | Command::Init(_)
+        | Command::Import(_)
+        | Command::Man(_)
+        | Command::Completion(_) => {
             unreachable!()
         }
     }

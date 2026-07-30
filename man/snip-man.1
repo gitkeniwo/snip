@@ -1,0 +1,62 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-man 1  "snip 0.2.1" 
+.SH NAME
+snip\-man \- Install, inspect, or export the embedded manual pages
+.SH SYNOPSIS
+\fBsnip man\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+.SH DESCRIPTION
+Install, inspect, or export the embedded manual pages
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH SUBCOMMANDS
+.TP
+snip\-man\-path(1)
+Print the resolved man page installation directory
+.TP
+snip\-man\-install(1)
+Install all manual pages
+.TP
+snip\-man\-uninstall(1)
+Remove unmodified pages recorded by snip
+.TP
+snip\-man\-show(1)
+Show an embedded manual page with the system man viewer
+.TP
+snip\-man\-generate(1)
+Export all embedded manual pages to a directory
