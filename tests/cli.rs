@@ -86,6 +86,106 @@ fn cli_json_contract_and_exit_codes() {
 }
 
 #[test]
+fn missing_library_has_a_stable_json_code_and_actionable_hint() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path().join("empty-config");
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .current_dir(temporary.path())
+        .env("XDG_CONFIG_HOME", &config_home)
+        .env_remove("SNIP_LIBRARY")
+        .args(["list"])
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains(
+            "no snip library found; pass --library, set SNIP_LIBRARY, run inside a library, or configure default_library",
+        ))
+        .stderr(predicate::str::contains("snip init"));
+
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .current_dir(temporary.path())
+        .env("XDG_CONFIG_HOME", &config_home)
+        .env_remove("SNIP_LIBRARY")
+        .args(["--output", "json", "list"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(3));
+    let value: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(value["error"]["code"], "no_library");
+    assert_eq!(
+        value["error"]["message"],
+        "no snip library found; pass --library, set SNIP_LIBRARY, run inside a library, or configure default_library"
+    );
+    assert!(
+        value["error"]["hint"]
+            .as_str()
+            .is_some_and(|hint| hint.contains("snip init"))
+    );
+}
+
+#[test]
+fn piped_bare_snip_keeps_the_usage_error_and_does_not_wait_for_onboarding() {
+    let temporary = tempfile::tempdir().unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .current_dir(temporary.path())
+        .env("XDG_CONFIG_HOME", temporary.path().join("empty-config"))
+        .env_remove("SNIP_LIBRARY")
+        .write_stdin("")
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "a command is required when stdin or stdout is not a terminal",
+        ))
+        .stderr(predicate::str::contains("snip — set up your library").not());
+}
+
+#[test]
+fn non_interactive_bare_init_keeps_creating_a_library_in_the_current_directory() {
+    let temporary = tempfile::tempdir().unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .current_dir(temporary.path())
+        .env("XDG_CONFIG_HOME", temporary.path().join("empty-config"))
+        .env_remove("SNIP_LIBRARY")
+        .write_stdin("")
+        .arg("init")
+        .assert()
+        .success();
+    assert!(temporary.path().join("snip.toml").is_file());
+}
+
+#[test]
+fn missing_snippet_remains_not_found_without_a_hint() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("Real.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--output",
+            "json",
+            "show",
+            "does-not-exist",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(3));
+    let value: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(value["error"]["code"], "not_found");
+    assert!(value["error"].get("hint").is_none());
+}
+
+#[test]
 fn ancestor_discovery_and_raw_cat_work() {
     let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Discover.sniplib");

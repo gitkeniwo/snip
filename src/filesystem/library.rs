@@ -10,6 +10,8 @@ use super::io::{atomic_write, validate_schema};
 use super::paths::now_rfc3339;
 
 pub(crate) const LIBRARY_MANIFEST: &str = "snip.toml";
+pub const NO_LIBRARY_MESSAGE: &str = "no snip library found; pass --library, set SNIP_LIBRARY, run inside a library, or configure default_library";
+pub const NO_LIBRARY_HINT: &str = "create a library and make it the default:\n  snip init ~/Main.sniplib --name Main\n  snip config set default-library ~/Main.sniplib\n\nalready have one:\n  snip config set default-library <path>\n\nrun `snip` in an interactive terminal to do this step by step, or see `man snip-init`.";
 
 #[derive(Clone, Debug)]
 pub struct Library {
@@ -33,7 +35,8 @@ impl Library {
             return Err(SnipError::conflict(format!(
                 "library already exists: {}",
                 path.display()
-            )));
+            ))
+            .with_hint("to use it instead of creating a new one:\n  snip config set default-library <path>"));
         }
         fs::create_dir_all(path)
             .map_err(|error| SnipError::io(format!("cannot create {}: {error}", path.display())))?;
@@ -93,9 +96,7 @@ impl Library {
         if let Some(path) = configured {
             return Ok(path.to_path_buf());
         }
-        Err(SnipError::not_found(
-            "no snip library found; pass --library, set SNIP_LIBRARY, run inside a library, or configure default_library",
-        ))
+        Err(SnipError::no_library(NO_LIBRARY_MESSAGE).with_hint(NO_LIBRARY_HINT))
     }
 
     pub fn open(path: &Path) -> Result<Self> {
@@ -104,6 +105,7 @@ impl Library {
                 "library does not exist: {}: {error}",
                 path.display()
             ))
+            .with_hint("check the path, or run `snip config set default-library <path>` to point snip somewhere else.")
         })?;
         let manifest_path = root.join(LIBRARY_MANIFEST);
         let manifest_text = fs::read_to_string(&manifest_path).map_err(|error| {
