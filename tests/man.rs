@@ -37,7 +37,13 @@ fn man_path_respects_xdg_data_home_and_json_output() {
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(
         value["path"],
-        temporary.path().join("data/man/man1").to_str().unwrap()
+        temporary
+            .path()
+            .join("data")
+            .join("man")
+            .join("man1")
+            .to_str()
+            .unwrap()
     );
 }
 
