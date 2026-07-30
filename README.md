@@ -103,6 +103,8 @@ curl -L https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-
 install -m 755 snip /usr/local/bin/snip
 ```
 
+The Unix archives also carry `man/`; see [Manual pages](#manual-pages).
+
 ### From source
 
 ```bash
@@ -491,6 +493,25 @@ rejected, pull and resolve it in your terminal.
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
 back. Permanent deletion requires `snip purge SELECTOR --yes`.
 
+## Manual pages
+
+Homebrew, deb, rpm, and AUR packages install them, so `man snip` works right
+away. For `cargo install` or a downloaded archive, install the pages embedded
+in the binary:
+
+```bash
+snip man path                                # where they will go
+snip man install                             # default ~/.local/share/man/man1
+sudo snip man install --prefix /usr/local    # system-wide, never implicit
+snip man uninstall
+```
+
+`snip man install` warns when the destination is missing from your `MANPATH`
+and prints the line to add. Uninstalling keeps any page you edited yourself.
+`snip man show snip-create` reads a page without installing anything, and
+`snip man generate DIR` exports all of them. Windows has no `man`; use
+`snip --help`.
+
 ## Shell completion
 
 ```bash
@@ -536,9 +557,11 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
 
 ### Releasing
 
-1. Bump `version` in `Cargo.toml` and add the release to
-   [CHANGELOG.md](CHANGELOG.md).
-2. Commit, then tag `vX.Y.Z` and push the tag.
+1. Bump `version` in `Cargo.toml`, then rerun
+   `cargo run --locked --all-features --example generate-man` — the pages embed
+   the version, so CI fails without it.
+2. Add the release to [CHANGELOG.md](CHANGELOG.md).
+3. Commit, then tag `vX.Y.Z` and push the tag.
 
 The tag is the source of truth: the run fails if it disagrees with `Cargo.toml`.
 It then attaches the archives to a GitHub release and updates each downstream
@@ -551,6 +574,9 @@ absent:
 | [homebrew-snip](https://github.com/gitkeniwo/homebrew-snip) | `HOMEBREW_TAP_TOKEN` |
 | AUR (`sniplab`) | `AUR_SSH_PRIVATE_KEY` |
 | [scoop-snip](https://github.com/gitkeniwo/scoop-snip) | `SCOOP_BUCKET_TOKEN` |
+
+The workflow rewrites only URLs and checksums, so the tap's own
+`man1.install Dir["man/*.1"]` line is maintained in `gitkeniwo/homebrew-snip`.
 
 Re-running a release is safe: the crates.io step skips a version already on the
 registry, and the package updates are no-ops when nothing changed.
