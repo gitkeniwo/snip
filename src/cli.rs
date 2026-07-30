@@ -100,13 +100,15 @@ pub enum Command {
 
 #[derive(Args, Debug)]
 pub struct InitArgs {
-    #[arg(default_value = ".")]
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
     #[arg(long)]
     pub name: Option<String>,
     /// Initialize a dedicated Git repository after creating the library.
     #[arg(long)]
     pub git: bool,
+    /// Skip the interactive setup and use defaults.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
 }
 
 #[derive(Args, Debug)]

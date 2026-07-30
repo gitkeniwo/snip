@@ -3,6 +3,7 @@ pub mod folder_tag;
 mod install;
 pub mod man;
 mod man_pages;
+pub mod onboard;
 pub mod output;
 pub mod query;
 pub mod snippet;
@@ -11,14 +12,14 @@ pub mod trash;
 
 use snip::Library;
 use snip::config::AppConfig;
-use snip::error::{Result, SnipError};
+use snip::error::{ErrorKind, Result, SnipError};
 #[cfg(feature = "tui")]
 use std::io::{self, IsTerminal};
 
 pub use output::effective_output;
 use output::{resolve_color, resolve_output};
 
-use crate::cli::{Cli, Command};
+use crate::cli::{Cli, Command, OutputMode};
 
 pub fn run(cli: &Cli) -> Result<()> {
     if let Some(Command::Completion(args)) = &cli.command {
@@ -37,9 +38,9 @@ pub fn run(cli: &Cli) -> Result<()> {
         #[cfg(feature = "tui")]
         {
             if io::stdin().is_terminal() && io::stdout().is_terminal() {
-                let path =
-                    Library::discover(cli.library.as_deref(), config.default_library.as_deref())?;
-                return snip::tui::run(Library::open(&path)?, &config);
+                let library = open_library_or_onboard(cli, &config, output, color, true)?;
+                let config = AppConfig::load()?;
+                return snip::tui::run(library, &config);
             }
         }
         return Err(SnipError::usage(
@@ -47,16 +48,19 @@ pub fn run(cli: &Cli) -> Result<()> {
         ));
     }
     match cli.command.as_ref() {
-        Some(Command::Init(args)) => return config::command_init(args, output),
+        Some(Command::Init(args)) => return config::command_init(args, output, cli.color),
         Some(Command::Import(args)) => return system::command_import(args, output),
         _ => {}
     }
-    let path = Library::discover(cli.library.as_deref(), config.default_library.as_deref())?;
-    let library = Library::open(&path)?;
     let command = cli.command.as_ref().expect("command checked above");
+    #[cfg(feature = "tui")]
+    let allow_wizard = matches!(command, Command::Tui);
+    #[cfg(not(feature = "tui"))]
+    let allow_wizard = false;
+    let library = open_library_or_onboard(cli, &config, output, color, allow_wizard)?;
     match command {
         #[cfg(feature = "tui")]
-        Command::Tui => snip::tui::run(library, &config),
+        Command::Tui => snip::tui::run(library, &AppConfig::load()?),
         Command::Info => query::command_info(&library, output),
         Command::List(args) => query::command_list(&library, args, output),
         Command::Open(args) => query::command_open(&library, args, output, &config),
@@ -84,5 +88,32 @@ pub fn run(cli: &Cli) -> Result<()> {
         | Command::Completion(_) => {
             unreachable!()
         }
+    }
+}
+
+fn open_library_or_onboard(
+    cli: &Cli,
+    config: &AppConfig,
+    output: OutputMode,
+    color: crate::cli::ColorMode,
+    allow_wizard: bool,
+) -> Result<Library> {
+    match Library::discover(cli.library.as_deref(), config.default_library.as_deref()) {
+        Ok(path) => Library::open(&path),
+        Err(error)
+            if allow_wizard
+                && error.kind == ErrorKind::NoLibrary
+                && onboard::is_interactive(cli, output) =>
+        {
+            let outcome = onboard::run(config, color)?;
+            match outcome {
+                Some(outcome) => {
+                    println!("  opening snip…\n");
+                    Ok(outcome.library)
+                }
+                None => Err(error),
+            }
+        }
+        Err(error) => Err(error),
     }
 }

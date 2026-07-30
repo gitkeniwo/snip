@@ -4,7 +4,7 @@
 .SH NAME
 snip\-init \- Create a new filesystem snippet library
 .SH SYNOPSIS
-\fBsnip init\fR [\fB\-\-library\fR] [\fB\-\-name\fR] [\fB\-\-git\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIPATH\fR] 
+\fBsnip init\fR [\fB\-\-library\fR] [\fB\-\-name\fR] [\fB\-\-git\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-y\fR|\fB\-\-yes\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIPATH\fR] 
 .SH DESCRIPTION
 Create a new filesystem snippet library
 .SH OPTIONS
@@ -48,8 +48,11 @@ always
 never
 .RE
 .TP
+\fB\-y\fR, \fB\-\-yes\fR
+Skip the interactive setup and use defaults
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
-[\fIPATH\fR] [default: .]
+[\fIPATH\fR]
 

@@ -10,14 +10,31 @@ use snip::sort::SortMode;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use super::output::{print_record, resolve_output};
+use super::output::{print_record, resolve_color, resolve_output};
 use crate::cli::{
-    Cli, CompletionArgs, CompletionShell, ConfigArgs, ConfigCommand, ConfigKey, InitArgs,
-    OutputMode,
+    Cli, ColorMode, CompletionArgs, CompletionShell, ConfigArgs, ConfigCommand, ConfigKey,
+    InitArgs, OutputMode,
 };
 
-pub fn command_init(args: &InitArgs, output: OutputMode) -> Result<()> {
-    let library = Library::init(&args.path, args.name.as_deref())?;
+pub fn command_init(
+    args: &InitArgs,
+    output: OutputMode,
+    explicit_color: Option<ColorMode>,
+) -> Result<()> {
+    if super::onboard::is_init_interactive(args, output) {
+        let config = AppConfig::load()?;
+        if super::onboard::run_init(&config, args, resolve_color(explicit_color, &config))?
+            .is_some()
+        {
+            super::onboard::print_init_next_steps();
+            return Ok(());
+        }
+        return Err(SnipError::usage(
+            "setup cancelled; pass a path or --yes to initialize non-interactively",
+        ));
+    }
+    let path = args.path.clone().unwrap_or_else(|| ".".into());
+    let library = Library::init(&path, args.name.as_deref())?;
     if args.git {
         snip::git::init(library.root())?;
     }
