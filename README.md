@@ -128,6 +128,16 @@ Release history is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick start
 
+Install `snip`, then run it in an interactive terminal and answer the three
+setup questions. It creates (or connects) a library and can make it your
+default:
+
+```bash
+snip
+```
+
+For scripts and remote shells, use the non-interactive path instead:
+
 ```bash
 snip init ./Main.sniplib --name Main
 snip config set default-library ./Main.sniplib

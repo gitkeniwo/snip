@@ -169,8 +169,9 @@ after their last use, so a tag with count 0 is normal, not corruption.
   `pending_transactions`, `repaired`, `ok`.
 - `snip organize [--dry-run]` — normalize package directory names after titles
   change. Cosmetic; identity lives in the UUID.
-- `snip init [PATH] [--name <NAME>] [--git]` — create a library. `PATH`
-  defaults to the current directory; `--git` initializes a dedicated
+- `snip init [PATH] [--name <NAME>] [--git] [--yes]` — create a library. In an
+  interactive terminal, omitting `PATH` starts setup; `--yes` suppresses setup and
+  defaults `PATH` to the current directory. `--git` initializes a dedicated
   repository.
 - `snip import snippetslab <SOURCE> --into <LIBRARY> [--dry-run]` — import a
   SnippetsLab database. Always dry-run first and show the user the report, which

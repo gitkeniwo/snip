@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Interactive first-run setup for `snip` and `snip init`, plus actionable hints on
+  library-resolution errors.
 - **Manual pages.** One section 1 page per command, generated from the clap
   command tree and committed under `man/`. The Homebrew, `.deb`, `.rpm`, and AUR
   packages install them, so `man snip` and `man snip-create` work after any
