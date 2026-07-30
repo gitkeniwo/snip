@@ -564,9 +564,24 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
 3. Commit, then tag `vX.Y.Z` and push the tag.
 
 The tag is the source of truth: the run fails if it disagrees with `Cargo.toml`.
-It then attaches the archives to a GitHub release and updates each downstream
-package, every one gated on its own secret and skipped when that secret is
-absent:
+It then attaches the platform archives and a signed `sniplab-X.Y.Z.tar.gz`
+source archive to a GitHub release. The AUR package builds from that source
+archive and verifies its detached PGP signature.
+
+Before the first release, configure the following repository secrets and
+variable. `PGP_PRIVATE_KEY` must be an ASCII-armored private signing-key export;
+keep it and its passphrase out of the repository. `PGP_FINGERPRINT` is a
+repository variable (not a secret) containing the uppercase, whitespace-free
+primary-key fingerprint used in the AUR `validpgpkeys` field.
+
+| Configuration | Purpose |
+|---|---|
+| Secret `PGP_PRIVATE_KEY` | ASCII-armored private key used only to sign release source archives |
+| Secret `PGP_PASSPHRASE` | Passphrase for that private key |
+| Variable `PGP_FINGERPRINT` | Public primary-key fingerprint expected by the release workflow and AUR |
+
+It then updates each downstream package, every one gated on its own secret and
+skipped when that secret is absent:
 
 | Target | Secret |
 |---|---|

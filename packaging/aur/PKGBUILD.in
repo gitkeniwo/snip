@@ -10,8 +10,12 @@ url='https://github.com/gitkeniwo/snip'
 license=('MIT')
 depends=('gcc-libs')
 makedepends=('cargo')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/gitkeniwo/snip/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('@SHA256@')
+source=(
+  "$pkgname-$pkgver.tar.gz::https://github.com/gitkeniwo/snip/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz"
+  "$pkgname-$pkgver.tar.gz.asc::https://github.com/gitkeniwo/snip/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz.asc"
+)
+sha256sums=('@SHA256@' 'SKIP')
+validpgpkeys=('@PGP_FINGERPRINT@')
 
 build() {
   cd "$_pkgname-$pkgver"
