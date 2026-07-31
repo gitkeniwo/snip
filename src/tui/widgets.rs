@@ -11,6 +11,12 @@ use crate::domain::Snippet;
 pub const PILL_OPEN: &str = "\u{e0b6}";
 pub const PILL_CLOSE: &str = "\u{e0b4}";
 
+pub fn fill_surface(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
+    if let Some(style) = theme.surface_style() {
+        frame.render_widget(Block::default().style(style), area);
+    }
+}
+
 pub fn pane_block(title: &str, focused: bool, theme: TuiTheme) -> Block<'static> {
     Block::default()
         .title(Span::styled(

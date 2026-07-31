@@ -2,7 +2,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{List, ListItem};
+use ratatui::widgets::{Block, List, ListItem};
 
 use super::app::App;
 use super::bottom_bar;
@@ -20,6 +20,9 @@ use super::widgets;
 
 pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     let area = frame.area();
+    if let Some(style) = app.theme.surface_style() {
+        frame.render_widget(Block::default().style(style), area);
+    }
     let vertical = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(0),

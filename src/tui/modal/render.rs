@@ -14,6 +14,7 @@ pub fn draw_modal(frame: &mut Frame<'_>, area: Rect, modal: &mut Modal, theme: T
         Modal::Confirm(confirm) => {
             let popup = widgets::centered_rect(62, 8, area);
             frame.render_widget(Clear, popup);
+            super::super::widgets::fill_surface(frame, popup, theme);
             let border = if confirm.destructive {
                 theme.error
             } else {
@@ -42,6 +43,7 @@ pub fn draw_modal(frame: &mut Frame<'_>, area: Rect, modal: &mut Modal, theme: T
         Modal::Picker(picker) => {
             let popup = widgets::centered_rect(62, 18, area);
             frame.render_widget(Clear, popup);
+            super::super::widgets::fill_surface(frame, popup, theme);
             let filtered = picker.filtered();
             let items = filtered
                 .iter()

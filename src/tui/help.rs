@@ -151,6 +151,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, app: &App) {
         area,
     );
     frame.render_widget(Clear, popup);
+    super::widgets::fill_surface(frame, popup, app.theme);
     let block = Block::default()
         .title(Line::from(" Help ").centered())
         .borders(Borders::ALL)
@@ -356,7 +357,7 @@ mod tests {
 
     #[test]
     fn help_cells_preserve_keys_and_explicitly_ellipsize_descriptions() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
         let lines = help_panel(
             GROUPS[0].0,
             GROUPS[0].1,

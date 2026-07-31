@@ -2,7 +2,7 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{FontStyle, Theme, ThemeSet};
+use syntect::highlighting::{FontStyle, Theme};
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
@@ -10,7 +10,7 @@ use crate::domain::Fragment;
 use crate::error::{Result, SnipError};
 use crate::render::find_syntax;
 
-use super::theme::{Appearance, TuiTheme};
+use super::theme::TuiTheme;
 
 pub struct Highlighter {
     syntaxes: SyntaxSet,
@@ -18,20 +18,15 @@ pub struct Highlighter {
 }
 
 impl Highlighter {
-    pub fn new(theme: TuiTheme) -> Result<Self> {
+    pub fn new(theme: &crate::theme::Theme) -> Result<Self> {
         let syntaxes = two_face::syntax::extra_newlines();
-        let themes = ThemeSet::load_defaults();
-        let preferred = match theme.appearance {
-            Appearance::Light => "InspiredGitHub",
-            Appearance::Dark => "base16-ocean.dark",
-        };
-        let theme = themes
-            .themes
-            .get(preferred)
-            .or_else(|| themes.themes.values().next())
-            .cloned()
-            .ok_or_else(|| SnipError::validation("syntect did not load any themes"))?;
+        let theme = crate::theme::syntax::resolve(theme)?;
         Ok(Self { syntaxes, theme })
+    }
+
+    pub fn set_theme(&mut self, theme: &crate::theme::Theme) -> Result<()> {
+        self.theme = crate::theme::syntax::resolve(theme)?;
+        Ok(())
     }
 
     pub fn fragment(&self, fragment: &Fragment) -> Result<Text<'static>> {
@@ -155,7 +150,8 @@ mod tests {
 
     #[test]
     fn markdown_maps_emphasis_and_rust_gets_non_default_styles() {
-        let theme = TuiTheme::for_appearance(Appearance::Dark);
+        let source = crate::theme::load("dark-default").unwrap();
+        let theme = TuiTheme::from(&source);
         let markdown = markdown("# Heading\n\n**bold** and `code`", theme);
         assert!(
             markdown
@@ -179,7 +175,7 @@ mod tests {
             note_content: None,
             absolute_path: PathBuf::from("main.rs"),
         };
-        let highlighted = Highlighter::new(theme)
+        let highlighted = Highlighter::new(&source)
             .unwrap()
             .fragment(&fragment)
             .unwrap();

@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn badge_supports_ascii_and_icon_columns() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
         let clean = state(status());
         assert_eq!(
             badge(&clean, IconMode::Ascii, theme).unwrap().0,
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn badge_prioritizes_conflicts_and_special_states() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
         let mut conflicted = status();
         conflicted.conflicted = vec!["snippet.toml".to_owned()];
         conflicted.state = RepoState::Merging;
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn console_verdict_prioritizes_remote_and_worktree_risk() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
         let mut current = status();
         assert_eq!(sync_verdict(&current, theme).0, "backed up and pushed");
         current.ahead = 2;
@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn relationship_line_distinguishes_sync_lead_lag_and_divergence() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
         let text = |status: &Status| {
             relationship_line(status, 80, theme)
                 .spans
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn unicode_sections_and_narrow_footers_respect_display_width() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
         for width in [30, 40, 48, 54] {
             assert_eq!(section("AUTOMATION", width, theme).width(), width);
         }
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn narrow_console_values_end_with_an_ellipsis() {
-        let theme = TuiTheme::for_appearance(super::super::theme::Appearance::Dark);
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
         let value = key_value(
             "changes",
             "0 staged · 0 modified · 1 new".to_owned(),

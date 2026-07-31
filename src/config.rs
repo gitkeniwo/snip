@@ -76,6 +76,10 @@ impl TuiDensitySetting {
 pub struct TuiConfig {
     #[serde(default)]
     pub theme: TuiThemeSetting,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub light_theme: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dark_theme: Option<String>,
     #[serde(default)]
     pub sort: SortMode,
     #[serde(default)]
@@ -96,6 +100,8 @@ impl Default for TuiConfig {
     fn default() -> Self {
         Self {
             theme: TuiThemeSetting::default(),
+            light_theme: None,
+            dark_theme: None,
             sort: SortMode::default(),
             density: TuiDensitySetting::default(),
             line_numbers: default_line_numbers(),
@@ -222,6 +228,18 @@ impl AppConfig {
             ("vscode_cmd", self.vscode_cmd.as_deref()),
             ("pager", self.pager.as_deref()),
             ("default_language", self.default_language.as_deref()),
+            (
+                "tui.light_theme",
+                self.tui
+                    .as_ref()
+                    .and_then(|config| config.light_theme.as_deref()),
+            ),
+            (
+                "tui.dark_theme",
+                self.tui
+                    .as_ref()
+                    .and_then(|config| config.dark_theme.as_deref()),
+            ),
         ] {
             if value.is_some_and(|value| value.trim().is_empty()) {
                 return Err(SnipError::validation(format!(

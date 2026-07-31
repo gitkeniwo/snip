@@ -197,6 +197,7 @@ pub fn draw_palette(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
         .saturating_add(area.height / 6)
         .min(overlay.bottom().saturating_sub(height));
     frame.render_widget(Clear, popup);
+    super::widgets::fill_surface(frame, popup, app.theme);
     app.palette.visible_rows = (popup.height.saturating_sub(4) as usize).max(1);
     app.palette.ensure_selected_visible();
     let mut block = Block::default()

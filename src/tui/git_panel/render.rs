@@ -24,6 +24,7 @@ pub fn draw_git(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let content_height = u16::try_from(text.lines.len()).unwrap_or(u16::MAX);
     let popup = widgets::centered_rect(popup_width, content_height.saturating_add(2), area);
     frame.render_widget(Clear, popup);
+    super::super::widgets::fill_surface(frame, popup, app.theme);
     let block = Block::default()
         .title(Line::from(" Git Console ").centered())
         .borders(Borders::ALL)

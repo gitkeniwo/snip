@@ -9,6 +9,7 @@ pub mod render;
 pub mod search;
 pub mod service;
 pub mod sort;
+pub mod theme;
 #[cfg(feature = "tui")]
 pub mod tui;
 

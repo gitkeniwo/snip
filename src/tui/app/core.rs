@@ -25,8 +25,7 @@ use super::super::state::{
 };
 use super::super::theme::TuiTheme;
 use super::super::trash::TrashState;
-use super::types::App;
-use super::types::GitState;
+use super::types::{App, GitState, ThemePreviewState};
 
 impl App {
     /// Builds an app with no carried-over session state.
@@ -57,7 +56,9 @@ impl App {
             .and_then(toml::Value::as_table)
             .cloned()
             .unwrap_or_default();
-        let theme = TuiTheme::resolve(tui.theme).with_overrides(&theme_overrides);
+        let (theme_source, theme_warnings) = crate::theme::resolve(&tui);
+        let theme_name = theme_source.name.clone();
+        let theme = TuiTheme::from(&theme_source).with_overrides(&theme_overrides);
         let sort = tui.sort;
         let density = tui.density;
         let show_line_numbers = tui.line_numbers;
@@ -82,9 +83,13 @@ impl App {
             layout: LayoutRects::default(),
             preview: PreviewCache::default(),
             preview_selection: PreviewSelection::default(),
-            highlighter: Highlighter::new(theme)?,
+            highlighter: Highlighter::new(&theme_source)?,
             theme,
+            theme_source,
+            theme_name,
+            theme_preview: None,
             theme_setting: tui.theme,
+            theme_config: tui.clone(),
             theme_overrides,
             icon_mode,
             theme_checked_at: Instant::now(),
@@ -117,6 +122,9 @@ impl App {
         sidebar::rebuild(&mut app.sidebar, &app.catalog, trash_count);
         app.refresh_visible();
         app.refresh_git();
+        if !theme_warnings.is_empty() {
+            app.set_status(theme_warnings.join("; "), StatusLevel::Error);
+        }
         Ok(app)
     }
 
@@ -145,6 +153,45 @@ impl App {
         self.status = Some(StatusMessage::new(text, level));
     }
 
+    pub(super) fn preview_theme(&mut self, name: &str) -> Result<()> {
+        if self.theme_preview.is_none() {
+            self.theme_preview = Some(ThemePreviewState {
+                original_name: self.theme_name.clone(),
+                original_source: self.theme_source.clone(),
+                original_tui: self.theme,
+            });
+        }
+        let source = crate::theme::load(name)?;
+        if let Some(failure) = crate::theme::validate::check(&source)
+            .into_iter()
+            .find(|check| check.level == crate::theme::validate::Level::Fail)
+        {
+            return Err(crate::error::SnipError::validation(format!(
+                "theme {name}: {}: {}",
+                failure.id, failure.detail
+            )));
+        }
+        let theme = TuiTheme::from(&source);
+        self.highlighter.set_theme(&source)?;
+        self.theme_source = source;
+        self.theme = theme;
+        self.theme_name = name.to_owned();
+        self.preview.invalidate();
+        Ok(())
+    }
+
+    pub(super) fn restore_theme_preview(&mut self) -> Result<()> {
+        let Some(original) = self.theme_preview.take() else {
+            return Ok(());
+        };
+        self.highlighter.set_theme(&original.original_source)?;
+        self.theme_name = original.original_name;
+        self.theme_source = original.original_source;
+        self.theme = original.original_tui;
+        self.preview.invalidate();
+        Ok(())
+    }
+
     pub fn tick_status(&mut self) {
         if self.modal.is_none() && self.status.as_ref().is_some_and(StatusMessage::expired) {
             self.status = None;
@@ -152,18 +199,25 @@ impl App {
     }
 
     pub fn tick_theme(&mut self) -> Result<()> {
-        if self.theme_setting != TuiThemeSetting::Auto {
+        if self.theme_setting != TuiThemeSetting::Auto || self.theme_preview.is_some() {
             return Ok(());
         }
         if self.theme_checked_at.elapsed() < Duration::from_secs(5) {
             return Ok(());
         }
         self.theme_checked_at = Instant::now();
-        let theme = TuiTheme::resolve(self.theme_setting).with_overrides(&self.theme_overrides);
-        if theme.appearance != self.theme.appearance {
-            self.highlighter = Highlighter::new(theme)?;
+        self.theme_config.theme = self.theme_setting;
+        let (source, warnings) = crate::theme::resolve(&self.theme_config);
+        let theme = TuiTheme::from(&source).with_overrides(&self.theme_overrides);
+        if source.name != self.theme_name || theme.appearance != self.theme.appearance {
+            self.highlighter.set_theme(&source)?;
+            self.theme_name = source.name.clone();
+            self.theme_source = source;
             self.theme = theme;
             self.preview.invalidate();
+        }
+        if !warnings.is_empty() {
+            self.set_status(warnings.join("; "), StatusLevel::Error);
         }
         Ok(())
     }

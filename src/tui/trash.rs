@@ -47,6 +47,7 @@ impl TrashState {
 pub fn draw_trash(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let popup = widgets::centered_rect(76, 20, area);
     frame.render_widget(Clear, popup);
+    super::widgets::fill_surface(frame, popup, app.theme);
     let items = app
         .trash
         .entries

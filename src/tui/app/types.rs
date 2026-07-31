@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::{GitConfig, TuiDensitySetting, TuiThemeSetting};
+use crate::config::{GitConfig, TuiConfig, TuiDensitySetting, TuiThemeSetting};
 use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
 use crate::git;
@@ -25,6 +25,13 @@ use super::super::state::{
 };
 use super::super::theme::TuiTheme;
 use super::super::trash::TrashState;
+
+#[derive(Clone, Debug)]
+pub struct ThemePreviewState {
+    pub original_name: String,
+    pub original_source: crate::theme::Theme,
+    pub original_tui: TuiTheme,
+}
 
 #[derive(Clone, Debug)]
 pub enum Effect {
@@ -142,7 +149,11 @@ pub struct App {
     pub preview_selection: PreviewSelection,
     pub highlighter: Highlighter,
     pub theme: TuiTheme,
+    pub theme_source: crate::theme::Theme,
+    pub theme_name: String,
+    pub theme_preview: Option<ThemePreviewState>,
     pub theme_setting: TuiThemeSetting,
+    pub theme_config: TuiConfig,
     pub theme_overrides: toml::Table,
     pub icon_mode: IconMode,
     pub git: GitState,
