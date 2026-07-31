@@ -93,6 +93,9 @@ silicon; nixpkgs no longer supports Intel macOS.
 nix profile install github:gitkeniwo/snip
 ```
 
+The first run asks whether to trust the project's Cachix substituter; accept it
+to download a prebuilt binary instead of compiling on your machine.
+
 Append a tag to pin a release: `github:gitkeniwo/snip/vX.Y.Z`. Or run it without
 installing:
 
