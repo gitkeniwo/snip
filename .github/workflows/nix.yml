@@ -64,8 +64,8 @@ jobs:
       - name: Verify package layout
         run: |
           ./result/bin/snip --version
-          test "$(ls result/share/man/man1/*.1 | wc -l)" -eq "$(ls man/*.1 | wc -l)"
-          test -f result/share/man/man1/snip.1
+          test "$(ls result/share/man/man1/*.1.gz | wc -l)" -eq "$(ls man/*.1 | wc -l)"
+          test -f result/share/man/man1/snip.1.gz
           test -f result/share/bash-completion/completions/snip.bash
           test -f result/share/zsh/site-functions/_snip
           test -f result/share/fish/vendor_completions.d/snip.fish
