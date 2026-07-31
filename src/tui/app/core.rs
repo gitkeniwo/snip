@@ -64,6 +64,7 @@ impl App {
         let show_line_numbers = tui.line_numbers;
         let icon_mode = IconMode::Ascii;
         let mut app = Self {
+            config_path: crate::config::config_path()?,
             git: GitState::probe(&library, &config.git.clone().unwrap_or_default()),
             library,
             catalog,

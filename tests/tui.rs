@@ -2432,6 +2432,61 @@ fn config_colors_survive_a_theme_preview_and_the_escape_that_undoes_it() {
 }
 
 #[test]
+fn theme_picker_enter_persists_the_selected_appearance_slot() {
+    let (temporary, library, _first_id, _second_id) = fixture();
+    let config_path = temporary.path().join("config.toml");
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            theme: TuiThemeSetting::Light,
+            light_theme: Some("light-default".to_owned()),
+            dark_theme: Some("dark-nord".to_owned()),
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    config.save_to(&config_path).unwrap();
+    let mut app = App::new(library, &config).unwrap();
+    app.config_path = config_path.clone();
+
+    app.run_command(CommandId::ViewPickTheme);
+    app.handle_key(key(KeyCode::Down));
+    let selected = app.theme_name.clone();
+    assert_ne!(selected, "light-default");
+    app.handle_key(key(KeyCode::Enter));
+
+    let saved = AppConfig::load_from(&config_path).unwrap();
+    let tui = saved
+        .tui
+        .expect("theme selection should persist TUI config");
+    assert_eq!(tui.light_theme.as_deref(), Some(selected.as_str()));
+    assert_eq!(tui.dark_theme.as_deref(), Some("dark-nord"));
+    assert!(app.theme_preview.is_none());
+}
+
+#[test]
+fn app_constructs_with_an_unknown_configured_theme_and_uses_the_default() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            theme: TuiThemeSetting::Dark,
+            dark_theme: Some("does-not-exist".to_owned()),
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+
+    let app = App::new(library, &config).expect("an unknown theme must not prevent startup");
+
+    assert_eq!(app.theme_name, "dark-default");
+    assert_eq!(app.theme.appearance, Appearance::Dark);
+    assert!(
+        app.status
+            .as_ref()
+            .is_some_and(|status| status.text.contains("unknown theme"))
+    );
+}
+
+#[test]
 fn tick_theme_does_not_replace_an_active_preview() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();

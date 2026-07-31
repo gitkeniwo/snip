@@ -102,7 +102,7 @@ impl App {
                 self.preview_theme(name)?;
                 self.theme_preview = None;
                 let appearance = self.theme_source.appearance;
-                let mut config = match crate::config::AppConfig::load() {
+                let mut config = match crate::config::AppConfig::load_from(&self.config_path) {
                     Ok(config) => config,
                     Err(error) => {
                         self.set_status(
@@ -125,7 +125,7 @@ impl App {
                         self.theme_config.dark_theme = Some(name.to_owned());
                     }
                 }
-                if let Err(error) = config.save() {
+                if let Err(error) = config.save_to(&self.config_path) {
                     self.set_status(
                         format!("theme changed for this session: {error}"),
                         StatusLevel::Error,

@@ -129,6 +129,7 @@ impl GitState {
 }
 
 pub struct App {
+    pub config_path: PathBuf,
     pub library: Library,
     pub catalog: CatalogSnapshot,
     pub index: MemoryIndex,
