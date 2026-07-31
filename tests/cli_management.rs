@@ -120,6 +120,26 @@ fn cli_lists_checks_uses_and_exports_themes_without_a_library() {
     theme_command(config_home, &["theme", "check", "mine"])
         .assert()
         .code(1);
+
+    // A theme that fails to load is still listed under the appearance it asked
+    // for, so a broken light theme stays reachable from the light picker.
+    fs::write(
+        config_home.join("snip/themes/half-written.toml"),
+        "schema_version = 1\nname = \"half-written\"\nappearance = \"light\"\n[ui]\naccent = \"nonsense\"\n",
+    )
+    .unwrap();
+    let listed = theme_command(config_home, &["theme", "list"])
+        .output()
+        .unwrap();
+    let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let broken = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|theme| theme["name"] == "half-written")
+        .unwrap();
+    assert_eq!(broken["appearance"], "light");
+    assert!(broken["error"].is_string());
 }
 
 #[test]

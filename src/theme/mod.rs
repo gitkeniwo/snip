@@ -423,6 +423,22 @@ pub fn themes_dir() -> Result<PathBuf> {
         .join("themes"))
 }
 
+/// Read just the `appearance` of a theme that failed to load, so a broken theme
+/// still lists — and shows up in the picker — under the right heading. Unlike
+/// [`RawTheme`] this ignores every other field, so it survives a bad color, a
+/// missing `[ui]` key, or an `extends` that does not resolve. A theme whose TOML
+/// does not parse at all has no appearance to read, and the caller falls back.
+fn probe_appearance(text: &str) -> Option<Appearance> {
+    #[derive(Deserialize)]
+    struct Probe {
+        appearance: Appearance,
+    }
+
+    toml::from_str::<Probe>(text)
+        .ok()
+        .map(|probe| probe.appearance)
+}
+
 pub fn list() -> Vec<ThemeSummary> {
     let mut entries = HashMap::<String, (bool, Option<PathBuf>)>::new();
     for (name, _) in builtin::THEMES {
@@ -452,9 +468,12 @@ pub fn list() -> Vec<ThemeSummary> {
                 error: None,
             },
             Err(error) => ThemeSummary {
+                appearance: read_source(&name)
+                    .ok()
+                    .and_then(|(text, _)| probe_appearance(&text))
+                    .unwrap_or(Appearance::Dark),
                 name: name.clone(),
                 display_name: name,
-                appearance: Appearance::Dark,
                 source: None,
                 builtin,
                 error: Some(error.to_string()),
@@ -737,6 +756,49 @@ mod tests {
             assert_eq!(theme.ui.background, ThemeColor::Terminal);
             assert_eq!(theme.ui.foreground, ThemeColor::Terminal);
         }
+    }
+
+    #[test]
+    fn a_broken_theme_still_reports_the_appearance_it_asked_for() {
+        // Everything that fails after the file has parsed as TOML still knows
+        // which slot it belongs to, so a broken light theme is not filed —
+        // and offered in the picker — as a dark one.
+        for (label, text) in [
+            (
+                "bad color",
+                "schema_version = 1\nname = \"x\"\nappearance = \"light\"\nextends = \"light-github\"\n[ui]\naccent = \"nonsense\"\n",
+            ),
+            (
+                "missing ui key",
+                "schema_version = 1\nname = \"x\"\nappearance = \"light\"\n[ui]\nbackground = \"terminal\"\n",
+            ),
+            (
+                "unresolvable parent",
+                "schema_version = 1\nname = \"x\"\nappearance = \"light\"\nextends = \"nope\"\n",
+            ),
+            (
+                "name mismatch",
+                "schema_version = 1\nname = \"other\"\nappearance = \"light\"\nextends = \"light-github\"\n",
+            ),
+            (
+                "future schema",
+                "schema_version = 99\nname = \"x\"\nappearance = \"light\"\nextends = \"light-github\"\n",
+            ),
+        ] {
+            assert_eq!(
+                probe_appearance(text),
+                Some(Appearance::Light),
+                "{label} should still report its appearance"
+            );
+        }
+
+        // Only a file that is not TOML at all leaves the caller to guess.
+        assert_eq!(probe_appearance("not toml {{{"), None);
+        assert_eq!(
+            probe_appearance("schema_version = 1\nname = \"x\"\n"),
+            None,
+            "a missing appearance cannot be guessed either"
+        );
     }
 
     #[test]
