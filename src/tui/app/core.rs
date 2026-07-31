@@ -79,6 +79,7 @@ impl App {
             fragment_index: 0,
             preview_scroll: 0,
             show_line_numbers,
+            fragments_expanded: false,
             sort,
             density,
             layout: LayoutRects::default(),

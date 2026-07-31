@@ -40,7 +40,7 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     app.layout.sidebar = panes[0];
     app.layout.list = panes[1];
     app.layout.preview = panes[2];
-    app.layout.reset_tabs();
+    app.layout.reset_fragment_rows();
     top_bar::draw_top_bar(frame, app, vertical[0]);
     draw_sidebar(frame, app, panes[0]);
     draw_list(frame, app, panes[1]);

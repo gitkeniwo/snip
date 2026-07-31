@@ -7,16 +7,14 @@ pub struct LayoutRects {
     pub sidebar: Rect,
     pub list: Rect,
     pub preview: Rect,
-    pub preview_tabs: Rect,
+    pub preview_fragments: Rect,
+    pub fragment_rows: Vec<(u16, usize)>,
     pub preview_content: Rect,
-    pub tab_spans: [(u16, u16); 16],
-    pub tab_count: usize,
 }
 
 impl LayoutRects {
-    pub fn reset_tabs(&mut self) {
-        self.tab_spans = [(0, 0); 16];
-        self.tab_count = 0;
+    pub fn reset_fragment_rows(&mut self) {
+        self.fragment_rows.clear();
     }
 }
 

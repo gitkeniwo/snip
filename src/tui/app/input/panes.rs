@@ -68,6 +68,8 @@ impl App {
             }
             KeyCode::Char('{') => crate::tui::preview::jump_paragraph(self, false),
             KeyCode::Char('}') => crate::tui::preview::jump_paragraph(self, true),
+            KeyCode::Char('=') => self.set_fragments_expanded(true),
+            KeyCode::Char('-') => self.set_fragments_expanded(false),
             _ => {}
         }
     }
@@ -203,19 +205,24 @@ impl App {
             }
             return;
         }
-        if contains(self.layout.preview_tabs, column, row) {
-            for (index, (start, end)) in self.layout.tab_spans[..self.layout.tab_count]
-                .iter()
-                .enumerate()
-            {
-                if column >= *start && column < *end {
-                    self.fragment_index = index;
-                    self.preview_scroll = 0;
-                    self.preview.invalidate();
-                    self.focus = Pane::Preview;
-                    return;
-                }
+        if contains(self.layout.preview_fragments, column, row) {
+            if row == self.layout.preview_fragments.y {
+                self.toggle_fragments_expanded();
+                self.focus = Pane::Preview;
+                return;
             }
+            if let Some(index) = self
+                .layout
+                .fragment_rows
+                .iter()
+                .find_map(|(y, index)| (*y == row).then_some(*index))
+            {
+                self.select_fragment(index);
+                self.focus = Pane::Preview;
+                return;
+            }
+            self.focus = Pane::Preview;
+            return;
         }
         if contains(self.layout.preview, column, row) {
             self.focus = Pane::Preview;
@@ -359,6 +366,21 @@ impl App {
             self.preview_scroll = 0;
             self.preview.invalidate();
         }
+    }
+
+    pub(in super::super) fn toggle_fragments_expanded(&mut self) {
+        self.set_fragments_expanded(!self.fragments_expanded);
+    }
+
+    fn set_fragments_expanded(&mut self, expanded: bool) {
+        let can_expand = self
+            .selected_snippet()
+            .is_some_and(|snippet| !snippet.loaded_fragments.is_empty());
+        if !can_expand || self.fragments_expanded == expanded {
+            return;
+        }
+        self.fragments_expanded = expanded;
+        self.preview_selection.clear();
     }
 
     pub(super) fn select_fragment(&mut self, index: usize) {

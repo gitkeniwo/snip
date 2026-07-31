@@ -143,6 +143,7 @@ pub struct App {
     pub fragment_index: usize,
     pub preview_scroll: u16,
     pub show_line_numbers: bool,
+    pub fragments_expanded: bool,
     pub sort: SortMode,
     pub density: TuiDensitySetting,
     pub layout: LayoutRects,

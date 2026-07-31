@@ -595,10 +595,12 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("~ › All snippets"));
     assert!(rendered.contains("↓ modified"));
     assert!(rendered.contains("#1/2"));
-    assert!(rendered.contains("fragment 1/1"));
+    assert!(rendered.contains("fragment"));
+    assert!(!rendered.contains("fragment 1/1"));
     assert!(rendered.contains("←/→"));
     assert!(rendered.contains('/'));
-    assert!(rendered.contains("001-Alpha Rust.rs rs"));
+    assert!(rendered.contains("Alpha Rust"));
+    assert!(rendered.contains("rs"));
     assert!(rendered.contains("1│ fn alpha() {}"));
     let buffer = terminal.backend().buffer();
     let bottom = row_text(buffer, 29);
@@ -698,7 +700,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((56, 1)).unwrap().symbol(), "P");
     assert_eq!(buffer.cell((56, 2)).unwrap().symbol(), "A");
     assert_eq!(buffer.cell((56, 3)).unwrap().symbol(), "C");
-    assert_eq!(buffer.cell((56, 4)).unwrap().symbol(), "f");
+    assert_eq!(buffer.cell((58, 4)).unwrap().symbol(), "f");
     assert_eq!(buffer.cell((56, 5)).unwrap().symbol(), "#");
     let preview_bottom = row_text_from(buffer, 28, 54);
     assert!(preview_bottom.contains("Rust"));
@@ -709,17 +711,20 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     let tags = row_text_from(buffer, 5, 54);
     assert!(metadata.contains("Code/Rust · "));
     assert!(!metadata.contains("#dev"));
-    assert!(fragment.contains("fragment 1/1 · "));
-    assert!(fragment.contains("001-Alpha Rust.rs rs"));
+    assert!(
+        fragment.contains("fragment · Fragment"),
+        "unexpected fragment row: {fragment:?}"
+    );
+    assert!(!fragment.contains("  rs"));
     assert!(
         tags.contains("#dev"),
         "preview tags belong on their own row"
     );
-    let filename_x = 54 + fragment.find("001-Alpha Rust.rs rs").unwrap() as u16;
+    let title_x = 54 + fragment.find("Fragment").unwrap() as u16;
     assert_ne!(
-        buffer.cell((filename_x, 4)).unwrap().bg,
+        buffer.cell((title_x, 4)).unwrap().bg,
         app.theme.selection_bg,
-        "the active filename should not use a filled selection chip"
+        "the active title should not use a filled selection chip"
     );
     assert!(row_text_from(buffer, 2, 54).contains("★ pinned"));
     let preview_start = app.layout.preview_content.y;
@@ -776,7 +781,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((56, code_y)).unwrap().symbol(), "f");
 
     app.handle_key(key(KeyCode::Char('?')));
-    let backend = TestBackend::new(120, 42);
+    let backend = TestBackend::new(120, 44);
     let mut help_terminal = Terminal::new(backend).unwrap();
     help_terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
@@ -862,7 +867,7 @@ fn preview_omits_the_tags_row_when_a_snippet_has_no_tags() {
 
     assert_eq!(
         app.layout.preview_content.y,
-        app.layout.preview_tabs.y + 2,
+        app.layout.preview_fragments.y + 2,
         "a tagless preview has metadata, a rule, then content—without a blank tags row"
     );
 }
@@ -941,12 +946,20 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
-    assert_eq!(app.layout.tab_count, 2);
-    let tab = app.layout.tab_spans[1];
+    app.fragments_expanded = true;
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let row = app
+        .layout
+        .fragment_rows
+        .iter()
+        .find_map(|(y, index)| (*index == 1).then_some(*y))
+        .unwrap();
     let _ = app.handle_mouse(mouse(
         MouseEventKind::Down(MouseButton::Left),
-        tab.0,
-        app.layout.preview_tabs.y,
+        app.layout.preview_fragments.x,
+        row,
     ));
     assert_eq!(app.fragment_index, 1);
     let _ = app.handle_mouse(mouse(
@@ -960,6 +973,229 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
             .snippets
             .iter()
             .any(|snippet| snippet.id == second_id)
+    );
+}
+
+#[test]
+fn the_fragment_list_costs_one_row_collapsed_and_grows_when_expanded() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    for title in ["output-contract", "severity-rubric"] {
+        add_fragment(
+            &library,
+            &first_id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "markdown".to_owned(),
+                content: "first\nsecond\n".to_owned(),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.layout.preview_fragments.height, 1);
+
+    app.fragments_expanded = true;
+    app.fragment_index = 1;
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.layout.preview_fragments.height, 4);
+    let header = row_text(terminal.backend().buffer(), app.layout.preview_fragments.y);
+    assert!(header.contains("[ ] switch"));
+    assert!(header.contains("- collapse"));
+    let selected_y = app
+        .layout
+        .fragment_rows
+        .iter()
+        .find_map(|(y, index)| (*index == 1).then_some(*y))
+        .unwrap();
+    let last_y = app
+        .layout
+        .fragment_rows
+        .iter()
+        .find_map(|(y, index)| (*index == 2).then_some(*y))
+        .unwrap();
+    assert!(row_text(terminal.backend().buffer(), selected_y).contains("├>"));
+    assert!(row_text(terminal.backend().buffer(), last_y).contains("└─"));
+}
+
+#[test]
+fn equals_and_minus_control_fragments_only_in_the_preview_pane() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    add_fragment(
+        &library,
+        &first_id.to_string(),
+        &FragmentAddOptions {
+            title: "second".to_owned(),
+            language: "text".to_owned(),
+            content: "second\n".to_owned(),
+            ..FragmentAddOptions::default()
+        },
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    select_sidebar_item(&mut app, SidebarItem::Folder("Code".to_owned()));
+    let folder_was_expanded = app.sidebar.expanded.contains("Code");
+
+    app.handle_key(key(KeyCode::Char(' ')));
+    assert!(!app.fragments_expanded);
+    assert_ne!(app.sidebar.expanded.contains("Code"), folder_was_expanded);
+
+    app.focus = Pane::Preview;
+    app.handle_key(key(KeyCode::Char(' ')));
+    assert!(!app.fragments_expanded);
+    app.handle_key(key(KeyCode::Char('=')));
+    assert!(app.fragments_expanded);
+    app.handle_key(key(KeyCode::Char('=')));
+    assert!(app.fragments_expanded);
+    app.handle_key(key(KeyCode::Char('-')));
+    assert!(!app.fragments_expanded);
+}
+
+#[test]
+fn a_single_fragment_can_expand_but_an_empty_preview_cannot_toggle() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::Preview;
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let old_fragment_area = app.layout.preview_fragments;
+    assert!(row_text(terminal.backend().buffer(), old_fragment_area.y).contains("+ fragment"));
+
+    app.handle_key(key(KeyCode::Char('=')));
+    assert!(app.fragments_expanded);
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(app.layout.preview_fragments.height, 2);
+    assert!(
+        row_text(terminal.backend().buffer(), app.layout.preview_fragments.y)
+            .contains("- fragment  1")
+    );
+    assert_eq!(app.layout.fragment_rows.len(), 1);
+    assert_eq!(app.layout.fragment_rows[0].1, 0);
+
+    app.handle_key(key(KeyCode::Char('-')));
+    assert!(!app.fragments_expanded);
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let _ = app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        old_fragment_area.x,
+        old_fragment_area.y,
+    ));
+    assert!(app.fragments_expanded);
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let _ = app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        app.layout.preview_fragments.x,
+        app.layout.preview_fragments.y,
+    ));
+    assert!(!app.fragments_expanded);
+
+    app.selected_id = None;
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert_eq!(
+        app.layout.preview_fragments,
+        ratatui::layout::Rect::default()
+    );
+    let _ = app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        old_fragment_area.x,
+        old_fragment_area.y,
+    ));
+    assert!(!app.fragments_expanded);
+}
+
+#[test]
+fn clicking_a_fragment_row_selects_it_and_clicking_the_header_collapses() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    for title in ["output-contract", "severity-rubric"] {
+        add_fragment(
+            &library,
+            &first_id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "markdown".to_owned(),
+                content: "content\n".to_owned(),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.fragments_expanded = true;
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let row = app
+        .layout
+        .fragment_rows
+        .iter()
+        .find_map(|(y, index)| (*index == 2).then_some(*y))
+        .unwrap();
+
+    let _ = app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        app.layout.preview_fragments.x,
+        row,
+    ));
+    assert_eq!(app.fragment_index, 2);
+    let _ = app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        app.layout.preview_fragments.x,
+        app.layout.preview_fragments.y,
+    ));
+    assert!(!app.fragments_expanded);
+}
+
+#[test]
+fn the_expanded_list_scrolls_to_keep_the_selected_fragment_visible() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    for index in 2..=20 {
+        add_fragment(
+            &library,
+            &first_id.to_string(),
+            &FragmentAddOptions {
+                title: format!("fragment-{index}"),
+                language: "text".to_owned(),
+                content: format!("line {index}\n"),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.fragment_index = 19;
+    app.fragments_expanded = true;
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    assert!(
+        app.layout
+            .fragment_rows
+            .iter()
+            .any(|(_, index)| *index == 19)
     );
 }
 
@@ -1916,7 +2152,8 @@ fn edit_language_keeps_manifest_file_badge_and_preview_in_sync() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(rendered.contains("001-Alpha Rust.py py"));
+    assert!(rendered.contains("fragment · Fragment"));
+    assert!(rendered.contains("py"));
 }
 
 #[test]

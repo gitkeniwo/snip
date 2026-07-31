@@ -70,6 +70,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             (": / Ctrl-P", "open command palette"),
             ("s", "cycle sort"),
             ("N", "toggle line numbers"),
+            ("= / -", "expand / collapse fragments"),
             ("z", "toggle list density"),
             ("T", "open trash"),
             ("Ctrl-g", "Git console"),
