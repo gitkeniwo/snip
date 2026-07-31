@@ -20,7 +20,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 48] = [
+static COMMANDS: [Command; 49] = [
     command!(
         SnippetNew,
         "snippet.new",
@@ -280,6 +280,16 @@ static COMMANDS: [Command; 48] = [
         Some("N"),
         enabled,
         toggle_line_numbers
+    ),
+    command!(
+        ViewToggleFragmentList,
+        "view.toggle-fragment-list",
+        "View",
+        "Toggle Fragment List",
+        &["fragment", "fragments", "tree", "expand", "collapse"],
+        Some("= / -"),
+        enabled,
+        toggle_fragment_list
     ),
     command!(
         ViewToggleDensity,
