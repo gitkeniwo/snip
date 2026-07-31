@@ -2398,6 +2398,40 @@ fn theme_picker_previews_and_escape_restores_without_rebuilding_the_app() {
 }
 
 #[test]
+fn config_colors_survive_a_theme_preview_and_the_escape_that_undoes_it() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut colors = toml::Table::new();
+    colors.insert(
+        "accent".to_owned(),
+        toml::Value::String("#010203".to_owned()),
+    );
+    let mut tui = TuiConfig {
+        theme: TuiThemeSetting::Dark,
+        dark_theme: Some("dark-nord".to_owned()),
+        ..TuiConfig::default()
+    };
+    tui.extra
+        .insert("colors".to_owned(), toml::Value::Table(colors));
+    let config = AppConfig {
+        tui: Some(tui),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    let overridden = ratatui::style::Color::Rgb(1, 2, 3);
+    assert_eq!(app.theme.accent, overridden);
+
+    // `[tui.colors]` is the last layer, so it has to outlive a theme switch.
+    app.run_command(CommandId::ViewPickTheme);
+    app.handle_key(key(KeyCode::Down));
+    assert_ne!(app.theme_name, "dark-nord");
+    assert_eq!(app.theme.accent, overridden);
+
+    app.handle_key(key(KeyCode::Esc));
+    assert_eq!(app.theme_name, "dark-nord");
+    assert_eq!(app.theme.accent, overridden);
+}
+
+#[test]
 fn tick_theme_does_not_replace_an_active_preview() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();

@@ -124,7 +124,8 @@ clear that floor; the original 16-color palette remains recorded unchanged.
 
 An extending theme still declares its own name and appearance, but may override
 only the fields it needs. Everything else, including syntax and palette,
-inherits from the resolved parent:
+inherits from the resolved parent. `[ui]` may be left out entirely — a theme
+that only swaps `[syntax]` is valid:
 
 ```toml
 schema_version = 1

@@ -171,7 +171,11 @@ impl App {
                 failure.id, failure.detail
             )));
         }
-        let theme = TuiTheme::from(&source);
+        // `[tui.colors]` is the last layer for every other path that builds a
+        // theme, so it has to be reapplied here too. Without it, switching
+        // themes from the palette would silently drop the user's overrides for
+        // the rest of the session.
+        let theme = TuiTheme::from(&source).with_overrides(&self.theme_overrides);
         self.highlighter.set_theme(&source)?;
         self.theme_source = source;
         self.theme = theme;

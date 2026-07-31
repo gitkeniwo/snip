@@ -109,6 +109,11 @@ struct RawTheme {
     appearance: Appearance,
     source: Option<String>,
     extends: Option<String>,
+    // A theme that extends another may override nothing at all, or only
+    // `[syntax]`/`[palette]`, so an absent `[ui]` is not an error here. A
+    // standalone theme still has to name every role: `require_all_ui` below
+    // rejects the empty table when there is no parent to inherit from.
+    #[serde(default)]
     ui: RawUi,
     syntax: Option<RawSyntax>,
     palette: Option<BTreeMap<String, String>>,
@@ -513,9 +518,17 @@ pub fn resolve_appearance(setting: TuiThemeSetting, environment: Option<&str>) -
 }
 
 pub fn resolve(config: &TuiConfig) -> (Theme, Vec<String>) {
-    let environment = std::env::var("SNIP_TUI_THEME").ok();
+    resolve_with_environment(config, std::env::var("SNIP_TUI_THEME").ok().as_deref())
+}
+
+/// The body of [`resolve`], with `SNIP_TUI_THEME` passed in rather than read.
+/// Tests cannot mutate the process environment safely, so they call this.
+pub fn resolve_with_environment(
+    config: &TuiConfig,
+    environment: Option<&str>,
+) -> (Theme, Vec<String>) {
     let mut warnings = Vec::new();
-    if let Some(name) = environment.as_deref().filter(|value| {
+    if let Some(name) = environment.filter(|value| {
         !value.is_empty()
             && !value.eq_ignore_ascii_case("light")
             && !value.eq_ignore_ascii_case("dark")
@@ -529,7 +542,7 @@ pub fn resolve(config: &TuiConfig) -> (Theme, Vec<String>) {
             Err(error) => warnings.push(error.to_string()),
         }
     }
-    let appearance = resolve_appearance(config.theme, environment.as_deref());
+    let appearance = resolve_appearance(config.theme, environment);
     let default_name = match appearance {
         Appearance::Light => "light-default",
         Appearance::Dark => "dark-default",
@@ -724,6 +737,65 @@ mod tests {
             assert_eq!(theme.ui.background, ThemeColor::Terminal);
             assert_eq!(theme.ui.foreground, ThemeColor::Terminal);
         }
+    }
+
+    #[test]
+    fn extends_may_override_nothing_at_all() {
+        let text = "schema_version = 1\nname = \"child\"\nappearance = \"dark\"\nextends = \"dark-nord\"\n";
+        let parent = load("dark-nord").unwrap();
+        let raw = parse_raw(text, Some("child")).unwrap();
+        let theme = resolve_raw(raw, Some(parent.clone())).unwrap();
+        assert_eq!(theme.ui, parent.ui);
+        assert_eq!(theme.syntax, parent.syntax);
+        assert_eq!(theme.palette, parent.palette);
+    }
+
+    #[test]
+    fn config_colors_override_the_theme_file() {
+        let mut config = TuiConfig {
+            theme: TuiThemeSetting::Dark,
+            dark_theme: Some("dark-nord".to_owned()),
+            ..TuiConfig::default()
+        };
+        config.extra.insert(
+            "colors".to_owned(),
+            toml::Value::Table(toml::Table::from_iter([
+                ("accent".to_owned(), toml::Value::String("#010203".into())),
+                ("bogus".to_owned(), toml::Value::String("#040506".into())),
+                ("tag".to_owned(), toml::Value::String("nonsense".into())),
+            ])),
+        );
+
+        let (theme, warnings) = resolve_with_environment(&config, None);
+        let plain = load("dark-nord").unwrap();
+        assert_eq!(theme.ui.accent, ThemeColor::Rgb(1, 2, 3));
+        assert_eq!(theme.ui.tag, plain.ui.tag, "an invalid override is skipped");
+        assert!(warnings.iter().any(|warning| warning.contains("nonsense")));
+    }
+
+    #[test]
+    fn environment_naming_a_theme_wins_and_an_unknown_one_warns() {
+        let config = TuiConfig {
+            theme: TuiThemeSetting::Dark,
+            dark_theme: Some("dark-nord".to_owned()),
+            ..TuiConfig::default()
+        };
+
+        let (theme, warnings) = resolve_with_environment(&config, Some("light-gruvbox"));
+        assert_eq!(theme.name, "light-gruvbox");
+        assert!(warnings.is_empty());
+
+        // "light"/"dark" stay appearance overrides rather than theme names.
+        let (theme, _) = resolve_with_environment(&config, Some("light"));
+        assert_eq!(theme.name, "light-default");
+
+        let (theme, warnings) = resolve_with_environment(&config, Some("does-not-exist"));
+        assert_eq!(theme.name, "dark-nord", "an unknown name falls through");
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("unknown theme"))
+        );
     }
 
     #[test]
