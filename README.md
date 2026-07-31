@@ -19,38 +19,6 @@ Runs on Linux, macOS, and Windows.
 
 The crate is `sniplab`; the binary it installs is `snip`.
 
-### Nix
-
-Needs the `nix-command` and `flakes` experimental features. Linux and Apple
-silicon; nixpkgs no longer supports Intel macOS.
-
-```bash
-nix profile install github:gitkeniwo/snip
-```
-
-Append a tag to pin a release: `github:gitkeniwo/snip/vX.Y.Z`. Or run it without
-installing:
-
-```bash
-nix run github:gitkeniwo/snip -- list
-```
-
-On NixOS, install it declaratively instead — add the flake input, then apply the
-overlay in a module:
-
-```nix
-inputs.snip = {
-  url = "github:gitkeniwo/snip";
-  inputs.nixpkgs.follows = "nixpkgs";
-};
-
-nixpkgs.overlays = [ inputs.snip.overlays.default ];
-environment.systemPackages = [ pkgs.sniplab ];
-```
-
-Manual pages and shell completions ship with the package, so `man snip` works
-without `snip man install`.
-
 ### macOS / Linux (Homebrew)
 
 ```bash
@@ -107,6 +75,38 @@ yay -S sniplab
 
 `paru -S sniplab` works too, or clone `https://aur.archlinux.org/sniplab.git`
 and run `makepkg -si`.
+
+### Nix
+
+Needs the `nix-command` and `flakes` experimental features. Linux and Apple
+silicon; nixpkgs no longer supports Intel macOS.
+
+```bash
+nix profile install github:gitkeniwo/snip
+```
+
+Append a tag to pin a release: `github:gitkeniwo/snip/vX.Y.Z`. Or run it without
+installing:
+
+```bash
+nix run github:gitkeniwo/snip -- list
+```
+
+On NixOS, install it declaratively instead — add the flake input, then apply the
+overlay in a module:
+
+```nix
+inputs.snip = {
+  url = "github:gitkeniwo/snip";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+
+nixpkgs.overlays = [ inputs.snip.overlays.default ];
+environment.systemPackages = [ pkgs.sniplab ];
+```
+
+Manual pages and shell completions ship with the package, so `man snip` works
+without `snip man install`.
 
 ### Windows (Scoop)
 
