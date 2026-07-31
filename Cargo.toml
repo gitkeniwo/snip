@@ -13,6 +13,7 @@ keywords = ["snippet", "cli", "tui", "notes", "ratatui"]
 categories = ["command-line-utilities", "development-tools", "text-editors"]
 exclude = [
     ".github/",
+    "assets/base16/",
     "examples/",
     "opencode.jsonc",
 ]
@@ -110,6 +111,7 @@ regex = { version = "1.13.1", default-features = false, features = ["std", "perf
 assert_cmd = "2.1"
 clap_mangen = "0.3"
 predicates = "3.1"
+serde_norway = "0.9"
 
 [profile.release]
 lto = "thin"
