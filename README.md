@@ -259,6 +259,22 @@ terminal whose background differs from the system:
 SNIP_TUI_THEME=light snip     # or: snip config set tui-theme light
 ```
 
+### Themes
+
+Open the command palette and run **Change Color Theme** to preview every theme
+for the current light or dark appearance; `Esc` restores the previous theme and
+`Enter` saves the choice. The same slots can be set directly:
+
+```bash
+snip config set tui-light-theme light-gruvbox
+snip config set tui-dark-theme dark-nord
+snip theme list
+```
+
+User themes live in the directory printed by `snip theme path` (normally
+`~/.config/snip/themes`). See [docs/themes.md](docs/themes.md) for the complete
+format, inheritance, validation, and base16 role mapping.
+
 Language badges are plain ASCII (`[rs]`, `[py]`, `[sh]`, `[md]`) so they render
 in any font. The rounded caps on the top and bottom bars are Powerline glyphs,
 which need a Nerd Font or another Powerline-patched terminal font.
@@ -409,6 +425,8 @@ default_tags = ["personal"]
 
 [tui]
 theme = "auto"             # auto | light | dark
+light_theme = "light-default"
+dark_theme = "dark-default"
 sort = "modified"          # modified | created | title
 density = "comfortable"    # comfortable | compact
 line_numbers = true        # preview gutter; toggled with `N`
@@ -419,7 +437,8 @@ auto_push = false          # push ahead commits in the background
 backup_on_quit = false
 ```
 
-`SNIP_TUI_THEME=light|dark` overrides `[tui].theme`. Config values are defaults
+`SNIP_TUI_THEME=light|dark` overrides `[tui].theme`; any other non-empty value
+selects a theme by name for that run. Config values are defaults
 only; explicit CLI options override them. Unknown TOML fields are preserved when
 `snip config set` or `unset` rewrites the file, so future settings can coexist.
 

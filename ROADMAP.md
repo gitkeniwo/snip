@@ -5,12 +5,6 @@ commitment to a date.
 
 ## TUI
 
-### Color schemes
-
-Let the theme be chosen and defined by the user rather than compiled in.
-Ship a few built-in schemes, read a user scheme from the config file, and
-respect terminal light/dark where possible.
-
 ### User-defined key bindings
 
 Make every TUI action rebindable through the config file, with the current

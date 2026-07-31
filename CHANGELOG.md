@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Selectable TUI color themes.** Seventeen built-in light and dark themes,
+  editable themes under the user config directory, `snip theme` inspection and
+  switching commands, `tui-light-theme` / `tui-dark-theme` config keys, and a
+  command-palette picker with live full-UI and syntax-highlighting preview.
+
 ## [0.3.1] - 2026-07-31
 
 ### Added
