@@ -1,0 +1,75 @@
+name: Nix
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: DeterminateSystems/nix-installer-action@v21
+      - name: Check Cachix configuration
+        id: cachix
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          if [ -z "$CACHIX_AUTH_TOKEN" ]; then
+            echo "CACHIX_AUTH_TOKEN is not set; skipping the Cachix push." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: cachix/cachix-action@v17
+        if: steps.cachix.outputs.ready == 'true'
+        with:
+          name: snip
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Check flake
+        run: nix flake check -L
+      - name: Build package
+        run: nix build .# -L
+      - name: Verify standalone nixpkgs hashes
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          nix build --impure --no-link -L --expr '
+            let
+              flake = builtins.getFlake (toString ./.);
+              pkgs = import flake.inputs.nixpkgs {
+                system = builtins.currentSystem;
+              };
+              standalone = pkgs.callPackage ./nix/package.nix { };
+            in
+            standalone.cargoDeps
+          '
+      - name: Verify package layout
+        run: |
+          ./result/bin/snip --version
+          test "$(ls result/share/man/man1/*.1 | wc -l)" -eq "$(ls man/*.1 | wc -l)"
+          test -f result/share/man/man1/snip.1
+          test -f result/share/bash-completion/completions/snip.bash
+          test -f result/share/zsh/site-functions/_snip
+          test -f result/share/fish/vendor_completions.d/snip.fish
+          test -f result/share/doc/sniplab/README.md
+          test -f result/share/doc/sniplab/LICENSE
+          test ! -e result/bin/sniplab
+          test "$(nix eval --raw .#default.meta.mainProgram)" = snip
