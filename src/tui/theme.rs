@@ -55,7 +55,9 @@ impl TuiTheme {
         let original_surface = (self.background, self.foreground);
         macro_rules! apply {
             ($field:ident) => {
-                if let Some(value) = overrides.get(stringify!($field)).and_then(toml::Value::as_str)
+                if let Some(value) = overrides
+                    .get(stringify!($field))
+                    .and_then(toml::Value::as_str)
                     && let Ok(value) = ThemeColor::parse(value, stringify!($field))
                 {
                     self.$field = color(value);
