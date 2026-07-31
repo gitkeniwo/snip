@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-31
+
 ### Added
 
+- Interactive first-run setup for `snip` and `snip init`, plus actionable hints
+  when a library cannot be resolved.
 - **Nix flake support.** NixOS users can install `pkgs.sniplab` through the
   supplied overlay, other Nix users can use `nix profile install`, and
   `nix run github:gitkeniwo/snip` runs the `snip` binary. The package includes
@@ -16,12 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `snip man install`. A nixpkgs-ready package definition is included under
   `nix/package.nix`.
 
+### Fixed
+
+- The terminal browser's shortcut pills now use the primary color when the
+  trash view is active, matching the rest of its visual state.
+
+### Security
+
+- Release source archives for the AUR are now detached-signed and the PKGBUILD
+  verifies that signature before building.
+
 ## [0.3.0] - 2026-07-30
 
 ### Added
 
-- Interactive first-run setup for `snip` and `snip init`, plus actionable hints on
-  library-resolution errors.
 - **Manual pages.** One section 1 page per command, generated from the clap
   command tree and committed under `man/`. The Homebrew, `.deb`, `.rpm`, and AUR
   packages install them, so `man snip` and `man snip-create` work after any
@@ -159,6 +171,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.3.1]: https://github.com/gitkeniwo/snip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gitkeniwo/snip/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/gitkeniwo/snip/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/gitkeniwo/snip/compare/v0.1.0...v0.2.0
