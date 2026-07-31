@@ -43,6 +43,10 @@ and delete look like.
 - fill in `meta.maintainers`; a first-time submitter also has to add themselves
   to `maintainers/maintainer-list.nix`, either in the same PR or in one before it
 
+The `version` and both hashes in `nix/package.nix` are frozen at one release and
+only need refreshing once, right before opening the PR; the flake never reads
+them.
+
 Once it is in nixpkgs, users can install `pkgs.sniplab` without adding a flake
 input at all, and the flake in this repository stays for tracking `main`.
 

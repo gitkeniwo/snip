@@ -644,13 +644,6 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
    the version, so CI fails without it.
 2. Add the release to [CHANGELOG.md](CHANGELOG.md).
 3. Commit, then tag `vX.Y.Z` and push the tag.
-4. Once the tag is on GitHub, bump `version` in `nix/package.nix` and refresh its
-   two hashes — set them to `""`, run the command below, and paste back what Nix
-   reports. Commit that follow-up before starting the next release.
-
-```bash
-nix build --impure --no-link --expr 'let f = builtins.getFlake (toString ./.); pkgs = import f.inputs.nixpkgs { system = builtins.currentSystem; }; in (pkgs.callPackage ./nix/package.nix {}).cargoDeps'
-```
 
 The tag is the source of truth: the run fails if it disagrees with `Cargo.toml`.
 It then attaches the platform archives and a signed `sniplab-X.Y.Z.tar.gz`

@@ -1,3 +1,7 @@
+# A frozen nixpkgs-submission draft, pinned to one release. The flake does not
+# build this file: flake.nix overrides version, src, and cargoDeps (from
+# Cargo.lock), so nothing here affects `nix run` / `nix profile install`.
+# Refresh the version and both hashes once, right before opening the nixpkgs PR.
 {
   lib,
   rustPlatform,
