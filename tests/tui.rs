@@ -572,8 +572,9 @@ fn edit_effect_captures_hash_and_conflict_can_force_save() {
 fn three_pane_ui_draws_titles_preview_and_status() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
-    app.theme = TuiTheme::for_appearance(Appearance::Light);
-    app.highlighter = Highlighter::new(app.theme).unwrap();
+    app.theme = TuiTheme::default_for(Appearance::Light);
+    app.theme_source = snip::theme::load("light-default").unwrap();
+    app.highlighter = Highlighter::new(&app.theme_source).unwrap();
     let backend = TestBackend::new(100, 30);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
@@ -2367,6 +2368,48 @@ fn picker_filter_accepts_j_and_k_and_navigates_with_arrows() {
         panic!("expected folder picker");
     };
     assert_eq!(picker.selected, 0);
+}
+
+#[test]
+fn theme_picker_previews_and_escape_restores_without_rebuilding_the_app() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let original_name = app.theme_name.clone();
+    let original_theme = app.theme;
+
+    app.run_command(CommandId::ViewPickTheme);
+    let Some(Modal::Picker(picker)) = app.modal.as_ref() else {
+        panic!("expected theme picker");
+    };
+    assert_eq!(
+        picker.selected_value().as_deref(),
+        Some(original_name.as_str())
+    );
+
+    app.handle_key(key(KeyCode::Down));
+    assert_ne!(app.theme_name, original_name);
+    assert_ne!(app.theme, original_theme);
+    assert!(app.theme_preview.is_some());
+
+    app.handle_key(key(KeyCode::Esc));
+    assert_eq!(app.theme_name, original_name);
+    assert_eq!(app.theme, original_theme);
+    assert!(app.theme_preview.is_none());
+}
+
+#[test]
+fn tick_theme_does_not_replace_an_active_preview() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.run_command(CommandId::ViewPickTheme);
+    app.handle_key(key(KeyCode::Down));
+    let preview_name = app.theme_name.clone();
+    app.theme_checked_at = Instant::now() - Duration::from_secs(10);
+
+    app.tick_theme().unwrap();
+
+    assert_eq!(app.theme_name, preview_name);
+    assert!(app.theme_preview.is_some());
 }
 
 #[test]

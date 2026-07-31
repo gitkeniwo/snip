@@ -8,7 +8,7 @@ use crate::service::{
 use crate::tui::app::types::{App, Effect};
 use crate::tui::editor::{EditRequest, EditTarget};
 use crate::tui::modal::{Modal, ModalAction, PickerModal};
-use crate::tui::state::Pane;
+use crate::tui::state::{Pane, StatusLevel};
 
 impl App {
     pub(super) fn perform_modal_action(
@@ -96,6 +96,43 @@ impl App {
                 })?;
                 self.persist_git_settings(Some(minutes), None, None)?;
                 return Ok((Vec::new(), format!("automatic interval: {minutes} min")));
+            }
+            ModalAction::PickTheme => {
+                let name = input()?;
+                self.preview_theme(name)?;
+                self.theme_preview = None;
+                let appearance = self.theme_source.appearance;
+                let mut config = match crate::config::AppConfig::load() {
+                    Ok(config) => config,
+                    Err(error) => {
+                        self.set_status(
+                            format!("theme changed for this session: {error}"),
+                            StatusLevel::Error,
+                        );
+                        return Ok((Vec::new(), String::new()));
+                    }
+                };
+                let tui = config
+                    .tui
+                    .get_or_insert_with(crate::config::TuiConfig::default);
+                match appearance {
+                    crate::theme::Appearance::Light => {
+                        tui.light_theme = Some(name.to_owned());
+                        self.theme_config.light_theme = Some(name.to_owned());
+                    }
+                    crate::theme::Appearance::Dark => {
+                        tui.dark_theme = Some(name.to_owned());
+                        self.theme_config.dark_theme = Some(name.to_owned());
+                    }
+                }
+                if let Err(error) = config.save() {
+                    self.set_status(
+                        format!("theme changed for this session: {error}"),
+                        StatusLevel::Error,
+                    );
+                    return Ok((Vec::new(), String::new()));
+                }
+                return Ok((Vec::new(), format!("theme: {name}")));
             }
             ModalAction::CreateTitle => {
                 let title = input()?;

@@ -58,6 +58,7 @@ pub enum ModalAction {
     PurgeSnippet { entry_id: String },
     GitCommit,
     GitAutoCommitInterval,
+    PickTheme,
 }
 
 #[cfg(test)]

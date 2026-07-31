@@ -13,6 +13,7 @@ impl App {
     pub(super) fn handle_modal_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         let mut submit = false;
         let mut cancel = false;
+        let mut preview_selected = None;
         if let Some(modal) = self.modal.as_mut() {
             match modal {
                 Modal::Input(input) => match key.code {
@@ -40,53 +41,67 @@ impl App {
                     KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => cancel = true,
                     _ => {}
                 },
-                Modal::Picker(picker) => match key.code {
-                    KeyCode::Enter => submit = true,
-                    KeyCode::Esc => cancel = true,
-                    // The filter is a text field, so `j`/`k` must stay typable: folder
-                    // names like "Docker" would otherwise be unreachable. Navigate with
-                    // the arrows or Ctrl-n/Ctrl-p instead.
-                    KeyCode::Down => {
-                        picker.selected = picker
-                            .selected
-                            .saturating_add(1)
-                            .min(picker.filtered().len().saturating_sub(1));
+                Modal::Picker(picker) => {
+                    match key.code {
+                        KeyCode::Enter => submit = true,
+                        KeyCode::Esc => cancel = true,
+                        // The filter is a text field, so `j`/`k` must stay typable: folder
+                        // names like "Docker" would otherwise be unreachable. Navigate with
+                        // the arrows or Ctrl-n/Ctrl-p instead.
+                        KeyCode::Down => {
+                            picker.selected = picker
+                                .selected
+                                .saturating_add(1)
+                                .min(picker.filtered().len().saturating_sub(1));
+                        }
+                        KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            picker.selected = picker
+                                .selected
+                                .saturating_add(1)
+                                .min(picker.filtered().len().saturating_sub(1));
+                        }
+                        KeyCode::Up => picker.selected = picker.selected.saturating_sub(1),
+                        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            picker.selected = picker.selected.saturating_sub(1)
+                        }
+                        KeyCode::Home => picker.selected = 0,
+                        KeyCode::End => picker.selected = picker.filtered().len().saturating_sub(1),
+                        KeyCode::Backspace => {
+                            picker.pop_filter();
+                            picker.selected = 0;
+                            picker.error = None;
+                        }
+                        KeyCode::Char(value)
+                            if !key
+                                .modifiers
+                                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                        {
+                            picker.push_filter(value);
+                            picker.selected = 0;
+                            picker.error = None;
+                        }
+                        _ => {}
                     }
-                    KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        picker.selected = picker
-                            .selected
-                            .saturating_add(1)
-                            .min(picker.filtered().len().saturating_sub(1));
+                    if !submit && !cancel && matches!(&picker.action, ModalAction::PickTheme) {
+                        preview_selected = picker.selected_value();
                     }
-                    KeyCode::Up => picker.selected = picker.selected.saturating_sub(1),
-                    KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        picker.selected = picker.selected.saturating_sub(1)
-                    }
-                    KeyCode::Home => picker.selected = 0,
-                    KeyCode::End => picker.selected = picker.filtered().len().saturating_sub(1),
-                    KeyCode::Backspace => {
-                        picker.pop_filter();
-                        picker.selected = 0;
-                        picker.error = None;
-                    }
-                    KeyCode::Char(value)
-                        if !key
-                            .modifiers
-                            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-                    {
-                        picker.push_filter(value);
-                        picker.selected = 0;
-                        picker.error = None;
-                    }
-                    _ => {}
-                },
+                }
             }
+        }
+        if let Some(name) = preview_selected
+            && let Err(error) = self.preview_theme(&name)
+            && let Some(modal) = self.modal.as_mut()
+        {
+            modal.set_error(error.to_string());
         }
         if cancel {
             let force_edit = self
                 .modal
                 .as_ref()
                 .is_some_and(|modal| matches!(modal.action(), ModalAction::ForceEdit(_)));
+            if let Err(error) = self.restore_theme_preview() {
+                self.set_status(error.to_string(), StatusLevel::Error);
+            }
             self.modal = None;
             if force_edit {
                 self.set_status("edited content discarded", StatusLevel::Info);

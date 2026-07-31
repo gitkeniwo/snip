@@ -28,6 +28,100 @@ fn snippet_id(value: &Value) -> String {
     value["snippet"]["id"].as_str().unwrap().to_owned()
 }
 
+fn theme_command(config_home: &Path, arguments: &[&str]) -> Command {
+    let mut command = Command::cargo_bin("snip").unwrap();
+    command
+        .env("XDG_CONFIG_HOME", config_home)
+        .args(["--output", "json"])
+        .args(arguments);
+    command
+}
+
+#[test]
+fn cli_lists_checks_uses_and_exports_themes_without_a_library() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+
+    let output = theme_command(config_home, &["theme", "list"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let themes: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(
+        themes
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|theme| theme["name"] == "dark-gruvbox")
+    );
+
+    let light = theme_command(config_home, &["theme", "list", "--appearance", "light"])
+        .output()
+        .unwrap();
+    let light: Value = serde_json::from_slice(&light.stdout).unwrap();
+    assert!(
+        light
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|theme| theme["appearance"] == "light")
+    );
+
+    let shown = theme_command(config_home, &["theme", "show", "dark-gruvbox"])
+        .output()
+        .unwrap();
+    let shown: Value = serde_json::from_slice(&shown.stdout).unwrap();
+    assert_eq!(shown["ui"].as_object().unwrap().len(), 18);
+
+    theme_command(config_home, &["theme", "check", "dark-gruvbox"])
+        .assert()
+        .success();
+    theme_command(config_home, &["theme", "use", "light-gruvbox"])
+        .assert()
+        .success();
+    theme_command(
+        config_home,
+        &["config", "set", "tui-dark-theme", "dark-nord"],
+    )
+    .assert()
+    .success();
+    let shown_config = theme_command(config_home, &["config", "show"])
+        .output()
+        .unwrap();
+    let shown_config: Value = serde_json::from_slice(&shown_config.stdout).unwrap();
+    assert_eq!(
+        shown_config["config"]["tui"]["light_theme"],
+        "light-gruvbox"
+    );
+    assert_eq!(shown_config["config"]["tui"]["dark_theme"], "dark-nord");
+    theme_command(config_home, &["config", "unset", "tui-dark-theme"])
+        .assert()
+        .success();
+
+    theme_command(
+        config_home,
+        &["theme", "export", "dark-nord", "--as", "mine"],
+    )
+    .assert()
+    .success();
+    let exported = config_home.join("snip/themes/mine.toml");
+    assert!(exported.is_file());
+    theme_command(
+        config_home,
+        &["theme", "export", "dark-nord", "--as", "mine"],
+    )
+    .assert()
+    .failure();
+
+    let broken = fs::read_to_string(&exported)
+        .unwrap()
+        .replace("selection_fg = \"#eceff4\"", "selection_fg = \"#434c5e\"");
+    fs::write(&exported, broken).unwrap();
+    theme_command(config_home, &["theme", "check", "mine"])
+        .assert()
+        .code(1);
+}
+
 #[test]
 fn cli_manages_snippet_fragments_folders_tags_and_trash() {
     let temporary = tempfile::tempdir().unwrap();

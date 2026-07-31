@@ -20,7 +20,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 47] = [
+static COMMANDS: [Command; 48] = [
     command!(
         SnippetNew,
         "snippet.new",
@@ -290,6 +290,16 @@ static COMMANDS: [Command; 47] = [
         Some("z"),
         enabled,
         toggle_density
+    ),
+    command!(
+        ViewPickTheme,
+        "view.pick-theme",
+        "View",
+        "Change Color Theme",
+        &["theme", "color", "colour", "scheme", "appearance"],
+        None,
+        enabled,
+        view_pick_theme
     ),
     command!(
         ViewToggleHelp,

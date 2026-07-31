@@ -1,8 +1,33 @@
 use crate::tui::app::types::App;
-use crate::tui::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerModal};
+use crate::tui::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerItem, PickerModal};
 use crate::tui::state::{Pane, SidebarItem, StatusLevel};
 
 impl App {
+    pub(in super::super) fn open_theme_picker(&mut self) {
+        let items = crate::theme::list()
+            .into_iter()
+            .filter(|summary| summary.appearance == self.theme.appearance)
+            .map(|summary| {
+                let label = if summary.error.is_some() {
+                    format!("{} (invalid)", summary.display_name)
+                } else {
+                    summary.display_name
+                };
+                let source_slug = summary
+                    .source
+                    .as_deref()
+                    .and_then(|source| source.strip_prefix("base16:"))
+                    .unwrap_or_default()
+                    .to_owned();
+                PickerItem::with_keywords(label, summary.name.clone(), [summary.name, source_slug])
+            })
+            .collect();
+        let mut picker = PickerModal::new("Color Theme", items, ModalAction::PickTheme)
+            .with_current_value(self.theme_name.clone());
+        picker.select_value(&self.theme_name);
+        self.modal = Some(Modal::Picker(picker));
+    }
+
     pub(in super::super) fn open_new_for_context(&mut self) {
         if self.focus != Pane::Sidebar {
             let _ = self.run_command(crate::tui::command::CommandId::SnippetNew);

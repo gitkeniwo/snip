@@ -166,6 +166,7 @@ effect!(sort_title, app => app.set_sort(SortMode::Title));
 effect!(sort_created, app => app.set_sort(SortMode::Created));
 effect!(toggle_line_numbers, app => app.toggle_line_numbers());
 effect!(toggle_density, app => app.toggle_density());
+effect!(view_pick_theme, app => app.open_theme_picker());
 effect!(toggle_help, app => { app.show_help = !app.show_help; app.help_scroll = 0; });
 effect!(library_search, app => app.search.active = true);
 effect!(library_rescan, app => app.rescan_now());
