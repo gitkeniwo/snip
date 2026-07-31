@@ -15,6 +15,14 @@ without clobbering each other.
 
 Runs on Linux, macOS, and Windows.
 
+- [Install](#install) · [Quick start](#quick-start) · [What it does](#what-it-does)
+- [Terminal browser](#terminal-browser) · [Agent-friendly operations](#agent-friendly-operations)
+- [AI agent skills](#ai-agent-skills) · [Configuration](#configuration)
+- [Files are the database](#files-are-the-database) · [Preview and editing](#preview-and-editing)
+- [SnippetsLab migration](#snippetslab-migration) · [Git backup and deletion](#git-backup-and-deletion)
+- [Manual pages](#manual-pages) · [Shell completion](#shell-completion)
+- [Development](#development) · [License](#license)
+
 ## Install
 
 The crate is `sniplab`; the binary it installs is `snip`.
@@ -259,17 +267,24 @@ terminal whose background differs from the system:
 SNIP_TUI_THEME=light snip     # or: snip config set tui-theme light
 ```
 
+Any other `SNIP_TUI_THEME` value selects a theme by name for that run — see
+[Themes](#themes).
+
 ### Themes
 
 Open the command palette and run **Change Color Theme** to preview every theme
 for the current light or dark appearance; `Esc` restores the previous theme and
-`Enter` saves the choice. The same slots can be set directly:
+`Enter` saves the choice. The same slots can be set from the command line:
 
 ```bash
-snip config set tui-light-theme light-gruvbox
-snip config set tui-dark-theme dark-nord
-snip theme list
+snip theme use dark-nord                  # writes to the theme's own slot
+snip theme list                           # every installed name
+snip theme show dark-nord                 # the resolved colors
 ```
+
+`snip theme use` saves to the theme's own slot unless `--appearance light|dark`
+forces another. Theme *names* go in the `tui-light-theme`/`tui-dark-theme` slots
+(see [Configuration](#configuration)); `tui-theme` only picks `auto|light|dark`.
 
 User themes live in the directory printed by `snip theme path` (normally
 `~/.config/snip/themes`). See [docs/themes.md](docs/themes.md) for the complete
@@ -399,6 +414,8 @@ snip config set default-language rust
 snip config set default-folder Agents/Generated
 snip config set default-tags 'ai,generated'
 snip config set tui-theme auto
+snip config set tui-light-theme light-default
+snip config set tui-dark-theme dark-default
 snip config set tui-sort modified
 snip config set tui-density compact
 snip config set tui-line-numbers false
