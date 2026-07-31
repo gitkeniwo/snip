@@ -192,6 +192,16 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                     _ => return Err(SnipError::usage("tui-theme must be auto, light, or dark")),
                 };
         }
+        ConfigKey::TuiLightTheme => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .light_theme = Some(nonempty_value("tui-light-theme", value)?);
+        }
+        ConfigKey::TuiDarkTheme => {
+            config.tui.get_or_insert_with(TuiConfig::default).dark_theme =
+                Some(nonempty_value("tui-dark-theme", value)?);
+        }
         ConfigKey::TuiSort => {
             config.tui.get_or_insert_with(TuiConfig::default).sort =
                 match value.to_ascii_lowercase().as_str() {
@@ -258,6 +268,15 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         ConfigKey::DefaultTags => config.default_tags.clear(),
         ConfigKey::TuiTheme => {
             config.tui.get_or_insert_with(TuiConfig::default).theme = TuiThemeSetting::Auto
+        }
+        ConfigKey::TuiLightTheme => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .light_theme = None
+        }
+        ConfigKey::TuiDarkTheme => {
+            config.tui.get_or_insert_with(TuiConfig::default).dark_theme = None
         }
         ConfigKey::TuiSort => {
             config.tui.get_or_insert_with(TuiConfig::default).sort = SortMode::Modified

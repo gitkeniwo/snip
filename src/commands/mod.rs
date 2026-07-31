@@ -8,6 +8,7 @@ pub mod output;
 pub mod query;
 pub mod snippet;
 pub mod system;
+pub mod theme;
 pub mod trash;
 
 use snip::Library;
@@ -30,6 +31,9 @@ pub fn run(cli: &Cli) -> Result<()> {
     }
     if let Some(Command::Man(args)) = &cli.command {
         return man::command_man(args, cli.output);
+    }
+    if let Some(Command::Theme(args)) = &cli.command {
+        return theme::command_theme(args, cli.output);
     }
     let config = AppConfig::load()?;
     let output = resolve_output(cli.output, &config);
@@ -85,6 +89,7 @@ pub fn run(cli: &Cli) -> Result<()> {
         | Command::Init(_)
         | Command::Import(_)
         | Command::Man(_)
+        | Command::Theme(_)
         | Command::Completion(_) => {
             unreachable!()
         }

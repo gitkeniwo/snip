@@ -76,6 +76,8 @@ pub enum Command {
     Folder(FolderArgs),
     /// Rename or remove tags across snippets.
     Tag(TagArgs),
+    /// List, inspect, and switch TUI color themes.
+    Theme(ThemeArgs),
     /// Move a snippet to the library trash.
     Delete(DeleteArgs),
     /// List deleted snippets.
@@ -571,6 +573,51 @@ pub struct ConfigArgs {
     pub command: ConfigCommand,
 }
 
+#[derive(Args, Debug)]
+pub struct ThemeArgs {
+    #[command(subcommand)]
+    pub command: ThemeCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ThemeCommand {
+    /// List available themes.
+    List {
+        /// Restrict to one appearance.
+        #[arg(long, value_enum)]
+        appearance: Option<AppearanceArg>,
+    },
+    /// Print one theme's resolved colors.
+    Show { name: String },
+    /// Validate a theme's contrast and role distinctness.
+    Check { name: String },
+    /// Print the directory user themes are read from.
+    Path,
+    /// Write a theme to the user theme directory so it can be edited.
+    Export {
+        name: String,
+        /// Name to save it under. Defaults to "<name>-custom".
+        #[arg(long)]
+        r#as: Option<String>,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Select a theme for its appearance slot and save it to the config.
+    Use {
+        name: String,
+        /// Write to this slot instead of the theme's own appearance.
+        #[arg(long, value_enum)]
+        appearance: Option<AppearanceArg>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum AppearanceArg {
+    Light,
+    Dark,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommand {
     /// Print the resolved config file path.
@@ -611,6 +658,8 @@ pub enum ConfigKey {
     DefaultFolder,
     DefaultTags,
     TuiTheme,
+    TuiLightTheme,
+    TuiDarkTheme,
     TuiSort,
     TuiDensity,
     TuiLineNumbers,
