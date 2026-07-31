@@ -19,6 +19,38 @@ Runs on Linux, macOS, and Windows.
 
 The crate is `sniplab`; the binary it installs is `snip`.
 
+### Nix
+
+Needs the `nix-command` and `flakes` experimental features. Linux and Apple
+silicon; nixpkgs no longer supports Intel macOS.
+
+```bash
+nix profile install github:gitkeniwo/snip
+```
+
+Append a tag to pin a release: `github:gitkeniwo/snip/vX.Y.Z`. Or run it without
+installing:
+
+```bash
+nix run github:gitkeniwo/snip -- list
+```
+
+On NixOS, install it declaratively instead — add the flake input, then apply the
+overlay in a module:
+
+```nix
+inputs.snip = {
+  url = "github:gitkeniwo/snip";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+
+nixpkgs.overlays = [ inputs.snip.overlays.default ];
+environment.systemPackages = [ pkgs.sniplab ];
+```
+
+Manual pages and shell completions ship with the package, so `man snip` works
+without `snip man install`.
+
 ### macOS / Linux (Homebrew)
 
 ```bash
@@ -562,6 +594,7 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
 | Workflow | |
 |---|---|
 | `CI` | pushes and PRs: fmt, Clippy on both feature sets, tests on Linux (stable, 1.89 MSRV, `--no-default-features`), macOS arm64, and Windows; checks generated man pages and lints their roff |
+| `Nix` | pushes and PRs: builds the flake on Linux (x86_64, arm64) and macOS, checks the installed layout, and verifies the hashes in `nix/package.nix` |
 | `Deep tests` | manual: full deterministic suite, importer fixture, watcher regression, coverage |
 | `Release build` | `v*` tags and manual: builds every platform, then publishes (see below) |
 
@@ -572,6 +605,13 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
    the version, so CI fails without it.
 2. Add the release to [CHANGELOG.md](CHANGELOG.md).
 3. Commit, then tag `vX.Y.Z` and push the tag.
+4. Once the tag is on GitHub, bump `version` in `nix/package.nix` and refresh its
+   two hashes — set them to `""`, run the command below, and paste back what Nix
+   reports. Commit that follow-up before starting the next release.
+
+```bash
+nix build --impure --no-link --expr 'let f = builtins.getFlake (toString ./.); pkgs = import f.inputs.nixpkgs { system = builtins.currentSystem; }; in (pkgs.callPackage ./nix/package.nix {}).cargoDeps'
+```
 
 The tag is the source of truth: the run fails if it disagrees with `Cargo.toml`.
 It then attaches the platform archives and a signed `sniplab-X.Y.Z.tar.gz`
