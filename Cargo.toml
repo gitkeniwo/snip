@@ -76,7 +76,6 @@ doc = true
 [features]
 default = ["tui"]
 tui = [
-    "dep:arboard",
     "dep:notify",
     "dep:notify-debouncer-mini",
     "dep:nucleo-matcher",
@@ -100,7 +99,7 @@ time = { version = "0.3.54", features = ["formatting", "local-offset", "parsing"
 toml = "1.0"
 two-face = { version = "0.5", default-features = false, features = ["syntect-onig"] }
 uuid = { version = "1.24", features = ["v4", "serde"] }
-arboard = { version = "3.6.1", optional = true, default-features = false }
+arboard = { version = "3.6.1", default-features = false }
 notify = { version = "8.2", optional = true }
 notify-debouncer-mini = { version = "0.7", optional = true }
 nucleo-matcher = { version = "0.3.1", optional = true }

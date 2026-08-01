@@ -1,6 +1,5 @@
 pub mod app;
 pub mod bottom_bar;
-pub mod clipboard;
 pub mod command;
 pub mod editor;
 pub mod event;
@@ -43,9 +42,9 @@ use crate::error::{Result, SnipError};
 use crate::filesystem::Library;
 
 use self::app::{App, Effect};
-use self::clipboard::ClipboardMethod;
 use self::editor::EditOutcome;
 use self::state::StatusLevel;
+use crate::clipboard::ClipboardMethod;
 
 type TuiTerminal = Terminal<CrosstermBackend<Stdout>>;
 
@@ -154,7 +153,7 @@ fn execute_effect(
             Ok(()) => app.handle_editor_outcome(EditOutcome::Saved),
             Err(error) => app.set_status(error.to_string(), StatusLevel::Error),
         },
-        Effect::CopyToClipboard { text, label } => match clipboard::copy(&text) {
+        Effect::CopyToClipboard { text, label } => match crate::clipboard::copy(&text) {
             Ok(method) => {
                 let method = match method {
                     ClipboardMethod::System => "system clipboard",
