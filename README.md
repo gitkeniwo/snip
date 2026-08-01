@@ -61,9 +61,17 @@ On arm64, swap `x86_64` for `aarch64`.
 
 ### Fedora / Enterprise Linux
 
-For Fedora 40+ and the Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux
-10.0+, AlmaLinux 10.0+, Oracle Linux 10+, CentOS Stream 10+ — all of which ship
-glibc 2.39 or newer:
+From [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/). Builds
+from source on Fedora's infrastructure, and `dnf upgrade` picks up new releases:
+
+```bash
+sudo dnf copr enable gitkeniwo/snip
+sudo dnf install sniplab
+```
+
+Or grab the standalone `.rpm` from a release. This works on Fedora 40+ and the
+Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux 10.0+, AlmaLinux 10.0+,
+Oracle Linux 10+, CentOS Stream 10+ — all of which ship glibc 2.39 or newer:
 
 ```bash
 curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm
@@ -655,8 +663,9 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
 
 The tag is the source of truth: the run fails if it disagrees with `Cargo.toml`.
 It then attaches the platform archives and a signed `sniplab-X.Y.Z.tar.gz`
-source archive to a GitHub release. The AUR package builds from that source
-archive and verifies its detached PGP signature.
+source archive to a GitHub release. The AUR package and the Copr SRPM both build
+from that source archive; the AUR package also verifies its detached PGP
+signature.
 
 Before the first release, configure the following repository secrets and
 variable. `PGP_PRIVATE_KEY` must be an ASCII-armored private signing-key export;
@@ -679,6 +688,10 @@ skipped when that secret is absent:
 | [homebrew-snip](https://github.com/gitkeniwo/homebrew-snip) | `HOMEBREW_TAP_TOKEN` |
 | AUR (`sniplab`) | `AUR_SSH_PRIVATE_KEY` |
 | [scoop-snip](https://github.com/gitkeniwo/scoop-snip) | `SCOOP_BUCKET_TOKEN` |
+| [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/) (`sniplab`) | `COPR_API_CONFIG` |
+
+Copr builds run in mock without network access, so the release job vendors the
+crate dependencies into the SRPM before submitting it.
 
 The workflow rewrites only URLs and checksums, so the tap's own
 `man1.install Dir["man/*.1"]` line is maintained in `gitkeniwo/homebrew-snip`.

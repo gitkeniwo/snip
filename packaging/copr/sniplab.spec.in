@@ -1,0 +1,85 @@
+# This file is rendered by the release workflow. @VERSION@ is substituted with
+# the crate version before the SRPM is built and submitted to Copr.
+#
+# Copr builds run in mock with no network access, so the crate dependencies are
+# vendored into Source1 by the workflow and cargo is pointed at them in %prep.
+
+# The release binary is built by cargo, which does not produce the separate
+# debuginfo layout rpm's debuginfo extraction expects.
+%global debug_package %{nil}
+
+Name:           sniplab
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Filesystem-native snippet library and agent-friendly CLI
+
+License:        MIT
+URL:            https://github.com/gitkeniwo/snip
+Source0:        %{url}/releases/download/v%{version}/sniplab-%{version}.tar.gz
+Source1:        sniplab-%{version}-vendor.tar.gz
+
+BuildRequires:  gcc
+BuildRequires:  cargo >= 1.89
+BuildRequires:  rust >= 1.89
+# %%check exercises the Git console, which probes for the git binary.
+BuildRequires:  git-core
+
+%description
+snip is a snippet manager that keeps its library in plain files. Code, notes,
+and metadata are ordinary text you can grep, diff, edit in any editor, and put
+under Git. Every command speaks JSON, snippets are addressed by UUID, and
+writes are guarded by a content fingerprint, so a script, an editor, or a
+coding agent can share one library without clobbering each other.
+
+The package ships the `snip` command, which includes the terminal browser.
+
+%prep
+%autosetup -n snip-%{version} -a 1
+mkdir -p .cargo
+cat > .cargo/config.toml <<'EOF'
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"
+EOF
+
+%build
+export CARGO_NET_OFFLINE=true
+cargo build --locked --release --all-features
+
+%install
+install -Dpm 0755 target/release/snip %{buildroot}%{_bindir}/snip
+
+install -d %{buildroot}%{_datadir}/bash-completion/completions
+install -d %{buildroot}%{_datadir}/fish/vendor_completions.d
+install -d %{buildroot}%{_datadir}/zsh/site-functions
+
+./target/release/snip completion bash \
+  > %{buildroot}%{_datadir}/bash-completion/completions/snip
+./target/release/snip completion fish \
+  > %{buildroot}%{_datadir}/fish/vendor_completions.d/snip.fish
+./target/release/snip completion zsh \
+  > %{buildroot}%{_datadir}/zsh/site-functions/_snip
+
+# The pages are generated and committed, so `man snip` works without
+# `snip man install`.
+install -d %{buildroot}%{_mandir}/man1
+install -pm 0644 man/*.1 %{buildroot}%{_mandir}/man1/
+
+%check
+export CARGO_NET_OFFLINE=true
+cargo test --locked --release
+
+%files
+%license LICENSE
+%doc README.md CHANGELOG.md FORMAT.md
+%{_bindir}/snip
+%{_datadir}/bash-completion/completions/snip
+%{_datadir}/fish/vendor_completions.d/snip.fish
+%{_datadir}/zsh/site-functions/_snip
+%{_mandir}/man1/snip*.1*
+
+%changelog
+* @DATE@ snip release bot <41898282+github-actions[bot]@users.noreply.github.com> - @VERSION@-1
+- Automated build of @VERSION@. See https://github.com/gitkeniwo/snip/blob/main/CHANGELOG.md
