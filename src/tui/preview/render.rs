@@ -725,6 +725,7 @@ mod tests {
                 locked: false,
                 created_at: "2026-01-01T00:00:00Z".to_owned(),
                 source: None,
+                remotes: Vec::new(),
                 fragments: fragments
                     .iter()
                     .map(|value| value.manifest.clone())

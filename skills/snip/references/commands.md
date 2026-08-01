@@ -11,6 +11,7 @@ file is for looking up a specific flag or field name.
 - [Organizing](#organizing) — `folder`, `tag`
 - [Trash](#trash) — `delete`, `trash`, `restore`, `purge`
 - [Maintenance](#maintenance) — `doctor`, `organize`, `init`, `import`, `git`
+- [Publishing](#publishing) — `gist`
 - [Other](#other) — `open`, `config`, `completion`, `tui`
 - [JSON payload shapes](#json-payload-shapes)
 
@@ -206,6 +207,39 @@ disables both. In the TUI Git console, `f` fetches remote status, `i` changes
 the interval, `u` toggles auto-push, `o` toggles backup-on-quit, and `a` pauses
 automatic commits and pushes for the current session.
 
+## Publishing
+
+`snip gist` publishes a snippet to GitHub Gists through the `gh` CLI; nothing
+reaches the network unless `gh` is installed and authenticated. The gist record
+lives in the snippet's `snippet.toml` under `[[remotes]]`, so the link travels
+with the library. Unlinked-target commands fail with `not_found` (3); `attach`
+on a linked snippet is a `conflict` (4); an un-publishable payload is a
+`validation_error` (5).
+
+- `snip gist push <SELECTOR> [--public] [--desc <TEXT>] [--new]
+  [--include-notes] [--no-readme] [--web] [--if-hash <HASH>] [--force]` —
+  upsert. Creates the gist the first time and updates it afterwards, keeping the
+  same URL. The description defaults to the snippet title, then to the recorded
+  description. `--new` publishes a fresh gist and re-records the link, leaving
+  the old gist on GitHub. When nothing changed since the last push it prints
+  `gist is already up to date` and makes no network call. `--public` on an
+  existing secret gist is a `validation_error`.
+- `snip gist url <SELECTOR> [--copy]` — print the gist URL and nothing else;
+  `--copy` also copies it. Fails `not_found` (3) when the snippet has no gist.
+- `snip gist status [<SELECTOR>|--all] [--remote]` — compare the snippet against
+  the last push without touching the network: `clean`, `modified`, or `unlinked`.
+  `--remote` also fetches the gist from GitHub and reports `missing` when it no
+  longer exists. Requires a selector or `--all`.
+- `snip gist attach <SELECTOR> <GIST>` — record an existing gist (ID or URL) as
+  this snippet's gist, adopting metadata from GitHub. Fails `conflict` (4) when
+  already linked.
+- `snip gist detach <SELECTOR>` — forget the gist record; the gist stays on
+  GitHub.
+- `snip gist delete <SELECTOR> [--yes]` — delete the gist on GitHub and forget
+  it. Without `--yes` it prompts on stderr and aborts with `cancelled` on
+  anything but `y`; under `--output json` `--yes` is required.
+- `snip gist open <SELECTOR>` — open the gist in a browser. Prints nothing.
+
 ## Other
 
 - `snip open <SELECTOR>` — hand a managed path to an application. Same target
@@ -296,6 +330,49 @@ what you hand to other tools.
 }
 ```
 `restore` and `purge` take `entry_id`, not `snippet_id`.
+
+### Gist push (`push`)
+```json
+{
+  "action": "created",
+  "snippet": { "id": "…", "title": "Brewfile", "folder": "Scripts" },
+  "gist": {
+    "kind": "gist", "host": "github.com",
+    "id": "5b0e0062eb8e9654adad7bb1d81cc75f",
+    "url": "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f",
+    "public": false, "description": "Brewfile",
+    "files": ["001-Brewfile", "README.md"],
+    "pushed_at": "2026-08-01T10:00:00Z", "pushed_digest": "…"
+  },
+  "fingerprint": "…"
+}
+```
+`action` is `created`, `updated`, or `unchanged`. `fingerprint` is the snippet's
+fingerprint *after* the record was written — carry it into a following
+`--if-hash`.
+
+### Gist URL (`url`)
+```json
+{ "url": "…", "id": "…", "host": "github.com" }
+```
+
+### Gist status (`status`)
+```json
+{
+  "state": "modified",
+  "snippet": { "id": "…", "title": "Brewfile", "folder": "Scripts" },
+  "gist": { "…" }
+}
+```
+`state` is `unlinked`, `clean`, `modified`, or `missing`; `gist` is `null` when
+`state` is `unlinked`. With `--all`, an array; under `jsonl`, one object per
+line.
+
+### Gist mutation (`attach`, `detach`, `delete`)
+```json
+{ "action": "attached", "snippet": { "…" }, "gist": { "…" } }
+```
+`action` is `attached`, `detached`, or `deleted`.
 
 ### Error (any command)
 ```json

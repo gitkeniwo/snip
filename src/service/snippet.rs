@@ -88,6 +88,7 @@ pub(crate) fn create_snippet_unlocked(
         locked: options.locked,
         created_at: options.created_at.clone().unwrap_or(now_rfc3339()?),
         source: options.source.clone(),
+        remotes: Vec::new(),
         fragments: vec![FragmentManifest {
             id: fragment_id,
             title: fragment_title.to_owned(),

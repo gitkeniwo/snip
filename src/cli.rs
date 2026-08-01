@@ -94,6 +94,8 @@ pub enum Command {
     Import(ImportArgs),
     /// Run Git operations scoped to this library.
     Git(GitArgs),
+    /// Publish snippets to GitHub Gists through the gh CLI.
+    Gist(GistArgs),
     /// Install, inspect, or export the embedded manual pages.
     Man(ManArgs),
     /// Generate shell completion code.
@@ -509,6 +511,102 @@ pub enum GitCommand {
     Push,
     /// Fetch and prune remote-tracking refs without touching the worktree.
     Fetch,
+}
+
+#[derive(Args, Debug)]
+pub struct GistArgs {
+    #[command(subcommand)]
+    pub command: GistCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum GistCommand {
+    /// Create the snippet's gist, or update it when one already exists.
+    Push(GistPushArgs),
+    /// Print the URL of the snippet's gist.
+    Url(GistUrlArgs),
+    /// Report whether a snippet's gist is current.
+    Status(GistStatusArgs),
+    /// Record an existing gist as this snippet's gist.
+    Attach(GistAttachArgs),
+    /// Forget a snippet's gist without deleting it on GitHub.
+    Detach(GistSelectorArgs),
+    /// Delete the snippet's gist on GitHub and forget it.
+    Delete(GistDeleteArgs),
+    /// Open the snippet's gist in a browser.
+    Open(GistSelectorArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct GistSelectorArgs {
+    pub selector: String,
+}
+
+#[derive(Args, Debug)]
+pub struct GistPushArgs {
+    pub selector: String,
+    /// List the gist publicly. Only applies when creating; gist visibility
+    /// cannot be changed afterwards.
+    #[arg(long)]
+    pub public: bool,
+    /// Gist description. Defaults to the snippet title, then to the
+    /// description recorded by the previous push.
+    #[arg(long)]
+    pub desc: Option<String>,
+    /// Publish a new gist and replace the recorded one, leaving the old gist
+    /// on GitHub.
+    #[arg(long)]
+    pub new: bool,
+    /// Publish fragment notes as separate Markdown files.
+    #[arg(long)]
+    pub include_notes: bool,
+    /// Leave the snippet README out of the gist.
+    #[arg(long)]
+    pub no_readme: bool,
+    /// Open the gist in a browser afterwards.
+    #[arg(short, long)]
+    pub web: bool,
+    /// Refuse the push unless the snippet still has this fingerprint.
+    #[arg(long)]
+    pub if_hash: Option<String>,
+    /// Push even when the gist already matches the snippet.
+    #[arg(long)]
+    pub force: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct GistUrlArgs {
+    pub selector: String,
+    /// Copy the URL to the clipboard as well as printing it.
+    #[arg(long)]
+    pub copy: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct GistStatusArgs {
+    #[arg(conflicts_with = "all")]
+    pub selector: Option<String>,
+    /// Report every snippet in the library that has a gist.
+    #[arg(long)]
+    pub all: bool,
+    /// Also fetch the gist from GitHub and report whether it still exists.
+    #[arg(long)]
+    pub remote: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct GistAttachArgs {
+    pub selector: String,
+    /// Gist ID or URL.
+    pub gist: String,
+}
+
+#[derive(Args, Debug)]
+pub struct GistDeleteArgs {
+    pub selector: String,
+    /// Delete without prompting.
+    #[arg(long)]
+    pub yes: bool,
 }
 
 #[derive(Args, Debug)]

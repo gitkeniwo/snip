@@ -1,7 +1,9 @@
+pub mod clipboard;
 pub mod config;
 pub mod domain;
 pub mod error;
 pub mod filesystem;
+pub mod gist;
 pub mod git;
 pub mod importer;
 pub mod language;
@@ -19,8 +21,8 @@ pub use config::{
 };
 pub use domain::{
     CatalogSnapshot, ChangeSet, Fingerprint, Fragment, FragmentManifest, LibraryManifest,
-    SearchResult, Snippet, SnippetManifest, SourceMetadata, TagDefinition, TagRegistry,
-    UNCATEGORIZED, folder_label,
+    RemoteRecord, SearchResult, Snippet, SnippetManifest, SourceMetadata, TagDefinition,
+    TagRegistry, UNCATEGORIZED, folder_label,
 };
 pub use error::{ErrorKind, Result, SnipError};
 pub use filesystem::Library;

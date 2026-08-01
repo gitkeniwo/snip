@@ -1,0 +1,73 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-gist-push 1  "snip 0.4.1" 
+.SH NAME
+snip\-gist\-push \- Create the snippet\*(Aqs gist, or update it when one already exists
+.SH SYNOPSIS
+\fBsnip gist push\fR [\fB\-\-library\fR] [\fB\-\-public\fR] [\fB\-\-desc\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-new\fR] [\fB\-\-include\-notes\fR] [\fB\-\-no\-readme\fR] [\fB\-w\fR|\fB\-\-web\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+.SH DESCRIPTION
+Create the snippet\*(Aqs gist, or update it when one already exists
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-public\fR
+List the gist publicly. Only applies when creating; gist visibility cannot be changed afterwards
+.TP
+\fB\-\-desc\fR \fI<DESC>\fR
+Gist description. Defaults to the snippet title, then to the description recorded by the previous push
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-\-new\fR
+Publish a new gist and replace the recorded one, leaving the old gist on GitHub
+.TP
+\fB\-\-include\-notes\fR
+Publish fragment notes as separate Markdown files
+.TP
+\fB\-\-no\-readme\fR
+Leave the snippet README out of the gist
+.TP
+\fB\-w\fR, \fB\-\-web\fR
+Open the gist in a browser afterwards
+.TP
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+Refuse the push unless the snippet still has this fingerprint
+.TP
+\fB\-\-force\fR
+Push even when the gist already matches the snippet
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+

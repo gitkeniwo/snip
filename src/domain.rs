@@ -118,6 +118,26 @@ pub struct SourceMetadata {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RemoteRecord {
+    pub kind: String,
+    pub host: String,
+    pub id: String,
+    pub url: String,
+    #[serde(default)]
+    pub public: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pushed_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pushed_digest: Option<String>,
+    #[serde(flatten)]
+    pub extra: toml::Table,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FragmentManifest {
     pub id: Uuid,
     pub title: String,
@@ -145,6 +165,8 @@ pub struct SnippetManifest {
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<SourceMetadata>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remotes: Vec<RemoteRecord>,
     pub fragments: Vec<FragmentManifest>,
     #[serde(flatten)]
     pub extra: toml::Table,
