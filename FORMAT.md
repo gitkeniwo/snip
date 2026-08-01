@@ -239,6 +239,8 @@ url = "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f"
 public = false
 description = "Brewfile"
 files = ["001-Brewfile", "README.md"]
+include_notes = false
+include_readme = true
 pushed_at = "2026-08-01T10:00:00Z"
 pushed_digest = "…"
 ```
@@ -250,6 +252,8 @@ pushed_digest = "…"
 | `public` | Whether the remote copy is publicly listed. Defaults to `false`. |
 | `description` | The description last sent, which may differ from the title. |
 | `files` | The remote filenames this writer published, so a later push knows which to remove. Files not in this list belong to someone else and MUST NOT be deleted. |
+| `include_notes` | Whether the payload that produced `pushed_digest` swept in note files. Defaults to `false`. |
+| `include_readme` | Whether the payload that produced `pushed_digest` included the readme. Defaults to `true`. |
 | `pushed_at` | RFC 3339 timestamp of the last successful publish. |
 | `pushed_digest` | Hash of the payload last published. |
 

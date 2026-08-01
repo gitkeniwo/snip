@@ -474,6 +474,48 @@ fn status_requires_a_selector_or_all() {
 }
 
 #[test]
+fn status_stays_clean_after_a_push_that_included_notes() {
+    let (temporary, library) = library();
+    create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Note".to_owned(),
+            language: "text".to_owned(),
+            content: "content\n".to_owned(),
+            note: Some("a note\n".to_owned()),
+            readme: Some("# Note\n".to_owned()),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+    let mut stub = Stub::new(&temporary.path().join("stub"));
+    stub.respond(&gist_response(
+        GIST_ID,
+        false,
+        "Note",
+        &["Note", "Note.note.md", "README.md"],
+    ));
+
+    snip(
+        &library,
+        &stub,
+        &["gist", "push", "Note", "--include-notes"],
+    )
+    .assert()
+    .success()
+    .stdout(predicate::str::contains(
+        "files: Note, Note.note.md, README.md",
+    ));
+
+    snip(&library, &stub, &["gist", "status", "Note"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("state: clean"))
+        .stdout(predicate::str::contains("pushed: "));
+    assert_eq!(stub.calls().len(), 1, "status must not call gh");
+}
+
+#[test]
 fn status_all_lists_only_linked_snippets() {
     let (temporary, library) = library();
     create(&library, "Linked");
