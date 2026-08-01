@@ -167,7 +167,11 @@ fn cli_imports_base16_schemes() {
         String::from_utf8(human_output.stdout).unwrap(),
         format!(
             "imported: {}\n",
-            config_home.join("snip/themes/human-import.toml").display()
+            config_home
+                .join("snip")
+                .join("themes")
+                .join("human-import.toml")
+                .display()
         )
     );
 
