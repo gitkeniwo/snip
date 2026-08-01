@@ -87,12 +87,15 @@ jobs:
           mkdir -p "$stage/man"
           cp target/release/snip "$stage/snip"
           cp man/*.1 "$stage/man/"
-          tar -C "$stage" -czf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" snip man
+          cp LICENSE README.md "$stage/"
+          tar -C "$stage" -czf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" snip man LICENSE README.md
       - name: Verify portable archive (Unix)
         if: runner.os != 'Windows'
         run: |
-          tar -tzf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" |
-            grep -qx 'man/snip.1'
+          tar -tzf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" > "$RUNNER_TEMP/archive.list"
+          grep -qx 'man/snip.1' "$RUNNER_TEMP/archive.list"
+          grep -qx 'LICENSE' "$RUNNER_TEMP/archive.list"
+          grep -qx 'README.md' "$RUNNER_TEMP/archive.list"
       - name: Create portable archive (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path target/release/snip.exe -DestinationPath ${{ matrix.asset }}.zip
@@ -434,14 +437,21 @@ jobs:
           git push
 
   aur:
-    name: Update AUR package
+    name: Update AUR package (${{ matrix.package }})
     needs: [version, publish]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: sniplab
+            template: packaging/aur/PKGBUILD.in
+          - package: sniplab-bin
+            template: packaging/aur/PKGBUILD-bin.in
     env:
-      AUR_PACKAGE: sniplab
       VERSION: ${{ needs.version.outputs.version }}
       PGP_FINGERPRINT: ${{ vars.PGP_FINGERPRINT }}
     steps:
@@ -467,28 +477,50 @@ jobs:
 
       - name: Clone the AUR repository
         env:
+          AUR_PACKAGE: ${{ matrix.package }}
           GIT_SSH_COMMAND: ssh -i /home/runner/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
-        run: git -c init.defaultBranch=master clone ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git aur
+        run: |
+          if ! git clone ssh://aur@aur.archlinux.org/${AUR_PACKAGE}.git aur 2>"$RUNNER_TEMP/aur-clone.err"; then
+            # AUR auto-creates a package on the first push to its git URL. For
+            # a brand-new package name the repo does not exist yet, so seed one;
+            # the Render step has already validated the PKGBUILD, and the push
+            # below creates the package.
+            grep -iE 'does not appear|not exist|repository' "$RUNNER_TEMP/aur-clone.err" | head -3 || true
+            mkdir aur
+            git -C aur init -b master
+          fi
 
       - name: Render PKGBUILD and .SRCINFO
         env:
+          AUR_PACKAGE: ${{ matrix.package }}
+          TEMPLATE: ${{ matrix.template }}
           SOURCE_URL: https://github.com/gitkeniwo/snip/releases/download/v${{ needs.version.outputs.version }}/sniplab-${{ needs.version.outputs.version }}.tar.gz
         run: |
-          if [ -z "$PGP_FINGERPRINT" ]; then
-            echo "::error::PGP_FINGERPRINT must be configured before updating the AUR package."
-            exit 1
+          if [ "$AUR_PACKAGE" = "sniplab" ]; then
+            if [ -z "$PGP_FINGERPRINT" ]; then
+              echo "::error::PGP_FINGERPRINT must be configured before updating the AUR package."
+              exit 1
+            fi
+            curl --fail --location --retry 3 --output source.tar.gz "$SOURCE_URL"
+            export SHA256="$(sha256sum source.tar.gz | cut -d ' ' -f 1)"
+          else
+            for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+              curl --fail --location --retry 3 --output "snip-$target.tar.gz" \
+                "https://github.com/gitkeniwo/snip/releases/download/v$VERSION/snip-$target.tar.gz"
+            done
+            export SHA256_X86_64="$(sha256sum snip-x86_64-unknown-linux-gnu.tar.gz | cut -d ' ' -f 1)"
+            export SHA256_AARCH64="$(sha256sum snip-aarch64-unknown-linux-gnu.tar.gz | cut -d ' ' -f 1)"
           fi
-          curl --fail --location --retry 3 --output source.tar.gz "$SOURCE_URL"
-          checksum="$(sha256sum source.tar.gz | cut -d ' ' -f 1)"
-          export CHECKSUM="$checksum"
           python3 - <<'PY'
           import os
           from pathlib import Path
 
-          template = Path("packaging/aur/PKGBUILD.in").read_text()
-          package = template.replace("@VERSION@", os.environ["VERSION"])
-          package = package.replace("@SHA256@", os.environ["CHECKSUM"])
-          package = package.replace("@PGP_FINGERPRINT@", os.environ["PGP_FINGERPRINT"])
+          package = Path(os.environ["TEMPLATE"]).read_text()
+          package = package.replace("@VERSION@", os.environ["VERSION"])
+          package = package.replace("@SHA256@", os.environ.get("SHA256", ""))
+          package = package.replace("@SHA256_X86_64@", os.environ.get("SHA256_X86_64", ""))
+          package = package.replace("@SHA256_AARCH64@", os.environ.get("SHA256_AARCH64", ""))
+          package = package.replace("@PGP_FINGERPRINT@", os.environ.get("PGP_FINGERPRINT", ""))
           Path("aur/PKGBUILD").write_text(package)
           PY
           docker run --rm \
