@@ -221,9 +221,11 @@ impl App {
             self.theme_source = source;
             self.theme = theme;
             self.preview.invalidate();
-        }
-        if !warnings.is_empty() {
-            self.set_status(warnings.join("; "), StatusLevel::Error);
+            // Warnings are feedback for an actual theme change; re-emitting them
+            // every tick would pin a message over the bottom bar forever.
+            if !warnings.is_empty() {
+                self.set_status(warnings.join("; "), StatusLevel::Error);
+            }
         }
         Ok(())
     }

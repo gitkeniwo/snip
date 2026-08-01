@@ -2870,6 +2870,91 @@ fn tick_theme_does_not_replace_an_active_preview() {
 }
 
 #[test]
+fn auto_theme_tick_does_not_repin_warnings_when_the_theme_is_unchanged() {
+    let (temporary, library, _first_id, _second_id) = fixture();
+    let config_path = temporary.path().join("config.toml");
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            theme: TuiThemeSetting::Dark,
+            dark_theme: Some("dark-nord".to_owned()),
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    config.save_to(&config_path).unwrap();
+    let mut app = App::new(library, &config).unwrap();
+    app.config_path = config_path.clone();
+
+    // Switch to a theme that carries a `computed-foreground` finding through
+    // the real picker apply path, so this test tracks the exact post-switch
+    // state instead of reconstructing it by hand.
+    app.run_command(CommandId::ViewPickTheme);
+    let Some(Modal::Picker(picker)) = app.modal.as_mut() else {
+        panic!("expected theme picker");
+    };
+    picker.selected = picker
+        .filtered()
+        .iter()
+        .position(|item| item.value == "dark-onedark")
+        .expect("dark-onedark is offered in the dark picker");
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.theme_name, "dark-onedark");
+    assert!(app.modal.is_none());
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("theme: dark-onedark")
+    );
+
+    // The reported bug only fires under the auto resolver; flip to Auto with
+    // both slots pinned so resolution stays deterministic on any system.
+    app.theme_setting = TuiThemeSetting::Auto;
+    app.theme_config.light_theme = Some("dark-onedark".to_owned());
+    app.theme_checked_at = Instant::now() - Duration::from_secs(10);
+
+    app.tick_theme().unwrap();
+
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("theme: dark-onedark"),
+        "a tick that does not change the theme must not repin warnings"
+    );
+    assert_eq!(app.theme_name, "dark-onedark");
+}
+
+#[test]
+fn startup_with_a_contrast_fallback_theme_is_silent() {
+    // dark-onedark's pill_secondary label needs the automatic black/white
+    // fallback, which is not an actionable warning: it must not pop a status
+    // message over the bottom bar on every startup.
+    let (_temporary, library, _first_id, _second_id) = fixture();
+
+    // Precondition: dark-onedark still carries the `computed-foreground`
+    // finding, so this test fails loudly (rather than silently passing) if the
+    // theme is ever adjusted and stops triggering it.
+    let finding = snip::theme::validate::check(&snip::theme::load("dark-onedark").unwrap())
+        .into_iter()
+        .find(|check| check.id == "computed-foreground")
+        .expect("dark-onedark should carry the computed-foreground finding");
+    assert_eq!(finding.level, snip::theme::validate::Level::Note);
+
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            theme: TuiThemeSetting::Dark,
+            dark_theme: Some("dark-onedark".to_owned()),
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let app = App::new(library, &config).unwrap();
+
+    assert_eq!(app.theme_name, "dark-onedark");
+    assert!(
+        app.status.is_none(),
+        "startup must not surface contrast warnings"
+    );
+}
+
+#[test]
 fn folder_pickers_label_the_library_root_the_way_the_cli_prints_it() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();

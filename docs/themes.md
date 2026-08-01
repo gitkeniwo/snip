@@ -77,8 +77,9 @@ Text on `pill_primary`, `pill_secondary`, `retained_bg`, and selected
 fragment-tree rows is drawn with its foreground computed at render time: the
 preferred role colour is kept when it clears 4.5:1 on that surface, otherwise
 the most legible of the theme's own colours is used, falling back to black or
-white. `theme check`'s `computed-foreground` warning flags themes whose
-surfaces would force that fallback.
+white. `theme check`'s `computed-foreground` finding flags themes whose
+surfaces would force that fallback; it is reported as a `note` rather than a
+warning because the TUI handles the fallback automatically.
 
 ## Syntax highlighting
 
@@ -153,6 +154,7 @@ inheritance chain may contain at most eight parent links. Run
 `snip theme check NAME` after editing: failed contrast checks prevent runtime
 use, while warnings are shown without blocking the theme. The two failure
 checks are `foreground-contrast` and `selection-contrast` (both 4.5:1); the
-warning checks are `role-legibility` (4.5:1 on `background` and `bar_bg`),
-`graphic-legibility` (`rule` 3.0:1, `border` 2.5:1), and
-`computed-foreground` (surfaces that would force a black/white fallback).
+warning checks are `role-legibility` (4.5:1 on `background` and `bar_bg`) and
+`graphic-legibility` (`rule` 3.0:1, `border` 2.5:1); the
+`computed-foreground` check is a `note` because the TUI falls back to
+black/white automatically rather than failing or warning the user.

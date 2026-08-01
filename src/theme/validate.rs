@@ -9,6 +9,7 @@ use super::{Appearance, Theme, ThemeColor};
 #[serde(rename_all = "lowercase")]
 pub enum Level {
     Ok,
+    Note,
     Warn,
     Fail,
 }
@@ -170,7 +171,7 @@ pub fn check(theme: &Theme) -> Vec<Check> {
             level: if failed.is_empty() {
                 Level::Ok
             } else {
-                Level::Warn
+                Level::Note
             },
             detail: if failed.is_empty() {
                 "theme surface colours cover all known runtime backgrounds".to_owned()

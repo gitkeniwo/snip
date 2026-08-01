@@ -209,6 +209,7 @@ fn appearance(value: AppearanceArg) -> Appearance {
 fn level_name(level: Level) -> &'static str {
     match level {
         Level::Ok => "ok",
+        Level::Note => "note",
         Level::Warn => "warn",
         Level::Fail => "fail",
     }

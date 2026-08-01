@@ -605,6 +605,11 @@ fn load_runtime(name: &str) -> Result<(Theme, Vec<String>)> {
             failure.id, failure.detail
         )));
     }
+    // `computed-foreground` is a Note-level finding: it only reports that a
+    // pill/bar label already falls back to black/white automatically, an
+    // expected condition for built-in themes. Note findings are never surfaced
+    // as runtime warnings, so they cannot pin a warning over the TUI bottom
+    // bar on startup.
     let warnings = checks
         .into_iter()
         .filter(|check| check.level == validate::Level::Warn)
@@ -741,7 +746,7 @@ mod tests {
             let findings = validate::check(&theme)
                 .into_iter()
                 .filter(|check| {
-                    check.level != validate::Level::Ok && check.id != "computed-foreground"
+                    matches!(check.level, validate::Level::Warn | validate::Level::Fail)
                 })
                 .collect::<Vec<_>>();
             if !findings.is_empty() {
@@ -851,10 +856,20 @@ mod tests {
 
         let (theme, warnings) = resolve_with_environment(&config, Some("light-gruvbox"));
         assert_eq!(theme.name, "light-gruvbox");
+        // Precondition: light-gruvbox still carries the `computed-foreground`
+        // finding as a Note, so the "not a runtime warning" assertion below
+        // fails loudly (rather than silently passing) if the theme changes.
+        let note = validate::check(&load("light-gruvbox").unwrap())
+            .into_iter()
+            .find(|check| check.id == "computed-foreground")
+            .expect("light-gruvbox carries the computed-foreground finding");
+        assert_eq!(note.level, validate::Level::Note);
+        // `computed-foreground` is an automatic black/white fallback, not a
+        // runtime warning, so it is never surfaced to the user.
         assert!(
             warnings
                 .iter()
-                .all(|warning| warning.contains("computed-foreground"))
+                .all(|warning| !warning.contains("computed-foreground"))
         );
 
         // "light"/"dark" stay appearance overrides rather than theme names.
