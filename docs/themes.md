@@ -73,6 +73,13 @@ hex digits are case-insensitive. `terminal` is legal only for `background` and
 | `warning` | Warnings and inline code accents |
 | `error` | Errors and destructive state |
 
+Text on `pill_primary`, `pill_secondary`, `retained_bg`, and selected
+fragment-tree rows is drawn with its foreground computed at render time: the
+preferred role colour is kept when it clears 4.5:1 on that surface, otherwise
+the most legible of the theme's own colours is used, falling back to black or
+white. `theme check`'s `computed-foreground` warning flags themes whose
+surfaces would force that fallback.
+
 ## Syntax highlighting
 
 `[syntax]` contains exactly one choice. `theme` names an embedded two-face
@@ -116,9 +123,11 @@ The generated built-ins map base16 slots to UI roles as follows:
 
 `selection_fg` is whichever of `base00`, `base05`, `base06`, or `base07` has
 the highest WCAG contrast against `base02`; built-in generation stops if the
-best option is below 4.5:1. When a mapped semantic foreground is below 3.0:1,
-generation moves it the minimum RGB blend toward black or white needed to
-clear that floor; the original 16-color palette remains recorded unchanged.
+best option is below 4.5:1. When a mapped semantic foreground (`muted`,
+`bar_fg`, `tag`, `accent`, `accent_alt`, `warning`, `error`, `success`) is
+below 4.5:1 on its background, generation moves it the minimum RGB blend
+toward black or white needed to clear that floor; `rule` clears 3.0:1 and
+`border` 2.5:1. The original 16-color palette remains recorded unchanged.
 
 ## Extending a theme
 
@@ -142,4 +151,8 @@ pill_primary = "#7daea3"
 User themes shadow built-ins during inheritance. Cycles are rejected, and an
 inheritance chain may contain at most eight parent links. Run
 `snip theme check NAME` after editing: failed contrast checks prevent runtime
-use, while warnings are shown without blocking the theme.
+use, while warnings are shown without blocking the theme. The two failure
+checks are `foreground-contrast` and `selection-contrast` (both 4.5:1); the
+warning checks are `role-legibility` (4.5:1 on `background` and `bar_bg`),
+`graphic-legibility` (`rule` 3.0:1, `border` 2.5:1), and
+`computed-foreground` (surfaces that would force a black/white fallback).

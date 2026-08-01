@@ -5,7 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-08-01
+
+### Added
+
+- **Expandable fragment tree.** A snippet with several fragments renders as
+  a selectable tree in the preview instead of a flat tab strip: `=` expands
+  it, `-` collapses it, clicking a row jumps to that fragment, and the tree
+  stays reachable from the command palette as a registered command.
+- **Readable text on every surface.** Foregrounds that miss the WCAG 4.5
+  body-text floor against their actual background now fall back, at render
+  time, to the most legible colour the theme has. This covers the bottom-bar
+  shortcut pills, the top-bar context pill, position pill and breadcrumbs,
+  the retained selection in an unfocused pane, and selected fragment-tree
+  rows — several built-ins previously drew such text at 1.0:1.
+
+### Changed
+
+- **Generated themes clear stricter contrast floors.** `muted`, `bar_fg`,
+  `tag`, `accent`, `accent_alt`, `warning`, `error`, and `success` now blend
+  toward black or white until they reach 4.5:1 on their background, `rule`
+  needs 3.0:1, and `border` 2.5:1. All fifteen base16 built-ins were
+  regenerated.
+- **`snip theme check` verifies the pairs the UI actually renders.**
+  `foreground-contrast` and `selection-contrast` stay 4.5:1 failures;
+  `role-legibility` is now a 4.5:1 warning; `graphic-legibility` covers
+  `rule` and `border`; and `computed-foreground` warns when a theme's
+  surfaces would force the black/white fallback.
 
 ## [0.3.2] - 2026-07-31
 
@@ -180,6 +206,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.4.0]: https://github.com/gitkeniwo/snip/compare/v0.3.2...v0.4.0
 [0.3.1]: https://github.com/gitkeniwo/snip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gitkeniwo/snip/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/gitkeniwo/snip/compare/v0.2.0...v0.2.1
