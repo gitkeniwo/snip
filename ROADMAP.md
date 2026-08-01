@@ -19,13 +19,13 @@ Tracks `docs/plans/theme-contrast.md`. Fix the systemic "unreadable text"
 problem (several built-in themes render text at 1.0:1 contrast), then make
 themes cheap to extend.
 
-- [ ] A — runtime `legible_on` fallback: every pill / retained-selection
+- [x] A — runtime `legible_on` fallback: every pill / retained-selection
   foreground picks a readable color at render time instead of trusting the
   role mapping.
-- [ ] B — raise the generator's contrast floors to WCAG 4.5 and cover
+- [x] B — raise the generator's contrast floors to WCAG 4.5 and cover
   `accent` / `accent_alt`; add graphic floors for `rule` (3.0) and `border`
   (2.5); regenerate the built-ins.
-- [ ] C — rewrite `theme check`'s pairs to the real render pairs and add
+- [x] C — rewrite `theme check`'s pairs to the real render pairs and add
   regression tests that no built-in fails.
 
 ### Theme import & extension
