@@ -304,7 +304,9 @@ fn cli_imports_base16_schemes() {
     .unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains(invalid.to_str().unwrap()) && stderr.contains("base0A"));
+    let error: Value = serde_json::from_str(&stderr).unwrap();
+    let message = error["error"]["message"].as_str().unwrap();
+    assert!(message.contains(invalid.to_str().unwrap()) && message.contains("base0A"));
     assert!(!config_home.join("snip/themes/invalid.toml").exists());
 
     theme_command(&config_home, &["theme", "import", "-"])
