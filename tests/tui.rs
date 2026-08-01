@@ -9,6 +9,7 @@ use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use ratatui::style::Color;
 use snip::git::GitAction;
 use snip::git::{Branch, RepoState, Status, Unavailable};
 use snip::service::{
@@ -144,6 +145,41 @@ fn select_sidebar_item(app: &mut App, item: SidebarItem) {
         .unwrap();
     app.sidebar.list_state.select(Some(index));
     app.focus = Pane::Sidebar;
+}
+
+fn rendered_luminance(color: Color) -> Option<f64> {
+    let [red, green, blue] = match color {
+        Color::Rgb(red, green, blue) => [red, green, blue],
+        Color::Indexed(index @ 16..=231) => {
+            const COMPONENTS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+            let index = index - 16;
+            [
+                COMPONENTS[usize::from(index / 36)],
+                COMPONENTS[usize::from(index % 36 / 6)],
+                COMPONENTS[usize::from(index % 6)],
+            ]
+        }
+        Color::Indexed(index @ 232..=255) => {
+            let value = 8 + 10 * (index - 232);
+            [value, value, value]
+        }
+        _ => return None,
+    };
+    let channel = |value: u8| {
+        let value = f64::from(value) / 255.0;
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    Some(0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue))
+}
+
+fn rendered_contrast(foreground: Color, background: Color) -> Option<f64> {
+    let foreground = rendered_luminance(foreground)?;
+    let background = rendered_luminance(background)?;
+    Some((foreground.max(background) + 0.05) / (foreground.min(background) + 0.05))
 }
 
 #[test]
@@ -830,6 +866,101 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         .unwrap();
     assert!(row_text(buffer, tab_y).contains("next / previous"));
     assert!(rendered.contains("Ctrl-d / Ctrl-u"));
+}
+
+#[test]
+fn every_builtin_theme_renders_legible_text_in_every_focus_state() {
+    let temporary = tempfile::tempdir_in(".").unwrap();
+    let library =
+        Library::init(&temporary.path().join("Contrast.sniplib"), Some("Contrast")).unwrap();
+    let first = create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Contrast fixture".to_owned(),
+            folder: Some("Code/Contrast".to_owned()),
+            tags: vec!["legibility".to_owned()],
+            language: "text".to_owned(),
+            content: "plain text\n".to_owned(),
+            note: Some("plain note".to_owned()),
+            pinned: true,
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+    for title in ["output-contract", "severity-rubric"] {
+        add_fragment(
+            &library,
+            &first.id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                content: "first\nsecond\n".to_owned(),
+                note: Some("fragment note".to_owned()),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.fragments_expanded = true;
+    app.fragment_index = 1;
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    for (name, _) in snip::theme::builtin::THEMES {
+        app.theme_source = snip::theme::load(name).unwrap();
+        app.theme = TuiTheme::from(&app.theme_source);
+        app.highlighter = Highlighter::new(&app.theme_source).unwrap();
+        for focus in [Pane::Sidebar, Pane::List, Pane::Preview] {
+            app.focus = focus;
+            terminal
+                .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+                .unwrap();
+            let buffer = terminal.backend().buffer();
+            assert_eq!(app.layout.fragment_rows.len(), 3);
+            for y in 0..buffer.area.height {
+                for x in 0..buffer.area.width {
+                    let cell = buffer.cell((x, y)).unwrap();
+                    // Syntax palettes have their own contrast contract. This regression
+                    // covers the UI theme roles surrounding the preview, not source code.
+                    let syntax_content = x >= app.layout.preview_content.x
+                        && x < app.layout.preview_content.right()
+                        && y >= app.layout.preview_content.y
+                        && y < app.layout.preview_content.bottom();
+                    // Powerline caps are same-colour decorative joins, not text.
+                    if cell.symbol().trim().is_empty()
+                        || matches!(cell.symbol(), "\u{e0b4}" | "\u{e0b6}")
+                        || syntax_content
+                    {
+                        continue;
+                    }
+                    let Some(value) = rendered_contrast(cell.fg, cell.bg) else {
+                        continue;
+                    };
+                    let graphic = cell
+                        .symbol()
+                        .chars()
+                        .all(|character| ('\u{2500}'..='\u{257f}').contains(&character));
+                    // Match the generator floors: body text 4.5, structural rules 3.0,
+                    // and deliberately quieter unfocused borders 2.5.
+                    let floor = if graphic && cell.fg == app.theme.border {
+                        2.5
+                    } else if graphic {
+                        3.0
+                    } else {
+                        4.5
+                    };
+                    assert!(
+                        value >= floor,
+                        "theme {name}, focus {focus:?}, cell ({x}, {y}) {:?}: {:?} on {:?} is {value:.2} below {floor:.1}",
+                        cell.symbol(),
+                        cell.fg,
+                        cell.bg
+                    );
+                }
+            }
+        }
+    }
 }
 
 #[test]

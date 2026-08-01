@@ -55,27 +55,29 @@ pub fn check(theme: &Theme) -> Vec<Check> {
     }];
 
     checks.push(contrast_check(
-        "selection-contrast",
-        ui.selection_fg,
-        ui.selection_bg,
-        4.5,
-        Level::Fail,
-    ));
-    checks.push(contrast_check(
         "foreground-contrast",
         ui.foreground,
         ui.background,
         4.5,
         Level::Fail,
     ));
+    checks.push(contrast_check(
+        "selection-contrast",
+        ui.selection_fg,
+        ui.selection_bg,
+        4.5,
+        Level::Fail,
+    ));
 
     let role_pairs = [
         ("muted", ui.muted, ui.background),
-        ("bar_fg", ui.bar_fg, ui.bar_bg),
         ("tag", ui.tag, ui.background),
+        ("accent", ui.accent, ui.background),
+        ("accent_alt", ui.accent_alt, ui.background),
+        ("success", ui.success, ui.background),
         ("warning", ui.warning, ui.background),
         ("error", ui.error, ui.background),
-        ("success", ui.success, ui.background),
+        ("bar_fg", ui.bar_fg, ui.bar_bg),
     ];
     let mut known = Vec::new();
     for (name, foreground, background) in role_pairs {
@@ -88,7 +90,7 @@ pub fn check(theme: &Theme) -> Vec<Check> {
     } else {
         let failed = known
             .iter()
-            .filter(|(_, value)| *value < 3.0)
+            .filter(|(_, value)| *value < 4.5)
             .map(|(name, _)| *name)
             .collect::<Vec<_>>();
         Check {
@@ -99,9 +101,81 @@ pub fn check(theme: &Theme) -> Vec<Check> {
                 Level::Warn
             },
             detail: if failed.is_empty() {
-                "all known role contrasts >= 3.0".to_owned()
+                "all known role contrasts >= 4.5".to_owned()
             } else {
-                format!("below 3.0: {}", failed.join(", "))
+                format!("below 4.5: {}", failed.join(", "))
+            },
+        }
+    });
+
+    let graphic_pairs = [
+        ("rule", ui.rule, ui.background, 3.0),
+        ("border", ui.border, ui.background, 2.5),
+    ];
+    let mut known_graphics = Vec::new();
+    for (name, foreground, background, floor) in graphic_pairs {
+        if let Some(value) = contrast(foreground, background) {
+            known_graphics.push((name, value, floor));
+        }
+    }
+    checks.push(if known_graphics.is_empty() {
+        skipped("graphic-legibility")
+    } else {
+        let failed = known_graphics
+            .iter()
+            .filter(|(_, value, floor)| value < floor)
+            .map(|(name, _, floor)| format!("{name} (< {floor:.1})"))
+            .collect::<Vec<_>>();
+        Check {
+            id: "graphic-legibility",
+            level: if failed.is_empty() {
+                Level::Ok
+            } else {
+                Level::Warn
+            },
+            detail: if failed.is_empty() {
+                "rule >= 3.0 and border >= 2.5".to_owned()
+            } else {
+                format!("below floor: {}", failed.join(", "))
+            },
+        }
+    });
+
+    let computed_backgrounds = [
+        ("pill_primary", ui.pill_primary),
+        ("pill_secondary", ui.pill_secondary),
+        ("retained_bg", ui.retained_bg),
+        ("bar_bg", ui.bar_bg),
+    ];
+    let mut known_backgrounds = Vec::new();
+    for (name, background) in computed_backgrounds {
+        let best = [ui.foreground, ui.background]
+            .into_iter()
+            .filter_map(|foreground| contrast(foreground, background))
+            .max_by(f64::total_cmp);
+        if let Some(value) = best {
+            known_backgrounds.push((name, value));
+        }
+    }
+    checks.push(if known_backgrounds.is_empty() {
+        skipped("computed-foreground")
+    } else {
+        let failed = known_backgrounds
+            .iter()
+            .filter(|(_, value)| *value < 4.5)
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>();
+        Check {
+            id: "computed-foreground",
+            level: if failed.is_empty() {
+                Level::Ok
+            } else {
+                Level::Warn
+            },
+            detail: if failed.is_empty() {
+                "theme surface colours cover all known runtime backgrounds".to_owned()
+            } else {
+                format!("black/white fallback required: {}", failed.join(", "))
             },
         }
     });
@@ -190,5 +264,22 @@ mod tests {
             .unwrap();
         assert_eq!(item.level, Level::Ok);
         assert_eq!(item.detail, "skipped: terminal-defined color");
+    }
+
+    #[test]
+    fn built_in_themes_have_no_failing_checks() {
+        for (name, _) in crate::theme::builtin::THEMES {
+            let theme = crate::theme::load(name).unwrap();
+            let failures = check(&theme)
+                .into_iter()
+                .filter(|item| item.level == Level::Fail)
+                .map(|item| item.id)
+                .collect::<Vec<_>>();
+            assert!(
+                failures.is_empty(),
+                "theme {name} has failing checks: {}",
+                failures.join(", ")
+            );
+        }
     }
 }
