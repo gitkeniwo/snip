@@ -106,6 +106,72 @@ const SPECS: &[ThemeSpec] = &[
         source: "tokyo-night-dark",
         syntax: None,
     },
+    ThemeSpec {
+        output: "dark-kanagawa",
+        input: "kanagawa",
+        source: "kanagawa",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "dark-edge",
+        input: "edge-dark",
+        source: "edge-dark",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "light-edge",
+        input: "edge-light",
+        source: "edge-light",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "dark-horizon",
+        input: "horizon-dark",
+        source: "horizon-dark",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "light-horizon",
+        input: "horizon-light",
+        source: "horizon-light",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "dark-primer",
+        input: "primer-dark",
+        source: "primer-dark",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "light-primer",
+        input: "primer-light",
+        source: "primer-light",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "dark-selenized",
+        input: "selenized-dark",
+        source: "selenized-dark",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "light-selenized",
+        input: "selenized-light",
+        source: "selenized-light",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "dark-tokyonight-storm",
+        input: "tokyo-night-storm",
+        source: "tokyo-night-storm",
+        syntax: None,
+    },
+    ThemeSpec {
+        output: "light-tokyonight",
+        input: "tokyo-night-light",
+        source: "tokyo-night-light",
+        syntax: None,
+    },
 ];
 
 fn main() {
