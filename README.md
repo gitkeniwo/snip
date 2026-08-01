@@ -307,7 +307,8 @@ forces another. Theme *names* go in the `tui-light-theme`/`tui-dark-theme` slots
 
 User themes live in the directory printed by `snip theme path` (normally
 `~/.config/snip/themes`). See [docs/themes.md](docs/themes.md) for the complete
-format, inheritance, validation, and base16 role mapping.
+format, inheritance, validation, and base16 role mapping; `snip theme import
+SCHEME.yaml` converts a base16 or base24 scheme into an editable local theme.
 
 Language badges are plain ASCII (`[rs]`, `[py]`, `[sh]`, `[md]`) so they render
 in any font. The rounded caps on the top and bottom bars are Powerline glyphs,

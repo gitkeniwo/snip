@@ -130,6 +130,56 @@ below 4.5:1 on its background, generation moves it the minimum RGB blend
 toward black or white needed to clear that floor; `rule` clears 3.0:1 and
 `border` 2.5:1. The original 16-color palette remains recorded unchanged.
 
+## Importing base16 schemes
+
+Convert a local base16 or base24 scheme directly into an editable user theme:
+
+```bash
+snip theme import scheme.yaml
+snip theme import scheme.yaml --as my-theme --syntax GruvboxDark
+snip theme import scheme.yaml --dry-run > my-theme.toml
+```
+
+`--as` overrides the lowercased, hyphenated file-stem name; it is required
+when the input path is `-` (stdin). `--syntax` uses an embedded syntax theme
+instead of palette-derived highlighting, `--force` replaces an existing file,
+and `--dry-run` prints the converted TOML without writing it.
+
+The importer accepts the flat subset used by Tinted Theming: top-level `name`,
+optional `variant`, and a `palette` block containing `base00` through `base0F`.
+Unknown metadata and extra base24 slots are ignored. Indentation must use
+spaces. A leading YAML document separator (`---`) is accepted. Unlike YAML, an
+unquoted `base00: #2e3440` is treated as a color rather than a comment. A
+quoted value ends at its closing quote, so it may be followed by an inline
+comment; inline comments are not stripped from unquoted values.
+
+The converter maps palette slots to UI roles and raises only the roles with a
+listed contrast floor, blending toward black or white when needed:
+
+| Role | Slot | Clamp |
+| --- | --- | --- |
+| `background` | `base00` | — |
+| `foreground` | `base05` | — |
+| `accent` | `base0D` | 4.5 vs `base00` |
+| `accent_alt` | `base0E` | 4.5 vs `base00` |
+| `border` | `base03` | 2.5 vs `base00` |
+| `muted` | `base04` | 4.5 vs `base00` |
+| `selection_bg` | `base02` | — |
+| `selection_fg` | best of `base00`, `base05`, `base06`, `base07` | — |
+| `retained_bg` | `base01` | — |
+| `pill_primary` | `base0C` | — |
+| `pill_secondary` | `base03` | — |
+| `bar_bg` | `base01` | — |
+| `bar_fg` | `base05` | 4.5 vs `base01` |
+| `tag` | `base09` | 4.5 vs `base00` |
+| `rule` | `base02` | 3.0 vs `base00` |
+| `success` | `base0B` | 4.5 vs `base00` |
+| `warning` | `base0A` | 4.5 vs `base00` |
+| `error` | `base08` | 4.5 vs `base00` |
+
+Validation failures block an import; warnings are printed but the valid theme
+is still saved. Run `snip theme check NAME` to see every finding afterward.
+
 ## Extending a theme
 
 An extending theme still declares its own name and appearance, but may override

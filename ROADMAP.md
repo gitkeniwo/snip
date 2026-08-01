@@ -30,13 +30,12 @@ themes cheap to extend.
 
 ### Theme import & extension
 
-- [ ] `snip theme import <scheme.yaml>`: turn the generator's base16 → UI-role
-  mapping (and its `ensure_contrast` / `selection_fg` logic) into a shared
-  library function, then let users convert any base16 scheme into a local
-  theme. Zero binary size, unlimited extension. (priority; run after A so
-  imported themes inherit the contrast net — can parallel B/C)
-- [ ] Curate 20–30 base16 schemes into the built-in set via `SPECS` (not all
-  250); a few kilobytes of binary each, keeps the curated set hand-verifiable.
+- [x] Shipped `snip theme import <scheme.yaml>`: the generator's base16 →
+  UI-role mapping, contrast clamping, and selection-foreground choice now live
+  in a shared library, so local base16/base24 schemes import as editable user
+  themes without adding a runtime dependency.
+- [x] Curated 28 built-in base16 themes through `SPECS`, including twelve light
+  themes, while retaining generated assets and hand-verifiable provenance.
 
 ### User-defined key bindings
 

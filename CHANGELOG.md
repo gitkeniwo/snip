@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Base16 theme import and a wider built-in set.** `snip theme import` turns
+  local base16/base24 scheme files (or stdin) into validated, editable themes,
+  and the curated built-ins now cover 28 light and dark palettes.
 - **`sniplab-bin` AUR package.** Arch users can install the release binary
   without compiling (`yay -S sniplab-bin`). The release pipeline now maintains
   both the source `sniplab` and prebuilt `sniplab-bin` PKGBUILDs; the two
