@@ -143,6 +143,180 @@ fn cli_lists_checks_uses_and_exports_themes_without_a_library() {
 }
 
 #[test]
+fn cli_imports_base16_schemes() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path().join("config");
+    let scheme = temporary.path().join("kanagawa.yaml");
+    let source = include_str!("../assets/base16/nord.yaml");
+    fs::write(&scheme, source).unwrap();
+
+    let mut human_import = Command::cargo_bin("snip").unwrap();
+    let human_output = human_import
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args([
+            "theme",
+            "import",
+            scheme.to_str().unwrap(),
+            "--as",
+            "human-import",
+        ])
+        .output()
+        .unwrap();
+    assert!(human_output.status.success());
+    assert_eq!(
+        String::from_utf8(human_output.stdout).unwrap(),
+        format!(
+            "imported: {}\n",
+            config_home.join("snip/themes/human-import.toml").display()
+        )
+    );
+
+    theme_command(
+        &config_home,
+        &[
+            "theme",
+            "import",
+            scheme.to_str().unwrap(),
+            "--as",
+            "imported",
+        ],
+    )
+    .assert()
+    .success();
+    let imported = config_home.join("snip/themes/imported.toml");
+    assert!(imported.is_file());
+    let listed = theme_command(&config_home, &["theme", "list"])
+        .output()
+        .unwrap();
+    let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    assert!(
+        listed
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|theme| theme["name"] == "imported")
+    );
+    theme_command(&config_home, &["theme", "check", "imported"])
+        .assert()
+        .success();
+
+    theme_command(&config_home, &["theme", "import", scheme.to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(config_home.join("snip/themes/kanagawa.toml").is_file());
+    theme_command(
+        &config_home,
+        &[
+            "theme",
+            "import",
+            scheme.to_str().unwrap(),
+            "--as",
+            "imported",
+        ],
+    )
+    .assert()
+    .failure();
+    theme_command(
+        &config_home,
+        &[
+            "theme",
+            "import",
+            scheme.to_str().unwrap(),
+            "--as",
+            "imported",
+            "--force",
+        ],
+    )
+    .assert()
+    .success();
+
+    let dry_run = theme_command(
+        &config_home,
+        &[
+            "theme",
+            "import",
+            scheme.to_str().unwrap(),
+            "--as",
+            "dry-run",
+            "--dry-run",
+        ],
+    )
+    .output()
+    .unwrap();
+    assert!(dry_run.status.success());
+    let dry_run: Value = serde_json::from_slice(&dry_run.stdout).unwrap();
+    assert!(dry_run["path"].is_null());
+    assert_eq!(dry_run["theme"]["ui"].as_object().unwrap().len(), 18);
+    assert!(!config_home.join("snip/themes/dry-run.toml").exists());
+
+    theme_command(
+        &config_home,
+        &[
+            "theme",
+            "import",
+            scheme.to_str().unwrap(),
+            "--as",
+            "syntax",
+            "--syntax",
+            "GruvboxDark",
+        ],
+    )
+    .assert()
+    .success();
+    assert!(
+        fs::read_to_string(config_home.join("snip/themes/syntax.toml"))
+            .unwrap()
+            .contains("theme = \"GruvboxDark\"")
+    );
+    theme_command(
+        &config_home,
+        &[
+            "theme",
+            "import",
+            scheme.to_str().unwrap(),
+            "--as",
+            "bad-syntax",
+            "--syntax",
+            "NotAThing",
+        ],
+    )
+    .assert()
+    .failure();
+    assert!(!config_home.join("snip/themes/bad-syntax.toml").exists());
+
+    let invalid = temporary.path().join("invalid.yaml");
+    fs::write(&invalid, source.replace("base0A:", "base0a:")).unwrap();
+    let output = theme_command(
+        &config_home,
+        &[
+            "theme",
+            "import",
+            invalid.to_str().unwrap(),
+            "--as",
+            "invalid",
+        ],
+    )
+    .output()
+    .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains(invalid.to_str().unwrap()) && stderr.contains("base0A"));
+    assert!(!config_home.join("snip/themes/invalid.toml").exists());
+
+    theme_command(&config_home, &["theme", "import", "-"])
+        .write_stdin(source)
+        .assert()
+        .failure();
+    theme_command(
+        &config_home,
+        &["theme", "import", "-", "--as", "stdin-theme"],
+    )
+    .write_stdin(source)
+    .assert()
+    .success();
+}
+
+#[test]
 fn cli_manages_snippet_fragments_folders_tags_and_trash() {
     let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Manage.sniplib");

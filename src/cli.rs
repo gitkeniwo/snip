@@ -602,6 +602,23 @@ pub enum ThemeCommand {
         #[arg(long)]
         force: bool,
     },
+    /// Convert a base16 scheme file into a user theme.
+    Import {
+        /// Path to a base16 or base24 scheme file, or "-" to read stdin.
+        path: PathBuf,
+        /// Name to save it under. Defaults to the file stem.
+        #[arg(long)]
+        r#as: Option<String>,
+        /// Use an embedded syntax theme instead of deriving one from the palette.
+        #[arg(long)]
+        syntax: Option<String>,
+        /// Overwrite an existing theme file.
+        #[arg(long)]
+        force: bool,
+        /// Convert and print the theme without writing anything.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Select a theme for its appearance slot and save it to the config.
     Use {
         name: String,

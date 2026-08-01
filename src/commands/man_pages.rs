@@ -56,6 +56,7 @@ pub static PAGES: &[(&str, &[u8])] = &[
     ("snip-tag.1", include_bytes!("../../man/snip-tag.1")),
     ("snip-theme-check.1", include_bytes!("../../man/snip-theme-check.1")),
     ("snip-theme-export.1", include_bytes!("../../man/snip-theme-export.1")),
+    ("snip-theme-import.1", include_bytes!("../../man/snip-theme-import.1")),
     ("snip-theme-list.1", include_bytes!("../../man/snip-theme-list.1")),
     ("snip-theme-path.1", include_bytes!("../../man/snip-theme-path.1")),
     ("snip-theme-show.1", include_bytes!("../../man/snip-theme-show.1")),

@@ -1,5 +1,6 @@
 use std::fs;
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal, Read};
+use std::path::Path;
 
 use serde::Serialize;
 use serde_json::json;
@@ -22,6 +23,18 @@ struct ListRecord {
     error: Option<String>,
 }
 
+#[derive(Serialize)]
+struct ImportRecord<'a> {
+    name: String,
+    display_name: String,
+    appearance: Appearance,
+    source: Option<String>,
+    path: Option<std::path::PathBuf>,
+    warnings: Vec<validate::Check>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    theme: Option<&'a Theme>,
+}
+
 pub fn command_theme(args: &ThemeArgs, explicit_output: Option<OutputMode>) -> Result<()> {
     let config = AppConfig::load()?;
     let output = resolve_output(explicit_output, &config);
@@ -36,6 +49,20 @@ pub fn command_theme(args: &ThemeArgs, explicit_output: Option<OutputMode>) -> R
         ThemeCommand::Export { name, r#as, force } => {
             command_export(name, r#as.as_deref(), *force, output)
         }
+        ThemeCommand::Import {
+            path,
+            r#as,
+            syntax,
+            force,
+            dry_run,
+        } => command_import(
+            path,
+            r#as.as_deref(),
+            syntax.as_deref(),
+            *force,
+            *dry_run,
+            output,
+        ),
         ThemeCommand::Use { name, appearance } => command_use(name, *appearance, &config, output),
     }
 }
@@ -189,7 +216,7 @@ fn command_export(
     fs::create_dir_all(&directory).map_err(|error| {
         SnipError::io(format!("cannot create {}: {error}", directory.display()))
     })?;
-    fs::write(&path, toml::to_string_pretty(&theme)?)
+    fs::write(&path, snip::theme::to_toml(&theme)?)
         .map_err(|error| SnipError::io(format!("cannot write {}: {error}", path.display())))?;
     if output == OutputMode::Human {
         println!("exported: {}", path.display());
@@ -197,6 +224,140 @@ fn command_export(
         print_record(&json!({ "name": new_name, "path": path }), output)?;
     }
     Ok(())
+}
+
+fn command_import(
+    path: &Path,
+    save_as: Option<&str>,
+    syntax: Option<&str>,
+    force: bool,
+    dry_run: bool,
+    output: OutputMode,
+) -> Result<()> {
+    let stdin = path == Path::new("-");
+    let text = if stdin {
+        let mut text = String::new();
+        io::stdin()
+            .read_to_string(&mut text)
+            .map_err(|error| SnipError::io(format!("cannot read stdin: {error}")))?;
+        text
+    } else {
+        fs::read_to_string(path)
+            .map_err(|error| SnipError::io(format!("cannot read {}: {error}", path.display())))?
+    };
+    let raw_stem = if stdin {
+        None
+    } else {
+        path.file_stem().and_then(|value| value.to_str())
+    };
+    let name = match save_as {
+        Some(name) => name.to_owned(),
+        None if stdin => {
+            return Err(SnipError::validation(
+                "--as is required when importing from stdin",
+            ));
+        }
+        None => raw_stem
+            .map(derived_name)
+            .filter(|name| snip::theme::validate_theme_name(name).is_ok())
+            .ok_or_else(|| {
+                SnipError::validation(format!(
+                    "cannot derive a theme name from {}: pass --as",
+                    path.display()
+                ))
+            })?,
+    };
+    snip::theme::validate_theme_name(&name)?;
+    let source_label = if stdin {
+        "stdin".to_owned()
+    } else {
+        path.display().to_string()
+    };
+    let scheme = snip::theme::base16::parse_scheme(&text)
+        .map_err(|error| SnipError::validation(format!("{source_label}: {error}")))?;
+    let source = match raw_stem {
+        Some(stem) => format!("base16:{stem}"),
+        None => "base16:stdin".to_owned(),
+    };
+    let theme = snip::theme::base16::scheme_to_theme(&scheme, &name, &source, syntax)?;
+    let checks = validate::check(&theme);
+    let failures = checks
+        .iter()
+        .filter(|check| check.level == Level::Fail)
+        .map(|check| format!("{} ({})", check.id, check.detail))
+        .collect::<Vec<_>>();
+    if !failures.is_empty() {
+        return Err(SnipError::validation(format!(
+            "theme {name} fails validation: {}",
+            failures.join("; ")
+        )));
+    }
+    let warnings = checks
+        .iter()
+        .filter(|check| check.level == Level::Warn)
+        .cloned()
+        .collect::<Vec<_>>();
+    for warning in &warnings {
+        eprintln!("warning: {}: {}", warning.id, warning.detail);
+    }
+    if snip::theme::builtin::THEMES
+        .iter()
+        .any(|(builtin, _)| *builtin == name)
+    {
+        eprintln!("note: {name} shadows a built-in theme");
+    }
+    let target = if dry_run {
+        None
+    } else {
+        let directory = snip::theme::themes_dir()?;
+        let target = directory.join(format!("{name}.toml"));
+        if target.exists() && !force {
+            return Err(SnipError::validation(format!(
+                "{} already exists; pass --force to overwrite",
+                target.display()
+            )));
+        }
+        fs::create_dir_all(&directory).map_err(|error| {
+            SnipError::io(format!("cannot create {}: {error}", directory.display()))
+        })?;
+        fs::write(&target, snip::theme::to_toml(&theme)?).map_err(|error| {
+            SnipError::io(format!("cannot write {}: {error}", target.display()))
+        })?;
+        Some(target)
+    };
+    if output == OutputMode::Human {
+        if dry_run {
+            print!("{}", snip::theme::to_toml(&theme)?);
+        } else {
+            println!(
+                "imported: {}",
+                target
+                    .as_ref()
+                    .expect("non-dry-run imports always have a target")
+                    .display()
+            );
+        }
+        return Ok(());
+    }
+    print_record(
+        &ImportRecord {
+            name,
+            display_name: theme.display_name.clone(),
+            appearance: theme.appearance,
+            source: theme.source.clone(),
+            path: target,
+            warnings,
+            theme: dry_run.then_some(&theme),
+        },
+        output,
+    )
+}
+
+fn derived_name(stem: &str) -> String {
+    stem.to_ascii_lowercase()
+        .replace(['_', ' '], "-")
+        .trim_matches('-')
+        .to_owned()
 }
 
 fn appearance(value: AppearanceArg) -> Appearance {
