@@ -1,3 +1,4 @@
+pub mod base16;
 pub mod builtin;
 pub mod color;
 pub mod syntax;
@@ -14,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::{TuiConfig, TuiThemeSetting, config_path};
 use crate::error::{Result, SnipError};
 
-pub use color::{NamedColor, ThemeColor};
+pub use color::{NamedColor, ThemeColor, ensure_contrast};
 
 pub const THEME_SCHEMA_VERSION: u32 = 1;
 const MAX_EXTENDS_DEPTH: usize = 8;
@@ -421,6 +422,12 @@ pub fn themes_dir() -> Result<PathBuf> {
         .parent()
         .expect("config path has a parent")
         .join("themes"))
+}
+
+/// Render a theme as the canonical TOML written to `assets/themes/` and to the
+/// user theme directory.
+pub fn to_toml(theme: &Theme) -> Result<String> {
+    Ok(toml::to_string_pretty(theme)?)
 }
 
 /// Read just the `appearance` of a theme that failed to load, so a broken theme

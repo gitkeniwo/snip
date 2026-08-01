@@ -174,6 +174,52 @@ pub fn contrast(left: ThemeColor, right: ThemeColor) -> Option<f64> {
     Some((left.max(right) + 0.05) / (left.min(right) + 0.05))
 }
 
+/// Blend `color` toward white or black — whichever suits `background` — until
+/// it clears `floor`. Returns `color` unchanged when it already does.
+pub fn ensure_contrast(
+    color: ThemeColor,
+    background: ThemeColor,
+    floor: f64,
+) -> Result<ThemeColor> {
+    let (
+        ThemeColor::Rgb(red, green, blue),
+        ThemeColor::Rgb(background_red, background_green, background_blue),
+    ) = (color, background)
+    else {
+        return Err(SnipError::validation(format!(
+            "cannot adjust {} against {}: both colors must be #rrggbb",
+            color.as_string(),
+            background.as_string()
+        )));
+    };
+    let background = ThemeColor::Rgb(background_red, background_green, background_blue);
+    if contrast(color, background).expect("RGB colors have contrast") >= floor {
+        return Ok(color);
+    }
+    let target = if relative_luminance(background).expect("RGB colors have luminance") < 0.5 {
+        (255, 255, 255)
+    } else {
+        (0, 0, 0)
+    };
+    for step in 1..=255_u16 {
+        let blend = |from: u8, to: u8| {
+            ((u16::from(from) * (255 - step) + u16::from(to) * step + 127) / 255) as u8
+        };
+        let candidate = ThemeColor::Rgb(
+            blend(red, target.0),
+            blend(green, target.1),
+            blend(blue, target.2),
+        );
+        if contrast(candidate, background).expect("RGB colors have contrast") >= floor {
+            return Ok(candidate);
+        }
+    }
+    Err(SnipError::validation(format!(
+        "cannot adjust {} to contrast {floor:.1}",
+        color.as_string()
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,5 +284,28 @@ mod tests {
             };
             assert_eq!(ThemeColor::parse(&color.as_string(), role).unwrap(), color);
         }
+    }
+
+    #[test]
+    fn ensure_contrast_returns_or_adjusts_rgb_colors() {
+        let white = ThemeColor::Rgb(255, 255, 255);
+        let black = ThemeColor::Rgb(0, 0, 0);
+        assert_eq!(ensure_contrast(white, black, 4.5).unwrap(), white);
+
+        let lightened = ensure_contrast(
+            ThemeColor::Rgb(40, 40, 40),
+            ThemeColor::Rgb(20, 20, 20),
+            4.5,
+        )
+        .unwrap();
+        assert!(contrast(lightened, ThemeColor::Rgb(20, 20, 20)).unwrap() >= 4.5);
+        let darkened = ensure_contrast(
+            ThemeColor::Rgb(220, 220, 220),
+            ThemeColor::Rgb(240, 240, 240),
+            4.5,
+        )
+        .unwrap();
+        assert!(contrast(darkened, ThemeColor::Rgb(240, 240, 240)).unwrap() >= 4.5);
+        assert!(ensure_contrast(ThemeColor::Named(NamedColor::White), black, 4.5).is_err());
     }
 }
