@@ -294,6 +294,7 @@ mod tests {
                 locked: false,
                 created_at: created_at.to_owned(),
                 source: None,
+                remotes: vec![],
                 fragments: vec![],
                 extra: Default::default(),
             },

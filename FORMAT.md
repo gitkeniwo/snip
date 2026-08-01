@@ -155,6 +155,7 @@ source_language = "MakefileLexer"
 | `pinned`, `locked` | Default `false`. `locked` asks writers to refuse mutation. |
 | `created_at` | RFC 3339, authoritative — unlike modification time, which is derived. |
 | `source` | OPTIONAL import provenance. `kind` is required within it. |
+| `remotes` | OPTIONAL published copies; see [Remotes](#remotes). |
 | `fragments` | At least one. Order is presentation order. |
 
 Per fragment: `id` (unique within the snippet), `title`, `language`, `file`, an
@@ -223,6 +224,43 @@ Each entry is fed to the hasher as four pieces:
 Length-prefixing both parts is what makes the hash unambiguous: without it, a
 rename could be indistinguishable from an edit. Names are the path strings as
 written in the manifest, not resolved paths. `attachments/` is not hashed.
+
+## Remotes
+
+A snippet MAY record where it has been published. Each entry is one
+destination; a snippet has at most one entry per `kind`.
+
+```toml
+[[remotes]]
+kind = "gist"
+host = "github.com"
+id = "5b0e0062eb8e9654adad7bb1d81cc75f"
+url = "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f"
+public = false
+description = "Brewfile"
+files = ["001-Brewfile", "README.md"]
+pushed_at = "2026-08-01T10:00:00Z"
+pushed_digest = "…"
+```
+
+| Field | Notes |
+|---|---|
+| `kind` | Required. `gist` is the only kind schema v1 defines. |
+| `host`, `id`, `url` | Required. Identify the published copy. |
+| `public` | Whether the remote copy is publicly listed. Defaults to `false`. |
+| `description` | The description last sent, which may differ from the title. |
+| `files` | The remote filenames this writer published, so a later push knows which to remove. Files not in this list belong to someone else and MUST NOT be deleted. |
+| `pushed_at` | RFC 3339 timestamp of the last successful publish. |
+| `pushed_digest` | Hash of the payload last published. |
+
+`pushed_digest` is deliberately not a snippet fingerprint: recording the entry
+changes `snippet.toml`, so a fingerprint captured at publish time would be
+stale immediately. It is BLAKE3 over the domain tag `snip-gist-payload-v1`,
+then each published `(filename, content)` pair in filename order, then the
+description — every piece length-prefixed as a little-endian `u64`, exactly as
+in the fingerprint above.
+
+Remotes carry no authority: deleting the entry loses the link, not the snippet.
 
 ## Trash
 
