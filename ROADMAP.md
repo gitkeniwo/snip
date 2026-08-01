@@ -90,3 +90,11 @@ themes cheap to extend.
   workflows push prebuilt binaries and `nix run` / `nix profile install`
   download them instead of building from source. (verified working on
   x86_64-linux, aarch64-linux, and aarch64-darwin)
+
+### Arch binary package
+
+- [x] Ship `sniplab-bin` on the AUR so Arch users can
+  `yay -S sniplab-bin` without compiling. The release `aur` job now renders
+  both `sniplab` (source) and `sniplab-bin` (prebuilt) PKGBUILDs, and the
+  portable Linux archives carry `LICENSE` and `README.md` for the package
+  to install. The AUR repo is auto-created on the first push.

@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`sniplab-bin` AUR package.** Arch users can install the release binary
+  without compiling (`yay -S sniplab-bin`). The release pipeline now maintains
+  both the source `sniplab` and prebuilt `sniplab-bin` PKGBUILDs; the two
+  conflict so only one is installed at a time.
+
+### Changed
+
+- The portable Unix release archives now also carry `LICENSE` and `README.md`,
+  so a packaged install can install the license text and docs.
+
 ## [0.4.0] - 2026-08-01
 
 ### Added

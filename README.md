@@ -74,15 +74,17 @@ On arm64, swap `x86_64` for `aarch64`.
 
 ### Arch Linux
 
-From the AUR. Builds from release source rather than repackaging the
-Ubuntu-built binary:
+From the AUR. The prebuilt `sniplab-bin` installs the release binary without
+compiling:
 
 ```bash
-yay -S sniplab
+yay -S sniplab-bin
 ```
 
-`paru -S sniplab` works too, or clone `https://aur.archlinux.org/sniplab.git`
-and run `makepkg -si`.
+`paru -S sniplab-bin` works too. If you prefer to build from source, install
+`sniplab` instead (or clone `https://aur.archlinux.org/sniplab.git` and run
+`makepkg -si`). Both packages provide `snip`, so they conflict with each
+other.
 
 ### Nix
 
