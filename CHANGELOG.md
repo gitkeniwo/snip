@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.1] - 2026-08-01
 
 ### Added
 
@@ -16,11 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without compiling (`yay -S sniplab-bin`). The release pipeline now maintains
   both the source `sniplab` and prebuilt `sniplab-bin` PKGBUILDs; the two
   conflict so only one is installed at a time.
+- **Fedora Copr builds.** Every release is submitted as a source-built SRPM to
+  the `gitkeniwo/snip` Copr project, so Fedora and Enterprise Linux 10 users can
+  `dnf copr enable gitkeniwo/snip && dnf install sniplab` and let `dnf upgrade`
+  pick up new releases. Dependencies are vendored into the SRPM because Copr
+  builds run in mock without network access; the step is skipped when
+  `COPR_API_CONFIG` is unset.
 
 ### Changed
 
 - The portable Unix release archives now also carry `LICENSE` and `README.md`,
   so a packaged install can install the license text and docs.
+
+### Fixed
+
+- Theme validation warnings no longer pin a message over the bottom bar
+  indefinitely. Warnings were re-emitted on every auto tick and surfaced on
+  startup; they are now shown only when the theme actually changes, and the
+  `computed-foreground` finding — an automatic black/white fallback that is
+  never actionable at runtime — is downgraded to a Note-level result that
+  cannot pin a warning at all.
 
 ## [0.4.0] - 2026-08-01
 
@@ -223,6 +238,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.4.1]: https://github.com/gitkeniwo/snip/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/gitkeniwo/snip/compare/v0.3.2...v0.4.0
 [0.3.1]: https://github.com/gitkeniwo/snip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gitkeniwo/snip/compare/v0.2.1...v0.3.0
