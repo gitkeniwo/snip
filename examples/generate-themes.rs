@@ -238,13 +238,12 @@ fn render_theme(spec: ThemeSpec, scheme: &Scheme) -> Result<String, String> {
         } else {
             background
         };
-        let value = if matches!(
-            role,
-            "muted" | "bar_fg" | "tag" | "warning" | "error" | "success"
-        ) {
-            ensure_contrast(mapped, reference, 3.0)?
-        } else {
-            mapped.to_owned()
+        let value = match role {
+            "muted" | "bar_fg" | "tag" | "accent" | "accent_alt" | "warning" | "error"
+            | "success" => ensure_contrast(mapped, reference, 4.5)?,
+            "rule" => ensure_contrast(mapped, reference, 3.0)?,
+            "border" => ensure_contrast(mapped, reference, 2.5)?,
+            _ => mapped.to_owned(),
         };
         output.push_str(&format!("{role} = {value:?}\n"));
     }

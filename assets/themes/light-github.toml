@@ -20,9 +20,9 @@ pill_secondary = "#8c959f"
 bar_bg = "#f6f8fa"
 bar_fg = "#424a53"
 tag = "#0550ae"
-rule = "#afb8c1"
+rule = "#8e959d"
 success = "#0a3069"
-warning = "#bf8700"
+warning = "#9c6e00"
 error = "#953800"
 
 [syntax]
