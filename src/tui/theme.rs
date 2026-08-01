@@ -112,16 +112,48 @@ impl TuiTheme {
 
     pub fn selected(self) -> Style {
         Style::default()
-            .fg(self.selection_fg)
+            .fg(self.legible_on(self.selection_bg, self.selection_fg))
             .bg(self.selection_bg)
             .add_modifier(Modifier::BOLD)
     }
 
     pub fn retained_selection(self) -> Style {
         Style::default()
-            .fg(self.accent)
+            .fg(self.legible_on(self.retained_bg, self.accent))
             .bg(self.retained_bg)
             .add_modifier(Modifier::BOLD)
+    }
+
+    /// Foreground that stays legible on `background`.
+    ///
+    /// Returns `preferred` when it already clears the 4.5 body-text floor.
+    /// Otherwise picks the most legible of the theme's own surface colours,
+    /// falling back to black or white. Returns `preferred` unchanged when the
+    /// background is terminal-defined and its luminance is unknowable.
+    pub fn legible_on(self, background: Color, preferred: Color) -> Color {
+        let Some(background_luminance) = luminance(background) else {
+            return preferred;
+        };
+        if contrast_with_luminance(preferred, background_luminance)
+            .is_some_and(|value| value >= 4.5)
+        {
+            return preferred;
+        }
+
+        [
+            self.foreground,
+            self.background,
+            Some(Color::Rgb(0, 0, 0)),
+            Some(Color::Rgb(255, 255, 255)),
+        ]
+        .into_iter()
+        .flatten()
+        .filter_map(|candidate| {
+            contrast_with_luminance(candidate, background_luminance).map(|value| (candidate, value))
+        })
+        .max_by(|(_, left), (_, right)| left.total_cmp(right))
+        .map(|(candidate, _)| candidate)
+        .expect("black and white always have known luminance")
     }
 }
 
@@ -185,6 +217,50 @@ fn color(value: ThemeColor) -> Color {
     }
 }
 
+fn luminance(color: Color) -> Option<f64> {
+    let [red, green, blue] = match color {
+        Color::Rgb(red, green, blue) => [red, green, blue],
+        Color::Indexed(index @ 16..=231) => {
+            const COMPONENTS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+            let index = index - 16;
+            [
+                COMPONENTS[usize::from(index / 36)],
+                COMPONENTS[usize::from(index % 36 / 6)],
+                COMPONENTS[usize::from(index % 6)],
+            ]
+        }
+        Color::Indexed(index @ 232..=255) => {
+            let value = 8 + 10 * (index - 232);
+            [value, value, value]
+        }
+        _ => return None,
+    };
+    let channel = |value: u8| {
+        let value = f64::from(value) / 255.0;
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    Some(0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue))
+}
+
+#[cfg(test)]
+fn contrast(left: Color, right: Color) -> Option<f64> {
+    let left = luminance(left)?;
+    let right = luminance(right)?;
+    Some((left.max(right) + 0.05) / (left.min(right) + 0.05))
+}
+
+fn contrast_with_luminance(color: Color, background_luminance: f64) -> Option<f64> {
+    let color_luminance = luminance(color)?;
+    Some(
+        (color_luminance.max(background_luminance) + 0.05)
+            / (color_luminance.min(background_luminance) + 0.05),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +279,58 @@ mod tests {
             resolve_appearance(TuiThemeSetting::Dark, None),
             Appearance::Dark
         );
+    }
+
+    #[test]
+    fn legible_on_preserves_a_preferred_color_that_clears_the_floor() {
+        let theme = TuiTheme::default_for(Appearance::Dark);
+        let preferred = Color::Rgb(255, 255, 255);
+
+        assert_eq!(theme.legible_on(Color::Rgb(0, 0, 0), preferred), preferred);
+    }
+
+    #[test]
+    fn legible_on_replaces_a_preferred_color_that_misses_the_floor() {
+        let theme = TuiTheme::default_for(Appearance::Dark);
+        let background = Color::Rgb(255, 255, 255);
+        let result = theme.legible_on(background, Color::Rgb(240, 240, 240));
+
+        assert!(contrast(result, background).unwrap() >= 4.5);
+    }
+
+    #[test]
+    fn legible_on_clears_the_floor_for_every_built_in_theme() {
+        for (name, _) in crate::theme::builtin::THEMES {
+            let theme = TuiTheme::from(&crate::theme::load(name).unwrap());
+            for (label, background, preferred) in [
+                ("pill key", theme.pill_primary, theme.selection_fg),
+                ("bar foreground", theme.bar_bg, theme.bar_fg),
+                ("retained selection", theme.retained_bg, theme.accent),
+                ("selected row", theme.selection_bg, theme.selection_fg),
+                ("selected accent", theme.selection_bg, theme.accent),
+                ("selected accent_alt", theme.selection_bg, theme.accent_alt),
+                ("selected muted", theme.selection_bg, theme.muted),
+                ("pill breadcrumb", theme.pill_secondary, theme.bar_fg),
+                ("pill action", theme.pill_secondary, theme.pill_primary),
+                ("pill trash action", theme.pill_secondary, theme.accent_alt),
+                ("pill muted", theme.pill_secondary, theme.muted),
+                ("pill rule", theme.pill_secondary, theme.rule),
+                ("pill tag", theme.pill_secondary, theme.tag),
+                ("pill success", theme.pill_secondary, theme.success),
+                ("pill warning", theme.pill_secondary, theme.warning),
+                ("pill error", theme.pill_secondary, theme.error),
+                ("trash primary", theme.accent_alt, theme.selection_fg),
+                ("search primary", theme.warning, theme.selection_fg),
+            ] {
+                let Some(_) = luminance(background) else {
+                    continue;
+                };
+                let result = theme.legible_on(background, preferred);
+                assert!(
+                    contrast(result, background).unwrap() >= 4.5,
+                    "theme {name} {label}: {result:?} is not legible on {background:?}"
+                );
+            }
+        }
     }
 }

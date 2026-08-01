@@ -48,7 +48,7 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
 fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> Line<'static> {
     let primary_style = Style::default()
-        .fg(app.theme.selection_fg)
+        .fg(app.theme.legible_on(primary, app.theme.selection_fg))
         .bg(primary)
         .add_modifier(Modifier::BOLD);
     if width < 15 {
@@ -60,7 +60,9 @@ fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> 
     }
 
     let secondary = app.theme.pill_secondary;
-    let secondary_style = Style::default().fg(app.theme.bar_fg).bg(secondary);
+    let secondary_style = Style::default()
+        .fg(app.theme.legible_on(secondary, app.theme.bar_fg))
+        .bg(secondary);
     let mut spans = vec![
         widgets::pill_cap(widgets::PILL_OPEN, primary, app.theme.bar_bg),
         Span::styled(" snip ", primary_style),
@@ -99,7 +101,7 @@ fn top_position_pill(
         spans.push(Span::styled(
             format!(" {git} "),
             Style::default()
-                .fg(color)
+                .fg(theme.legible_on(secondary, color))
                 .bg(secondary)
                 .add_modifier(Modifier::BOLD),
         ));
@@ -120,7 +122,7 @@ fn top_position_pill(
         spans.push(Span::styled(
             format!(" {sort} "),
             Style::default()
-                .fg(primary)
+                .fg(theme.legible_on(secondary, primary))
                 .bg(secondary)
                 .add_modifier(Modifier::BOLD),
         ));
@@ -131,7 +133,7 @@ fn top_position_pill(
     spans.push(Span::styled(
         format!(" {counts} "),
         Style::default()
-            .fg(theme.selection_fg)
+            .fg(theme.legible_on(primary, theme.selection_fg))
             .bg(primary)
             .add_modifier(Modifier::BOLD),
     ));
@@ -168,17 +170,26 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
             ];
         }
     }
-    let mut spans = vec![Span::styled("~", base.fg(app.theme.muted))];
+    let secondary = app.theme.pill_secondary;
+    let mut spans = vec![Span::styled(
+        "~",
+        base.fg(app.theme.legible_on(secondary, app.theme.muted)),
+    )];
     let last = segments.len().saturating_sub(1);
     for (index, segment) in segments.into_iter().enumerate() {
-        spans.push(Span::styled(" › ", base.fg(app.theme.rule)));
+        spans.push(Span::styled(
+            " › ",
+            base.fg(app.theme.legible_on(secondary, app.theme.rule)),
+        ));
         let style = if index == last {
             if segment.starts_with('#') {
-                base.fg(app.theme.tag).add_modifier(Modifier::BOLD)
+                base.fg(app.theme.legible_on(secondary, app.theme.tag))
+                    .add_modifier(Modifier::BOLD)
             } else if segment == "All snippets" {
-                base.fg(app.theme.muted)
+                base.fg(app.theme.legible_on(secondary, app.theme.muted))
             } else {
-                base.fg(app.theme.pill_primary).add_modifier(Modifier::BOLD)
+                base.fg(app.theme.legible_on(secondary, app.theme.pill_primary))
+                    .add_modifier(Modifier::BOLD)
             }
         } else {
             base

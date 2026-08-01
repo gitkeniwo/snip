@@ -647,8 +647,10 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
         }
         if selected {
             for span in &mut spans {
+                let preferred = span.style.fg.unwrap_or(app.theme.selection_fg);
                 span.style = span
                     .style
+                    .fg(app.theme.legible_on(app.theme.selection_bg, preferred))
                     .bg(app.theme.selection_bg)
                     .add_modifier(Modifier::BOLD);
             }

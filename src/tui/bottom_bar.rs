@@ -238,7 +238,7 @@ fn shortcut_pills_with_primary(
         spans.push(Span::styled(
             (*key).to_owned(),
             Style::default()
-                .fg(theme.selection_fg)
+                .fg(theme.legible_on(primary, theme.selection_fg))
                 .bg(primary)
                 .add_modifier(Modifier::BOLD),
         ));
@@ -253,7 +253,7 @@ fn shortcut_pills_with_primary(
             spans.push(Span::styled(
                 format!(" {action}"),
                 Style::default()
-                    .fg(primary)
+                    .fg(theme.legible_on(secondary, primary))
                     .bg(secondary)
                     .add_modifier(Modifier::BOLD),
             ));

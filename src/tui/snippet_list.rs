@@ -31,7 +31,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 let line = if app.focus != super::state::Pane::List
                     && app.list_state.selected() == Some(index)
                 {
-                    line.style(app.theme.retained_selection())
+                    retained_line(line, app.theme)
                 } else {
                     line
                 };
@@ -78,13 +78,25 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             let first = if app.focus != super::state::Pane::List
                 && app.list_state.selected() == Some(index)
             {
-                first.style(app.theme.retained_selection())
+                retained_line(first, app.theme)
             } else {
                 first
             };
             Some(ListItem::new(vec![first, second]))
         })
         .collect()
+}
+
+fn retained_line(mut line: Line<'static>, theme: super::theme::TuiTheme) -> Line<'static> {
+    for span in &mut line.spans {
+        let preferred = span.style.fg.unwrap_or(theme.accent);
+        span.style = span
+            .style
+            .fg(theme.legible_on(theme.retained_bg, preferred))
+            .bg(theme.retained_bg)
+            .add_modifier(Modifier::BOLD);
+    }
+    line
 }
 
 fn compact_line(
