@@ -275,6 +275,25 @@ credentials — a push needing a passphrase fails fast instead of hanging you.
 Automatic commits and pushes are a TUI feature driven by user config; do not
 count on them having run.
 
+## Sharing
+
+`snip gist` publishes a snippet to GitHub Gists through `gh`, recording the link
+in the snippet's `snippet.toml`:
+
+```bash
+snip gist push Brewfile              # create or update the gist
+snip gist url Brewfile --copy        # print and copy the link
+snip gist status Brewfile            # clean / modified / unlinked
+snip gist attach Brewfile <gist-id>  # adopt an existing gist
+snip gist detach Brewfile            # forget the link, keep the gist
+snip gist delete Brewfile --yes      # delete the gist on GitHub
+```
+
+`push` is an upsert: the first run creates the gist, later runs update the same
+one, and an unchanged snippet skips the network. A `validation_error` means the
+snippet has an empty fragment that GitHub would drop; `not_found` (exit 3) on
+`url`/`detach`/`delete`/`open` means the snippet has no gist record.
+
 ## Errors
 
 Errors print one JSON object under `--output json` and set a distinct exit code,

@@ -58,12 +58,15 @@ themes cheap to extend.
 
 ### Publish a snippet as a Gist
 
-- [ ] `snip` gains a command to publish a single snippet to GitHub or GitLab
-  as a gist, shelling out to `gh` (and `glab`) rather than embedding an API
-  client or handling tokens.
-- [ ] Decisions still open: whether fragments become multiple gist files,
-  whether the gist URL is recorded back into the snippet, and what update and
-  delete look like.
+- [x] `snip gist` publishes a snippet to GitHub Gists through `gh`, with no
+  embedded API client and no token handling. Fragments become gist files, the
+  README becomes `README.md`, and the gist is recorded in `snippet.toml` so
+  `push` keeps the same URL. `push`, `url`, `status`, `attach`, `detach`,
+  `delete`, and `open` are the command set.
+- [ ] GitLab snippets through `glab`, reusing the `[[remotes]]` record with a
+  second `kind`.
+- [ ] TUI integration: publish and copy-link from the command palette, and a
+  marker in the snippet list for published snippets.
 
 ## Packaging
 

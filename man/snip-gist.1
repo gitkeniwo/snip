@@ -1,0 +1,68 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-gist 1  "snip 0.4.1" 
+.SH NAME
+snip\-gist \- Publish snippets to GitHub Gists through the gh CLI
+.SH SYNOPSIS
+\fBsnip gist\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+.SH DESCRIPTION
+Publish snippets to GitHub Gists through the gh CLI
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH SUBCOMMANDS
+.TP
+snip\-gist\-push(1)
+Create the snippet\*(Aqs gist, or update it when one already exists
+.TP
+snip\-gist\-url(1)
+Print the URL of the snippet\*(Aqs gist
+.TP
+snip\-gist\-status(1)
+Report whether a snippet\*(Aqs gist is current
+.TP
+snip\-gist\-attach(1)
+Record an existing gist as this snippet\*(Aqs gist
+.TP
+snip\-gist\-detach(1)
+Forget a snippet\*(Aqs gist without deleting it on GitHub
+.TP
+snip\-gist\-delete(1)
+Delete the snippet\*(Aqs gist on GitHub and forget it
+.TP
+snip\-gist\-open(1)
+Open the snippet\*(Aqs gist in a browser

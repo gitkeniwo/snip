@@ -20,7 +20,7 @@ Runs on Linux, macOS, and Windows.
 - [AI agent skills](#ai-agent-skills) · [Configuration](#configuration)
 - [Files are the database](#files-are-the-database) · [Preview and editing](#preview-and-editing)
 - [SnippetsLab migration](#snippetslab-migration) · [Git backup and deletion](#git-backup-and-deletion)
-- [Manual pages](#manual-pages) · [Shell completion](#shell-completion)
+- [Share as a gist](#share-as-a-gist) · [Manual pages](#manual-pages) · [Shell completion](#shell-completion)
 - [Development](#development) · [License](#license)
 
 ## Install
@@ -590,6 +590,47 @@ rejected, pull and resolve it in your terminal.
 
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
 back. Permanent deletion requires `snip purge SELECTOR --yes`.
+
+## Share as a gist
+
+`snip gist` publishes a snippet to GitHub Gists. It shells out to the
+[GitHub CLI](https://cli.github.com), so snip never handles a token. Install
+`gh`, run `gh auth login` once, and make sure the token carries the `gist`
+scope:
+
+```bash
+gh auth refresh -h github.com -s gist
+```
+
+Each fragment becomes one gist file, so a multi-fragment snippet arrives as a
+multi-file gist. The snippet title becomes the gist description, and the README
+becomes `README.md` in the gist. Gists are secret unless you pass `--public`.
+
+```bash
+snip gist push Brewfile
+snip gist push Brewfile --public --desc "my Homebrew bundle"
+snip gist url Brewfile --copy
+snip gist status Brewfile
+snip gist push Brewfile          # pushes again after an edit
+snip gist delete Brewfile --yes
+```
+
+`push` creates the gist the first time and updates it afterwards, keeping the
+same URL so a link you have already shared stays valid. It records the gist in
+the snippet's `snippet.toml`, so the link travels with the library. When
+nothing has changed since the last push, `push` says so and makes no network
+call.
+
+`status` compares the snippet against the last push without touching the
+network; add `--remote` to also check that the gist still exists. `attach`
+adopts a gist you created elsewhere, and `detach` forgets one without deleting
+it on GitHub.
+
+A gist's visibility is fixed when it is created — GitHub has no way to turn a
+secret gist public. Push a new one with `--new` if you need to change it.
+
+snip only manages the files it published. A file you add to the gist in the
+browser is left alone.
 
 ## Manual pages
 
