@@ -1,5 +1,6 @@
 pub mod config;
 pub mod folder_tag;
+pub mod gist;
 mod install;
 pub mod man;
 mod man_pages;
@@ -85,6 +86,7 @@ pub fn run(cli: &Cli) -> Result<()> {
         Command::Doctor(args) => system::command_doctor(&library, args, output),
         Command::Organize(args) => system::command_organize(&library, args, output),
         Command::Git(args) => system::command_git(&library, args, output),
+        Command::Gist(args) => gist::command_gist(&library, args, output),
         Command::Config(_)
         | Command::Init(_)
         | Command::Import(_)
