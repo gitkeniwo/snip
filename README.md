@@ -1,6 +1,6 @@
 # snip
 
-<img width="993" height="657" alt="image" src="https://github.com/user-attachments/assets/9d72c109-f3bb-4b35-b0d4-436c2220e2ad" />
+<img width="1135" height="769" alt="image" src="https://github.com/user-attachments/assets/95eb8ecb-189e-4cfa-8a1d-e34d32df8b46" />
 
 `snip` is a snippet manager that keeps its library in plain files. Code, notes,
 and metadata are ordinary text you can grep, diff, edit in any editor, and put
