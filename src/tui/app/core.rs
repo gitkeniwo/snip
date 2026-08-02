@@ -80,6 +80,7 @@ impl App {
             list_state: ListState::default(),
             selected_id: None,
             fragment_index: 0,
+            fragment_grab: None,
             preview_scroll: 0,
             show_line_numbers,
             fragments_expanded: false,

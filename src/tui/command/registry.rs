@@ -20,7 +20,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 59] = [
+static COMMANDS: [Command; 63] = [
     command!(
         SnippetNew,
         "snippet.new",
@@ -140,6 +140,46 @@ static COMMANDS: [Command; 59] = [
         Some("d"),
         has_snippet,
         snippet_trash
+    ),
+    command!(
+        FragmentAdd,
+        "fragment.add",
+        "Fragment",
+        "Add Fragment",
+        &["new", "create"],
+        Some("n"),
+        can_add_fragment,
+        fragment_add
+    ),
+    command!(
+        FragmentRename,
+        "fragment.rename",
+        "Fragment",
+        "Rename Fragment",
+        &["title"],
+        Some("r"),
+        can_edit_fragment,
+        fragment_rename
+    ),
+    command!(
+        FragmentReorder,
+        "fragment.reorder",
+        "Fragment",
+        "Move Fragment",
+        &["reorder", "order", "position"],
+        Some("m"),
+        can_reorder_fragment,
+        fragment_reorder
+    ),
+    command!(
+        FragmentRemove,
+        "fragment.remove",
+        "Fragment",
+        "Delete Fragment",
+        &["delete", "remove"],
+        Some("d"),
+        can_remove_fragment,
+        fragment_remove
     ),
     command!(
         CopyContent,

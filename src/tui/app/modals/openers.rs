@@ -1,8 +1,15 @@
+use crate::service::{FragmentAddOptions, add_fragment};
 use crate::tui::app::types::App;
 use crate::tui::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerItem, PickerModal};
 use crate::tui::state::{Pane, SidebarItem, StatusLevel};
 
+use super::super::types::FragmentGrab;
+
 impl App {
+    pub(crate) fn fragment_context(&self) -> bool {
+        self.fragments_expanded && self.focus == Pane::Preview && !self.trash.open
+    }
+
     pub(in super::super) fn open_theme_picker(&mut self) {
         let items = crate::theme::list()
             .into_iter()
@@ -29,6 +36,10 @@ impl App {
     }
 
     pub(in super::super) fn open_new_for_context(&mut self) {
+        if self.fragment_context() {
+            let _ = self.run_command(crate::tui::command::CommandId::FragmentAdd);
+            return;
+        }
         if self.focus != Pane::Sidebar {
             let _ = self.run_command(crate::tui::command::CommandId::SnippetNew);
             return;
@@ -69,6 +80,10 @@ impl App {
     }
 
     pub(in super::super) fn open_delete_for_context(&mut self) {
+        if self.fragment_context() {
+            let _ = self.run_command(crate::tui::command::CommandId::FragmentRemove);
+            return;
+        }
         if self.focus == Pane::Sidebar {
             let selected = self.sidebar.selected().cloned();
             match selected.map(|row| row.item) {
@@ -125,6 +140,10 @@ impl App {
     }
 
     pub(in super::super) fn open_rename_for_context(&mut self) {
+        if self.fragment_context() {
+            let _ = self.run_command(crate::tui::command::CommandId::FragmentRename);
+            return;
+        }
         if self.focus == Pane::Sidebar {
             let selected = self.sidebar.selected().cloned();
             match selected.map(|row| row.item) {
@@ -182,6 +201,10 @@ impl App {
     }
 
     pub(in super::super) fn open_move_for_context(&mut self) {
+        if self.fragment_context() {
+            let _ = self.run_command(crate::tui::command::CommandId::FragmentReorder);
+            return;
+        }
         if self.focus == Pane::Sidebar {
             let _ = self.run_command(crate::tui::command::CommandId::FolderMove);
             return;
@@ -251,5 +274,105 @@ impl App {
             picker.set_filter(current);
         }
         self.modal = Some(Modal::Picker(picker));
+    }
+
+    pub(in super::super) fn open_add_fragment(&mut self) {
+        let Some(snippet) = self.selected_snippet().cloned() else {
+            return;
+        };
+        let mut number = snippet.loaded_fragments.len() + 1;
+        let title = loop {
+            let candidate = format!("Fragment {number}");
+            if snippet
+                .loaded_fragments
+                .iter()
+                .all(|fragment| fragment.title != candidate)
+            {
+                break candidate;
+            }
+            number += 1;
+        };
+        let language = snippet
+            .loaded_fragments
+            .get(self.fragment_index)
+            .map(|fragment| fragment.language.as_str())
+            .filter(|language| !language.is_empty())
+            .or_else(|| {
+                (!self.default_language.is_empty()).then_some(self.default_language.as_str())
+            })
+            .unwrap_or("text")
+            .to_owned();
+        let result = add_fragment(
+            &self.library,
+            &snippet.id.to_string(),
+            &FragmentAddOptions {
+                id: None,
+                title: title.clone(),
+                language,
+                source_language: None,
+                content: String::new(),
+                note: None,
+                if_hash: None,
+                force: false,
+            },
+        );
+        match result {
+            Ok(_) => match self.rescan() {
+                Ok(()) => {
+                    self.fragment_index = self.selected_snippet().map_or(0, |snippet| {
+                        snippet.loaded_fragments.len().saturating_sub(1)
+                    });
+                    self.set_status(format!("{title} added; press e to edit"), StatusLevel::Info);
+                }
+                Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+            },
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
+    pub(in super::super) fn open_rename_fragment(&mut self) {
+        let fragment_index = self.fragment_index;
+        let Some((id, title)) = self.selected_snippet().and_then(|snippet| {
+            snippet
+                .loaded_fragments
+                .get(fragment_index)
+                .map(|fragment| (snippet.id, fragment.title.clone()))
+        }) else {
+            return;
+        };
+        self.modal = Some(Modal::Input(InputModal::new(
+            "Rename fragment",
+            title,
+            ModalAction::RenameFragment { id, fragment_index },
+        )));
+    }
+
+    pub(in super::super) fn open_delete_fragment(&mut self) {
+        let fragment_index = self.fragment_index;
+        let Some((id, title)) = self.selected_snippet().and_then(|snippet| {
+            snippet
+                .loaded_fragments
+                .get(fragment_index)
+                .map(|fragment| (snippet.id, crate::tui::preview::fragment_label(fragment)))
+        }) else {
+            return;
+        };
+        self.modal = Some(Modal::Confirm(ConfirmModal::new(
+            "Delete fragment?",
+            format!("Delete {title:?}? Fragments are not moved to Trash."),
+            ModalAction::DeleteFragment { id, fragment_index },
+            true,
+        )));
+    }
+
+    pub(in super::super) fn start_fragment_grab(&mut self) {
+        self.fragment_grab = Some(FragmentGrab {
+            origin: self.fragment_index,
+            current: self.fragment_index,
+        });
+        self.set_status(
+            "moving fragment; j/k to move, Enter to drop, Esc to cancel",
+            StatusLevel::Info,
+        );
     }
 }

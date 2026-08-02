@@ -1,8 +1,9 @@
 use crate::error::{Result, SnipError};
 use crate::git::GitAction;
 use crate::service::{
-    CreateOptions, EditOptions, create_folder, create_snippet, delete_folder, delete_snippet,
-    delete_tag, edit_snippet, move_folder, purge_snippet, rename_tag,
+    CreateOptions, EditOptions, FragmentEditOptions, create_folder, create_snippet, delete_folder,
+    delete_snippet, delete_tag, edit_fragment, edit_snippet, move_folder, purge_snippet,
+    remove_fragment, rename_tag,
 };
 
 use crate::tui::app::input::gist::GistAction;
@@ -33,6 +34,32 @@ impl App {
                     },
                 )?;
                 "snippet renamed".to_owned()
+            }
+            ModalAction::RenameFragment { id, fragment_index } => {
+                let title = input()?;
+                if title.is_empty() {
+                    return Err(SnipError::usage("fragment title cannot be empty"));
+                }
+                edit_fragment(
+                    &self.library,
+                    &id.to_string(),
+                    &(fragment_index + 1).to_string(),
+                    &FragmentEditOptions {
+                        title: Some(title.to_owned()),
+                        ..FragmentEditOptions::default()
+                    },
+                )?;
+                "fragment renamed".to_owned()
+            }
+            ModalAction::DeleteFragment { id, fragment_index } => {
+                remove_fragment(
+                    &self.library,
+                    &id.to_string(),
+                    &(fragment_index + 1).to_string(),
+                    None,
+                    false,
+                )?;
+                "fragment deleted".to_owned()
             }
             ModalAction::MoveSnippet { id } => {
                 edit_snippet(

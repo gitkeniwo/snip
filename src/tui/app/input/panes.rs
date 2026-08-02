@@ -5,8 +5,65 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::super::super::layout::{contains, inner};
 use super::super::super::state::{Pane, SidebarItem, StatusLevel};
 use super::super::types::App;
+use super::super::types::Effect;
 
 impl App {
+    pub(super) fn handle_fragment_grab_key(&mut self, key: KeyEvent) -> Vec<Effect> {
+        let total = self
+            .selected_snippet()
+            .map_or(0, |snippet| snippet.loaded_fragments.len());
+        let Some(grab) = self.fragment_grab.as_mut() else {
+            return Vec::new();
+        };
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                grab.current = grab.current.saturating_add(1).min(total.saturating_sub(1));
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                grab.current = grab.current.saturating_sub(1);
+            }
+            KeyCode::Esc | KeyCode::Char('-') => {
+                let origin = grab.origin;
+                self.fragment_grab = None;
+                self.fragment_index = origin;
+                self.set_status("move cancelled", StatusLevel::Info);
+            }
+            KeyCode::Enter => {
+                let grab = *grab;
+                if grab.current == grab.origin {
+                    self.fragment_grab = None;
+                    self.set_status("fragment order unchanged", StatusLevel::Info);
+                    return Vec::new();
+                }
+                let Some(id) = self.selected_snippet().map(|snippet| snippet.id) else {
+                    self.fragment_grab = None;
+                    return Vec::new();
+                };
+                let result = crate::service::reorder_fragment(
+                    &self.library,
+                    &id.to_string(),
+                    &(grab.origin + 1).to_string(),
+                    grab.current + 1,
+                    None,
+                    false,
+                );
+                match result {
+                    Ok(_) => match self.rescan() {
+                        Ok(()) => {
+                            self.fragment_index = grab.current;
+                            self.fragment_grab = None;
+                            self.set_status("fragment moved", StatusLevel::Info);
+                        }
+                        Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+                    },
+                    Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+                }
+            }
+            _ => {}
+        }
+        Vec::new()
+    }
+
     pub(super) fn handle_pane_key(&mut self, key: KeyEvent) {
         match self.focus {
             Pane::Sidebar => self.handle_sidebar_key(key),

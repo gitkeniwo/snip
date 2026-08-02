@@ -111,6 +111,65 @@ pub(crate) fn has_trash_selection(app: &App) -> CommandState {
     }
 }
 
+fn fragment_snippet(app: &App) -> Result<&crate::domain::Snippet, CommandState> {
+    let snippet = app
+        .selected_snippet()
+        .ok_or(CommandState::Disabled("no snippet selected"))?;
+    if snippet.locked {
+        Err(CommandState::Disabled(
+            "snippet is locked; use the CLI with --force",
+        ))
+    } else {
+        Ok(snippet)
+    }
+}
+
+pub(crate) fn can_add_fragment(app: &App) -> CommandState {
+    fragment_snippet(app).map_or_else(|state| state, |_| CommandState::Enabled)
+}
+
+pub(crate) fn can_edit_fragment(app: &App) -> CommandState {
+    let snippet = match fragment_snippet(app) {
+        Ok(snippet) => snippet,
+        Err(state) => return state,
+    };
+    if snippet.loaded_fragments.get(app.fragment_index).is_some() {
+        CommandState::Enabled
+    } else {
+        CommandState::Disabled("no fragment selected")
+    }
+}
+
+pub(crate) fn can_reorder_fragment(app: &App) -> CommandState {
+    match can_edit_fragment(app) {
+        CommandState::Enabled => {}
+        state => return state,
+    }
+    if app
+        .selected_snippet()
+        .is_some_and(|snippet| snippet.loaded_fragments.len() >= 2)
+    {
+        CommandState::Enabled
+    } else {
+        CommandState::Disabled("only one fragment to move")
+    }
+}
+
+pub(crate) fn can_remove_fragment(app: &App) -> CommandState {
+    match can_edit_fragment(app) {
+        CommandState::Enabled => {}
+        state => return state,
+    }
+    if app
+        .selected_snippet()
+        .is_some_and(|snippet| snippet.loaded_fragments.len() >= 2)
+    {
+        CommandState::Enabled
+    } else {
+        CommandState::Disabled("cannot delete the only fragment")
+    }
+}
+
 macro_rules! effect {
     ($name:ident, $app:ident => $body:expr) => {
         pub(crate) fn $name($app: &mut App) -> Vec<Effect> {
@@ -164,6 +223,10 @@ effect!(snippet_language, app => app.open_edit_language());
 effect!(snippet_pin, app => app.toggle_pin());
 effect!(snippet_lock, app => app.toggle_lock());
 effect!(snippet_trash, app => app.open_delete_snippet());
+effect!(fragment_add, app => app.open_add_fragment());
+effect!(fragment_rename, app => app.open_rename_fragment());
+effect!(fragment_reorder, app => app.start_fragment_grab());
+effect!(fragment_remove, app => app.open_delete_fragment());
 effect!(folder_new, app => app.open_new_folder());
 effect!(folder_rename, app => app.open_rename_folder());
 effect!(folder_move, app => app.open_move_folder());

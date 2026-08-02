@@ -41,6 +41,8 @@ impl Modal {
 #[derive(Clone, Debug)]
 pub enum ModalAction {
     RenameSnippet { id: Uuid },
+    RenameFragment { id: Uuid, fragment_index: usize },
+    DeleteFragment { id: Uuid, fragment_index: usize },
     MoveSnippet { id: Uuid },
     EditTags { id: Uuid },
     EditLanguage { id: Uuid, fragment_index: usize },
