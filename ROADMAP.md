@@ -85,18 +85,14 @@ never actually correct.
 
 ### Fragment editing
 
-The CLI already defines the full fragment surface — `snip fragment add`,
-`edit`, `remove`, and `reorder` (`FragmentCommand` in `src/cli.rs`) — but the
-TUI has no counterpart: the command registry (`src/tui/command/registry.rs`)
-only exposes `view.toggle-fragment-list`, so fragments can be browsed but not
-created, renamed, reordered, or deleted from the UI.
+The TUI covers the full fragment surface — add, rename, reorder, remove, and
+browsing — via the command registry (`src/tui/command/registry.rs`):
+`n.add`, `n.rename`, `n.reorder`, `n.remove`, and `view.toggle-fragment-list`.
 
-- [ ] Add/create a fragment from the preview's fragment list (mirror
-  `FragmentCommand::Add`).
-- [ ] Rename a fragment title in place (`FragmentCommand::Edit --title`).
-- [ ] Move a fragment to another position within the snippet
-  (`FragmentCommand::Reorder`).
-- [ ] Delete a fragment with a confirmation prompt (`FragmentCommand::Remove`).
+- [x] Add/create a fragment from the preview's fragment tree.
+- [x] Rename a fragment title in place.
+- [x] Move a fragment to another position within the snippet.
+- [x] Delete a fragment with a confirmation prompt.
 
 ### Preview render cost per frame
 
