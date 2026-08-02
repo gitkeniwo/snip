@@ -14,6 +14,7 @@ use snip::git::GitAction;
 use snip::git::{Branch, RepoState, Status, Unavailable};
 use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, edit_snippet,
+    remove_fragment,
 };
 use snip::tui::app::{App, Effect};
 use snip::tui::command::{CommandId, registry};
@@ -817,7 +818,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((56, code_y)).unwrap().symbol(), "f");
 
     app.handle_key(key(KeyCode::Char('?')));
-    let backend = TestBackend::new(120, 44);
+    let backend = TestBackend::new(120, 56);
     let mut help_terminal = Terminal::new(backend).unwrap();
     help_terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
@@ -831,6 +832,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("MOVE — ALL PANES"));
     assert!(rendered.contains("SIDEBAR — WHEN THE LEFT PANE HAS FOCUS"));
     assert!(rendered.contains("SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS"));
+    assert!(rendered.contains("FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS"));
     assert!(rendered.contains("GIT CONSOLE — WHEN OPEN"));
     for label in [
         "Help",
@@ -838,6 +840,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         "MOVE — ALL PANES",
         "SIDEBAR — WHEN THE LEFT PANE HAS FOCUS",
         "SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS",
+        "FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS",
         "VIEW & GLOBAL",
         "GIT CONSOLE — WHEN OPEN",
     ] {
@@ -3403,4 +3406,328 @@ fn digit_keys_jump_to_items_or_fragments_in_panes() {
     // Jump back to 1st fragment
     app.handle_key(key(KeyCode::Char('1')));
     assert_eq!(app.fragment_index, 0);
+}
+
+fn command_state(app: &App, id: CommandId) -> snip::tui::command::CommandState {
+    let command = registry().iter().find(|command| command.id == id).unwrap();
+    (command.state)(app)
+}
+
+#[test]
+fn fragment_commands_follow_context_and_report_exact_disabled_reasons() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+
+    assert_eq!(
+        command_state(&app, CommandId::FragmentReorder),
+        snip::tui::command::CommandState::Disabled("only one fragment to move")
+    );
+    assert_eq!(
+        command_state(&app, CommandId::FragmentRemove),
+        snip::tui::command::CommandState::Disabled("cannot delete the only fragment")
+    );
+
+    app.focus = Pane::Preview;
+    app.fragments_expanded = false;
+    app.handle_key(key(KeyCode::Char('r')));
+    assert!(matches!(
+        app.modal,
+        Some(Modal::Input(ref modal)) if matches!(modal.action, ModalAction::RenameSnippet { .. })
+    ));
+    app.modal = None;
+
+    app.fragments_expanded = true;
+    app.handle_key(key(KeyCode::Char('r')));
+    assert!(matches!(
+        app.modal,
+        Some(Modal::Input(ref modal)) if matches!(modal.action, ModalAction::RenameFragment { .. })
+    ));
+    app.modal = None;
+
+    app.focus = Pane::List;
+    app.handle_key(key(KeyCode::Char('d')));
+    assert!(matches!(
+        app.modal,
+        Some(Modal::Confirm(ref modal)) if matches!(modal.action, ModalAction::DeleteSnippet { .. })
+    ));
+    app.modal = None;
+
+    edit_snippet(
+        &app.library,
+        &first_id.to_string(),
+        &EditOptions {
+            locked: Some(true),
+            ..EditOptions::default()
+        },
+    )
+    .unwrap();
+    app.rescan().unwrap();
+    for id in [
+        CommandId::FragmentAdd,
+        CommandId::FragmentRename,
+        CommandId::FragmentReorder,
+        CommandId::FragmentRemove,
+    ] {
+        assert_eq!(
+            command_state(&app, id),
+            snip::tui::command::CommandState::Disabled(
+                "snippet is locked; use the CLI with --force"
+            )
+        );
+    }
+}
+
+#[test]
+fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.focus = Pane::Preview;
+    app.fragments_expanded = true;
+
+    app.handle_key(key(KeyCode::Char('n')));
+    assert!(app.modal.is_none());
+    let snippet = app.selected_snippet().unwrap();
+    assert_eq!(snippet.loaded_fragments.len(), 2);
+    assert_eq!(snippet.loaded_fragments[1].title, "Fragment 2");
+    assert_eq!(snippet.loaded_fragments[1].language, "rust");
+    assert!(snippet.loaded_fragments[1].content.is_empty());
+    assert_eq!(app.fragment_index, 1);
+
+    remove_fragment(&app.library, &first_id.to_string(), "2", None, false).unwrap();
+    app.rescan().unwrap();
+    app.fragment_index = 0;
+    app.handle_key(key(KeyCode::Char('n')));
+    assert_eq!(
+        app.selected_snippet().unwrap().loaded_fragments[1].title,
+        "Fragment 2"
+    );
+    app.handle_key(key(KeyCode::Char('n')));
+    assert_eq!(
+        app.selected_snippet().unwrap().loaded_fragments[2].title,
+        "Fragment 3"
+    );
+}
+
+#[test]
+fn fragment_grab_clamps_cancels_without_writes_and_drops_once() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    for title in ["Second", "Third"] {
+        add_fragment(
+            &library,
+            &first_id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "rust".to_owned(),
+                content: format!("{title}\n"),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.focus = Pane::Preview;
+    app.fragments_expanded = true;
+    let original = app.selected_snippet().unwrap().fingerprint.clone();
+
+    app.handle_key(key(KeyCode::Char('m')));
+    app.handle_key(key(KeyCode::Char('k')));
+    assert_eq!(app.fragment_grab.unwrap().current, 0);
+    app.handle_key(key(KeyCode::Esc));
+    assert!(app.fragment_grab.is_none());
+    assert!(app.fragments_expanded);
+    assert_eq!(app.selected_snippet().unwrap().fingerprint, original);
+
+    app.handle_key(key(KeyCode::Char('m')));
+    app.handle_key(key(KeyCode::Char('-')));
+    assert!(app.fragment_grab.is_none());
+    assert!(app.fragments_expanded);
+    app.handle_key(key(KeyCode::Char('-')));
+    assert!(!app.fragments_expanded);
+
+    app.fragments_expanded = true;
+    app.handle_key(key(KeyCode::Char('m')));
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.selected_snippet().unwrap().fingerprint, original);
+
+    app.handle_key(key(KeyCode::Char('m')));
+    app.handle_key(key(KeyCode::Char('j')));
+    app.handle_key(key(KeyCode::Char('j')));
+    app.handle_key(key(KeyCode::Char('j')));
+    assert_eq!(app.fragment_grab.unwrap().current, 2);
+    app.handle_key(key(KeyCode::Enter));
+    assert!(app.fragment_grab.is_none());
+    assert_eq!(app.fragment_index, 2);
+    assert_eq!(
+        app.selected_snippet().unwrap().loaded_fragments[2].title,
+        "Fragment"
+    );
+}
+
+#[test]
+fn fragment_rename_and_delete_use_one_based_selectors_and_clamp_selection() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    for title in ["Middle", "Last"] {
+        add_fragment(
+            &library,
+            &first_id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                content: String::new(),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.focus = Pane::Preview;
+    app.fragments_expanded = true;
+    app.fragment_index = 1;
+
+    app.handle_key(key(KeyCode::Char('r')));
+    let Some(Modal::Input(modal)) = app.modal.as_mut() else {
+        panic!("rename modal")
+    };
+    assert_eq!(modal.value, "Middle");
+    modal.value = "Renamed".to_owned();
+    modal.cursor = modal.value.len();
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(
+        app.selected_snippet().unwrap().loaded_fragments[1].title,
+        "Renamed"
+    );
+
+    app.fragment_index = 2;
+    app.handle_key(key(KeyCode::Char('d')));
+    assert!(matches!(app.modal, Some(Modal::Confirm(_))));
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(app.selected_snippet().unwrap().loaded_fragments.len(), 2);
+    assert_eq!(app.fragment_index, 1);
+}
+
+#[test]
+fn fragment_grab_render_moves_the_row_and_shows_cancel_hint() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    for title in ["Second", "Third"] {
+        add_fragment(
+            &library,
+            &first_id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                content: String::new(),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.focus = Pane::Preview;
+    app.fragments_expanded = true;
+    app.handle_key(key(KeyCode::Char('m')));
+    app.handle_key(key(KeyCode::Char('j')));
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let header = row_text(terminal.backend().buffer(), app.layout.preview_fragments.y);
+    assert!(header.contains("Esc cancel"));
+    let moved_row = row_text(
+        terminal.backend().buffer(),
+        app.layout.preview_fragments.y + 2,
+    );
+    assert!(moved_row.contains("Fragment"));
+    assert!(moved_row.contains("├>"));
+}
+
+#[test]
+fn fragment_grab_ignores_list_clicks_and_drops_on_the_original_snippet() {
+    let (_temporary, library, first_id, second_id) = fixture();
+    for title in ["A2", "A3"] {
+        add_fragment(
+            &library,
+            &first_id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                content: String::new(),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    for title in ["B2", "B3"] {
+        add_fragment(
+            &library,
+            &second_id.to_string(),
+            &FragmentAddOptions {
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                content: String::new(),
+                ..FragmentAddOptions::default()
+            },
+        )
+        .unwrap();
+    }
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.list_state.select(
+        app.visible
+            .iter()
+            .position(|row| row.snippet_id == first_id),
+    );
+    app.focus = Pane::Preview;
+    app.fragments_expanded = true;
+    app.handle_key(key(KeyCode::Char('m')));
+    app.handle_key(key(KeyCode::Char('j')));
+    app.handle_key(key(KeyCode::Char('j')));
+
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let second_row = app
+        .visible
+        .iter()
+        .position(|row| row.snippet_id == second_id)
+        .unwrap() as u16;
+    let _ = app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        app.layout.list.x + 1,
+        app.layout.list.y + 1 + second_row * app.density.row_height(),
+    ));
+
+    assert_eq!(app.selected_id, Some(first_id));
+    assert_eq!(app.fragment_grab.unwrap().current, 2);
+    app.handle_key(key(KeyCode::Enter));
+    assert_eq!(
+        app.selected_snippet()
+            .unwrap()
+            .loaded_fragments
+            .iter()
+            .map(|fragment| fragment.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["A2", "A3", "Fragment"]
+    );
+    let second = app
+        .catalog
+        .snippets
+        .iter()
+        .find(|snippet| snippet.id == second_id)
+        .unwrap();
+    assert_eq!(
+        second
+            .loaded_fragments
+            .iter()
+            .map(|fragment| fragment.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Fragment", "B2", "B3"]
+    );
 }
