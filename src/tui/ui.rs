@@ -9,7 +9,6 @@ use super::bottom_bar;
 use super::gist_panel;
 use super::git_panel;
 use super::help;
-use super::icons::IconMode;
 use super::modal;
 use super::palette;
 use super::preview;
@@ -45,8 +44,17 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     app.layout.reset_fragment_rows();
     top_bar::draw_top_bar(frame, app, vertical[0]);
     draw_sidebar(frame, app, panes[0]);
-    draw_list(frame, app, panes[1]);
-    preview::draw_preview(frame, app, panes[2]);
+    if app.trash.open {
+        // The trash takes over the two right panes rather than covering them,
+        // so the sidebar stays usable and the entry can be previewed.
+        trash::draw_trash_list(frame, app, panes[1]);
+        let preview = app.trash.preview.clone();
+        let accent = app.theme.accent_alt;
+        preview::draw_preview_of(frame, app, panes[2], preview, accent);
+    } else {
+        draw_list(frame, app, panes[1]);
+        preview::draw_preview(frame, app, panes[2]);
+    }
 
     bottom_bar::draw_bottom_bar(frame, app, vertical[2]);
     if app.show_help && app.modal.is_none() {
@@ -57,9 +65,6 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     }
     if app.gist.open && app.modal.is_none() {
         gist_panel::draw_gist(frame, area, app);
-    }
-    if app.trash.open {
-        trash::draw_trash(frame, app, area);
     }
     palette::draw_palette(frame, area, app);
     if let Some(ref mut modal) = app.modal {
@@ -97,11 +102,12 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
                     Style::default().fg(app.theme.muted),
                 ),
                 super::state::SidebarItem::Published => {
-                    let (marker, marker_style) = match (app.icon_mode, app.filter.published) {
-                        (IconMode::Ascii, true) => ("[x] ", Style::default().fg(app.theme.accent)),
-                        (IconMode::Ascii, false) => ("[ ] ", Style::default()),
-                        (IconMode::Nerd, true) => ("☑ ", Style::default().fg(app.theme.accent)),
-                        (IconMode::Nerd, false) => ("☐ ", Style::default()),
+                    // Two cells, like every other sidebar icon, so the labels
+                    // stay in one column; filled means the filter is on.
+                    let (marker, marker_style) = if app.filter.published {
+                        ("◉ ", Style::default().fg(app.theme.accent))
+                    } else {
+                        ("○ ", Style::default().fg(app.theme.muted))
                     };
                     let label_style = if app.filter.published {
                         Style::default()

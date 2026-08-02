@@ -178,13 +178,20 @@ impl App {
             if self.sidebar.rows[index].has_children && column <= fold_column.saturating_add(1) {
                 self.toggle_sidebar_folder();
             } else {
-                self.sync_sidebar_filter();
+                // A click is a deliberate act, so it activates the row rather
+                // than merely moving the cursor onto it.
+                self.activate_sidebar_row();
             }
             return;
         }
         if contains(self.layout.list, column, row) {
             let content = inner(self.layout.list);
             if !contains(content, column, row) {
+                self.focus = Pane::List;
+                return;
+            }
+            if self.trash.open {
+                // Trash rows are keyboard-driven; a click just takes focus.
                 self.focus = Pane::List;
                 return;
             }
@@ -278,21 +285,47 @@ impl App {
     }
 
     pub(super) fn apply_sidebar_filter(&mut self) {
-        if self.sync_sidebar_filter() {
+        if self.activate_sidebar_row() {
             self.focus = Pane::List;
         }
     }
 
-    pub(super) fn sync_sidebar_filter(&mut self) -> bool {
+    /// Enter, or a mouse click. Only `Published` needs this: it is a lens you
+    /// flip, not a place you go, so it must not fire from mere navigation.
+    /// Everything else is a scope and is already applied by the cursor.
+    pub(super) fn activate_sidebar_row(&mut self) -> bool {
+        match self.sidebar.selected().map(|row| row.item.clone()) {
+            Some(SidebarItem::Published) => {
+                self.filter.published = !self.filter.published;
+                self.refresh_visible();
+                // Stay in the sidebar: a toggle is something you flip back.
+                false
+            }
+            _ => self.sync_sidebar_filter(),
+        }
+    }
+
+    /// Applies the selected row as a *scope*, on every cursor move. `Trash` is
+    /// one of those scopes — moving onto it enters the trash view and moving
+    /// off leaves again, so it needs no separate open/close step. `Published`
+    /// is excluded because a toggle that fired on hover would flip twice as the
+    /// cursor passed over it.
+    pub(in super::super) fn sync_sidebar_filter(&mut self) -> bool {
         let item = self.sidebar.selected().map(|row| row.item.clone());
+        if !matches!(item, Some(SidebarItem::Trash)) && self.trash.open {
+            self.trash.open = false;
+        }
         match item {
+            Some(SidebarItem::Trash) => {
+                if !self.trash.open {
+                    self.open_trash();
+                }
+                return false;
+            }
             Some(SidebarItem::All) => {
                 self.filter.uncategorized = false;
                 self.filter.folder = None;
                 self.filter.tag = None;
-            }
-            Some(SidebarItem::Published) => {
-                self.filter.published = !self.filter.published;
             }
             Some(SidebarItem::Uncategorized) => {
                 self.filter.uncategorized = true;
@@ -309,11 +342,8 @@ impl App {
                 self.filter.tag = Some(tag);
                 self.filter.folder = None;
             }
-            Some(SidebarItem::Trash) => {
-                self.open_trash();
-                return false;
-            }
-            _ => return false,
+            // The toggle, and non-selectable rows: never fired by navigation.
+            Some(SidebarItem::Published | SidebarItem::Header) | None => return false,
         }
         self.refresh_visible();
         true

@@ -95,11 +95,12 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
         HelpColor::Success,
     ),
     (
-        "TRASH — WHEN OPEN",
+        "TRASH — WHEN THE TRASH PANE HAS FOCUS",
         &[
             ("j / k", "move"),
             ("u", "restore"),
             ("x", "purge permanently"),
+            ("Esc / T", "leave the trash"),
         ],
         HelpColor::Error,
     ),
@@ -412,7 +413,7 @@ mod tests {
             "Copy" => group("COPY"),
             "Folder" | "Tag" => group("SIDEBAR — WHEN THE LEFT PANE HAS FOCUS"),
             "View" | "Library" | "App" => group("VIEW & GLOBAL"),
-            "Trash" => group("TRASH — WHEN OPEN"),
+            "Trash" => group("TRASH — WHEN THE TRASH PANE HAS FOCUS"),
             "Git" => group("GIT CONSOLE — WHEN OPEN"),
             "Gist" => group("GIST PANEL — WHEN OPEN"),
             _ => panic!("missing help mapping for command category {category}"),
