@@ -1,6 +1,6 @@
-# snip
+# `snip`: a terminal snippet manager
 
-<img width="1135" height="769" alt="image" src="https://github.com/user-attachments/assets/95eb8ecb-189e-4cfa-8a1d-e34d32df8b46" />
+<img width="1132" height="715" alt="image" src="https://github.com/user-attachments/assets/e1b901f5-be2b-46be-ac08-14f02c2918ca" />
 
 <p align="center">
 
