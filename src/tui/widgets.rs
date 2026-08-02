@@ -5,6 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use super::icons;
+use super::selection::{char_width, text_width};
 use super::theme::TuiTheme;
 use crate::domain::Snippet;
 
@@ -130,15 +131,30 @@ pub fn draw_rule(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
     );
 }
 
+/// Truncates `value` to `width` display cells, keeping a trailing ellipsis.
+/// Cell-aware rather than character-aware: a wide glyph (CJK, a full-width
+/// star) occupies two cells, and counting it as one lets the caller's padding
+/// or flush-right spans overrun the pane and get clipped at the right edge.
 pub fn truncate_end(value: &str, width: usize) -> String {
-    if value.chars().count() <= width {
+    if text_width(value) as usize <= width {
         return value.to_owned();
     }
-    value
-        .chars()
-        .take(width.saturating_sub(1))
-        .chain(std::iter::once('…'))
-        .collect()
+    if width == 0 {
+        return String::new();
+    }
+    let target = width.saturating_sub(1);
+    let mut out = String::new();
+    let mut cells = 0;
+    for character in value.chars() {
+        let character_width = char_width(character) as usize;
+        if cells + character_width > target {
+            break;
+        }
+        out.push(character);
+        cells += character_width;
+    }
+    out.push('…');
+    out
 }
 
 pub fn pill_cap(
@@ -168,7 +184,19 @@ mod tests {
 
     #[test]
     fn truncation_preserves_unicode_characters_and_adds_an_ellipsis() {
-        assert_eq!(truncate_end("你好 Rust", 5), "你好 R…");
         assert_eq!(truncate_end("short", 8), "short");
+        assert_eq!(truncate_end("abcdef", 3), "ab…");
+    }
+
+    #[test]
+    fn truncation_measures_wide_glyphs_in_cells_not_characters() {
+        // "你好" is four cells wide, so it only fits once the budget reaches 4.
+        assert_eq!(truncate_end("你好 Rust", 5), "你好…");
+        assert_eq!(truncate_end("代码评审", 4), "代…");
+        assert_eq!(truncate_end("代码评审", 5), "代码…");
+        assert_eq!(truncate_end("代码评审", 8), "代码评审");
+        assert_eq!(truncate_end("代码评审", 0), "");
+        // A budget of one cell cannot hold a wide glyph — only the ellipsis.
+        assert_eq!(truncate_end("代码", 1), "…");
     }
 }

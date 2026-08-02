@@ -8,7 +8,7 @@ use crate::domain::{Fragment, Snippet};
 
 use super::super::app::App;
 use super::super::icons;
-use super::super::selection::{SelectionKey, char_width, text_width};
+use super::super::selection::{SelectionKey, text_width};
 use super::super::state::Pane;
 use super::super::theme::TuiTheme;
 use super::super::widgets;
@@ -209,31 +209,38 @@ fn draw_preview_header(
     // Widths are measured in display cells (`text_width`), not characters:
     // a wide glyph such as CJK text occupies two cells, and char-counting
     // would under-size the title and overrun the right edge.
-    const RIGHT_MARGIN: usize = 0;
     let marker_width = markers
         .iter()
         .map(|span| text_width(&span.content) as usize)
         .sum::<usize>();
     let available = title_area.width as usize;
-    let title_width = available.saturating_sub(marker_width + RIGHT_MARGIN + 1);
-    let title = truncate_cells(&snippet.title, title_width);
-    let title_cells = text_width(&title) as usize;
-    let padding = available.saturating_sub(title_cells + marker_width + RIGHT_MARGIN);
+    // One cell always separates the title from the first marker.
+    let title_width = available.saturating_sub(marker_width + 1);
+    let title = widgets::truncate_end(&snippet.title, title_width);
+    let padding = available.saturating_sub(text_width(&title) as usize + marker_width);
     let mut spans = vec![
         Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(" ".repeat(padding)),
     ];
     spans.append(&mut markers);
-    spans.push(Span::raw(" ".repeat(RIGHT_MARGIN)));
     frame.render_widget(Paragraph::new(Line::from(spans)), title_area);
+    // The fingerprint is the line's anchor, so a wide folder gives way to it
+    // rather than pushing it off the right edge.
+    const FINGERPRINT_CELLS: usize = 8;
+    let folder = widgets::truncate_end(
+        crate::domain::folder_label(&snippet.folder),
+        (metadata_area.width as usize).saturating_sub(FINGERPRINT_CELLS + 3),
+    );
     let mut metadata = vec![
-        Span::styled(
-            crate::domain::folder_label(&snippet.folder).to_owned(),
-            Style::default().fg(app.theme.muted),
-        ),
+        Span::styled(folder, Style::default().fg(app.theme.muted)),
         Span::styled(" · ", Style::default().fg(app.theme.muted)),
         Span::styled(
-            snippet.fingerprint.0.chars().take(8).collect::<String>(),
+            snippet
+                .fingerprint
+                .0
+                .chars()
+                .take(FINGERPRINT_CELLS)
+                .collect::<String>(),
             Style::default().fg(app.theme.muted),
         ),
     ];
@@ -749,31 +756,6 @@ fn draw_preview_selection(frame: &mut Frame<'_>, app: &App, area: Rect) {
     }
 }
 
-/// Truncates a title to `max_cells` display cells, keeping a trailing ellipsis.
-/// Cell-aware so a wide glyph (CJK, emoji) cannot push the flush-right markers
-/// past the pane's right edge.
-fn truncate_cells(value: &str, max_cells: usize) -> String {
-    if text_width(value) as usize <= max_cells {
-        return value.to_owned();
-    }
-    if max_cells == 0 {
-        return String::new();
-    }
-    let target = max_cells.saturating_sub(1);
-    let mut out = String::new();
-    let mut cells = 0;
-    for character in value.chars() {
-        let width = char_width(character) as usize;
-        if cells + width > target {
-            break;
-        }
-        out.push(character);
-        cells += width;
-    }
-    out.push('…');
-    out
-}
-
 /// Six-digit `YYMMDD` from an RFC 3339 timestamp, matching the snippet list's
 /// date column. Returns `None` when the value is absent or not a date.
 fn yymmdd(timestamp: Option<&str>) -> Option<String> {
@@ -803,8 +785,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        fragment_label, fragment_line_spans, fragment_tree_columns, spans_fit_with_gap,
-        spans_width, truncate_cells,
+        fragment_label, fragment_line_spans, fragment_tree_columns, spans_fit_with_gap, spans_width,
     };
     use crate::domain::{Fingerprint, Fragment, FragmentManifest, Snippet, SnippetManifest};
     use crate::tui::theme::TuiTheme;
@@ -936,21 +917,13 @@ mod tests {
         assert!(!without_badge.note && !without_badge.lines && !without_badge.badge);
     }
 
-    #[test]
-    fn preview_header_keeps_flush_right_markers_and_dates_with_wide_glyphs() {
+    /// Renders a preview pane into a test backend and returns its rows as
+    /// strings, so assertions read the same cells a terminal would show.
+    fn preview_rows(snippet: Snippet, width: u16, expanded: bool) -> Vec<String> {
         use crate::tui::preview::draw_preview_of;
         use ratatui::Terminal;
         use ratatui::backend::TestBackend;
         use ratatui::layout::Rect;
-
-        let mut snippet = snippet();
-        snippet.manifest.pinned = true;
-        snippet.manifest.locked = true;
-        snippet.manifest.title = "代码评审 Code Review 备份".to_owned();
-        snippet.folder = "工作/文档".to_owned();
-        snippet.manifest.created_at = "2026-01-01T00:00:00Z".to_owned();
-        snippet.modified_at = Some("2026-02-03T04:05:06Z".to_owned());
-        snippet.fingerprint = Fingerprint("0123456789abcdef".to_owned());
 
         let temporary = tempfile::tempdir().unwrap();
         let library =
@@ -960,28 +933,46 @@ mod tests {
             crate::tui::app::App::new(library, &crate::config::AppConfig::default()).unwrap();
         app.gist_badges
             .insert(snippet.id, crate::tui::gist_panel::GistBadge::Synced);
+        app.fragments_expanded = expanded;
 
-        let width = 44u16;
+        let height = 24u16;
         let accent = app.theme.accent;
-        let mut terminal = Terminal::new(TestBackend::new(width, 24)).unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal
             .draw(|frame| {
                 draw_preview_of(
                     frame,
                     &mut app,
-                    Rect::new(0, 0, width, 24),
+                    Rect::new(0, 0, width, height),
                     Some(snippet),
                     accent,
                 );
             })
             .unwrap();
         let buffer = terminal.backend().buffer();
-        let title_row = (0..width)
-            .map(|x| buffer[(x, 1)].symbol())
-            .collect::<String>();
-        let metadata_row = (0..width)
-            .map(|x| buffer[(x, 2)].symbol())
-            .collect::<String>();
+        (0..height)
+            .map(|y| {
+                (0..width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn preview_header_keeps_flush_right_markers_and_dates_with_wide_glyphs() {
+        let mut snippet = snippet();
+        snippet.manifest.pinned = true;
+        snippet.manifest.locked = true;
+        snippet.manifest.title = "代码评审 Code Review 备份".to_owned();
+        snippet.folder = "工作/文档".to_owned();
+        snippet.manifest.created_at = "2026-01-01T00:00:00Z".to_owned();
+        snippet.modified_at = Some("2026-02-03T04:05:06Z".to_owned());
+        snippet.fingerprint = Fingerprint("0123456789abcdef".to_owned());
+
+        let rows = preview_rows(snippet, 44, false);
+        let title_row = &rows[1];
+        let metadata_row = &rows[2];
         assert!(title_row.contains("pinned"), "title row: {title_row:?}");
         assert!(title_row.contains("locked"), "title row: {title_row:?}");
         assert!(
@@ -991,11 +982,39 @@ mod tests {
     }
 
     #[test]
-    fn truncate_cells_measures_wide_glyphs_in_cells() {
-        assert_eq!(truncate_cells("short", 10), "short");
-        assert_eq!(truncate_cells("代码评审", 4), "代…");
-        assert_eq!(truncate_cells("代码评审", 5), "代码…");
-        assert_eq!(truncate_cells("代码评审", 0), "");
-        assert_eq!(truncate_cells("abcdef", 3), "ab…");
+    fn preview_metadata_keeps_the_fingerprint_when_the_folder_is_wide() {
+        let mut snippet = snippet();
+        snippet.folder = "工作文档归档目录很长很长很长很长很长很长很长".to_owned();
+        snippet.fingerprint = Fingerprint("0123456789abcdef".to_owned());
+
+        let rows = preview_rows(snippet, 44, false);
+        let metadata_row = &rows[2];
+        assert!(
+            metadata_row.contains("01234567"),
+            "metadata row: {metadata_row:?}"
+        );
+    }
+
+    #[test]
+    fn expanded_fragment_rows_keep_their_line_counts_with_wide_labels() {
+        let mut snippet = snippet();
+        for (index, fragment) in snippet.loaded_fragments.iter_mut().enumerate() {
+            fragment.manifest.title = format!("片段标题很长的一个例子 {index}");
+            fragment.content = "line\n".repeat(12);
+        }
+
+        // A narrow pane forces the label to be truncated to the title column.
+        let rows = preview_rows(snippet, 38, true);
+        // Every fragment row keeps the flush-right line-count column: a
+        // char-counted truncation would double the label's real width and push
+        // it off the pane.
+        let fragment_rows = rows
+            .iter()
+            .filter(|row| row.contains("├") || row.contains("└"))
+            .collect::<Vec<_>>();
+        assert_eq!(fragment_rows.len(), 2, "rows: {rows:#?}");
+        for row in fragment_rows {
+            assert!(row.contains("12 L"), "fragment row: {row:?}");
+        }
     }
 }

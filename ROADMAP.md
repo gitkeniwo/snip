@@ -44,6 +44,35 @@ themes cheap to extend.
   command and a way to show the effective bindings (both in the help pane and
   as JSON).
 
+### Grapheme-cluster-aware text width
+
+`char_width` (`src/tui/selection.rs`) measures width per `char` (Unicode
+scalar value) and falls back to `.max(1)` for anything ratatui reports as
+zero-width. That is correct for CJK and other genuinely wide code points, but
+wrong for multi-scalar grapheme clusters: a ZWJ sequence like `👨‍💻` is three
+scalars (`👨`, ZWJ, `💻`) that render as one glyph, so `char_width` sums them
+to more cells than the terminal actually uses, and `truncate_end`
+(`src/tui/widgets.rs`) can cut the string apart right after the ZWJ, leaving a
+dangling joiner plus an orphaned trailing emoji. Every truncation and
+flush-right layout in the TUI (preview header, snippet list, panel/help text,
+fragment tree) is affected, since they all route through `char_width` /
+`text_width` / `truncate_end`.
+
+- [ ] Switch `char_width`/`truncate_end` to walk grapheme clusters (e.g. via
+  `unicode-segmentation`) instead of `chars()`, so multi-scalar emoji and
+  other combining sequences are measured and truncated as one unit.
+- [ ] `char_width` is also used by the prose/code line-wrapping in
+  `src/tui/preview/layout.rs`, so a fix needs to keep that wrapping correct
+  too, not just the truncation call sites.
+- [ ] Add a regression test with a ZWJ emoji sequence in a title, mirroring
+  the existing CJK-width tests in `src/tui/widgets.rs` and
+  `src/tui/preview/render.rs`.
+
+Found while fixing commit `3558bc2` ("fix(tui): keep flush-right markers and
+dates with wide glyphs") and its follow-up, which made truncation cell-aware
+for CJK — but the emoji case that commit's message also claimed to handle was
+never actually correct.
+
 ### Configurable snippet editor
 
 - [ ] Let the user pick per preference:

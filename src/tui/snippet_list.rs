@@ -1,10 +1,11 @@
-use super::selection::{char_width, text_width};
+use super::selection::text_width;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::ListItem;
 
 use super::app::App;
 use super::icons::snippet_badge;
+use super::widgets;
 use crate::config::TuiDensitySetting;
 
 /// Width of the gist marker in a row: one leading space plus the glyph, or
@@ -68,7 +69,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             let marker_width = usize::from(snippet.locked) * 2;
             let left_width = 4;
             let title_width = width.saturating_sub(left_width + date_width + marker_width);
-            let title = truncate(&snippet.title, title_width);
+            let title = widgets::truncate_end(&snippet.title, title_width);
             let used = left_width + text_width(&title) as usize + date_width + marker_width;
             let padding = " ".repeat(width.saturating_sub(used));
             let mut first = vec![
@@ -98,7 +99,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 Line::from(vec![
                     pin_gutter(app, snippet.pinned, indent),
                     Span::styled(
-                        truncate(excerpt, second_width.saturating_sub(indent)),
+                        widgets::truncate_end(excerpt, second_width.saturating_sub(indent)),
                         Style::default().fg(app.theme.muted),
                     ),
                 ])
@@ -210,11 +211,11 @@ fn compact_fields(
 ) -> (String, String, String) {
     // Compact mode spends width in semantic priority order. A long title may
     // intentionally consume the row before folder and tag metadata.
-    let title = truncate(title, available);
+    let title = widgets::truncate_end(title, available);
     let remaining = available.saturating_sub(text_width(&title) as usize);
-    let folder = truncate(folder, remaining);
+    let folder = widgets::truncate_end(folder, remaining);
     let remaining = remaining.saturating_sub(text_width(&folder) as usize);
-    let tags = truncate(tags, remaining);
+    let tags = widgets::truncate_end(tags, remaining);
     (title, folder, tags)
 }
 
@@ -256,7 +257,7 @@ fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> L
     // The three-cell badge plus its separator occupy the first four cells of
     // row one. Indenting metadata by the same amount aligns it with the title.
     let indent = 4.min(width);
-    let folder = truncate(&folder, width.saturating_sub(indent));
+    let folder = widgets::truncate_end(&folder, width.saturating_sub(indent));
     let mut spans = vec![
         pin_gutter(app, snippet.pinned, indent),
         Span::styled(folder.clone(), Style::default().fg(app.theme.muted)),
@@ -304,28 +305,6 @@ fn pin_gutter(app: &App, pinned: bool, width: usize) -> Span<'static> {
     }
 }
 
-fn truncate(value: &str, max_width: usize) -> String {
-    let total_width = text_width(value) as usize;
-    if total_width <= max_width {
-        return value.to_owned();
-    }
-    if max_width == 0 {
-        return String::new();
-    }
-    let target = max_width.saturating_sub(1);
-    let mut acc = String::new();
-    let mut current_width = 0;
-    for c in value.chars() {
-        let cw = char_width(c) as usize;
-        if current_width + cw > target {
-            break;
-        }
-        acc.push(c);
-        current_width += cw;
-    }
-    acc.push('…');
-    acc
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -386,7 +365,7 @@ mod tests {
         let date_width = 7;
         let marker_width = 0;
         let width: usize = 30;
-        let title = truncate(
+        let title = widgets::truncate_end(
             &snippet.manifest.title,
             width.saturating_sub(left_width + date_width + marker_width),
         );
