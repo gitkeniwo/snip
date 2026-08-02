@@ -8,6 +8,7 @@ use super::app::App;
 use super::bottom_bar;
 use super::git_panel;
 use super::help;
+use super::icons::IconMode;
 use super::modal;
 use super::palette;
 use super::preview;
@@ -91,6 +92,22 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
                     Style::default().fg(app.theme.muted),
                     Style::default().fg(app.theme.muted),
                 ),
+                super::state::SidebarItem::Published => {
+                    let (marker, marker_style) = match (app.icon_mode, app.filter.published) {
+                        (IconMode::Ascii, true) => ("[x] ", Style::default().fg(app.theme.accent)),
+                        (IconMode::Ascii, false) => ("[ ] ", Style::default()),
+                        (IconMode::Nerd, true) => ("☑ ", Style::default().fg(app.theme.accent)),
+                        (IconMode::Nerd, false) => ("☐ ", Style::default()),
+                    };
+                    let label_style = if app.filter.published {
+                        Style::default()
+                            .fg(app.theme.accent)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    (marker, marker_style, label_style)
+                }
                 super::state::SidebarItem::Trash => (
                     "× ",
                     Style::default().fg(app.theme.muted),

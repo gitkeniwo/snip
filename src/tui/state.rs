@@ -45,6 +45,7 @@ impl Pane {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SidebarItem {
     All,
+    Published,
     Uncategorized,
     Folder(String),
     Trash,
@@ -90,11 +91,26 @@ pub struct Filter {
     pub uncategorized: bool,
     pub folder: Option<String>,
     pub tag: Option<String>,
+    pub published: bool,
 }
 
 impl Filter {
     pub fn is_empty(&self) -> bool {
-        !self.uncategorized && self.folder.is_none() && self.tag.is_none()
+        !self.uncategorized && self.folder.is_none() && self.tag.is_none() && !self.published
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Filter;
+
+    #[test]
+    fn published_alone_keeps_the_filter_active() {
+        let filter = Filter {
+            published: true,
+            ..Filter::default()
+        };
+        assert!(!filter.is_empty());
     }
 }
 

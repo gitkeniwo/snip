@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::super::super::layout::{contains, inner};
-use super::super::super::state::{Filter, Pane, SidebarItem, StatusLevel};
+use super::super::super::state::{Pane, SidebarItem, StatusLevel};
 use super::super::types::App;
 
 impl App {
@@ -287,14 +287,17 @@ impl App {
         let item = self.sidebar.selected().map(|row| row.item.clone());
         match item {
             Some(SidebarItem::All) => {
-                self.filter = Filter::default();
+                self.filter.uncategorized = false;
+                self.filter.folder = None;
+                self.filter.tag = None;
+            }
+            Some(SidebarItem::Published) => {
+                self.filter.published = !self.filter.published;
             }
             Some(SidebarItem::Uncategorized) => {
-                self.filter = Filter {
-                    uncategorized: true,
-                    folder: None,
-                    tag: None,
-                };
+                self.filter.uncategorized = true;
+                self.filter.folder = None;
+                self.filter.tag = None;
             }
             Some(SidebarItem::Folder(folder)) => {
                 self.filter.uncategorized = false;

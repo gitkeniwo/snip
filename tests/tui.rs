@@ -723,16 +723,16 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((27, 3)).unwrap().symbol(), "★");
     assert!(row_text_from(buffer, 3, 30).starts_with("[Code > Rust]"));
     assert_eq!(
-        buffer.cell((2, 10)).unwrap().symbol(),
+        buffer.cell((2, 11)).unwrap().symbol(),
         "#",
         "top-level tags should not inherit the folder icon gutter"
     );
     assert_eq!(buffer.cell((2, 1)).unwrap().symbol(), "L");
-    assert_eq!(buffer.cell((2, 5)).unwrap().symbol(), "▾");
-    assert_eq!(buffer.cell((2, 9)).unwrap().symbol(), "T");
-    assert_eq!(buffer.cell((3, 9)).unwrap().symbol(), "a");
-    assert_eq!(buffer.cell((2, 10)).unwrap().symbol(), "#");
-    assert_eq!(buffer.cell((3, 10)).unwrap().symbol(), " ");
+    assert_eq!(buffer.cell((2, 6)).unwrap().symbol(), "▾");
+    assert_eq!(buffer.cell((2, 10)).unwrap().symbol(), "T");
+    assert_eq!(buffer.cell((3, 10)).unwrap().symbol(), "a");
+    assert_eq!(buffer.cell((2, 11)).unwrap().symbol(), "#");
+    assert_eq!(buffer.cell((3, 11)).unwrap().symbol(), " ");
     assert_eq!(buffer.cell((56, 1)).unwrap().symbol(), "P");
     assert_eq!(buffer.cell((56, 2)).unwrap().symbol(), "A");
     assert_eq!(buffer.cell((56, 3)).unwrap().symbol(), "C");
@@ -1058,7 +1058,7 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
 
-    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 5));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 6));
     assert_eq!(app.focus, Pane::Sidebar);
     assert_eq!(app.filter.folder.as_deref(), Some("Code"));
 
@@ -3163,6 +3163,8 @@ fn digit_keys_jump_to_items_or_fragments_in_panes() {
 
     app.handle_key(key(KeyCode::Char('1')));
     assert_eq!(app.sidebar.list_state.selected(), Some(0));
+
+    app.run_command(CommandId::LibraryClearFilter);
 
     // 2. List Pane navigation
     app.focus = Pane::List;
