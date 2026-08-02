@@ -632,6 +632,17 @@ secret gist public. Push a new one with `--new` if you need to change it.
 snip only manages the files it published. A file you add to the gist in the
 browser is left alone.
 
+In the TUI, `Ctrl-s` opens the gist panel for the selected snippet: `p`
+publishes or updates, `y` copies the URL, `o` opens it in a browser, and `a`,
+`d`, `x`, `r` attach, detach, delete, and verify. Published snippets carry a
+small marker in the list and the preview header — `G✓` when the gist matches the
+snippet, `G✚` when you have edited since publishing. Unpublished snippets carry
+no marker at all.
+
+The sidebar's `Published` entry is a toggle rather than a folder, so it narrows
+whatever you are already looking at: pick a folder or a tag, switch it on, and
+you see the published snippets within that scope.
+
 ## Manual pages
 
 Homebrew, deb, rpm, and AUR packages install them, so `man snip` works right
