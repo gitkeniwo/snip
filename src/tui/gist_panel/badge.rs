@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use ratatui::style::Color;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::Span;
 use uuid::Uuid;
 
 use crate::domain::Snippet;
 use crate::gist::payload::{self, PayloadOptions};
 
-use super::super::icons::IconMode;
 use super::super::theme::TuiTheme;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -50,15 +50,25 @@ pub fn compute_all(snippets: &[Snippet]) -> HashMap<Uuid, GistBadge> {
         .collect()
 }
 
-/// The glyph and colour for a badge state (§4.2).
-pub fn glyph(badge: GistBadge, icons: IconMode, theme: TuiTheme) -> (&'static str, Color) {
-    match (badge, icons) {
-        (GistBadge::Synced, IconMode::Nerd) => ("G✓", theme.muted),
-        (GistBadge::Synced, IconMode::Ascii) => ("G ok", theme.muted),
-        (GistBadge::Modified, IconMode::Nerd) => ("G✚", theme.warning),
-        (GistBadge::Modified, IconMode::Ascii) => ("G +", theme.warning),
-    }
+/// The two spans a badge is drawn from. Both share the status colour: an accent
+/// `G` next to a green tick reads as two unrelated marks in most themes, and
+/// most themes make that accent blue. Always two cells total.
+///
+/// Deliberately not gated on `IconMode`: that setting selects away from Nerd
+/// Font private-use glyphs, and `✓` is ordinary Unicode — the same class as the
+/// `≡` and `∅` the sidebar already draws in either mode.
+pub fn glyph(badge: GistBadge, theme: TuiTheme) -> [Span<'static>; 2] {
+    let (mark, color) = match badge {
+        GistBadge::Synced => ("✓", theme.success),
+        GistBadge::Modified => ("+", theme.error),
+    };
+    let style = Style::default().fg(color).add_modifier(Modifier::BOLD);
+    [Span::styled("G", style), Span::styled(mark, style)]
 }
+
+/// Width of a rendered badge in cells. Constant, and the row arithmetic in
+/// `snippet_list` depends on it staying that way.
+pub const GLYPH_WIDTH: usize = 2;
 
 #[cfg(test)]
 mod tests {
@@ -171,23 +181,20 @@ mod tests {
     }
 
     #[test]
-    fn glyphs_match_the_spec_for_both_icon_modes() {
+    fn both_badge_spans_share_the_status_colour() {
         let theme = TuiTheme::default_for(crate::tui::theme::Appearance::Dark);
-        assert_eq!(
-            glyph(GistBadge::Synced, IconMode::Ascii, theme),
-            ("G ok", theme.muted)
-        );
-        assert_eq!(
-            glyph(GistBadge::Synced, IconMode::Nerd, theme),
-            ("G✓", theme.muted)
-        );
-        assert_eq!(
-            glyph(GistBadge::Modified, IconMode::Ascii, theme),
-            ("G +", theme.warning)
-        );
-        assert_eq!(
-            glyph(GistBadge::Modified, IconMode::Nerd, theme),
-            ("G✚", theme.warning)
-        );
+        for (badge, mark, color) in [
+            (GistBadge::Synced, "✓", theme.success),
+            (GistBadge::Modified, "+", theme.error),
+        ] {
+            let spans = glyph(badge, theme);
+            assert_eq!(spans[0].content, "G");
+            assert_eq!(spans[0].style.fg, Some(color));
+            assert_eq!(spans[1].content, mark);
+            assert_eq!(spans[1].style.fg, Some(color));
+            // The row arithmetic in snippet_list.rs assumes a constant width.
+            let width: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+            assert_eq!(width, GLYPH_WIDTH);
+        }
     }
 }

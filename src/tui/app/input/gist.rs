@@ -25,13 +25,13 @@ impl App {
             _ if super::is_ctrl_s(key) || key.code == KeyCode::Esc => self.gist.open = false,
             _ if super::is_palette_trigger(key) => self.open_palette(),
             KeyCode::Char('p') => return self.run_command(CommandId::GistPush),
+            KeyCode::Char('P') => return self.run_command(CommandId::GistPushPublic),
             KeyCode::Char('y') => return self.run_command(CommandId::GistCopyUrl),
             KeyCode::Char('o') => return self.run_command(CommandId::GistOpenInBrowser),
             KeyCode::Char('a') => return self.run_command(CommandId::GistAttach),
             KeyCode::Char('d') => return self.run_command(CommandId::GistDetach),
             KeyCode::Char('x') => return self.run_command(CommandId::GistDelete),
             KeyCode::Char('r') => return self.run_command(CommandId::GistVerifyRemote),
-            KeyCode::Char('f') => return self.run_command(CommandId::LibraryTogglePublishedFilter),
             _ => {}
         }
         Vec::new()
@@ -41,16 +41,44 @@ impl App {
         self.gist.sender = Some(sender);
     }
 
-    pub(in super::super) fn push_gist(&mut self) -> Vec<Effect> {
+    pub(in super::super) fn push_gist(&mut self, public: bool) -> Vec<Effect> {
         if self.refuse_busy_gist() {
             return Vec::new();
         }
         let Some(snippet) = self.selected_snippet().cloned() else {
             return Vec::new();
         };
-        let record = crate::gist::find(&snippet).cloned();
+        if public {
+            if crate::gist::find(&snippet).is_some() {
+                // Visibility is fixed at creation; say so instead of letting the
+                // API refuse after a round trip.
+                self.set_status(
+                    "gist visibility cannot be changed after creation",
+                    StatusLevel::Error,
+                );
+                return Vec::new();
+            }
+            // A mis-typed `P` would publish the snippet to the whole internet,
+            // and GitHub offers no way to walk it back, so this one asks first.
+            self.modal = Some(Modal::Confirm(ConfirmModal::new(
+                "Publish a public gist?",
+                format!(
+                    "{:?} becomes readable by anyone and is listed on your GitHub profile. Visibility cannot be changed afterwards.",
+                    snippet.title
+                ),
+                ModalAction::GistPushPublic { id: snippet.id },
+                true,
+            )));
+            return Vec::new();
+        }
+        self.spawn_push(&snippet, false);
+        Vec::new()
+    }
+
+    pub(in super::super) fn spawn_push(&mut self, snippet: &crate::domain::Snippet, public: bool) {
+        let record = crate::gist::find(snippet).cloned();
         let options = crate::gist::PushOptions {
-            public: false,
+            public,
             description: record
                 .as_ref()
                 .and_then(|record| record.description.clone()),
@@ -61,7 +89,6 @@ impl App {
             force: false,
         };
         self.spawn_gist(GistAction::Push(options), snippet.id.to_string());
-        Vec::new()
     }
 
     pub(in super::super) fn verify_gist(&mut self) -> Vec<Effect> {
@@ -100,6 +127,26 @@ impl App {
             Ok(()) => {}
             Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
         }
+        Vec::new()
+    }
+
+    pub(in super::super) fn open_gist_detach_modal(&mut self) -> Vec<Effect> {
+        if self.refuse_busy_gist() {
+            return Vec::new();
+        }
+        let Some(snippet) = self.selected_snippet().cloned() else {
+            return Vec::new();
+        };
+        if crate::gist::find(&snippet).is_none() {
+            self.set_status("this snippet has no gist", StatusLevel::Error);
+            return Vec::new();
+        }
+        self.modal = Some(Modal::Confirm(ConfirmModal::new(
+            "Unlink this gist?",
+            "The snippet forgets the link. The gist stays on GitHub, and a later publish creates a new one with a different URL.",
+            ModalAction::GistDetach { id: snippet.id },
+            false,
+        )));
         Vec::new()
     }
 

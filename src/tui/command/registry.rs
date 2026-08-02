@@ -20,7 +20,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 58] = [
+static COMMANDS: [Command; 59] = [
     command!(
         SnippetNew,
         "snippet.new",
@@ -367,7 +367,7 @@ static COMMANDS: [Command; 58] = [
         "Library",
         "Toggle Published Filter",
         &["gist"],
-        Some("Ctrl-s f"),
+        None,
         enabled,
         library_toggle_published
     ),
@@ -510,6 +510,16 @@ static COMMANDS: [Command; 58] = [
         Some("Ctrl-s p"),
         has_snippet,
         gist_push
+    ),
+    command!(
+        GistPushPublic,
+        "gist.push-public",
+        "Gist",
+        "Publish as Public Gist",
+        &["public"],
+        Some("Ctrl-s P"),
+        has_snippet,
+        gist_push_public
     ),
     command!(
         GistCopyUrl,

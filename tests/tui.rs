@@ -1812,10 +1812,10 @@ fn gist_panel_opens_closes_and_renders_state_b_without_spawning() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(rendered.contains("This snippet has not been published."));
-    assert!(rendered.contains("push"));
-    assert!(rendered.contains("attach"));
-    assert!(rendered.contains("published only"));
+    assert!(rendered.contains("not published"));
+    assert!(rendered.contains("publish as a secret gist"));
+    assert!(rendered.contains("publish as a public gist"));
+    assert!(rendered.contains("link an existing gist"));
     assert!(rendered.contains("close"));
 
     app.handle_key(ctrl_s());
@@ -1847,10 +1847,13 @@ fn gist_panel_renders_state_c_with_url_and_clean_state() {
     assert!(rendered.contains("gist.github.com/octocat/5b0e0"));
     assert!(rendered.contains("secret"));
     assert!(rendered.contains("state       clean"));
-    assert!(rendered.contains("copy URL"));
+    assert!(rendered.contains("update the gist"));
+    assert!(rendered.contains("copy link"));
     assert!(rendered.contains("open in browser"));
-    assert!(rendered.contains("detach"));
-    assert!(rendered.contains("verify"));
+    assert!(rendered.contains("unlink"));
+    assert!(rendered.contains("check it still exists"));
+    // Visibility is fixed at creation, so the public verb is state B only.
+    assert!(!rendered.contains("publish as a public gist"));
 }
 
 #[test]

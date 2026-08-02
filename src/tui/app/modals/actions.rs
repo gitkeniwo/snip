@@ -295,6 +295,22 @@ impl App {
                 self.spawn_gist(GistAction::Delete, id.to_string());
                 return Ok((Vec::new(), String::new()));
             }
+            ModalAction::GistDetach { .. } => {
+                self.detach_gist();
+                return Ok((Vec::new(), String::new()));
+            }
+            ModalAction::GistPushPublic { id } => {
+                let snippet = self
+                    .catalog
+                    .snippets
+                    .iter()
+                    .find(|snippet| snippet.id == id)
+                    .cloned();
+                if let Some(snippet) = snippet {
+                    self.spawn_push(&snippet, true);
+                }
+                return Ok((Vec::new(), String::new()));
+            }
         };
         self.rescan()?;
         Ok((Vec::new(), message))

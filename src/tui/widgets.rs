@@ -18,20 +18,29 @@ pub fn fill_surface(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
 }
 
 pub fn pane_block(title: &str, focused: bool, theme: TuiTheme) -> Block<'static> {
+    pane_block_tinted(title, focused, theme, theme.accent)
+}
+
+/// A pane block whose focused colour is overridden — the trash view uses this to
+/// tint its list and preview panes without duplicating the block construction.
+pub fn pane_block_tinted(
+    title: &str,
+    focused: bool,
+    theme: TuiTheme,
+    accent: ratatui::style::Color,
+) -> Block<'static> {
     Block::default()
         .title(Span::styled(
             format!(" {title} "),
             if focused {
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(accent).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(theme.muted)
             },
         ))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(if focused { theme.accent } else { theme.border }))
+        .border_style(Style::default().fg(if focused { accent } else { theme.border }))
 }
 
 pub fn preview_block(
@@ -41,7 +50,18 @@ pub fn preview_block(
     fragment_index: usize,
     width: u16,
 ) -> Block<'static> {
-    let mut block = pane_block("Preview", focused, theme);
+    preview_block_tinted(focused, theme, theme.accent, snippet, fragment_index, width)
+}
+
+pub fn preview_block_tinted(
+    focused: bool,
+    theme: TuiTheme,
+    accent: ratatui::style::Color,
+    snippet: Option<&Snippet>,
+    fragment_index: usize,
+    width: u16,
+) -> Block<'static> {
+    let mut block = pane_block_tinted("Preview", focused, theme, accent);
     let Some(fragment) = snippet.and_then(|snippet| snippet.loaded_fragments.get(fragment_index))
     else {
         return block;

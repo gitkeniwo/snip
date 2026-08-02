@@ -19,9 +19,23 @@ const PREVIEW_MIN_CONTENT_ROWS: u16 = 3;
 
 pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     let snippet = app.selected_snippet().cloned();
-    let block = widgets::preview_block(
+    let accent = app.theme.accent;
+    draw_preview_of(frame, app, area, snippet, accent);
+}
+
+/// Renders the preview pane for an explicit snippet, so the trash view can show
+/// a deleted package through exactly the same path as a live one.
+pub fn draw_preview_of(
+    frame: &mut Frame<'_>,
+    app: &mut App,
+    area: Rect,
+    snippet: Option<crate::domain::Snippet>,
+    accent: ratatui::style::Color,
+) {
+    let block = widgets::preview_block_tinted(
         app.focus == Pane::Preview,
         app.theme,
+        accent,
         snippet.as_ref(),
         app.fragment_index,
         area.width,
@@ -160,39 +174,55 @@ fn draw_preview_header(
     let fragment_area = widgets::inset_left(areas.fragment, 1);
     let tags_area = areas.tags.map(|area| widgets::inset_left(area, 1));
     let rule_area = widgets::inset_left(areas.rule, 1);
-    let marker = match (snippet.pinned, snippet.locked) {
-        (true, true) => "★ pinned · ⊘ locked".to_owned(),
-        (true, false) => "★ pinned".to_owned(),
-        (false, true) => "⊘ locked".to_owned(),
-        (false, false) => String::new(),
+    // Markers are flush right, and separators appear only *between* markers that
+    // are actually present — an unconditional one leaves an orphan dot.
+    let mut markers: Vec<Span<'static>> = Vec::new();
+    let push_marker = |span: Span<'static>, markers: &mut Vec<Span<'static>>| {
+        if !markers.is_empty() {
+            markers.push(Span::styled(" · ", Style::default().fg(app.theme.muted)));
+        }
+        markers.push(span);
     };
-    let gist_marker = app
+    if snippet.pinned {
+        push_marker(
+            Span::styled("★ pinned", Style::default().fg(app.theme.warning)),
+            &mut markers,
+        );
+    }
+    if snippet.locked {
+        push_marker(
+            Span::styled("⊘ locked", Style::default().fg(app.theme.warning)),
+            &mut markers,
+        );
+    }
+    if let Some(badge) = app
         .gist_badges
         .get(&snippet.id)
         .copied()
-        .map(|badge| crate::tui::gist_panel::glyph(badge, app.icon_mode, app.theme));
-    let marker_width =
-        marker.chars().count() + gist_marker.map_or(0, |(glyph, _)| glyph.chars().count() + 3);
-    let title_width = title_area.width.saturating_sub(marker_width as u16 + 2) as usize;
+        .map(|badge| crate::tui::gist_panel::glyph(badge, app.theme))
+    {
+        let [mark, status] = badge;
+        push_marker(mark, &mut markers);
+        markers.push(status);
+    }
+    // Flush right, matching the dates on the metadata line directly below.
+    const RIGHT_MARGIN: usize = 0;
+    let marker_width = markers
+        .iter()
+        .map(|span| span.content.chars().count())
+        .sum::<usize>();
+    let available = title_area.width as usize;
+    let title_width = available.saturating_sub(marker_width + RIGHT_MARGIN + 1);
     let title = widgets::truncate_end(&snippet.title, title_width);
-    let padding = " ".repeat(
-        title_area
-            .width
-            .saturating_sub(title.chars().count() as u16 + marker_width as u16 + 3)
-            as usize,
-    );
+    let padding = available.saturating_sub(title.chars().count() + marker_width + RIGHT_MARGIN);
     let mut spans = vec![
         Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(padding),
-        Span::styled(marker, Style::default().fg(app.theme.warning)),
+        Span::raw(" ".repeat(padding)),
     ];
-    if let Some((glyph, color)) = gist_marker {
-        spans.push(Span::raw(" · "));
-        spans.push(Span::styled(glyph.to_owned(), Style::default().fg(color)));
-    }
-    spans.push(Span::raw("   "));
+    spans.append(&mut markers);
+    spans.push(Span::raw(" ".repeat(RIGHT_MARGIN)));
     frame.render_widget(Paragraph::new(Line::from(spans)), title_area);
-    let metadata = vec![
+    let mut metadata = vec![
         Span::styled(
             crate::domain::folder_label(&snippet.folder).to_owned(),
             Style::default().fg(app.theme.muted),
@@ -203,6 +233,32 @@ fn draw_preview_header(
             Style::default().fg(app.theme.muted),
         ),
     ];
+    // Dates ride the right edge of the same line rather than costing a row, and
+    // drop the less useful half before disappearing entirely on a narrow pane.
+    let added = yymmdd(Some(&snippet.created_at)).map(|date| format!("added {date}"));
+    let edited = yymmdd(snippet.modified_at.as_deref()).map(|date| format!("edited {date}"));
+    let used: usize = metadata
+        .iter()
+        .map(|span| span.content.chars().count())
+        .sum();
+    let available = metadata_area.width as usize;
+    let candidates = [
+        match (&added, &edited) {
+            (Some(added), Some(edited)) => Some(format!("{added}  {edited}")),
+            _ => None,
+        },
+        edited.clone(),
+        added.clone(),
+    ];
+    if let Some(dates) = candidates
+        .into_iter()
+        .flatten()
+        .find(|dates| used + dates.chars().count() + 2 <= available)
+    {
+        let padding = available.saturating_sub(used + dates.chars().count());
+        metadata.push(Span::raw(" ".repeat(padding)));
+        metadata.push(Span::styled(dates, Style::default().fg(app.theme.muted)));
+    }
     frame.render_widget(Paragraph::new(Line::from(metadata)), metadata_area);
 
     let total_fragments = snippet.loaded_fragments.len();
@@ -686,6 +742,28 @@ fn draw_preview_selection(frame: &mut Frame<'_>, app: &App, area: Rect) {
             }
         }
     }
+}
+
+/// Six-digit `YYMMDD` from an RFC 3339 timestamp, matching the snippet list's
+/// date column. Returns `None` when the value is absent or not a date.
+fn yymmdd(timestamp: Option<&str>) -> Option<String> {
+    let timestamp = timestamp?;
+    let bytes = timestamp.as_bytes();
+    if bytes.len() < 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+    if !bytes[2..4].iter().all(u8::is_ascii_digit)
+        || !bytes[5..7].iter().all(u8::is_ascii_digit)
+        || !bytes[8..10].iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    Some(format!(
+        "{}{}{}",
+        &timestamp[2..4],
+        &timestamp[5..7],
+        &timestamp[8..10]
+    ))
 }
 
 #[cfg(test)]
