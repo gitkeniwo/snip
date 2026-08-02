@@ -49,6 +49,7 @@ impl App {
         } = session_state;
         let catalog = library.scan()?;
         let index = MemoryIndex::new(catalog.clone());
+        let gist_badges = crate::tui::gist_panel::compute_all(&catalog.snippets);
         let tui = config.tui.clone().unwrap_or_default();
         let theme_overrides = tui
             .extra
@@ -69,6 +70,7 @@ impl App {
             library,
             catalog,
             index,
+            gist_badges,
             focus: Pane::Sidebar,
             sidebar: SidebarState::default(),
             filter: Filter::default(),
@@ -491,6 +493,7 @@ impl App {
         let catalog = self.library.scan()?;
         self.catalog = catalog.clone();
         self.index = MemoryIndex::new(catalog);
+        self.gist_badges = crate::tui::gist_panel::compute_all(&self.catalog.snippets);
         self.rebuild_sidebar();
         self.refresh_visible();
         if self.trash.open {

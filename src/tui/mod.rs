@@ -3,6 +3,7 @@ pub mod bottom_bar;
 pub mod command;
 pub mod editor;
 pub mod event;
+pub mod gist_panel;
 pub mod git_panel;
 pub mod help;
 pub mod highlight;

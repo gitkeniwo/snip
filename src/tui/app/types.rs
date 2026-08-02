@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
@@ -13,6 +14,7 @@ use crate::search::MemoryIndex;
 
 use super::super::editor::EditRequest;
 use super::super::event::AppEvent;
+use super::super::gist_panel::GistBadge;
 use super::super::highlight::Highlighter;
 use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
@@ -133,6 +135,7 @@ pub struct App {
     pub library: Library,
     pub catalog: CatalogSnapshot,
     pub index: MemoryIndex,
+    pub gist_badges: HashMap<Uuid, GistBadge>,
     pub focus: Pane,
     pub sidebar: SidebarState,
     pub filter: Filter,

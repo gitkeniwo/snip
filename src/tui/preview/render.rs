@@ -161,30 +161,37 @@ fn draw_preview_header(
     let tags_area = areas.tags.map(|area| widgets::inset_left(area, 1));
     let rule_area = widgets::inset_left(areas.rule, 1);
     let marker = match (snippet.pinned, snippet.locked) {
-        (true, true) => "★ pinned · ⊘ locked",
-        (true, false) => "★ pinned",
-        (false, true) => "⊘ locked",
-        (false, false) => "",
+        (true, true) => "★ pinned · ⊘ locked".to_owned(),
+        (true, false) => "★ pinned".to_owned(),
+        (false, true) => "⊘ locked".to_owned(),
+        (false, false) => String::new(),
     };
-    let title_width = title_area
-        .width
-        .saturating_sub(marker.chars().count() as u16 + 2) as usize;
+    let gist_marker = app
+        .gist_badges
+        .get(&snippet.id)
+        .copied()
+        .map(|badge| crate::tui::gist_panel::glyph(badge, app.icon_mode, app.theme));
+    let marker_width =
+        marker.chars().count() + gist_marker.map_or(0, |(glyph, _)| glyph.chars().count() + 3);
+    let title_width = title_area.width.saturating_sub(marker_width as u16 + 2) as usize;
     let title = widgets::truncate_end(&snippet.title, title_width);
     let padding = " ".repeat(
         title_area
             .width
-            .saturating_sub(title.chars().count() as u16 + marker.chars().count() as u16 + 3)
+            .saturating_sub(title.chars().count() as u16 + marker_width as u16 + 3)
             as usize,
     );
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(padding),
-            Span::styled(marker.to_owned(), Style::default().fg(app.theme.warning)),
-            Span::raw("   "),
-        ])),
-        title_area,
-    );
+    let mut spans = vec![
+        Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(padding),
+        Span::styled(marker, Style::default().fg(app.theme.warning)),
+    ];
+    if let Some((glyph, color)) = gist_marker {
+        spans.push(Span::raw(" · "));
+        spans.push(Span::styled(glyph.to_owned(), Style::default().fg(color)));
+    }
+    spans.push(Span::raw("   "));
+    frame.render_widget(Paragraph::new(Line::from(spans)), title_area);
     let metadata = vec![
         Span::styled(
             crate::domain::folder_label(&snippet.folder).to_owned(),
