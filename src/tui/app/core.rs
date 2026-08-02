@@ -514,7 +514,6 @@ impl App {
     }
 
     pub fn refresh_visible(&mut self) {
-        let old_index = self.list_state.selected().unwrap_or(0);
         let allowed = self
             .catalog
             .snippets
@@ -572,7 +571,13 @@ impl App {
         let selection = self
             .selected_id
             .and_then(|id| visible.iter().position(|row| row.snippet_id == id))
-            .or_else(|| (!visible.is_empty()).then(|| old_index.min(visible.len() - 1)));
+            .or_else(|| (!visible.is_empty()).then_some(0));
+        // `ListState::select` does not update the viewport offset. Clamp a
+        // stale offset far enough to fill the viewport, while preserving a
+        // still-valid offset so background rescans do not move the cursor row.
+        let viewport_rows = self.layout.list.height.saturating_sub(2) / self.density.row_height();
+        let max_offset = visible.len().saturating_sub(viewport_rows as usize);
+        *self.list_state.offset_mut() = self.list_state.offset().min(max_offset);
         self.list_state.select(selection);
         self.selected_id = selection.map(|index| visible[index].snippet_id);
         self.visible.clear();
@@ -585,6 +590,9 @@ impl App {
     pub(super) fn rebuild_sidebar(&mut self) {
         let trash_count = trash_entries(&self.library).map_or(0, |entries| entries.len());
         sidebar::rebuild(&mut self.sidebar, &self.catalog, trash_count);
+        let viewport_rows = self.layout.sidebar.height.saturating_sub(2) as usize;
+        let max_offset = self.sidebar.rows.len().saturating_sub(viewport_rows);
+        *self.sidebar.list_state.offset_mut() = self.sidebar.list_state.offset().min(max_offset);
     }
 
     pub(super) fn clamp_fragment(&mut self) {
@@ -735,6 +743,139 @@ mod tests {
                 .and_then(toml::Value::as_str),
             Some("kept")
         );
+    }
+
+    #[test]
+    fn refreshing_a_short_list_keeps_and_selects_its_first_row() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        use ratatui::layout::Rect;
+        use ratatui::widgets::List;
+
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Offset.sniplib"), None).unwrap();
+        let mut app = App::new(library, &AppConfig::default()).unwrap();
+        app.sort = crate::tui::state::SortMode::Title;
+        let mut first = make_test_snippet("Dotfiles", false);
+        first.manifest.title = "First Dotfile".to_owned();
+        let mut second = make_test_snippet("Dotfiles", false);
+        second.manifest.title = "Second Dotfile".to_owned();
+        let first_id = first.id;
+        let mut outside = make_test_snippet("Other", false);
+        outside.manifest.title = "Outside".to_owned();
+        app.selected_id = Some(outside.id);
+        app.catalog.snippets = vec![first, second, outside];
+        app.index = MemoryIndex::new(app.catalog.clone());
+        app.filter.folder = Some("Dotfiles".to_owned());
+        app.list_state.select(Some(1));
+        *app.list_state.offset_mut() = 25;
+        app.layout.list = Rect::new(0, 0, 40, 6);
+
+        app.refresh_visible();
+
+        let mut terminal = Terminal::new(TestBackend::new(40, 6)).unwrap();
+        terminal
+            .draw(|frame| {
+                let items = crate::tui::snippet_list::items(&app, 37);
+                let title = format!("Snippets ({})", app.visible.len());
+                frame.render_stateful_widget(
+                    List::new(items)
+                        .block(crate::tui::widgets::pane_block(
+                            &title,
+                            app.focus == Pane::List,
+                            app.theme,
+                        ))
+                        .highlight_symbol(" "),
+                    frame.area(),
+                    &mut app.list_state,
+                );
+            })
+            .unwrap();
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("First Dotfile"));
+        assert!(rendered.contains("Second Dotfile"));
+        assert_eq!(app.selected_id, Some(first_id));
+    }
+
+    #[test]
+    fn refreshing_an_unchanged_list_preserves_the_rendered_viewport() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        use ratatui::layout::Rect;
+        use ratatui::widgets::List;
+
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Stable Offset.sniplib"), None).unwrap();
+        let mut app = App::new(library, &AppConfig::default()).unwrap();
+        app.sort = crate::tui::state::SortMode::Title;
+        app.catalog.snippets = (0..59)
+            .map(|index| {
+                let mut snippet = make_test_snippet("", false);
+                snippet.manifest.title = format!("Snippet {index:02}");
+                snippet
+            })
+            .collect();
+        app.index = MemoryIndex::new(app.catalog.clone());
+        app.layout.list = Rect::new(0, 0, 40, 42);
+        app.refresh_visible();
+        app.list_state.select(Some(40));
+        app.selected_id = Some(app.visible[40].snippet_id);
+        *app.list_state.offset_mut() = 30;
+
+        let render = |app: &mut App| {
+            let mut terminal = Terminal::new(TestBackend::new(40, 42)).unwrap();
+            terminal
+                .draw(|frame| {
+                    let items = crate::tui::snippet_list::items(app, 37);
+                    let title = format!("Snippets ({})", app.visible.len());
+                    frame.render_stateful_widget(
+                        List::new(items)
+                            .block(crate::tui::widgets::pane_block(
+                                &title,
+                                app.focus == Pane::List,
+                                app.theme,
+                            ))
+                            .highlight_symbol(" "),
+                        frame.area(),
+                        &mut app.list_state,
+                    );
+                })
+                .unwrap();
+            terminal.backend().buffer().clone()
+        };
+        let before = render(&mut app);
+
+        app.refresh_visible();
+        let after = render(&mut app);
+
+        assert_eq!(before, after);
+    }
+
+    #[test]
+    fn rebuilding_sidebar_clamps_only_an_excess_viewport_offset() {
+        use ratatui::layout::Rect;
+
+        let temporary = tempfile::tempdir().unwrap();
+        let library =
+            Library::init(&temporary.path().join("Sidebar Offset.sniplib"), None).unwrap();
+        let mut app = App::new(library, &AppConfig::default()).unwrap();
+        app.layout.sidebar = Rect::new(0, 0, 20, 5);
+        *app.sidebar.list_state.offset_mut() = 25;
+
+        app.rebuild_sidebar();
+
+        let max_offset = app.sidebar.rows.len().saturating_sub(3);
+        assert_eq!(app.sidebar.list_state.offset(), max_offset);
+
+        *app.sidebar.list_state.offset_mut() = 2;
+        app.rebuild_sidebar();
+        assert_eq!(app.sidebar.list_state.offset(), 2);
     }
 
     #[test]
