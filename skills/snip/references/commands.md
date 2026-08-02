@@ -211,8 +211,8 @@ automatic commits and pushes for the current session.
 
 `snip gist` publishes a snippet to GitHub Gists through the `gh` CLI; nothing
 reaches the network unless `gh` is installed and authenticated. The gist record
-lives in the snippet's `snippet.toml` under `[[remotes]]`, so the link travels
-with the library. Unlinked-target commands fail with `not_found` (3); `attach`
+lives in the snippet's `snippet.toml` under `[[remotes]]` (see
+[data-model.md](data-model.md)), so the link travels with the library. Unlinked-target commands fail with `not_found` (3); `attach`
 on a linked snippet is a `conflict` (4); an un-publishable payload is a
 `validation_error` (5).
 
