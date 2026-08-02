@@ -83,6 +83,89 @@ never actually correct.
 - [ ] The choice belongs in the config file, with a sensible fallback chain
   when the configured editor is missing.
 
+### Fragment editing
+
+The CLI already defines the full fragment surface — `snip fragment add`,
+`edit`, `remove`, and `reorder` (`FragmentCommand` in `src/cli.rs`) — but the
+TUI has no counterpart: the command registry (`src/tui/command/registry.rs`)
+only exposes `view.toggle-fragment-list`, so fragments can be browsed but not
+created, renamed, reordered, or deleted from the UI.
+
+- [ ] Add/create a fragment from the preview's fragment list (mirror
+  `FragmentCommand::Add`).
+- [ ] Rename a fragment title in place (`FragmentCommand::Edit --title`).
+- [ ] Move a fragment to another position within the snippet
+  (`FragmentCommand::Reorder`).
+- [ ] Delete a fragment with a confirmation prompt (`FragmentCommand::Remove`).
+
+### Preview render cost per frame
+
+Measured RSS for `snip tui` under a PTY: ~9.8 MB at 2s, ~11.5 MB at 6s, then
+flat at 11.5–11.8 MB through 15s — no growth, no leak. CLI commands sit at
+6.6–7.3 MB, so the TUI's increment is ~4.5 MB. An empty library still costs
+11.0 MB, and a 59-snippet library 11.8 MB, so library content is only ~0.8 MB;
+the rest is fixed (~5.4 MB binary/runtime baseline shared with the CLI, plus
+`two_face::syntax::extra_newlines()`, ratatui, and the file watcher). That
+total is healthy for a Rust TUI carrying a full syntax set, and is not worth
+optimizing on its own.
+
+What the measurement did surface is a per-frame allocation problem in the
+preview pane. Every frame, for the selected snippet, the draw path:
+
+1. deep-copies the whole `Snippet` — including every loaded fragment's full
+   text — at `src/tui/preview/render.rs:21` (`selected_snippet().cloned()`);
+2. deep-copies the cached `PreviewDocument` on a cache *hit*
+   (`src/tui/preview/cache.rs:37`), which is one owned `String` plus a `Style`
+   per highlight token;
+3. re-runs `compose_preview` (`src/tui/preview/layout.rs:20`), which consumes
+   that document by value and rebuilds every line to add gutters and insets;
+4. re-runs `wrap_preview` over the whole fragment, not just the visible
+   window.
+
+Steps 2–4 all repeat work whose inputs did not change. `jump_paragraph`
+(`src/tui/preview/layout.rs:347`) runs the same pipeline again, though only on
+a keypress, not per frame. The cost scales with fragment length, so it shows
+up as input latency on large snippets.
+
+- [ ] Cache the *rendered* preview instead of the intermediate document: key
+  on `(fingerprint, fragment_index, content width, show_line_numbers)` and
+  reuse the wrapped output across frames. This removes the document clone,
+  the recompose, and the rewrap in one change, and makes an
+  `Arc<PreviewDocument>` unnecessary.
+- [ ] Borrow the selected snippet in `draw_preview` rather than cloning it;
+  the clone exists to end the `&App` borrow before `&mut App` is needed, so
+  this needs the borrow split untangled first.
+- [ ] Add a regression guard (a bench, or a counted-allocation test) so the
+  per-frame path cannot silently regress to cloning again.
+
+Two follow-ups were considered and rejected. Making the syntax set lazy buys
+nothing: the TUI draws the preview on its very first frame (`src/tui/ui.rs`
+calls `draw_preview` unconditionally), so a lazy `Highlighter` would
+initialize milliseconds after startup anyway; only a genuinely reduced
+`SyntaxSet` would shrink that cost, at the price of dropping language support.
+Highlighting only the visible window is likewise not worth it — syntect's
+`HighlightLines` is a stateful line scanner, so reaching line N still requires
+scanning lines 1..N; and once the render cache above lands, highlighting runs
+once per fragment switch rather than per frame.
+
+### Catalog held twice in memory
+
+`App` holds a `CatalogSnapshot` and a `MemoryIndex` that is nothing but a
+second full copy of the same snapshot (`src/tui/app/core.rs:51` and `:496`
+call `MemoryIndex::new(catalog.clone())`; `src/search.rs:106` shows the struct
+has one field and builds no index — `search()` is a linear scan over
+`catalog.snippets`). A rescan transiently holds a third copy. At the current
+scale this is only the ~0.8 MB measured above, but it grows linearly with
+library size.
+
+- [ ] Share one `Arc<CatalogSnapshot>` between `App` and `MemoryIndex`, or
+  have the search borrow the catalog directly, so the snapshot is stored once.
+- [ ] Separately: `MemoryIndex` is misnamed for what it does. Decide whether
+  it should acquire a real index (inverted index over titles/tags, or a
+  prefilter) or be renamed to reflect that it is a linear scanner. This
+  depends on the library size we intend to support and is not urgent at
+  today's scale.
+
 ## Sharing
 
 ### Publish a snippet as a Gist
@@ -98,6 +181,37 @@ never actually correct.
   entries for every gist command, a `Published` sidebar toggle that composes
   with the folder and tag filters, and list/preview markers that appear only for
   published snippets.
+
+## Data import
+
+### SnippetsLab importer audit
+
+`snip import snippetslab` reads the legacy SnippetsLab library bundle directly
+(`src/importer/snippetslab/`). It landed in 0.1.0 and has only been refactored
+since — never re-validated against a current SnippetsLab export. The code reads
+`version.plist` but only for the report; it does not adapt to the format that
+version describes, and the tests use a hand-built fixture rather than a real
+library.
+
+- [ ] Import a real, current SnippetsLab library (both 1.x and 2.x exports) and
+  confirm fields, folders, tags, fragments, and notes still land correctly;
+  update the field mappings for any format the current decoder misses.
+- [ ] Commit a small, real-world fixture (or a sanitized dump) and a regression
+  test that imports it, so future format drift fails CI instead of surfacing as
+  a broken user report.
+
+## Project homepage
+
+A lightweight showcase site for snip, kept distinct from the README so the
+repo stays the single source of truth.
+
+- [ ] Build a static landing page: tagline, feature highlights, screenshots of
+  the TUI, a one-line install command, and links to the README, manual pages,
+  and the latest release.
+- [ ] Derive the page content from `README.md` (generated or synced), so the
+  copy never drifts from the repo.
+- [ ] Serve it at a stable, branded URL (planned: `snip.gitkeniwo.tech`) and
+  point the README badge links at it.
 
 ## Packaging
 
@@ -131,3 +245,28 @@ never actually correct.
   both `sniplab` (source) and `sniplab-bin` (prebuilt) PKGBUILDs, and the
   portable Linux archives carry `LICENSE` and `README.md` for the package
   to install. The AUR repo is auto-created on the first push.
+
+### Standalone install script
+
+A curl-piped installer for platforms that have no package channel. Official
+repositories like apt will not take a new project, and `snip` has no built-in
+self-update, so the script also becomes the upgrade path.
+
+- [ ] `install.sh` fetches the release asset for the host platform and
+  architecture (`snip-<target>.tar.gz`) and installs the `snip` binary
+  user-level (`~/.local/bin`), needing no `sudo`.
+- [ ] Resolve the target triple from `uname` / `uname -m` through a small
+  table, so new targets (e.g. `armv7`, `riscv64`) slot in by adding a row;
+  fall back to `cargo install sniplab` with a clear message when the platform
+  has no prebuilt asset (e.g. glibc older than 2.39).
+- [ ] Install the man pages from the archive's `man/` into
+  `$XDG_DATA_HOME/man/man1` and the shell completions via
+  `snip completion bash|zsh|fish`, matching the manual routes the README
+  already documents.
+- [ ] Idempotent and upgrade-safe: re-running replaces the binary and refreshes
+  man pages and completions, prints the old and new versions, refuses to
+  downgrade, and leaves an install owned by a package manager
+  (brew / apt / dnf / nix) untouched.
+- [ ] Ship an `uninstall` mode and keep the script behind a stable URL; the
+  release tar.gz layout (`snip`, `man/`, `LICENSE`, `README.md`) is already
+  fixed, so no release-workflow change is needed for this to land.
