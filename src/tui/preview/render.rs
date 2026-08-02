@@ -298,7 +298,7 @@ fn draw_preview_header(
 }
 
 /// Explicit titles are kept verbatim; only filename fallbacks lose an index prefix.
-fn fragment_label(fragment: &Fragment) -> String {
+pub(crate) fn fragment_label(fragment: &Fragment) -> String {
     if !fragment.title.trim().is_empty() {
         return fragment.title.clone();
     }
@@ -590,8 +590,39 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
     } else {
         Vec::new()
     };
-    let mut hint = switch_hint;
-    hint.extend(collapse_hint);
+    let (hint, fallback_hint) = if app.fragment_grab.is_some() {
+        (
+            vec![
+                Span::styled(
+                    "Enter",
+                    Style::default()
+                        .fg(app.theme.warning)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" drop  ", Style::default().fg(app.theme.muted)),
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(app.theme.warning)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" cancel", Style::default().fg(app.theme.muted)),
+            ],
+            vec![
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(app.theme.warning)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" cancel", Style::default().fg(app.theme.muted)),
+            ],
+        )
+    } else {
+        let mut normal = switch_hint;
+        normal.extend(collapse_hint.clone());
+        (normal, collapse_hint)
+    };
     let header_area = Rect { height: 1, ..area };
     frame.render_widget(Paragraph::new(Line::from(header.clone())), header_area);
     if spans_fit_with_gap(&header, &hint, area.width) {
@@ -600,26 +631,19 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
             header_area,
         );
     } else {
-        let collapse_hint = vec![
-            Span::styled(
-                "-",
-                Style::default()
-                    .fg(app.theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" collapse", Style::default().fg(app.theme.muted)),
-        ];
-        if spans_fit_with_gap(&header, &collapse_hint, area.width) {
+        if spans_fit_with_gap(&header, &fallback_hint, area.width) {
             frame.render_widget(
-                Paragraph::new(Line::from(collapse_hint)).alignment(Alignment::Right),
+                Paragraph::new(Line::from(fallback_hint)).alignment(Alignment::Right),
                 header_area,
             );
         }
     }
 
     let visible = area.height.saturating_sub(1) as usize;
-    let scroll = app
-        .fragment_index
+    let selected_display = app
+        .fragment_grab
+        .map_or(app.fragment_index, |grab| grab.current);
+    let scroll = selected_display
         .saturating_sub(visible.saturating_sub(1))
         .min(total.saturating_sub(visible));
     let idx_width = total.to_string().len();
@@ -639,11 +663,19 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
         .unwrap_or(8);
     let columns = fragment_tree_columns(area.width, idx_width, line_width, natural_title_width);
 
-    for (screen_index, index) in (scroll..scroll.saturating_add(visible).min(total)).enumerate() {
+    let order = app.fragment_grab.map_or_else(
+        || (0..total).collect(),
+        |grab| super::super::app::types::grab_order(total, grab.origin, grab.current),
+    );
+    for (screen_index, display) in (scroll..scroll.saturating_add(visible).min(total)).enumerate() {
+        let index = order[display];
         let fragment = &snippet.loaded_fragments[index];
-        let selected = index == app.fragment_index;
-        let last = index == total.saturating_sub(1);
-        let connector = match (last, selected) {
+        let grabbed = app
+            .fragment_grab
+            .is_some_and(|grab| display == grab.current);
+        let selected = app.fragment_grab.is_none() && index == app.fragment_index;
+        let last = display == total.saturating_sub(1);
+        let connector = match (last, selected || grabbed) {
             (true, true) => "└>",
             (true, false) => "└─",
             (false, true) => "├>",
@@ -660,12 +692,14 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
             Span::styled(
                 connector,
                 Style::default()
-                    .fg(if selected {
+                    .fg(if grabbed {
+                        app.theme.accent_alt
+                    } else if selected {
                         app.theme.accent
                     } else {
                         app.theme.rule
                     })
-                    .add_modifier(if selected {
+                    .add_modifier(if selected || grabbed {
                         Modifier::BOLD
                     } else {
                         Modifier::empty()
@@ -673,14 +707,16 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
             ),
             Span::raw(" "),
             Span::styled(
-                format!("{index:>idx_width$}", index = index + 1),
+                format!("{display:>idx_width$}", display = display + 1),
                 Style::default()
-                    .fg(if selected {
+                    .fg(if grabbed {
+                        app.theme.accent_alt
+                    } else if selected {
                         app.theme.accent
                     } else {
                         app.theme.muted
                     })
-                    .add_modifier(if selected {
+                    .add_modifier(if selected || grabbed {
                         Modifier::BOLD
                     } else {
                         Modifier::empty()

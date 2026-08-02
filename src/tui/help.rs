@@ -59,6 +59,20 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
         HelpColor::Alt,
     ),
     (
+        "FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS",
+        &[
+            ("=   -", "expand / collapse the list"),
+            ("n", "add fragment"),
+            ("r", "rename fragment"),
+            ("m", "reorder fragment"),
+            ("d", "delete fragment"),
+            ("j / k", "move a grabbed fragment"),
+            ("Enter", "drop it"),
+            ("Esc", "cancel the move"),
+        ],
+        HelpColor::Warning,
+    ),
+    (
         "COPY",
         &[("y", "content"), ("Y", "snippet ID"), ("p", "managed path")],
         HelpColor::Success,
@@ -410,6 +424,7 @@ mod tests {
         };
         let entries_for = |category| match category {
             "Snippet" => group("SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS"),
+            "Fragment" => group("FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS"),
             "Copy" => group("COPY"),
             "Folder" | "Tag" => group("SIDEBAR — WHEN THE LEFT PANE HAS FOCUS"),
             "View" | "Library" | "App" => group("VIEW & GLOBAL"),

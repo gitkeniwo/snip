@@ -65,6 +65,9 @@ impl App {
                 return Vec::new();
             }
         }
+        if self.fragment_grab.is_some() {
+            return self.handle_fragment_grab_key(key);
+        }
         match key.code {
             _ if is_palette_trigger(key) => self.open_palette(),
             KeyCode::Char('q') => return self.run_command(CommandId::AppQuit),
@@ -214,6 +217,7 @@ impl App {
             || self.git.open
             || self.gist.open
             || self.search.active
+            || self.fragment_grab.is_some()
         {
             return Vec::new();
         }

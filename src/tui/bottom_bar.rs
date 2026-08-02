@@ -134,7 +134,31 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ShortcutSet<'_>,
         ShortcutSet<'_>,
         ShortcutSet<'_>,
-    ) = if app.trash.open {
+    ) = if app.fragment_grab.is_some() {
+        (
+            &[("j/k", "move"), ("Enter", "drop"), ("Esc", "cancel")],
+            &[("j/k", "move"), ("Enter", "drop"), ("Esc", "cancel")],
+            &[("Enter", ""), ("Esc", "")],
+        )
+    } else if app.fragment_context() {
+        (
+            &[
+                ("n", "add"),
+                ("r", "rename"),
+                ("m", "reorder"),
+                ("d", "delete"),
+                ("e", "edit"),
+                ("-", "collapse"),
+            ],
+            &[
+                ("n", "add"),
+                ("r", "rename"),
+                ("d", "delete"),
+                ("-", "collapse"),
+            ],
+            &[("n", ""), ("r", ""), ("d", "")],
+        )
+    } else if app.trash.open {
         (
             &[("j/k", "move"), ("u", "restore"), ("x", "purge")],
             &[("u", "restore"), ("x", "purge")],
@@ -153,7 +177,20 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 &[("n", "create"), ("r", "rename"), ("d", "delete")],
                 &[("n", ""), ("r", ""), ("d", "")],
             ),
-            Pane::List | Pane::Preview => (
+            Pane::List => (
+                &[
+                    ("n", "create"),
+                    ("e", "edit"),
+                    ("t", "tags"),
+                    ("r", "rename"),
+                    ("m", "move"),
+                    ("y", "copy"),
+                    ("p", "path"),
+                ],
+                &[("n", "create"), ("e", "edit"), ("t", "tags"), ("y", "copy")],
+                &[("n", ""), ("e", ""), ("y", "")],
+            ),
+            Pane::Preview => (
                 &[
                     ("n", "create"),
                     ("e", "edit"),
@@ -188,7 +225,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let right = shortcut_pills_with_primary(
         actions,
         app.theme,
-        if app.trash.open {
+        if app.trash.open || app.fragment_grab.is_some() || app.fragment_context() {
             app.theme.accent_alt
         } else {
             app.theme.pill_primary
