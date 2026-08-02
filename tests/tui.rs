@@ -1740,6 +1740,201 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
     );
 }
 
+fn link_gist(app: &mut App, snippet_id: uuid::Uuid) {
+    let snippet = app
+        .catalog
+        .snippets
+        .iter()
+        .find(|snippet| snippet.id == snippet_id)
+        .expect("snippet should be in the catalog");
+    let description = snippet.title.clone();
+    let payload = snip::gist::payload::build(
+        snippet,
+        &description,
+        &snip::gist::PayloadOptions {
+            include_notes: false,
+            include_readme: true,
+        },
+    )
+    .unwrap();
+    let digest = snip::gist::payload::digest(&payload);
+    let record = snip::domain::RemoteRecord {
+        kind: "gist".to_owned(),
+        host: "github.com".to_owned(),
+        id: "5b0e0062eb8e9654adad7bb1d81cc75f".to_owned(),
+        url: "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f".to_owned(),
+        public: false,
+        description: Some(description),
+        files: payload.files.keys().cloned().collect(),
+        include_notes: false,
+        include_readme: true,
+        pushed_at: Some("2026-08-01T10:00:00Z".to_owned()),
+        pushed_digest: Some(digest),
+        extra: toml::Table::new(),
+    };
+    let manifest_path = snippet.package_path.join("snippet.toml");
+    let mut manifest: toml::Value =
+        toml::from_str(&std::fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    if manifest.get("remotes").is_none() {
+        manifest
+            .as_table_mut()
+            .unwrap()
+            .insert("remotes".to_owned(), toml::Value::Array(vec![]));
+    }
+    let remotes = manifest.get_mut("remotes").unwrap().as_array_mut().unwrap();
+    remotes.push(toml::Value::try_from(&record).unwrap());
+    std::fs::write(manifest_path, toml::to_string(&manifest).unwrap()).unwrap();
+}
+
+fn ctrl_s() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL)
+}
+
+#[test]
+fn gist_panel_opens_closes_and_renders_state_b_without_spawning() {
+    let (_temporary, library, first_id, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+
+    assert!(!app.gist.open);
+    app.handle_key(ctrl_s());
+    assert!(app.gist.open, "Ctrl-s opens the gist panel");
+
+    let backend = TestBackend::new(64, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("This snippet has not been published."));
+    assert!(rendered.contains("push"));
+    assert!(rendered.contains("attach"));
+    assert!(rendered.contains("published only"));
+    assert!(rendered.contains("close"));
+
+    app.handle_key(ctrl_s());
+    assert!(!app.gist.open, "Ctrl-s a second time closes the gist panel");
+}
+
+#[test]
+fn gist_panel_renders_state_c_with_url_and_clean_state() {
+    let (_temporary, library, first_id, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    link_gist(&mut app, first_id);
+    app.rescan().unwrap();
+    app.selected_id = Some(first_id);
+
+    app.handle_key(ctrl_s());
+    assert!(app.gist.open);
+    let backend = TestBackend::new(64, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("gist.github.com/octocat/5b0e0"));
+    assert!(rendered.contains("secret"));
+    assert!(rendered.contains("state       clean"));
+    assert!(rendered.contains("copy URL"));
+    assert!(rendered.contains("open in browser"));
+    assert!(rendered.contains("detach"));
+    assert!(rendered.contains("verify"));
+}
+
+#[test]
+fn gist_and_git_consoles_are_mutually_exclusive() {
+    let (_temporary, library, _first, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+    app.handle_key(ctrl_s());
+    assert!(app.gist.open);
+    app.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL));
+    assert!(
+        !app.gist.open,
+        "Ctrl-g closes the gist panel and opens the git console"
+    );
+    assert!(app.git.open);
+    app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert!(!app.git.open);
+
+    app.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL));
+    assert!(app.git.open);
+    app.handle_key(ctrl_s());
+    assert!(
+        app.gist.open,
+        "Ctrl-s opens the gist panel and closes the git console"
+    );
+    assert!(!app.git.open);
+}
+
+#[test]
+fn gist_panel_shows_unavailable_state_after_a_failed_binary() {
+    let (_temporary, library, first_id, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.gist.unavailable = Some(snip::gist::gh::Unavailable::BinaryMissing);
+
+    app.handle_key(ctrl_s());
+    let backend = TestBackend::new(64, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(rendered.contains("gh was not found in PATH."));
+    assert!(rendered.contains("snip publishes gists through the GitHub CLI."));
+    assert!(rendered.contains("gh auth login"));
+    assert!(rendered.contains("gh auth refresh -h github.com -s gist"));
+}
+
+#[test]
+fn gist_commands_refuse_while_a_background_operation_is_in_flight() {
+    let (_temporary, library, first_id, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.gist.in_flight = true;
+    assert!(app.run_command(CommandId::GistPush).is_empty());
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("a background gist operation is running")
+    );
+}
+
+#[test]
+fn gist_finished_clears_unavailability_and_refreshes_the_catalog() {
+    let (_temporary, library, first_id, _second) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.gist.unavailable = Some(snip::gist::gh::Unavailable::NotAuthenticated);
+    app.handle_gist_task(snip::tui::event::GistTaskResult {
+        action: "push",
+        outcome: Ok("gist created".to_owned()),
+    });
+    assert!(app.gist.unavailable.is_none());
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("gist created")
+    );
+}
+
 #[test]
 fn quit_backup_waits_for_its_git_effect_to_finish() {
     if !git_available() {
