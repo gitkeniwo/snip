@@ -723,16 +723,16 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert_eq!(buffer.cell((27, 3)).unwrap().symbol(), "★");
     assert!(row_text_from(buffer, 3, 30).starts_with("[Code > Rust]"));
     assert_eq!(
-        buffer.cell((2, 11)).unwrap().symbol(),
+        buffer.cell((2, 12)).unwrap().symbol(),
         "#",
         "top-level tags should not inherit the folder icon gutter"
     );
     assert_eq!(buffer.cell((2, 1)).unwrap().symbol(), "L");
-    assert_eq!(buffer.cell((2, 6)).unwrap().symbol(), "▾");
-    assert_eq!(buffer.cell((2, 10)).unwrap().symbol(), "T");
-    assert_eq!(buffer.cell((3, 10)).unwrap().symbol(), "a");
-    assert_eq!(buffer.cell((2, 11)).unwrap().symbol(), "#");
-    assert_eq!(buffer.cell((3, 11)).unwrap().symbol(), " ");
+    assert_eq!(buffer.cell((2, 8)).unwrap().symbol(), "▾");
+    assert_eq!(buffer.cell((2, 11)).unwrap().symbol(), "T");
+    assert_eq!(buffer.cell((3, 11)).unwrap().symbol(), "a");
+    assert_eq!(buffer.cell((2, 12)).unwrap().symbol(), "#");
+    assert_eq!(buffer.cell((3, 12)).unwrap().symbol(), " ");
     assert_eq!(buffer.cell((56, 1)).unwrap().symbol(), "P");
     assert_eq!(buffer.cell((56, 2)).unwrap().symbol(), "A");
     assert_eq!(buffer.cell((56, 3)).unwrap().symbol(), "C");
@@ -1058,7 +1058,9 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
 
-    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 6));
+    // Row 8: the sidebar now leads with All / Uncategorized / Trash, then the
+    // Filters and Folders headers, before the first folder.
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 8, 8));
     assert_eq!(app.focus, Pane::Sidebar);
     assert_eq!(app.filter.folder.as_deref(), Some("Code"));
 
@@ -1812,10 +1814,10 @@ fn gist_panel_opens_closes_and_renders_state_b_without_spawning() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(rendered.contains("This snippet has not been published."));
-    assert!(rendered.contains("push"));
-    assert!(rendered.contains("attach"));
-    assert!(rendered.contains("published only"));
+    assert!(rendered.contains("not published"));
+    assert!(rendered.contains("publish as a secret gist"));
+    assert!(rendered.contains("publish as a public gist"));
+    assert!(rendered.contains("link an existing gist"));
     assert!(rendered.contains("close"));
 
     app.handle_key(ctrl_s());
@@ -1847,10 +1849,13 @@ fn gist_panel_renders_state_c_with_url_and_clean_state() {
     assert!(rendered.contains("gist.github.com/octocat/5b0e0"));
     assert!(rendered.contains("secret"));
     assert!(rendered.contains("state       clean"));
-    assert!(rendered.contains("copy URL"));
+    assert!(rendered.contains("update the gist"));
+    assert!(rendered.contains("copy link"));
     assert!(rendered.contains("open in browser"));
-    assert!(rendered.contains("detach"));
-    assert!(rendered.contains("verify"));
+    assert!(rendered.contains("unlink"));
+    assert!(rendered.contains("check it still exists"));
+    // Visibility is fixed at creation, so the public verb is state B only.
+    assert!(!rendered.contains("publish as a public gist"));
 }
 
 #[test]

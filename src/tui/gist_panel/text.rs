@@ -5,14 +5,13 @@ use time::format_description::well_known::Rfc3339;
 
 use super::super::app::App;
 use super::super::panel_text::{key_value, section};
-use super::super::selection::text_width;
 use super::super::theme::TuiTheme;
 use super::super::widgets;
 use super::GistBadge;
 
 pub fn gist_panel_text(app: &App, width: usize) -> Text<'static> {
     if let Some(reason) = unavailable_reason(app.gist.unavailable.as_ref()) {
-        return unavailable_text(app, reason, width);
+        return unavailable_text(app, reason);
     }
     match app.selected_snippet() {
         Some(snippet) => match crate::gist::find(snippet) {
@@ -31,9 +30,8 @@ fn unavailable_reason(unavailable: Option<&crate::gist::gh::Unavailable>) -> Opt
     }
 }
 
-fn unavailable_text(app: &App, reason: &str, width: usize) -> Text<'static> {
+fn unavailable_text(app: &App, reason: &str) -> Text<'static> {
     Text::from(vec![
-        section("GIST", width, app.theme),
         Line::raw(""),
         Line::styled(format!("  {reason}"), Style::default().fg(app.theme.error)),
         Line::raw(""),
@@ -66,32 +64,15 @@ fn no_record_text(
 ) -> Text<'static> {
     let title = snippet.map_or("", |snippet| snippet.title.as_str());
     Text::from(vec![
-        section("SNIPPET", width, app.theme),
         Line::raw(""),
-        Line::styled(format!("  {title}"), Style::default().fg(app.theme.bar_fg)),
-        Line::raw(""),
-        section("GIST", width, app.theme),
-        Line::raw(""),
-        Line::styled(
-            "  This snippet has not been published.",
-            Style::default().fg(app.theme.muted),
-        ),
+        field("title", title, width, app.theme, true),
+        key_value("gist", "not published".to_owned(), width, app.theme),
         Line::raw(""),
         section("ACTIONS", width, app.theme),
         Line::raw(""),
-        action_row(
-            &[("p", "push"), ("a", "attach")],
-            15,
-            primary_key(app.theme),
-            primary_label(app.theme),
-        ),
-        Line::raw(""),
-        action_row(
-            &[("f", "published only")],
-            11,
-            secondary_key(app.theme),
-            secondary_label(app.theme),
-        ),
+        action_line("p", "publish as a secret gist", app.theme, true),
+        action_line("P", "publish as a public gist", app.theme, true),
+        action_line("a", "link an existing gist…", app.theme, true),
         Line::raw(""),
         close_footer(app.theme),
     ])
@@ -107,21 +88,15 @@ fn record_text(
         ("missing", app.theme.error)
     } else {
         match app.gist_badges.get(&snippet.id) {
-            Some(GistBadge::Synced) => ("clean", app.theme.muted),
+            Some(GistBadge::Synced) => ("clean", app.theme.bar_fg),
             Some(GistBadge::Modified) | None => ("modified", app.theme.warning),
         }
     };
     Text::from(vec![
-        section("SNIPPET", width, app.theme),
         Line::raw(""),
-        Line::styled(
-            format!("  {}", snippet.title),
-            Style::default().fg(app.theme.bar_fg),
-        ),
+        field("title", &snippet.title, width, app.theme, true),
+        field("url", &record.url, width, app.theme, false),
         Line::raw(""),
-        section("GIST", width, app.theme),
-        Line::raw(""),
-        key_value("url", record.url.clone(), width, app.theme),
         key_value(
             "visibility",
             if record.public {
@@ -142,25 +117,13 @@ fn record_text(
         Line::raw(""),
         section("ACTIONS", width, app.theme),
         Line::raw(""),
-        action_row(
-            &[("p", "push"), ("y", "copy URL"), ("o", "open in browser")],
-            15,
-            primary_key(app.theme),
-            primary_label(app.theme),
-        ),
+        action_line("p", "update the gist", app.theme, true),
+        action_line("y", "copy link", app.theme, true),
+        action_line("o", "open in browser", app.theme, true),
         Line::raw(""),
-        action_row(
-            &[
-                ("a", "attach"),
-                ("d", "detach"),
-                ("x", "delete"),
-                ("r", "verify"),
-                ("f", "published only"),
-            ],
-            11,
-            secondary_key(app.theme),
-            secondary_label(app.theme),
-        ),
+        action_line("r", "check it still exists", app.theme, true),
+        action_line("d", "unlink (keeps the gist)…", app.theme, true),
+        action_line("x", "delete on GitHub…", app.theme, true),
         Line::raw(""),
         close_footer(app.theme),
     ])
@@ -171,15 +134,28 @@ fn pushed_value(pushed_at: Option<&str>) -> String {
         return String::new();
     };
     match OffsetDateTime::parse(pushed_at, &Rfc3339) {
-        Ok(value) => {
-            let relative = crate::git::relative_time(
-                value.unix_timestamp(),
-                OffsetDateTime::now_utc().unix_timestamp(),
-            );
-            format!("{pushed_at} ({relative})")
-        }
+        // The full timestamp is noise at this size; `snip gist status` has it.
+        Ok(value) => crate::git::relative_time(
+            value.unix_timestamp(),
+            OffsetDateTime::now_utc().unix_timestamp(),
+        ),
         Err(_) => pushed_at.to_owned(),
     }
+}
+
+/// A labelled field on the same 12-cell key column as [`key_value`], so the
+/// title and url line up with the fields below them.
+fn field(key: &str, value: &str, width: usize, theme: TuiTheme, bold: bool) -> Line<'static> {
+    let key = format!("  {key:<12}");
+    let value = widgets::truncate_end(value, width.saturating_sub(key.len()));
+    let mut style = Style::default().fg(theme.bar_fg);
+    if bold {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    Line::from(vec![
+        Span::styled(key, Style::default().fg(theme.muted)),
+        Span::styled(value, style),
+    ])
 }
 
 fn state_line(state: &str, color: Color, width: usize, theme: TuiTheme) -> Line<'static> {
@@ -191,40 +167,28 @@ fn state_line(state: &str, color: Color, width: usize, theme: TuiTheme) -> Line<
     ])
 }
 
-fn primary_key(theme: TuiTheme) -> Style {
-    Style::default()
-        .fg(theme.accent)
-        .add_modifier(Modifier::BOLD)
-}
-
-fn primary_label(theme: TuiTheme) -> Style {
-    Style::default().fg(theme.bar_fg)
-}
-
-fn secondary_key(theme: TuiTheme) -> Style {
-    Style::default().fg(theme.muted)
-}
-
-fn secondary_label(theme: TuiTheme) -> Style {
-    Style::default().fg(theme.muted)
-}
-
-fn action_row(
-    entries: &[(&str, &str)],
-    cell_width: usize,
-    key_style: Style,
-    label_style: Style,
-) -> Line<'static> {
-    let mut spans = vec![Span::raw("  ")];
-    for (key, label) in entries {
-        let cell = format!("{key}  {label}");
-        let padding = cell_width.saturating_sub(text_width(&cell) as usize);
-        spans.push(Span::styled((*key).to_owned(), key_style));
-        spans.push(Span::styled("  ", label_style));
-        spans.push(Span::styled((*label).to_owned(), label_style));
-        spans.push(Span::styled(" ".repeat(padding), label_style));
-    }
-    Line::from(spans)
+/// One action per line. `primary` marks the everyday verbs so they carry more
+/// weight than the occasional ones sharing the panel.
+fn action_line(key: &str, label: &str, theme: TuiTheme, primary: bool) -> Line<'static> {
+    let (key_style, label_style) = if primary {
+        (
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.bar_fg),
+        )
+    } else {
+        (
+            Style::default().fg(theme.muted),
+            Style::default().fg(theme.muted),
+        )
+    };
+    Line::from(vec![
+        Span::raw("  "),
+        Span::styled(key.to_owned(), key_style),
+        Span::styled("  ", label_style),
+        Span::styled(label.to_owned(), label_style),
+    ])
 }
 
 fn close_footer(theme: TuiTheme) -> Line<'static> {

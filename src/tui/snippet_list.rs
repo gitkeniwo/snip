@@ -10,23 +10,23 @@ use crate::config::TuiDensitySetting;
 /// Width of the gist marker in a row: one leading space plus the glyph, or
 /// zero when the snippet has no badge. Rendered immediately before the locked
 /// marker, so both reserve the same space in the row arithmetic.
-fn gist_marker(
-    app: &App,
-    snippet: &crate::domain::Snippet,
-) -> Option<(&'static str, ratatui::style::Color)> {
+fn gist_marker(app: &App, snippet: &crate::domain::Snippet) -> Option<[Span<'static>; 2]> {
     app.gist_badges
         .get(&snippet.id)
-        .map(|badge| crate::tui::gist_panel::glyph(*badge, app.icon_mode, app.theme))
-}
-
-fn gist_marker_width(app: &App, snippet: &crate::domain::Snippet) -> usize {
-    gist_marker(app, snippet).map_or(0, |(glyph, _)| glyph.chars().count() + 1)
+        .map(|badge| crate::tui::gist_panel::glyph(*badge, app.theme))
 }
 
 /// Comfortable rows use two terminal lines; compact rows use one. Mouse
 /// hit-testing derives the row height from the same density setting.
 pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
     let width = width as usize;
+    // Compact rows reserve the badge cell for every row so the date column stays
+    // aligned, but only when some visible snippet is actually published —
+    // a library with no gists gives up no width at all.
+    let any_badge = app
+        .visible
+        .iter()
+        .any(|row| app.gist_badges.contains_key(&row.snippet_id));
     app.visible
         .iter()
         .enumerate()
@@ -43,7 +43,13 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 0
             };
             if app.density == TuiDensitySetting::Compact {
-                let line = compact_line(app, snippet, width, date_str.filter(|_| date_width > 0));
+                let line = compact_line(
+                    app,
+                    snippet,
+                    width,
+                    date_str.filter(|_| date_width > 0),
+                    any_badge,
+                );
                 let line = if app.focus != super::state::Pane::List
                     && app.list_state.selected() == Some(index)
                 {
@@ -53,7 +59,13 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 };
                 return Some(ListItem::new(line));
             }
-            let marker_width = usize::from(snippet.locked) * 2 + gist_marker_width(app, snippet);
+            // Comfortable rows carry the badge at the end of line two, so line
+            // one reserves nothing for it.
+            let badge = gist_marker(app, snippet);
+            let badge_width = badge
+                .as_ref()
+                .map_or(0, |_| crate::tui::gist_panel::GLYPH_WIDTH + 1);
+            let marker_width = usize::from(snippet.locked) * 2;
             let left_width = 4;
             let title_width = width.saturating_sub(left_width + date_width + marker_width);
             let title = truncate(&snippet.title, title_width);
@@ -74,28 +86,31 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                     Style::default().fg(app.theme.muted),
                 ));
             }
-            if let Some((glyph, color)) = gist_marker(app, snippet) {
-                first.push(Span::styled(
-                    format!(" {glyph}"),
-                    Style::default().fg(color),
-                ));
-            }
             if snippet.locked {
                 first.push(Span::styled(" ⊘", Style::default().fg(app.theme.error)));
             }
 
-            let second = if let Some(excerpt) = row.excerpt.as_ref() {
-                let indent = 3.min(width);
+            // The second line is built into a narrowed width so the badge has
+            // somewhere to sit, then right-aligned into the tail it left free.
+            let second_width = width.saturating_sub(badge_width);
+            let mut second = if let Some(excerpt) = row.excerpt.as_ref() {
+                let indent = 3.min(second_width);
                 Line::from(vec![
                     pin_gutter(app, snippet.pinned, indent),
                     Span::styled(
-                        truncate(excerpt, width.saturating_sub(indent)),
+                        truncate(excerpt, second_width.saturating_sub(indent)),
                         Style::default().fg(app.theme.muted),
                     ),
                 ])
             } else {
-                metadata_line(app, snippet, width)
+                metadata_line(app, snippet, second_width)
             };
+            if let Some(spans) = badge {
+                let pad =
+                    width.saturating_sub(second.width() + crate::tui::gist_panel::GLYPH_WIDTH);
+                second.spans.push(Span::raw(" ".repeat(pad)));
+                second.spans.extend(spans);
+            }
             let first = Line::from(first);
             let first = if app.focus != super::state::Pane::List
                 && app.list_state.selected() == Some(index)
@@ -126,11 +141,13 @@ fn compact_line(
     snippet: &crate::domain::Snippet,
     width: usize,
     date: Option<String>,
+    any_badge: bool,
 ) -> Line<'static> {
     let badge_width = 4;
     let pin_width = 2;
     let date_width = usize::from(date.is_some()) * 7;
-    let marker_width = usize::from(snippet.locked) * 2 + gist_marker_width(app, snippet);
+    let gist_width = usize::from(any_badge) * 3;
+    let marker_width = usize::from(snippet.locked) * 2 + gist_width;
     let available = width.saturating_sub(badge_width + pin_width + date_width + marker_width);
     let folder = format!(
         " [{}]",
@@ -162,6 +179,17 @@ fn compact_line(
         Span::styled(tags, Style::default().fg(app.theme.muted)),
         Span::raw(" ".repeat(width.saturating_sub(used))),
     ];
+    // Ahead of the date, and padded to a constant width when any row carries a
+    // badge, so the six-digit date column lines up down the whole list.
+    if any_badge {
+        match gist_marker(app, snippet) {
+            Some(badge) => {
+                spans.push(Span::raw(" "));
+                spans.extend(badge);
+            }
+            None => spans.push(Span::raw("   ")),
+        }
+    }
     if let Some(date) = date {
         spans.push(Span::styled(
             format!(" {date}"),

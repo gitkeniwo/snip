@@ -22,6 +22,8 @@ pub fn rebuild(state: &mut SidebarState, catalog: &CatalogSnapshot, trash_count:
         .filter(|snippet| crate::gist::find(snippet).is_some())
         .count();
 
+    // Three groups, in this order: the places a snippet can be (scopes), the
+    // lenses you can lay over them (filters), then the folder and tag trees.
     let mut rows = vec![
         SidebarRow {
             item: SidebarItem::All,
@@ -32,18 +34,34 @@ pub fn rebuild(state: &mut SidebarState, catalog: &CatalogSnapshot, trash_count:
             expanded: false,
         },
         SidebarRow {
-            item: SidebarItem::Published,
-            label: "Published".to_owned(),
-            depth: 0,
-            count: published_count,
-            has_children: false,
-            expanded: false,
-        },
-        SidebarRow {
             item: SidebarItem::Uncategorized,
             label: "Uncategorized".to_owned(),
             depth: 0,
             count: uncategorized_count,
+            has_children: false,
+            expanded: false,
+        },
+        SidebarRow {
+            item: SidebarItem::Trash,
+            label: "Trash".to_owned(),
+            depth: 0,
+            count: trash_count,
+            has_children: false,
+            expanded: false,
+        },
+        SidebarRow {
+            item: SidebarItem::Header,
+            label: "Filters".to_owned(),
+            depth: 0,
+            count: 0,
+            has_children: false,
+            expanded: false,
+        },
+        SidebarRow {
+            item: SidebarItem::Published,
+            label: "Published".to_owned(),
+            depth: 0,
+            count: published_count,
             has_children: false,
             expanded: false,
         },
@@ -83,15 +101,6 @@ pub fn rebuild(state: &mut SidebarState, catalog: &CatalogSnapshot, trash_count:
             });
         }
     }
-
-    rows.push(SidebarRow {
-        item: SidebarItem::Trash,
-        label: "Trash".to_owned(),
-        depth: 0,
-        count: trash_count,
-        has_children: false,
-        expanded: false,
-    });
 
     rows.push(SidebarRow {
         item: SidebarItem::Header,
@@ -258,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn published_row_is_second_directly_after_all_snippets() {
+    fn scope_rows_lead_and_published_sits_under_its_own_filters_header() {
         let mut state = SidebarState::default();
         rebuild(
             &mut state,
@@ -269,8 +278,11 @@ mod tests {
             0,
         );
         assert_eq!(state.rows[0].item, SidebarItem::All);
-        assert_eq!(state.rows[1].item, SidebarItem::Published);
-        assert_eq!(state.rows[2].item, SidebarItem::Uncategorized);
+        assert_eq!(state.rows[1].item, SidebarItem::Uncategorized);
+        assert_eq!(state.rows[2].item, SidebarItem::Trash);
+        assert_eq!(state.rows[3].item, SidebarItem::Header);
+        assert_eq!(state.rows[3].label, "Filters");
+        assert_eq!(state.rows[4].item, SidebarItem::Published);
     }
 
     #[test]
@@ -297,7 +309,7 @@ mod tests {
     fn published_row_key_is_published() {
         let mut state = SidebarState::default();
         rebuild(&mut state, &catalog(vec![make_snippet("", true)]), 0);
-        assert_eq!(row_key(&state.rows[1]), "published");
+        assert_eq!(row_key(&state.rows[4]), "published");
     }
 
     #[test]

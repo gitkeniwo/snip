@@ -2,7 +2,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem};
+use ratatui::widgets::{List, ListItem};
 
 use crate::error::Result;
 use crate::filesystem::Library;
@@ -16,6 +16,9 @@ pub struct TrashState {
     pub open: bool,
     pub entries: Vec<TrashEntry>,
     pub selected: usize,
+    /// The selected entry's package, loaded so the preview pane can render it.
+    /// Cached because loading it per frame would re-read the package from disk.
+    pub preview: Option<crate::domain::Snippet>,
 }
 
 impl TrashState {
@@ -44,10 +47,9 @@ impl TrashState {
     }
 }
 
-pub fn draw_trash(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let popup = widgets::centered_rect(76, 20, area);
-    frame.render_widget(Clear, popup);
-    super::widgets::fill_surface(frame, popup, app.theme);
+/// The trash list occupies the snippet pane rather than a popup, so the sidebar
+/// stays reachable and the preview pane can show what is about to be restored.
+pub fn draw_trash_list(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     let items = app
         .trash
         .entries
@@ -76,16 +78,15 @@ pub fn draw_trash(frame: &mut Frame<'_>, app: &App, area: Rect) {
     state.select((!items.is_empty()).then_some(app.trash.selected));
     frame.render_stateful_widget(
         List::new(items)
-            .block(
-                Block::default()
-                    .title(format!(" Trash ({}) ", app.trash.entries.len()))
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(app.theme.accent_alt)),
-            )
+            .block(widgets::pane_block_tinted(
+                &format!("Trash ({})", app.trash.entries.len()),
+                true,
+                app.theme,
+                app.theme.accent_alt,
+            ))
             .highlight_symbol("▌ ")
             .highlight_style(app.theme.selected()),
-        popup,
+        area,
         &mut state,
     );
 }

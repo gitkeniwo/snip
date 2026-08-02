@@ -61,6 +61,8 @@ pub enum ModalAction {
     PickTheme,
     GistAttach { id: Uuid },
     GistDelete { id: Uuid },
+    GistDetach { id: Uuid },
+    GistPushPublic { id: Uuid },
 }
 
 #[cfg(test)]

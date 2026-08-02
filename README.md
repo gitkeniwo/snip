@@ -267,9 +267,17 @@ default.
 
 ## Terminal browser
 
-Three panes: folders and tags on the left, snippets in the middle, a preview on
-the right. Selecting a folder or tag filters the list. A file watcher picks up
-changes made outside the browser.
+Three panes: the library on the left, snippets in the middle, a preview on the
+right. A file watcher picks up changes made outside the browser.
+
+The left pane groups its rows: the scopes you can be in (`All snippets`,
+`Uncategorized`, `Trash`), then `Filters`, then the folder and tag trees.
+Moving the cursor onto a scope applies it, `Trash` included — it opens in the
+snippet pane rather than a popup, so the sidebar stays usable and the preview
+shows the deleted snippet before you restore it with `u` or purge it with `x`.
+`Published`, under `Filters`, is a toggle rather than a place: it narrows
+whatever you are already looking at, and waits for `Enter` or a click so that
+merely scrolling past it does nothing.
 
 | Key | |
 |---|---|
@@ -280,7 +288,7 @@ changes made outside the browser.
 | `j`/`k`, `g`/`G` | move; first/last |
 | `n`, `e`, `d` | create, edit in `$EDITOR`, move to trash |
 | `y` | copy content |
-| `Ctrl-g` | Git console |
+| `Ctrl-g`, `Ctrl-s` | Git console, gist panel |
 
 Keys are named after the CLI commands they run, so `r` on a folder is `snip
 folder rename`. The mouse works as expected: click to focus, double-click to
@@ -611,55 +619,43 @@ back. Permanent deletion requires `snip purge SELECTOR --yes`.
 
 ## Share as a gist
 
-`snip gist` publishes a snippet to GitHub Gists. It shells out to the
+`snip gist` publishes a snippet to GitHub Gists through the
 [GitHub CLI](https://cli.github.com), so snip never handles a token. Install
-`gh`, run `gh auth login` once, and make sure the token carries the `gist`
-scope:
+`gh` and authorize the `gist` scope once:
 
 ```bash
+gh auth login
 gh auth refresh -h github.com -s gist
 ```
 
-Each fragment becomes one gist file, so a multi-fragment snippet arrives as a
-multi-file gist. The snippet title becomes the gist description, and the README
-becomes `README.md` in the gist. Gists are secret unless you pass `--public`.
+Each fragment becomes one gist file and the README becomes `README.md`, so a
+multi-fragment snippet arrives intact. Gists are secret unless you ask for
+`--public`.
 
 ```bash
-snip gist push Brewfile
-snip gist push Brewfile --public --desc "my Homebrew bundle"
-snip gist url Brewfile --copy
-snip gist status Brewfile
-snip gist push Brewfile          # pushes again after an edit
+snip gist push Brewfile          # publish, and update on later pushes
+snip gist url Brewfile --copy    # copy the link
+snip gist status Brewfile        # local vs published, no network
 snip gist delete Brewfile --yes
 ```
 
-`push` creates the gist the first time and updates it afterwards, keeping the
-same URL so a link you have already shared stays valid. It records the gist in
-the snippet's `snippet.toml`, so the link travels with the library. When
-nothing has changed since the last push, `push` says so and makes no network
-call.
+`push` keeps the same URL for the life of the snippet, so a link you already
+shared stays valid, and records the gist in `snippet.toml` so it travels with
+the library. It skips the network entirely when nothing has changed. `attach`
+adopts a gist you created elsewhere and `detach` forgets one without deleting
+it. snip only manages the files it published, so anything you add to the gist
+in the browser is left alone.
 
-`status` compares the snippet against the last push without touching the
-network; add `--remote` to also check that the gist still exists. `attach`
-adopts a gist you created elsewhere, and `detach` forgets one without deleting
-it on GitHub.
-
-A gist's visibility is fixed when it is created — GitHub has no way to turn a
-secret gist public. Push a new one with `--new` if you need to change it.
-
-snip only manages the files it published. A file you add to the gist in the
-browser is left alone.
+Visibility is fixed at creation — GitHub cannot turn a secret gist public — so
+changing it means publishing a new one with `--new`.
 
 In the TUI, `Ctrl-s` opens the gist panel for the selected snippet: `p`
-publishes or updates, `y` copies the URL, `o` opens it in a browser, and `a`,
-`d`, `x`, `r` attach, detach, delete, and verify. Published snippets carry a
-small marker in the list and the preview header — `G✓` when the gist matches the
-snippet, `G✚` when you have edited since publishing. Unpublished snippets carry
-no marker at all.
-
-The sidebar's `Published` entry is a toggle rather than a folder, so it narrows
-whatever you are already looking at: pick a folder or a tag, switch it on, and
-you see the published snippets within that scope.
+publishes or updates, `y` copies the link, `o` opens it in a browser, and `a`,
+`r`, `d`, `x` link an existing gist, check it still exists, unlink, and delete.
+`P` publishes a *public* gist and is offered only before the first publish;
+`P`, `d`, and `x` confirm first. Published snippets carry `G✓` in the list and
+preview header, or `G+` once you have edited since publishing. Unpublished
+snippets carry no marker.
 
 ## Manual pages
 

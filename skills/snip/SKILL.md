@@ -278,7 +278,10 @@ count on them having run.
 ## Sharing
 
 `snip gist` publishes a snippet to GitHub Gists through `gh`, recording the link
-in the snippet's `snippet.toml`:
+in the snippet's `snippet.toml`. It needs `gh` installed and authenticated with
+the `gist` scope; if it is not, say so and let the user run `gh auth login` and
+`gh auth refresh -h github.com -s gist` themselves rather than running them for
+them.
 
 ```bash
 snip gist push Brewfile              # create or update the gist
@@ -290,9 +293,18 @@ snip gist delete Brewfile --yes      # delete the gist on GitHub
 ```
 
 `push` is an upsert: the first run creates the gist, later runs update the same
-one, and an unchanged snippet skips the network. A `validation_error` means the
-snippet has an empty fragment that GitHub would drop; `not_found` (exit 3) on
-`url`/`detach`/`delete`/`open` means the snippet has no gist record.
+one and keep the URL, and an unchanged snippet skips the network. Each fragment
+becomes one gist file and the README becomes `README.md`.
+
+Gists are secret unless `--public` is passed at creation, and GitHub cannot
+change visibility afterwards — `--public` on an existing gist is a
+`validation_error`, and the only way round it is `--new`, which publishes a
+fresh gist at a new URL. **Publishing is public-facing and irreversible, so
+confirm with the user before `--public`, `--new`, or `delete`.**
+
+A `validation_error` means the snippet has an empty fragment that GitHub would
+drop; `not_found` (exit 3) on `url`/`detach`/`delete`/`open` means the snippet
+has no gist record.
 
 ## Errors
 

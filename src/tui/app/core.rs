@@ -499,6 +499,7 @@ impl App {
         self.refresh_visible();
         if self.trash.open {
             self.trash.reload(&self.library)?;
+            self.sync_trash_preview();
         }
         self.refresh_git();
         Ok(())

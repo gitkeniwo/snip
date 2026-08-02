@@ -54,7 +54,16 @@ impl App {
                 self.open_palette();
                 return Vec::new();
             }
-            return self.handle_trash_key(key);
+            // The trash occupies the list pane rather than covering everything,
+            // so its keys apply only when that pane has focus; the sidebar keeps
+            // its own, which is what a popup never allowed.
+            if self.focus == Pane::List {
+                return self.handle_trash_key(key);
+            }
+            if matches!(key.code, KeyCode::Esc | KeyCode::Char('T')) {
+                self.leave_trash();
+                return Vec::new();
+            }
         }
         match key.code {
             _ if is_palette_trigger(key) => self.open_palette(),
@@ -202,7 +211,6 @@ impl App {
     pub fn handle_mouse(&mut self, event: MouseEvent) -> Vec<Effect> {
         if self.modal.is_some()
             || self.palette.open
-            || self.trash.open
             || self.git.open
             || self.gist.open
             || self.search.active

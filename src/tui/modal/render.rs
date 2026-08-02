@@ -1,6 +1,6 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap};
 
@@ -26,7 +26,30 @@ pub fn draw_modal(frame: &mut Frame<'_>, area: Rect, modal: &mut Modal, theme: T
                     error.clone(),
                     Style::default().fg(theme.error),
                 )));
+                lines.push(Line::default());
             }
+            // Repeated inside the box: on a tall terminal the bottom bar is far
+            // enough away that a modal can appear with no visible way out.
+            let key = |label: &str, color| {
+                Span::styled(
+                    label.to_owned(),
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
+                )
+            };
+            lines.push(
+                Line::from(vec![
+                    key("y", border),
+                    Span::styled(" / ", Style::default().fg(theme.muted)),
+                    key("Enter", border),
+                    Span::styled("  confirm", Style::default().fg(theme.muted)),
+                    Span::styled("     ", Style::default()),
+                    key("n", theme.muted),
+                    Span::styled(" / ", Style::default().fg(theme.muted)),
+                    key("Esc", theme.muted),
+                    Span::styled("  cancel", Style::default().fg(theme.muted)),
+                ])
+                .centered(),
+            );
             frame.render_widget(
                 Paragraph::new(lines)
                     .block(

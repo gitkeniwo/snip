@@ -61,6 +61,29 @@ Rules the format requires: at least one fragment; fragment and note paths
 relative and inside the package, never through a symlink; content valid UTF-8
 (may be empty); tags trimmed, non-empty, and unique case-insensitively.
 
+A published snippet also carries a `[[remotes]]` array recording where it went:
+
+```toml
+[[remotes]]
+kind = "gist"
+host = "github.com"
+id = "5b0e0062eb8e9654adad7bb1d81cc75f"
+url = "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f"
+public = false
+description = "Brewfile"
+files = ["001-Brewfile", "README.md"]
+include_notes = false
+include_readme = true
+pushed_at = "2026-08-01T10:00:00Z"
+pushed_digest = "…"
+```
+
+`files` is the set of remote filenames snip published; anything not in that list
+belongs to someone else and is never deleted on the next push. `pushed_digest`
+hashes the payload that was sent, not the snippet, so recording the entry does
+not immediately invalidate it — that is what lets `snip gist status` answer
+offline. Never hand-edit these; use `snip gist attach`/`detach`.
+
 **Unknown TOML fields must survive a read-modify-write.** snip preserves fields
 it does not recognize so newer versions and other tools can coexist. If you
 rewrite a manifest yourself, preserve them too.
