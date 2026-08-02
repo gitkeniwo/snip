@@ -139,6 +139,25 @@ pub struct GistState {
     pub sender: Option<Sender<AppEvent>>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FragmentGrab {
+    /// Index the fragment occupied when it was grabbed.
+    pub origin: usize,
+    /// Index it is currently hovering over; equals `origin` until the user moves it.
+    pub current: usize,
+}
+
+/// Display order while a fragment is grabbed: `origin` lifted out and
+/// re-inserted at `current`. Returns original indices in display order.
+pub fn grab_order(total: usize, origin: usize, current: usize) -> Vec<usize> {
+    let mut order = (0..total).collect::<Vec<_>>();
+    if origin < total && current < total && origin != current {
+        let grabbed = order.remove(origin);
+        order.insert(current, grabbed);
+    }
+    order
+}
+
 pub struct App {
     pub config_path: PathBuf,
     pub library: Library,
@@ -153,6 +172,7 @@ pub struct App {
     pub list_state: ListState,
     pub selected_id: Option<Uuid>,
     pub fragment_index: usize,
+    pub fragment_grab: Option<FragmentGrab>,
     pub preview_scroll: u16,
     pub show_line_numbers: bool,
     pub fragments_expanded: bool,
@@ -188,4 +208,17 @@ pub struct App {
     pub default_folder: Option<String>,
     pub default_tags: Vec<String>,
     pub(super) last_click: Option<(usize, Instant)>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::grab_order;
+
+    #[test]
+    fn grab_order_moves_down_up_and_preserves_identity() {
+        assert_eq!(grab_order(5, 1, 3), vec![0, 2, 3, 1, 4]);
+        assert_eq!(grab_order(5, 3, 1), vec![0, 3, 1, 2, 4]);
+        assert_eq!(grab_order(5, 2, 2), vec![0, 1, 2, 3, 4]);
+        assert_eq!(grab_order(1, 0, 0), vec![0]);
+    }
 }
