@@ -8,7 +8,7 @@ use crate::domain::{Fragment, Snippet};
 
 use super::super::app::App;
 use super::super::icons;
-use super::super::selection::{SelectionKey, text_width};
+use super::super::selection::{SelectionKey, char_width, text_width};
 use super::super::state::Pane;
 use super::super::theme::TuiTheme;
 use super::super::widgets;
@@ -206,15 +206,19 @@ fn draw_preview_header(
         markers.push(status);
     }
     // Flush right, matching the dates on the metadata line directly below.
+    // Widths are measured in display cells (`text_width`), not characters:
+    // a wide glyph such as CJK text occupies two cells, and char-counting
+    // would under-size the title and overrun the right edge.
     const RIGHT_MARGIN: usize = 0;
     let marker_width = markers
         .iter()
-        .map(|span| span.content.chars().count())
+        .map(|span| text_width(&span.content) as usize)
         .sum::<usize>();
     let available = title_area.width as usize;
     let title_width = available.saturating_sub(marker_width + RIGHT_MARGIN + 1);
-    let title = widgets::truncate_end(&snippet.title, title_width);
-    let padding = available.saturating_sub(title.chars().count() + marker_width + RIGHT_MARGIN);
+    let title = truncate_cells(&snippet.title, title_width);
+    let title_cells = text_width(&title) as usize;
+    let padding = available.saturating_sub(title_cells + marker_width + RIGHT_MARGIN);
     let mut spans = vec![
         Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(" ".repeat(padding)),
@@ -239,7 +243,7 @@ fn draw_preview_header(
     let edited = yymmdd(snippet.modified_at.as_deref()).map(|date| format!("edited {date}"));
     let used: usize = metadata
         .iter()
-        .map(|span| span.content.chars().count())
+        .map(|span| text_width(&span.content) as usize)
         .sum();
     let available = metadata_area.width as usize;
     let candidates = [
@@ -253,9 +257,10 @@ fn draw_preview_header(
     if let Some(dates) = candidates
         .into_iter()
         .flatten()
-        .find(|dates| used + dates.chars().count() + 2 <= available)
+        .find(|dates| used + text_width(dates) as usize + 2 <= available)
     {
-        let padding = available.saturating_sub(used + dates.chars().count());
+        let dates_width = text_width(&dates) as usize;
+        let padding = available.saturating_sub(used + dates_width);
         metadata.push(Span::raw(" ".repeat(padding)));
         metadata.push(Span::styled(dates, Style::default().fg(app.theme.muted)));
     }
@@ -744,6 +749,31 @@ fn draw_preview_selection(frame: &mut Frame<'_>, app: &App, area: Rect) {
     }
 }
 
+/// Truncates a title to `max_cells` display cells, keeping a trailing ellipsis.
+/// Cell-aware so a wide glyph (CJK, emoji) cannot push the flush-right markers
+/// past the pane's right edge.
+fn truncate_cells(value: &str, max_cells: usize) -> String {
+    if text_width(value) as usize <= max_cells {
+        return value.to_owned();
+    }
+    if max_cells == 0 {
+        return String::new();
+    }
+    let target = max_cells.saturating_sub(1);
+    let mut out = String::new();
+    let mut cells = 0;
+    for character in value.chars() {
+        let width = char_width(character) as usize;
+        if cells + width > target {
+            break;
+        }
+        out.push(character);
+        cells += width;
+    }
+    out.push('…');
+    out
+}
+
 /// Six-digit `YYMMDD` from an RFC 3339 timestamp, matching the snippet list's
 /// date column. Returns `None` when the value is absent or not a date.
 fn yymmdd(timestamp: Option<&str>) -> Option<String> {
@@ -773,7 +803,8 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        fragment_label, fragment_line_spans, fragment_tree_columns, spans_fit_with_gap, spans_width,
+        fragment_label, fragment_line_spans, fragment_tree_columns, spans_fit_with_gap,
+        spans_width, truncate_cells,
     };
     use crate::domain::{Fingerprint, Fragment, FragmentManifest, Snippet, SnippetManifest};
     use crate::tui::theme::TuiTheme;
@@ -903,5 +934,68 @@ mod tests {
         let without_badge =
             fragment_tree_columns((badge_threshold - 1) as u16, idx_width, line_width, 20);
         assert!(!without_badge.note && !without_badge.lines && !without_badge.badge);
+    }
+
+    #[test]
+    fn preview_header_keeps_flush_right_markers_and_dates_with_wide_glyphs() {
+        use crate::tui::preview::draw_preview_of;
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        use ratatui::layout::Rect;
+
+        let mut snippet = snippet();
+        snippet.manifest.pinned = true;
+        snippet.manifest.locked = true;
+        snippet.manifest.title = "代码评审 Code Review 备份".to_owned();
+        snippet.folder = "工作/文档".to_owned();
+        snippet.manifest.created_at = "2026-01-01T00:00:00Z".to_owned();
+        snippet.modified_at = Some("2026-02-03T04:05:06Z".to_owned());
+        snippet.fingerprint = Fingerprint("0123456789abcdef".to_owned());
+
+        let temporary = tempfile::tempdir().unwrap();
+        let library =
+            crate::filesystem::library::Library::init(&temporary.path().join("T.sniplib"), None)
+                .unwrap();
+        let mut app =
+            crate::tui::app::App::new(library, &crate::config::AppConfig::default()).unwrap();
+        app.gist_badges
+            .insert(snippet.id, crate::tui::gist_panel::GistBadge::Synced);
+
+        let width = 44u16;
+        let accent = app.theme.accent;
+        let mut terminal = Terminal::new(TestBackend::new(width, 24)).unwrap();
+        terminal
+            .draw(|frame| {
+                draw_preview_of(
+                    frame,
+                    &mut app,
+                    Rect::new(0, 0, width, 24),
+                    Some(snippet),
+                    accent,
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let title_row = (0..width)
+            .map(|x| buffer[(x, 1)].symbol())
+            .collect::<String>();
+        let metadata_row = (0..width)
+            .map(|x| buffer[(x, 2)].symbol())
+            .collect::<String>();
+        assert!(title_row.contains("pinned"), "title row: {title_row:?}");
+        assert!(title_row.contains("locked"), "title row: {title_row:?}");
+        assert!(
+            metadata_row.contains("edited 260203"),
+            "metadata row: {metadata_row:?}"
+        );
+    }
+
+    #[test]
+    fn truncate_cells_measures_wide_glyphs_in_cells() {
+        assert_eq!(truncate_cells("short", 10), "short");
+        assert_eq!(truncate_cells("代码评审", 4), "代…");
+        assert_eq!(truncate_cells("代码评审", 5), "代码…");
+        assert_eq!(truncate_cells("代码评审", 0), "");
+        assert_eq!(truncate_cells("abcdef", 3), "ab…");
     }
 }
