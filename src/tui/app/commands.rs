@@ -56,6 +56,16 @@ pub(crate) fn has_snippet(app: &App) -> CommandState {
         CommandState::Disabled("no snippet selected")
     }
 }
+pub(crate) fn has_gist(app: &App) -> CommandState {
+    if app
+        .selected_snippet()
+        .is_some_and(|snippet| crate::gist::find(snippet).is_some())
+    {
+        CommandState::Enabled
+    } else {
+        CommandState::Disabled("this snippet has no gist")
+    }
+}
 pub(crate) fn has_folder(app: &App) -> CommandState {
     if matches!(
         app.sidebar.selected().map(|row| &row.item),
@@ -173,7 +183,7 @@ effect!(library_search, app => app.search.active = true);
 effect!(library_rescan, app => app.rescan_now());
 effect!(library_trash, app => app.open_trash());
 effect!(library_clear_filter, app => { app.filter = Default::default(); app.search.query.clear(); app.refresh_visible(); });
-effect!(git_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.git.open = true; app.refresh_git(); });
+effect!(git_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.gist.open = false; app.git.open = true; app.refresh_git(); });
 effect!(git_message, app => app.open_git_message());
 effect!(git_fetch, app => app.spawn_fetch());
 effect!(git_refresh, app => app.refresh_git());
@@ -181,6 +191,15 @@ effect!(git_auto_push, app => app.toggle_auto_push());
 effect!(git_backup_on_quit, app => app.toggle_backup_on_quit());
 effect!(git_pause, app => app.toggle_auto_backup());
 effect!(git_interval, app => app.open_auto_commit_interval());
+effect!(gist_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.git.open = false; app.gist.open = true; });
+effect!(gist_push, app => app.push_gist());
+effect!(gist_copy_url, app => app.copy_gist_url());
+effect!(gist_open_browser, app => app.open_gist_in_browser());
+effect!(gist_attach, app => app.open_gist_attach_modal());
+effect!(gist_detach, app => app.detach_gist());
+effect!(gist_delete, app => app.open_gist_delete_modal());
+effect!(gist_verify, app => app.verify_gist());
+effect!(library_toggle_published, app => app.toggle_published_filter());
 effect!(trash_restore, app => app.restore_selected_trash());
 effect!(trash_purge, app => app.purge_selected_trash());
 

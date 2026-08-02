@@ -20,7 +20,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 49] = [
+static COMMANDS: [Command; 58] = [
     command!(
         SnippetNew,
         "snippet.new",
@@ -362,6 +362,16 @@ static COMMANDS: [Command; 49] = [
         library_clear_filter
     ),
     command!(
+        LibraryTogglePublishedFilter,
+        "library.toggle-published",
+        "Library",
+        "Toggle Published Filter",
+        &["gist"],
+        Some("Ctrl-s f"),
+        enabled,
+        library_toggle_published
+    ),
+    command!(
         GitOpenConsole,
         "git.open-console",
         "Git",
@@ -480,6 +490,86 @@ static COMMANDS: [Command; 49] = [
         Some("Ctrl-g i"),
         git_available,
         git_interval
+    ),
+    command!(
+        GistOpenPanel,
+        "gist.open-panel",
+        "Gist",
+        "Open Panel",
+        &["gist"],
+        Some("Ctrl-s"),
+        enabled,
+        gist_open
+    ),
+    command!(
+        GistPush,
+        "gist.push",
+        "Gist",
+        "Publish or Update",
+        &["share", "gist"],
+        Some("Ctrl-s p"),
+        has_snippet,
+        gist_push
+    ),
+    command!(
+        GistCopyUrl,
+        "gist.copy-url",
+        "Gist",
+        "Copy URL",
+        &["link", "url"],
+        Some("Ctrl-s y"),
+        has_gist,
+        gist_copy_url
+    ),
+    command!(
+        GistOpenInBrowser,
+        "gist.open-browser",
+        "Gist",
+        "Open in Browser",
+        &["gist"],
+        Some("Ctrl-s o"),
+        has_gist,
+        gist_open_browser
+    ),
+    command!(
+        GistAttach,
+        "gist.attach",
+        "Gist",
+        "Attach Existing Gist…",
+        &["adopt", "link"],
+        Some("Ctrl-s a"),
+        has_snippet,
+        gist_attach
+    ),
+    command!(
+        GistDetach,
+        "gist.detach",
+        "Gist",
+        "Detach Gist",
+        &["gist"],
+        Some("Ctrl-s d"),
+        has_gist,
+        gist_detach
+    ),
+    command!(
+        GistDelete,
+        "gist.delete",
+        "Gist",
+        "Delete Gist…",
+        &["gist"],
+        Some("Ctrl-s x"),
+        has_gist,
+        gist_delete
+    ),
+    command!(
+        GistVerifyRemote,
+        "gist.verify",
+        "Gist",
+        "Verify Remote",
+        &["gist"],
+        Some("Ctrl-s r"),
+        has_gist,
+        gist_verify
     ),
     command!(
         TrashRestoreSelected,

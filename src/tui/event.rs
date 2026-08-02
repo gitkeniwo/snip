@@ -12,6 +12,13 @@ use crate::git::ActionOutcome;
 pub enum AppEvent {
     FsChanged,
     GitFinished(GitTaskResult),
+    GistFinished(GistTaskResult),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GistTaskResult {
+    pub action: &'static str,
+    pub outcome: std::result::Result<String, String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

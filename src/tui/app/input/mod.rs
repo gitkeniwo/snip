@@ -1,7 +1,7 @@
+pub(crate) mod gist;
 mod git;
 mod overlay;
 mod panes;
-
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
@@ -26,6 +26,9 @@ impl App {
         if self.git.open {
             return self.handle_git_key(key);
         }
+        if self.gist.open {
+            return self.handle_gist_key(key);
+        }
         if is_ctrl_g(key) {
             if matches!(
                 self.git.unavailable.as_ref(),
@@ -36,6 +39,9 @@ impl App {
                 return self.run_command(CommandId::GitOpenConsole);
             }
             return Vec::new();
+        }
+        if is_ctrl_s(key) {
+            return self.run_command(CommandId::GistOpenPanel);
         }
         if self.search.active {
             return self.handle_search(key);
@@ -198,6 +204,7 @@ impl App {
             || self.palette.open
             || self.trash.open
             || self.git.open
+            || self.gist.open
             || self.search.active
         {
             return Vec::new();
@@ -267,6 +274,10 @@ impl App {
 
 pub(super) fn is_ctrl_g(key: KeyEvent) -> bool {
     key.code == KeyCode::Char('g') && key.modifiers.contains(KeyModifiers::CONTROL)
+}
+
+pub(super) fn is_ctrl_s(key: KeyEvent) -> bool {
+    key.code == KeyCode::Char('s') && key.modifiers.contains(KeyModifiers::CONTROL)
 }
 
 pub(super) fn is_palette_trigger(key: KeyEvent) -> bool {

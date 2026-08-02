@@ -74,6 +74,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             ("z", "toggle list density"),
             ("T", "open trash"),
             ("Ctrl-g", "Git console"),
+            ("Ctrl-s", "Gist panel"),
             ("F5 / Ctrl-r", "rescan library"),
             ("?", "toggle help"),
             ("Esc", "close or clear"),
@@ -118,6 +119,21 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             ("Esc / Ctrl-g", "close console"),
         ],
         HelpColor::Alt,
+    ),
+    (
+        "GIST PANEL — WHEN OPEN",
+        &[
+            ("p", "publish or update"),
+            ("y", "copy URL"),
+            ("o", "open in browser"),
+            ("a", "attach existing gist"),
+            ("d", "detach"),
+            ("x", "delete gist"),
+            ("r", "verify remote"),
+            ("f", "toggle published filter"),
+            ("Esc / Ctrl-s", "close panel"),
+        ],
+        HelpColor::Success,
     ),
 ];
 
@@ -307,6 +323,7 @@ mod tests {
         let mut bound = BTreeSet::new();
         for source in [
             include_str!("app/input/mod.rs"),
+            include_str!("app/input/gist.rs"),
             include_str!("app/input/git.rs"),
             include_str!("app/input/overlay.rs"),
             include_str!("app/input/panes.rs"),
@@ -397,6 +414,7 @@ mod tests {
             "View" | "Library" | "App" => group("VIEW & GLOBAL"),
             "Trash" => group("TRASH — WHEN OPEN"),
             "Git" => group("GIT CONSOLE — WHEN OPEN"),
+            "Gist" => group("GIST PANEL — WHEN OPEN"),
             _ => panic!("missing help mapping for command category {category}"),
         };
         let global_entries = group("VIEW & GLOBAL");
@@ -404,14 +422,23 @@ mod tests {
             let Some(hint) = command.key_hint else {
                 continue;
             };
-            if command.category == "Git" && hint == "Ctrl-g" {
-                assert!(global_entries.iter().any(|(label, _)| *label == "Ctrl-g"));
-            } else if command.category == "Git" {
-                let key = hint.strip_prefix("Ctrl-g ").expect("Git hints use Ctrl-g");
+            // Console-scoped hints (Ctrl-g / Ctrl-s) keep the opening chord in the
+            // global table and their key in the console's own group, regardless of
+            // the command's category.
+            if hint == "Ctrl-g" || hint == "Ctrl-s" {
+                assert!(global_entries.iter().any(|(label, _)| *label == hint));
+            } else if let Some(key) = hint.strip_prefix("Ctrl-g ") {
                 assert!(global_entries.iter().any(|(label, _)| *label == "Ctrl-g"));
                 assert!(
                     entries_for("Git").iter().any(|(label, _)| *label == key),
                     "{} ({hint}) is missing from Git help",
+                    command.slug
+                );
+            } else if let Some(key) = hint.strip_prefix("Ctrl-s ") {
+                assert!(global_entries.iter().any(|(label, _)| *label == "Ctrl-s"));
+                assert!(
+                    entries_for("Gist").iter().any(|(label, _)| *label == key),
+                    "{} ({hint}) is missing from Gist help",
                     command.slug
                 );
             } else {

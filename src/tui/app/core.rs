@@ -25,7 +25,7 @@ use super::super::state::{
 };
 use super::super::theme::TuiTheme;
 use super::super::trash::TrashState;
-use super::types::{App, GitState, ThemePreviewState};
+use super::types::{App, GistState, GitState, ThemePreviewState};
 
 impl App {
     /// Builds an app with no carried-over session state.
@@ -67,6 +67,7 @@ impl App {
         let mut app = Self {
             config_path: crate::config::config_path()?,
             git: GitState::probe(&library, &config.git.clone().unwrap_or_default()),
+            gist: GistState::default(),
             library,
             catalog,
             index,

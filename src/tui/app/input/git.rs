@@ -10,6 +10,7 @@ use super::super::types::{App, Effect};
 impl App {
     pub(super) fn handle_git_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         match key.code {
+            _ if super::is_ctrl_s(key) => return self.run_command(CommandId::GistOpenPanel),
             _ if super::is_ctrl_g(key) || key.code == KeyCode::Esc => self.git.open = false,
             _ if super::is_palette_trigger(key) => self.open_palette(),
             KeyCode::Char('r') => return self.run_command(CommandId::GitRefreshLocalStatus),
@@ -97,10 +98,12 @@ impl App {
     }
 
     pub(in super::super) fn request_quit(&mut self) -> Vec<Effect> {
-        if self.git.push_in_flight || self.git.fetch_in_flight {
+        if self.git.push_in_flight || self.git.fetch_in_flight || self.gist.in_flight {
             self.pending_quit = true;
             self.set_status(
-                if self.git.push_in_flight {
+                if self.gist.in_flight {
+                    "finishing gist operation…"
+                } else if self.git.push_in_flight {
                     "finishing background push…"
                 } else {
                     "finishing background fetch…"

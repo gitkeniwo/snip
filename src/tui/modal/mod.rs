@@ -59,6 +59,8 @@ pub enum ModalAction {
     GitCommit,
     GitAutoCommitInterval,
     PickTheme,
+    GistAttach { id: Uuid },
+    GistDelete { id: Uuid },
 }
 
 #[cfg(test)]

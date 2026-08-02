@@ -5,6 +5,7 @@ use crate::service::{
     delete_tag, edit_snippet, move_folder, purge_snippet, rename_tag,
 };
 
+use crate::tui::app::input::gist::GistAction;
 use crate::tui::app::types::{App, Effect};
 use crate::tui::editor::{EditRequest, EditTarget};
 use crate::tui::modal::{Modal, ModalAction, PickerModal};
@@ -283,6 +284,16 @@ impl App {
                 purge_snippet(&self.library, &entry_id)?;
                 self.trash.reload(&self.library)?;
                 "trash entry permanently deleted".to_owned()
+            }
+            ModalAction::GistAttach { id } => {
+                let gist = input()?.to_owned();
+                crate::gist::parse_gist_id(&gist)?;
+                self.spawn_gist(GistAction::Attach(gist), id.to_string());
+                return Ok((Vec::new(), String::new()));
+            }
+            ModalAction::GistDelete { id } => {
+                self.spawn_gist(GistAction::Delete, id.to_string());
+                return Ok((Vec::new(), String::new()));
             }
         };
         self.rescan()?;

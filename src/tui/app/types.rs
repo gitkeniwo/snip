@@ -130,6 +130,15 @@ impl GitState {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct GistState {
+    pub open: bool,
+    pub in_flight: bool,
+    pub unavailable: Option<crate::gist::gh::Unavailable>,
+    pub last_error: Option<String>,
+    pub sender: Option<Sender<AppEvent>>,
+}
+
 pub struct App {
     pub config_path: PathBuf,
     pub library: Library,
@@ -162,6 +171,7 @@ pub struct App {
     pub theme_overrides: toml::Table,
     pub icon_mode: IconMode,
     pub git: GitState,
+    pub gist: GistState,
     pub theme_checked_at: Instant,
     pub status: Option<StatusMessage>,
     pub modal: Option<Modal>,
