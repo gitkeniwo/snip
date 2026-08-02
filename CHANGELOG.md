@@ -5,6 +5,57 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-02
+
+### Added
+
+- **Publish a snippet as a gist.** `snip gist` adds `push`, `url`, `status`,
+  `attach`, `detach`, `delete`, and `open`, each with exact human output, a
+  stable JSON contract, and `--copy` clipboard support. `push` maps a snippet
+  to its publishable `(filename, content)` set, creates or updates the gist,
+  and skips the network entirely when a BLAKE3 digest shows nothing changed;
+  `open` delegates to `gh gist view --web` so the browser launches on every
+  platform.
+- **Published copies are recorded in the manifest.** Snippet `snippet.toml`
+  files gain a `remotes` table remembering where each copy was published —
+  host, id, URL, visibility, published files, and the payload digest. `status`
+  recomputes the digest with the recorded payload options, so a push with
+  `--include-notes` no longer reports a forever-modified snippet.
+- **GitHub CLI runs through a hardened process layer.** `gh` is spawned quiet
+  and non-interactive with an `SNIP_GH_BIN` override, and its failures are
+  classified — missing binary, missing login, or failed request — with the
+  HTTP status pulled from stderr so token-scope problems get precise errors
+  and hints.
+- **Gist panel in the terminal browser.** `Ctrl-S` opens the gist panel for
+  the selected snippet, `P` publishes a public gist, and the list and preview
+  draw a gist badge. A published filter in the sidebar toggles to show only
+  snippets that have a remote.
+- **Regrouped sidebar and trash panes.** The sidebar reads as three groups —
+  scopes, filters, then the folder and tag trees — and navigation no longer
+  fires row actions: the published toggle waits for Enter or a click instead
+  of toggling as the cursor passes over it. The trash view opens in the list
+  and preview panes instead of covering them with a popup.
+- The preview metadata line now shows created and modified dates, and marker
+  separators appear only between markers that are present.
+- Confirm modals repeat their confirm and cancel keys inside the box, so a
+  modal centred on a tall terminal can never appear with no visible way out.
+
+### Changed
+
+- The README gains shields badges for releases and the install channels, with
+  the crates.io downloads badge pinned to the current version.
+- The agent skill documents gist publishing, including that `gh` needs the
+  `gist` scope and that publishing is public and irreversible.
+
+### Fixed
+
+- Compact TUI rows reserved space for the gist badge but never drew it,
+  leaving a phantom gap; they now render it ahead of the date with the date
+  column kept aligned.
+- An unconditional marker separator left an orphan dot on snippets that were
+  neither pinned nor locked; separators are now emitted only between present
+  markers.
+
 ## [0.4.1] - 2026-08-01
 
 ### Added
@@ -238,6 +289,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.5.0]: https://github.com/gitkeniwo/snip/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/gitkeniwo/snip/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/gitkeniwo/snip/compare/v0.3.2...v0.4.0
 [0.3.1]: https://github.com/gitkeniwo/snip/compare/v0.3.0...v0.3.1
