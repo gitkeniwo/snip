@@ -514,7 +514,6 @@ impl App {
     }
 
     pub fn refresh_visible(&mut self) {
-        let old_index = self.list_state.selected().unwrap_or(0);
         let allowed = self
             .catalog
             .snippets
@@ -572,7 +571,13 @@ impl App {
         let selection = self
             .selected_id
             .and_then(|id| visible.iter().position(|row| row.snippet_id == id))
-            .or_else(|| (!visible.is_empty()).then(|| old_index.min(visible.len() - 1)));
+            .or_else(|| (!visible.is_empty()).then_some(0));
+        // `ListState::select` does not update the viewport offset. Clamp a
+        // stale offset far enough to fill the viewport, while preserving a
+        // still-valid offset so background rescans do not move the cursor row.
+        let viewport_rows = self.layout.list.height.saturating_sub(2) / self.density.row_height();
+        let max_offset = visible.len().saturating_sub(viewport_rows as usize);
+        *self.list_state.offset_mut() = self.list_state.offset().min(max_offset);
         self.list_state.select(selection);
         self.selected_id = selection.map(|index| visible[index].snippet_id);
         self.visible.clear();
@@ -585,6 +590,9 @@ impl App {
     pub(super) fn rebuild_sidebar(&mut self) {
         let trash_count = trash_entries(&self.library).map_or(0, |entries| entries.len());
         sidebar::rebuild(&mut self.sidebar, &self.catalog, trash_count);
+        let viewport_rows = self.layout.sidebar.height.saturating_sub(2) as usize;
+        let max_offset = self.sidebar.rows.len().saturating_sub(viewport_rows);
+        *self.sidebar.list_state.offset_mut() = self.sidebar.list_state.offset().min(max_offset);
     }
 
     pub(super) fn clamp_fragment(&mut self) {
