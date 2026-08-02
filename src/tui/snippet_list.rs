@@ -7,6 +7,22 @@ use super::app::App;
 use super::icons::snippet_badge;
 use crate::config::TuiDensitySetting;
 
+/// Width of the gist marker in a row: one leading space plus the glyph, or
+/// zero when the snippet has no badge. Rendered immediately before the locked
+/// marker, so both reserve the same space in the row arithmetic.
+fn gist_marker(
+    app: &App,
+    snippet: &crate::domain::Snippet,
+) -> Option<(&'static str, ratatui::style::Color)> {
+    app.gist_badges
+        .get(&snippet.id)
+        .map(|badge| crate::tui::gist_panel::glyph(*badge, app.icon_mode, app.theme))
+}
+
+fn gist_marker_width(app: &App, snippet: &crate::domain::Snippet) -> usize {
+    gist_marker(app, snippet).map_or(0, |(glyph, _)| glyph.chars().count() + 1)
+}
+
 /// Comfortable rows use two terminal lines; compact rows use one. Mouse
 /// hit-testing derives the row height from the same density setting.
 pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
@@ -37,7 +53,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 };
                 return Some(ListItem::new(line));
             }
-            let marker_width = usize::from(snippet.locked) * 2;
+            let marker_width = usize::from(snippet.locked) * 2 + gist_marker_width(app, snippet);
             let left_width = 4;
             let title_width = width.saturating_sub(left_width + date_width + marker_width);
             let title = truncate(&snippet.title, title_width);
@@ -56,6 +72,12 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 first.push(Span::styled(
                     format!(" {date}"),
                     Style::default().fg(app.theme.muted),
+                ));
+            }
+            if let Some((glyph, color)) = gist_marker(app, snippet) {
+                first.push(Span::styled(
+                    format!(" {glyph}"),
+                    Style::default().fg(color),
                 ));
             }
             if snippet.locked {
@@ -108,7 +130,7 @@ fn compact_line(
     let badge_width = 4;
     let pin_width = 2;
     let date_width = usize::from(date.is_some()) * 7;
-    let marker_width = usize::from(snippet.locked) * 2;
+    let marker_width = usize::from(snippet.locked) * 2 + gist_marker_width(app, snippet);
     let available = width.saturating_sub(badge_width + pin_width + date_width + marker_width);
     let folder = format!(
         " [{}]",

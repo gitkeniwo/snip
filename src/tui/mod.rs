@@ -3,6 +3,7 @@ pub mod bottom_bar;
 pub mod command;
 pub mod editor;
 pub mod event;
+pub mod gist_panel;
 pub mod git_panel;
 pub mod help;
 pub mod highlight;
@@ -10,6 +11,7 @@ pub mod icons;
 pub mod layout;
 pub mod modal;
 pub mod palette;
+pub mod panel_text;
 pub mod persist;
 pub mod preview;
 pub mod selection;
@@ -58,6 +60,7 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     let mut app = App::new_with_session_state(library, config, persist::SessionState::load())?;
     let (sender, receiver) = mpsc::channel();
     app.set_git_sender(sender.clone());
+    app.set_gist_sender(sender.clone());
     let _watcher = event::start_watcher(app.library.root(), sender)?;
 
     while !app.should_quit {
@@ -79,8 +82,15 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
         // `pending_quit` also marks an already-queued quit backup. Only the
         // background-push form has no manual Git operation queued yet.
         if app.pending_quit && !app.git.operation_queued {
-            if app.git.push_in_flight || app.git.fetch_in_flight {
-                app.set_status("finishing background Git task…", StatusLevel::Info);
+            if app.git.push_in_flight || app.git.fetch_in_flight || app.gist.in_flight {
+                app.set_status(
+                    if app.gist.in_flight {
+                        "finishing gist operation…"
+                    } else {
+                        "finishing background Git task…"
+                    },
+                    StatusLevel::Info,
+                );
                 terminal.draw(|frame| ui::draw(frame, &mut app))?;
                 let deadline = Instant::now() + Duration::from_secs(5);
                 loop {
@@ -89,6 +99,11 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
                         Ok(event::AppEvent::FsChanged) => dirty = true,
                         Ok(event::AppEvent::GitFinished(result)) => {
                             app.handle_git_task(result);
+                            effects.extend(app.resume_quit_after_push());
+                            break;
+                        }
+                        Ok(event::AppEvent::GistFinished(result)) => {
+                            app.handle_gist_task(result);
                             effects.extend(app.resume_quit_after_push());
                             break;
                         }
@@ -128,6 +143,7 @@ fn handle_app_event(app: &mut App, event: event::AppEvent, dirty: &mut bool) {
     match event {
         event::AppEvent::FsChanged => *dirty = true,
         event::AppEvent::GitFinished(result) => app.handle_git_task(result),
+        event::AppEvent::GistFinished(result) => app.handle_gist_task(result),
     }
 }
 

@@ -165,6 +165,8 @@ pub fn push(library: &Library, selector: &str, options: &PushOptions) -> Result<
         &gist,
         &description,
         &payload.files.keys().cloned().collect::<Vec<_>>(),
+        options.include_notes,
+        options.include_readme,
         Some(now_rfc3339()?),
         Some(digest),
     );
@@ -200,6 +202,8 @@ pub fn attach(library: &Library, selector: &str, gist: &str) -> Result<Snippet> 
         &fetched,
         fetched.description.as_deref().unwrap_or(&snippet.title),
         &fetched.files.keys().cloned().collect::<Vec<_>>(),
+        false,
+        true,
         None,
         None,
     );
@@ -235,8 +239,8 @@ pub fn status(snippet: &Snippet) -> Result<StatusReport> {
         snippet,
         &description,
         &PayloadOptions {
-            include_notes: false,
-            include_readme: true,
+            include_notes: record.include_notes,
+            include_readme: record.include_readme,
         },
     )?;
     let digest = payload::digest(&payload);
@@ -278,6 +282,8 @@ fn record_from_gist(
     gist: &Gist,
     description: &str,
     files: &[String],
+    include_notes: bool,
+    include_readme: bool,
     pushed_at: Option<String>,
     pushed_digest: Option<String>,
 ) -> RemoteRecord {
@@ -289,6 +295,8 @@ fn record_from_gist(
         public: gist.public,
         description: Some(description.to_owned()),
         files: files.to_vec(),
+        include_notes,
+        include_readme,
         pushed_at,
         pushed_digest,
         extra: toml::Table::new(),
@@ -388,6 +396,8 @@ mod tests {
             public: false,
             description: Some("Brewfile".to_owned()),
             files: vec!["001-Brewfile".to_owned(), "README.md".to_owned()],
+            include_notes: true,
+            include_readme: false,
             pushed_at: Some("2026-08-01T10:00:00Z".to_owned()),
             pushed_digest: Some("3f8a…".to_owned()),
             extra,
@@ -397,9 +407,28 @@ mod tests {
         assert_eq!(decoded.kind, "gist");
         assert_eq!(decoded.description.as_deref(), Some("Brewfile"));
         assert_eq!(decoded.files, vec!["001-Brewfile", "README.md"]);
+        assert!(decoded.include_notes);
+        assert!(!decoded.include_readme);
         assert_eq!(
             decoded.extra.get("future_field").and_then(Value::as_str),
             Some("kept")
         );
+    }
+
+    #[test]
+    fn remote_record_defaults_to_false_and_true_for_missing_option_keys() {
+        let record: RemoteRecord = toml::from_str(
+            r#"
+kind = "gist"
+host = "github.com"
+id = "5b0e0062eb8e9654adad7bb1d81cc75f"
+url = "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f"
+public = false
+files = ["001-Brewfile"]
+"#,
+        )
+        .unwrap();
+        assert!(!record.include_notes);
+        assert!(record.include_readme);
     }
 }

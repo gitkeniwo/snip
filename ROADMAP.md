@@ -65,8 +65,10 @@ themes cheap to extend.
   `delete`, and `open` are the command set.
 - [ ] GitLab snippets through `glab`, reusing the `[[remotes]]` record with a
   second `kind`.
-- [ ] TUI integration: publish and copy-link from the command palette, and a
-  marker in the snippet list for published snippets.
+- [x] TUI integration: a `Ctrl-s` gist panel for the selected snippet, palette
+  entries for every gist command, a `Published` sidebar toggle that composes
+  with the folder and tag filters, and list/preview markers that appear only for
+  published snippets.
 
 ## Packaging
 

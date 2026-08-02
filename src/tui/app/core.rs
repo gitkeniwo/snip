@@ -25,7 +25,7 @@ use super::super::state::{
 };
 use super::super::theme::TuiTheme;
 use super::super::trash::TrashState;
-use super::types::{App, GitState, ThemePreviewState};
+use super::types::{App, GistState, GitState, ThemePreviewState};
 
 impl App {
     /// Builds an app with no carried-over session state.
@@ -49,6 +49,7 @@ impl App {
         } = session_state;
         let catalog = library.scan()?;
         let index = MemoryIndex::new(catalog.clone());
+        let gist_badges = crate::tui::gist_panel::compute_all(&catalog.snippets);
         let tui = config.tui.clone().unwrap_or_default();
         let theme_overrides = tui
             .extra
@@ -66,9 +67,11 @@ impl App {
         let mut app = Self {
             config_path: crate::config::config_path()?,
             git: GitState::probe(&library, &config.git.clone().unwrap_or_default()),
+            gist: GistState::default(),
             library,
             catalog,
             index,
+            gist_badges,
             focus: Pane::Sidebar,
             sidebar: SidebarState::default(),
             filter: Filter::default(),
@@ -491,6 +494,7 @@ impl App {
         let catalog = self.library.scan()?;
         self.catalog = catalog.clone();
         self.index = MemoryIndex::new(catalog);
+        self.gist_badges = crate::tui::gist_panel::compute_all(&self.catalog.snippets);
         self.rebuild_sidebar();
         self.refresh_visible();
         if self.trash.open {
@@ -597,6 +601,9 @@ impl App {
     }
 
     pub(super) fn matches_filter(&self, snippet: &Snippet) -> bool {
+        if self.filter.published && crate::gist::find(snippet).is_none() {
+            return false;
+        }
         if self.filter.uncategorized {
             return snippet.folder.is_empty();
         }
@@ -628,8 +635,50 @@ fn auto_error_transition(last: &mut Option<String>, next: String) -> bool {
 mod tests {
     use super::*;
     use crate::config::AppConfig;
+    use crate::domain::{Fingerprint, RemoteRecord, Snippet, SnippetManifest};
     use crate::tui::command::CommandId;
     use crate::tui::persist::SessionState;
+
+    fn make_test_snippet(folder: &str, gist: bool) -> Snippet {
+        Snippet {
+            manifest: SnippetManifest {
+                schema_version: 1,
+                id: Uuid::new_v4(),
+                title: "Test".to_owned(),
+                tags: vec![],
+                pinned: false,
+                locked: false,
+                created_at: "2026-01-01T00:00:00Z".to_owned(),
+                source: None,
+                remotes: gist
+                    .then(|| RemoteRecord {
+                        kind: "gist".to_owned(),
+                        host: "github.com".to_owned(),
+                        id: "5b0e0062eb8e9654adad7bb1d81cc75f".to_owned(),
+                        url: "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f"
+                            .to_owned(),
+                        public: false,
+                        description: None,
+                        files: vec![],
+                        include_notes: false,
+                        include_readme: true,
+                        pushed_at: None,
+                        pushed_digest: None,
+                        extra: toml::Table::new(),
+                    })
+                    .into_iter()
+                    .collect(),
+                fragments: vec![],
+                extra: toml::Table::new(),
+            },
+            readme: None,
+            folder: folder.to_owned(),
+            package_path: std::path::PathBuf::new(),
+            modified_at: None,
+            fingerprint: Fingerprint("abc".to_owned()),
+            loaded_fragments: vec![],
+        }
+    }
 
     #[test]
     fn repeated_auto_backup_errors_are_silent_until_the_message_changes() {
@@ -683,6 +732,62 @@ mod tests {
                 .get("future_setting")
                 .and_then(toml::Value::as_str),
             Some("kept")
+        );
+    }
+
+    #[test]
+    fn published_filter_composes_with_the_folder_filter() {
+        let mut app = App::new(
+            Library::init(
+                &tempfile::tempdir().unwrap().path().join("Filter.sniplib"),
+                None,
+            )
+            .unwrap(),
+            &AppConfig::default(),
+        )
+        .unwrap();
+        app.filter.published = true;
+        app.filter.folder = Some("Code/Rust".to_owned());
+
+        let published = make_test_snippet("Code/Rust", true);
+        let unpublished = make_test_snippet("Code/Rust", false);
+        let published_elsewhere = make_test_snippet("Code/Shell", true);
+
+        assert!(
+            app.matches_filter(&published),
+            "a published snippet inside the folder must pass"
+        );
+        assert!(
+            !app.matches_filter(&unpublished),
+            "an unpublished snippet must be excluded"
+        );
+        assert!(
+            !app.matches_filter(&published_elsewhere),
+            "a published snippet outside the folder must still be excluded"
+        );
+    }
+
+    #[test]
+    fn published_check_precedes_the_uncategorized_early_return() {
+        let mut app = App::new(
+            Library::init(
+                &tempfile::tempdir().unwrap().path().join("Filter.sniplib"),
+                None,
+            )
+            .unwrap(),
+            &AppConfig::default(),
+        )
+        .unwrap();
+        app.filter.published = true;
+        app.filter.uncategorized = true;
+
+        let root_published = make_test_snippet("", true);
+        let root_unpublished = make_test_snippet("", false);
+
+        assert!(app.matches_filter(&root_published));
+        assert!(
+            !app.matches_filter(&root_unpublished),
+            "the published check must run before the uncategorized early return"
         );
     }
 }

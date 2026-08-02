@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
@@ -13,6 +14,7 @@ use crate::search::MemoryIndex;
 
 use super::super::editor::EditRequest;
 use super::super::event::AppEvent;
+use super::super::gist_panel::GistBadge;
 use super::super::highlight::Highlighter;
 use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
@@ -128,11 +130,21 @@ impl GitState {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct GistState {
+    pub open: bool,
+    pub in_flight: bool,
+    pub unavailable: Option<crate::gist::gh::Unavailable>,
+    pub last_error: Option<String>,
+    pub sender: Option<Sender<AppEvent>>,
+}
+
 pub struct App {
     pub config_path: PathBuf,
     pub library: Library,
     pub catalog: CatalogSnapshot,
     pub index: MemoryIndex,
+    pub gist_badges: HashMap<Uuid, GistBadge>,
     pub focus: Pane,
     pub sidebar: SidebarState,
     pub filter: Filter,
@@ -159,6 +171,7 @@ pub struct App {
     pub theme_overrides: toml::Table,
     pub icon_mode: IconMode,
     pub git: GitState,
+    pub gist: GistState,
     pub theme_checked_at: Instant,
     pub status: Option<StatusMessage>,
     pub modal: Option<Modal>,

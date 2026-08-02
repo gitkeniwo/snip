@@ -129,12 +129,20 @@ pub struct RemoteRecord {
     pub description: Option<String>,
     #[serde(default)]
     pub files: Vec<String>,
+    #[serde(default)]
+    pub include_notes: bool,
+    #[serde(default = "default_true")]
+    pub include_readme: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pushed_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pushed_digest: Option<String>,
     #[serde(flatten)]
     pub extra: toml::Table,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

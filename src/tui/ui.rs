@@ -6,8 +6,10 @@ use ratatui::widgets::{Block, List, ListItem};
 
 use super::app::App;
 use super::bottom_bar;
+use super::gist_panel;
 use super::git_panel;
 use super::help;
+use super::icons::IconMode;
 use super::modal;
 use super::palette;
 use super::preview;
@@ -53,6 +55,9 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     if app.git.open && app.modal.is_none() {
         git_panel::draw_git(frame, area, app);
     }
+    if app.gist.open && app.modal.is_none() {
+        gist_panel::draw_gist(frame, area, app);
+    }
     if app.trash.open {
         trash::draw_trash(frame, app, area);
     }
@@ -91,6 +96,22 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
                     Style::default().fg(app.theme.muted),
                     Style::default().fg(app.theme.muted),
                 ),
+                super::state::SidebarItem::Published => {
+                    let (marker, marker_style) = match (app.icon_mode, app.filter.published) {
+                        (IconMode::Ascii, true) => ("[x] ", Style::default().fg(app.theme.accent)),
+                        (IconMode::Ascii, false) => ("[ ] ", Style::default()),
+                        (IconMode::Nerd, true) => ("☑ ", Style::default().fg(app.theme.accent)),
+                        (IconMode::Nerd, false) => ("☐ ", Style::default()),
+                    };
+                    let label_style = if app.filter.published {
+                        Style::default()
+                            .fg(app.theme.accent)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    (marker, marker_style, label_style)
+                }
                 super::state::SidebarItem::Trash => (
                     "× ",
                     Style::default().fg(app.theme.muted),
