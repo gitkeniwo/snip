@@ -651,15 +651,28 @@ snip only manages the files it published. A file you add to the gist in the
 browser is left alone.
 
 In the TUI, `Ctrl-s` opens the gist panel for the selected snippet: `p`
-publishes or updates, `y` copies the URL, `o` opens it in a browser, and `a`,
-`d`, `x`, `r` attach, detach, delete, and verify. Published snippets carry a
+publishes or updates, `P` publishes a new one publicly, `y` copies the link, and
+`o` opens it in a browser. `P`, `d`, and `x` ask for confirmation first, since a
+public gist cannot be made secret again and a delete cannot be undone. The quieter row — `a`, `r`, `d`, `x` — links an
+existing gist, checks it still exists, unlinks it, and deletes it on GitHub.
+Because GitHub fixes a gist's visibility when it is created, `P` is only
+offered for a snippet that has not been published yet. Published snippets carry a
 small marker in the list and the preview header — `G✓` when the gist matches the
 snippet, `G✚` when you have edited since publishing. Unpublished snippets carry
 no marker at all.
 
-The sidebar's `Published` entry is a toggle rather than a folder, so it narrows
-whatever you are already looking at: pick a folder or a tag, switch it on, and
-you see the published snippets within that scope.
+The sidebar groups its rows: the scopes you can be in (`All snippets`,
+`Uncategorized`, `Trash`), then `Filters`, then the folder and tag trees. Under
+`Filters`, `Published` is a toggle rather than a place, so it narrows whatever
+you are already looking at: pick a folder or a tag, switch it on with `Enter`,
+and you see the published snippets within that scope. Moving the cursor over it
+does nothing on its own — only `Enter` or a click flips it.
+
+`Trash` opens in the snippet pane rather than a popup, so the sidebar stays
+usable and the preview pane shows the deleted snippet before you restore it.
+Moving the sidebar selection onto `Trash` enters it and moving off leaves, so
+there is nothing to open or close. `u` restores the selected entry and `x`
+purges it.
 
 ## Manual pages
 
