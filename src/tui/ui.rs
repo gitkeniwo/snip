@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, List, ListItem};
 
 use super::app::App;
 use super::bottom_bar;
+use super::gist_panel;
 use super::git_panel;
 use super::help;
 use super::icons::IconMode;
@@ -53,6 +54,9 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
     }
     if app.git.open && app.modal.is_none() {
         git_panel::draw_git(frame, area, app);
+    }
+    if app.gist.open && app.modal.is_none() {
+        gist_panel::draw_gist(frame, area, app);
     }
     if app.trash.open {
         trash::draw_trash(frame, app, area);

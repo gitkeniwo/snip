@@ -10,6 +10,8 @@ use super::super::selection::text_width;
 use super::super::theme::TuiTheme;
 use super::super::widgets;
 
+pub(super) use super::super::panel_text::{key_value, section, title_line};
+
 pub(super) fn probe_failed_text(app: &App, message: &str, width: usize) -> Text<'static> {
     Text::from(vec![
         title_line(&app.library.manifest().name, app.theme),
@@ -246,35 +248,6 @@ pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
     Text::from(lines)
 }
 
-fn title_line(name: &str, theme: TuiTheme) -> Line<'static> {
-    Line::from(Span::styled(
-        name.to_owned(),
-        Style::default()
-            .fg(theme.accent)
-            .add_modifier(Modifier::BOLD),
-    ))
-    .centered()
-}
-
-pub(super) fn section(label: &str, width: usize, theme: TuiTheme) -> Line<'static> {
-    let prefix = "── ";
-    let suffix_width =
-        width.saturating_sub(text_width(prefix) as usize + text_width(label) as usize + 1);
-    Line::from(vec![
-        Span::styled(prefix, Style::default().fg(theme.rule)),
-        Span::styled(
-            label.to_owned(),
-            Style::default()
-                .fg(theme.accent_alt)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            format!(" {}", "─".repeat(suffix_width)),
-            Style::default().fg(theme.rule),
-        ),
-    ])
-}
-
 pub(super) fn sync_verdict(status: &crate::git::Status, theme: TuiTheme) -> (String, Color) {
     if !status.conflicted.is_empty() {
         return (
@@ -404,15 +377,6 @@ fn checkbox_line(checked: bool, key: &str, label: String, theme: TuiTheme) -> Li
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(format!("  {label}"), Style::default().fg(theme.bar_fg)),
-    ])
-}
-
-pub(super) fn key_value(key: &str, value: String, width: usize, theme: TuiTheme) -> Line<'static> {
-    let key = format!("  {key:<12}");
-    let value = widgets::truncate_end(&value, width.saturating_sub(key.len()));
-    Line::from(vec![
-        Span::styled(key, Style::default().fg(theme.muted)),
-        Span::styled(value, Style::default().fg(theme.bar_fg)),
     ])
 }
 

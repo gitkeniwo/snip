@@ -11,6 +11,7 @@ pub mod icons;
 pub mod layout;
 pub mod modal;
 pub mod palette;
+pub mod panel_text;
 pub mod persist;
 pub mod preview;
 pub mod selection;
