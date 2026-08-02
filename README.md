@@ -7,7 +7,7 @@
 [![Crates.io](https://img.shields.io/crates/v/sniplab?color=blue)](https://crates.io/crates/sniplab)
 [![Release](https://img.shields.io/github/v/release/gitkeniwo/snip?color=blue)](https://github.com/gitkeniwo/snip/releases/latest)
 [![AUR](https://img.shields.io/aur/version/sniplab-bin?color=blue)](https://aur.archlinux.org/packages/sniplab-bin)
-[![Downloads](https://img.shields.io/crates/dt/sniplab?color=green)](https://crates.io/crates/sniplab)
+[![Downloads](https://img.shields.io/crates/d/sniplab?color=green)](https://crates.io/crates/sniplab)
 [![Release downloads](https://img.shields.io/github/downloads/gitkeniwo/snip/total?color=green)](https://github.com/gitkeniwo/snip/releases)
 [![Docs.rs](https://img.shields.io/docsrs/sniplab?color=blueviolet)](https://docs.rs/sniplab)
 [![MSRV](https://img.shields.io/badge/MSRV-1.89%2B-blueviolet)](https://github.com/gitkeniwo/snip/blob/main/Cargo.toml)
