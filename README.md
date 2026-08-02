@@ -2,6 +2,24 @@
 
 <img width="1135" height="769" alt="image" src="https://github.com/user-attachments/assets/95eb8ecb-189e-4cfa-8a1d-e34d32df8b46" />
 
+<p align="center">
+
+[![Crates.io](https://img.shields.io/crates/v/sniplab?color=blue)](https://crates.io/crates/sniplab)
+[![Release](https://img.shields.io/github/v/release/gitkeniwo/snip?color=blue)](https://github.com/gitkeniwo/snip/releases/latest)
+[![AUR](https://img.shields.io/aur/version/sniplab-bin?color=blue)](https://aur.archlinux.org/packages/sniplab-bin)
+[![Downloads](https://img.shields.io/crates/dt/sniplab?color=green)](https://crates.io/crates/sniplab)
+[![Release downloads](https://img.shields.io/github/downloads/gitkeniwo/snip/total?color=green)](https://github.com/gitkeniwo/snip/releases)
+[![Docs.rs](https://img.shields.io/docsrs/sniplab?color=blueviolet)](https://docs.rs/sniplab)
+[![MSRV](https://img.shields.io/badge/MSRV-1.89%2B-blueviolet)](https://github.com/gitkeniwo/snip/blob/main/Cargo.toml)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/gitkeniwo/snip#install)
+[![Homebrew](https://img.shields.io/badge/homebrew-tap-lightgrey)](https://github.com/gitkeniwo/homebrew-snip)
+[![Copr](https://img.shields.io/badge/copr-rpm-lightgrey)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/)
+[![Scoop](https://img.shields.io/badge/scoop-bucket-lightgrey)](https://github.com/gitkeniwo/scoop-snip)
+[![Cachix](https://img.shields.io/badge/cachix-snip-lightgrey)](https://app.cachix.org/cache/snip)
+[![CI](https://img.shields.io/github/actions/workflow/status/gitkeniwo/snip/ci.yml?branch=main)](https://github.com/gitkeniwo/snip/actions)
+
+</p>
+
 `snip` is a snippet manager that keeps its library in plain files. Code, notes,
 and metadata are ordinary text you can grep, diff, edit in any editor, and put
 under Git. It ships as a CLI and a terminal browser.
