@@ -21,7 +21,7 @@ use std::io::{self, IsTerminal};
 pub use output::effective_output;
 use output::{resolve_color, resolve_output};
 
-use crate::cli::{Cli, Command, OutputMode};
+use crate::cli::{Cli, Command, GitArgs, GitCommand, OutputMode};
 
 pub fn run(cli: &Cli) -> Result<()> {
     if let Some(Command::Completion(args)) = &cli.command {
@@ -55,6 +55,17 @@ pub fn run(cli: &Cli) -> Result<()> {
     match cli.command.as_ref() {
         Some(Command::Init(args)) => return config::command_init(args, output, cli.color),
         Some(Command::Import(args)) => return system::command_import(args, output),
+        Some(Command::Git(GitArgs {
+            command:
+                GitCommand::Clone {
+                    remote,
+                    path,
+                    gh,
+                    set_default,
+                },
+        })) => {
+            return system::command_git_clone(remote, path.as_deref(), *gh, *set_default, output);
+        }
         _ => {}
     }
     let command = cli.command.as_ref().expect("command checked above");

@@ -11,6 +11,7 @@ use time::{OffsetDateTime, UtcOffset};
 
 use crate::error::{Result, SnipError};
 
+pub use command::{Output as CommandOutput, SpawnError, run_non_interactive};
 pub use parse::relative_time;
 pub use write::{ActionOutcome, backup, commit, execute_interactive, fetch, init, push};
 #[cfg(feature = "tui")]

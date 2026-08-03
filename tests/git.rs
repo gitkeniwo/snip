@@ -6,6 +6,7 @@ use std::process::{Command as ProcessCommand, ExitStatus};
 use assert_cmd::Command;
 use predicates::prelude::*;
 use snip::Library;
+use snip::config::AppConfig;
 use snip::git::{self, Branch, RepoState, Unavailable};
 
 fn git_available() -> bool {
@@ -53,6 +54,22 @@ fn commit_all(path: &Path, message: &str) {
     );
 }
 
+fn committed_library(parent: &Path, name: &str) -> std::path::PathBuf {
+    let root = parent.join(name);
+    Library::init(&root, Some("Clone source")).unwrap();
+    init_repo(&root);
+    commit_all(&root, "initial");
+    root
+}
+
+#[cfg(unix)]
+fn executable(path: &Path, script: &str) {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::write(path, script).unwrap();
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+}
+
 fn append(path: &Path, content: &str) {
     OpenOptions::new()
         .append(true)
@@ -76,6 +93,486 @@ fn git_stdout(path: &Path, arguments: &[&str]) -> String {
         arguments.join(" ")
     );
     String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn cloned_library_recreates_untracked_runtime_directories_on_open() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Source.sniplib");
+    let clone = temporary.path().join("Clone.sniplib");
+    let library = Library::init(&root, Some("Source")).unwrap();
+    fs::write(library.snippets_dir().join("tracked.txt"), "tracked\n").unwrap();
+    init_repo(&root);
+    commit_all(&root, "initial");
+    git_ok(
+        temporary.path(),
+        &["clone", root.to_str().unwrap(), clone.to_str().unwrap()],
+    );
+
+    assert!(!clone.join(".snip").exists());
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            clone.to_str().unwrap(),
+            "--output",
+            "json",
+            "info",
+        ])
+        .assert()
+        .success();
+    assert!(clone.join(".snip/locks").is_dir());
+}
+
+#[test]
+fn cloned_library_recreates_empty_content_directories_on_open() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Empty Source.sniplib");
+    let clone = temporary.path().join("Empty Clone.sniplib");
+    Library::init(&root, Some("Empty Source")).unwrap();
+    init_repo(&root);
+    commit_all(&root, "initial");
+    git_ok(
+        temporary.path(),
+        &["clone", root.to_str().unwrap(), clone.to_str().unwrap()],
+    );
+
+    assert!(!clone.join("snippets").exists());
+    assert!(!clone.join("trash").exists());
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", clone.to_str().unwrap(), "info"])
+        .assert()
+        .success();
+    assert!(clone.join("snippets").is_dir());
+    assert!(clone.join("trash").is_dir());
+}
+
+#[test]
+fn cli_git_clone_restores_a_library_and_prints_next_steps() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = committed_library(temporary.path(), "Source library.sniplib");
+    let destination = temporary.path().join("Restored library.sniplib");
+    let canonical_destination = fs::canonicalize(temporary.path())
+        .unwrap()
+        .join("Restored library.sniplib");
+    let config_home = temporary.path().join("config");
+    let expected = format!(
+        "\n  cloned    {}\n  default   none set\n\n  browse it now          snip --library {}\n  make it your default   snip config set default-library {}\n\n",
+        canonical_destination.display(),
+        canonical_destination.display(),
+        canonical_destination.display()
+    );
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args([
+            "git",
+            "clone",
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(expected);
+    assert!(destination.join("snip.toml").is_file());
+    assert!(destination.join(".snip/locks").is_dir());
+}
+
+#[test]
+fn cli_git_clone_json_has_the_stable_contract() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = committed_library(temporary.path(), "JSON source.sniplib");
+    let destination = temporary.path().join("JSON clone.sniplib");
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .args([
+            "--output",
+            "json",
+            "git",
+            "clone",
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        value["path"],
+        fs::canonicalize(&destination).unwrap().to_str().unwrap()
+    );
+    assert!(value["id"].is_string());
+    assert_eq!(value["name"], "Clone source");
+    assert_eq!(value["schema_version"], 1);
+    assert_eq!(value["remote"], source.to_str().unwrap());
+    assert_eq!(value["via"], "git");
+    assert_eq!(value["default_library_set"], false);
+}
+
+#[test]
+fn cli_git_clone_can_set_the_default_library() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = committed_library(temporary.path(), "Default source.sniplib");
+    let destination = temporary.path().join("Default clone.sniplib");
+    let canonical_destination = fs::canonicalize(temporary.path())
+        .unwrap()
+        .join("Default clone.sniplib");
+    let config_home = temporary.path().join("config");
+    let expected = format!(
+        "\n  cloned    {}\n  default   {} [updated]\n\n  open it                snip\n\n",
+        canonical_destination.display(),
+        canonical_destination.display()
+    );
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args([
+            "git",
+            "clone",
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+            "--set-default",
+        ])
+        .assert()
+        .success()
+        .stdout(expected);
+    let config = AppConfig::load_from(&config_home.join("snip/config.toml")).unwrap();
+    assert_eq!(
+        config.default_library.as_deref(),
+        Some(canonical_destination.as_path())
+    );
+}
+
+#[test]
+fn cli_git_clone_preserves_an_existing_default_without_the_flag() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = committed_library(temporary.path(), "Other source.sniplib");
+    let destination = temporary.path().join("Other clone.sniplib");
+    let old_default = temporary.path().join("Old.sniplib");
+    let config_home = temporary.path().join("config");
+    let config = AppConfig {
+        default_library: Some(old_default.clone()),
+        ..AppConfig::default()
+    };
+    config
+        .save_to(&config_home.join("snip/config.toml"))
+        .unwrap();
+    let canonical_destination = fs::canonicalize(temporary.path())
+        .unwrap()
+        .join("Other clone.sniplib");
+    let expected = format!(
+        "\n  cloned    {}\n  default   {} [unchanged]\n\n  browse it now          snip --library {}\n  make it your default   snip config set default-library {}\n\n",
+        canonical_destination.display(),
+        old_default.display(),
+        canonical_destination.display(),
+        canonical_destination.display()
+    );
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args([
+            "git",
+            "clone",
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(expected);
+}
+
+#[test]
+fn cli_git_clone_derives_the_default_destination_from_the_remote_basename() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = committed_library(temporary.path(), "Derived.git");
+    let home = temporary.path().join("home");
+    fs::create_dir(&home).unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("HOME", &home)
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .args(["--output", "json", "git", "clone", source.to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(home.join("Derived.sniplib/snip.toml").is_file());
+}
+
+#[test]
+fn cli_git_clone_refuses_a_nonempty_destination_without_touching_it() {
+    let temporary = tempfile::tempdir().unwrap();
+    let destination = temporary.path().join("occupied");
+    fs::create_dir(&destination).unwrap();
+    fs::write(destination.join("keep.txt"), "keep\n").unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .args(["git", "clone", "remote", destination.to_str().unwrap()])
+        .assert()
+        .code(4)
+        .stderr(predicate::str::contains("destination is not empty"))
+        .stderr(predicate::str::contains(
+            "pass a different path, or remove the directory first",
+        ));
+    assert_eq!(
+        fs::read_to_string(destination.join("keep.txt")).unwrap(),
+        "keep\n"
+    );
+}
+
+#[test]
+fn cli_git_clone_reports_destination_derivation_and_home_errors() {
+    let temporary = tempfile::tempdir().unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .args(["git", "clone", "/"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "cannot derive a destination from remote /",
+        ))
+        .stderr(predicate::str::contains(
+            "pass an explicit path: snip git clone <remote> <path>",
+        ));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .env_remove("HOME")
+        .args(["git", "clone", "owner/repo"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("cannot locate home directory"));
+}
+
+#[test]
+fn cli_git_clone_reports_a_missing_git_binary() {
+    let temporary = tempfile::tempdir().unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .env("PATH", temporary.path())
+        .args([
+            "git",
+            "clone",
+            "remote",
+            temporary.path().join("clone").to_str().unwrap(),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("git not found in PATH"));
+}
+
+#[test]
+fn cli_git_clone_removes_a_new_destination_when_repository_is_not_a_library() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = temporary.path().join("ordinary");
+    fs::create_dir(&source).unwrap();
+    init_repo(&source);
+    fs::write(source.join("README.md"), "ordinary\n").unwrap();
+    commit_all(&source, "initial");
+    let destination = temporary.path().join("clone");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .args([
+            "git",
+            "clone",
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+        ])
+        .assert()
+        .code(5)
+        .stderr(predicate::str::contains(format!(
+            "{} is not a snip library: no snip.toml at the repository root",
+            source.display()
+        )));
+    assert!(!destination.exists());
+}
+
+#[test]
+fn cli_git_clone_keeps_a_preexisting_empty_destination_after_failure() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let destination = temporary.path().join("empty");
+    fs::create_dir(&destination).unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .args([
+            "git",
+            "clone",
+            temporary.path().join("missing").to_str().unwrap(),
+            destination.to_str().unwrap(),
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("git clone failed"));
+    assert!(destination.is_dir());
+}
+
+#[cfg(unix)]
+#[test]
+fn cli_git_clone_selects_failure_hints_in_order() {
+    let cases = [
+        (
+            "Host key verification failed\nPermission denied (publickey)",
+            "the host key is not in known_hosts yet; connect once manually, for example: ssh -T git@github.com",
+        ),
+        (
+            "Permission denied (publickey)",
+            "no usable SSH key was found; add one with ssh-add, or retry with --gh",
+        ),
+        (
+            "fatal: could not read Username for 'https://github.com'",
+            "this remote needs credentials; set up a credential helper with gh auth setup-git, or retry with --gh",
+        ),
+        (
+            "generic failure",
+            "looks like a GitHub slug — retry with --gh",
+        ),
+    ];
+    for (index, (stderr, hint)) in cases.into_iter().enumerate() {
+        let temporary = tempfile::tempdir().unwrap();
+        let bin = temporary.path().join("bin");
+        fs::create_dir(&bin).unwrap();
+        executable(
+            &bin.join("git"),
+            &format!("#!/bin/sh\nprintf '%s\\n' {stderr:?} >&2\nexit 1\n"),
+        );
+        Command::cargo_bin("snip")
+            .unwrap()
+            .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+            .env("HOME", temporary.path())
+            .env("PATH", &bin)
+            .args(["git", "clone", "owner/repo"])
+            .assert()
+            .code(1)
+            .stderr(predicate::str::contains("git clone failed"))
+            .stderr(predicate::str::contains(hint));
+        assert!(!temporary.path().join(format!("repo-{index}")).exists());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn cli_git_clone_uses_gh_with_the_exact_arguments() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = committed_library(temporary.path(), "GH source.sniplib");
+    let destination = temporary.path().join("GH clone.sniplib");
+    let argv = temporary.path().join("argv");
+    let stub = temporary.path().join("gh");
+    executable(
+        &stub,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$GH_STUB_ARGV\"\n/bin/cp -R \"$3\" \"$4\"\n",
+    );
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .env("SNIP_GH_BIN", &stub)
+        .env("GH_STUB_ARGV", &argv)
+        .args([
+            "--output",
+            "json",
+            "git",
+            "clone",
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+            "--gh",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"via\": \"gh\""));
+    assert_eq!(
+        fs::read_to_string(argv)
+            .unwrap()
+            .lines()
+            .collect::<Vec<_>>(),
+        [
+            "repo",
+            "clone",
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+        ]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn cli_git_clone_classifies_gh_availability_errors() {
+    let temporary = tempfile::tempdir().unwrap();
+    let destination = temporary.path().join("clone");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .env("SNIP_GH_BIN", temporary.path().join("missing-gh"))
+        .args([
+            "git",
+            "clone",
+            "owner/repo",
+            destination.to_str().unwrap(),
+            "--gh",
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("gh not found in PATH"))
+        .stderr(predicate::str::contains(
+            "install the GitHub CLI from https://cli.github.com, or drop --gh and pass a full https or ssh remote",
+        ));
+
+    let stub = temporary.path().join("gh");
+    executable(
+        &stub,
+        "#!/bin/sh\nprintf '%s\\n' 'not logged into any GitHub hosts; run gh auth login' >&2\nexit 1\n",
+    );
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .env("SNIP_GH_BIN", &stub)
+        .args([
+            "git",
+            "clone",
+            "owner/repo",
+            destination.to_str().unwrap(),
+            "--gh",
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("gh is not authenticated"))
+        .stderr(predicate::str::contains("run: gh auth login"));
 }
 
 #[test]

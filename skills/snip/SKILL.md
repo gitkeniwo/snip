@@ -63,6 +63,10 @@ If the user has one library configured, plain commands just work. When you are
 scripting several commands, exporting `SNIP_LIBRARY` once is cleaner than
 repeating `--library`.
 
+A freshly cloned library works directly with `snip --library <path>`: snip
+recreates missing runtime directories when it opens the library, so it does not
+need `snip init` first.
+
 `snip info --output json` reports the resolved library and its counts — the
 cheapest way to confirm you are pointed where you think you are. `snip init
 <path> --name <NAME> [--git] [--yes]` creates a new one, with `--git` making it a
@@ -256,6 +260,7 @@ snip git commit -m "…"           # stage and commit library content
 snip git backup                  # commit if dirty, then push when ahead
 snip git push                    # push without committing
 snip git fetch                   # refresh remote-tracking refs only
+snip git clone <remote> [path]   # restore a library; --gh for private GitHub repos
 ```
 
 **Before any bulk or irreversible change — a retag across many snippets, a
@@ -274,6 +279,9 @@ Git commands never pull, never switch branches, and never prompt for
 credentials — a push needing a passphrase fails fast instead of hanging you.
 Automatic commits and pushes are a TUI feature driven by user config; do not
 count on them having run.
+
+`snip git clone` never prompts: a remote that needs credentials fails fast.
+Never type a credential yourself — surface the error and its hint to the user.
 
 ## Sharing
 

@@ -33,6 +33,7 @@ pub static PAGES: &[(&str, &[u8])] = &[
     ("snip-gist-url.1", include_bytes!("../../man/snip-gist-url.1")),
     ("snip-gist.1", include_bytes!("../../man/snip-gist.1")),
     ("snip-git-backup.1", include_bytes!("../../man/snip-git-backup.1")),
+    ("snip-git-clone.1", include_bytes!("../../man/snip-git-clone.1")),
     ("snip-git-commit.1", include_bytes!("../../man/snip-git-commit.1")),
     ("snip-git-fetch.1", include_bytes!("../../man/snip-git-fetch.1")),
     ("snip-git-init.1", include_bytes!("../../man/snip-git-init.1")),

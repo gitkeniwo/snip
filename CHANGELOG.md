@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.2] - 2026-08-03
 
+### Added
+
+- **One-command library restore.** `snip git clone` restores a library through
+  non-interactive `git clone` or `gh repo clone`, validates it, and can record
+  it as the default with `--set-default`.
+
 ### Changed
 
 - **Cached preview rendering.** Wrapped preview layouts and styled span runs are reused to reduce repeated allocation and rendering work.
@@ -14,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Grapheme-safe preview layout.** Preview measurement, truncation, and wrapping now keep Unicode grapheme clusters intact.
+- **Cloned libraries open without manual repair.** Missing `snippets/`,
+  `trash/`, and `.snip/` runtime directories are recreated automatically, so a
+  clone no longer fails with `library is missing directory`.
 
 ## [0.5.1] - 2026-08-03
 
