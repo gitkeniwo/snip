@@ -275,6 +275,7 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         ("tui-sort", "modified"),
         ("tui-density", "compact"),
         ("git-auto-commit-interval", "15"),
+        ("git-auto-pull", "true"),
         ("git-backup-on-quit", "true"),
     ] {
         Command::cargo_bin("snip")
@@ -293,6 +294,7 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .success()
         .stdout(predicate::str::contains("\"auto_commit_interval\": 15"))
         .stdout(predicate::str::contains("\"auto_push\": true"))
+        .stdout(predicate::str::contains("\"auto_pull\": true"))
         .stdout(predicate::str::contains("\"backup_on_quit\": true"));
 
     Command::cargo_bin("snip")
@@ -302,6 +304,14 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .assert()
         .success()
         .stdout(predicate::str::contains("auto_push = false"));
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "unset", "git-auto-pull"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auto_pull = false"));
 
     Command::cargo_bin("snip")
         .unwrap()

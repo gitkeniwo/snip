@@ -802,6 +802,7 @@ pub enum ConfigKey {
     TuiLineNumbers,
     GitAutoCommitInterval,
     GitAutoPush,
+    GitAutoPull,
     GitBackupOnQuit,
 }
 
