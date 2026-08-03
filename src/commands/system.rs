@@ -222,8 +222,13 @@ fn clone_destination(remote: &str, explicit: Option<&Path>) -> Result<PathBuf> {
     }
     let trimmed = remote.trim_end_matches('/');
     let trimmed = trimmed.strip_suffix(".git").unwrap_or(trimmed);
+    let separators: &[char] = if cfg!(windows) {
+        &['/', ':', '\\']
+    } else {
+        &['/', ':']
+    };
     let name = trimmed
-        .rfind(['/', ':'])
+        .rfind(separators)
         .map_or(trimmed, |index| &trimmed[index + 1..]);
     if name.is_empty() {
         return Err(
@@ -237,6 +242,7 @@ fn clone_destination(remote: &str, explicit: Option<&Path>) -> Result<PathBuf> {
         format!("{name}.sniplib")
     };
     let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
         .filter(|value| !value.is_empty())
         .ok_or_else(|| {
             SnipError::io("cannot locate home directory")

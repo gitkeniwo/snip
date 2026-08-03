@@ -324,6 +324,26 @@ fn cli_git_clone_derives_the_default_destination_from_the_remote_basename() {
 }
 
 #[test]
+fn cli_git_clone_uses_userprofile_when_home_is_not_set() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let source = committed_library(temporary.path(), "UserProfile.git");
+    let userprofile = temporary.path().join("userprofile");
+    fs::create_dir(&userprofile).unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env_remove("HOME")
+        .env("USERPROFILE", &userprofile)
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .args(["--output", "json", "git", "clone", source.to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(userprofile.join("UserProfile.sniplib/snip.toml").is_file());
+}
+
+#[test]
 fn cli_git_clone_refuses_a_nonempty_destination_without_touching_it() {
     let temporary = tempfile::tempdir().unwrap();
     let destination = temporary.path().join("occupied");
@@ -523,7 +543,7 @@ fn cli_git_clone_uses_gh_with_the_exact_arguments() {
     let stub = temporary.path().join("gh");
     executable(
         &stub,
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$GH_STUB_ARGV\"\n/bin/cp -R \"$3\" \"$4\"\n",
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$GH_STUB_ARGV\"\ncp -R \"$3\" \"$4\"\n",
     );
     Command::cargo_bin("snip")
         .unwrap()
