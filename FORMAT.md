@@ -50,6 +50,40 @@ Libraries are meant to be kept under version control, so `snip init` writes a
 `.gitignore` excluding the runtime directories. It is an ordinary file the owner
 may edit; readers MUST NOT depend on it.
 
+### What version control carries
+
+| Path | Holds | Durable | Tracked |
+|---|---|---|---|
+| `snip.toml` | library identity | yes | yes |
+| `tags.toml` | tag registry | yes | yes |
+| `snippets/` | every snippet package | yes | yes |
+| `trash/` | soft-deleted packages | yes | yes |
+| `.snip/` | locks, transactions, cache | no | no |
+| `.gitignore` | the exclusions above | no | yes |
+
+Durable state is exactly what a clone must reproduce. Everything under `.snip/`
+is machine-local coordination state that a reader rebuilds on demand, which is
+why excluding it loses nothing.
+
+Nothing outside the library root belongs to the format. A CLI's own settings —
+for snip, `$XDG_CONFIG_HOME/snip/config.toml` — describe how one person on one
+machine works (which library is the default, editor, pager, colors) and apply
+across every library that person opens. A reader MUST NOT require such a file to
+be present, and MUST NOT expect one to travel with a library.
+
+### Directories that do not survive a clone
+
+Git records files, not directories, so an empty directory does not reach a
+second machine. A library restored from version control therefore arrives
+without `.snip/` — always, since all three of its subdirectories are excluded —
+and without `snippets/` or `trash/` when either happened to be empty.
+
+Readers MUST treat these four directories as recreatable: create them on open
+and continue, rather than rejecting the library. Only `snip.toml` decides
+whether a directory is a library root. A reader that cannot create them (a
+read-only mount, for instance) MAY refuse to write, but SHOULD still serve reads
+it can satisfy.
+
 ## `snip.toml`
 
 ```toml
@@ -296,6 +330,10 @@ if that path is occupied, the restore MUST fail rather than overwrite.
 `.snip/` holds coordination state, never user data. It MAY be deleted while no
 snip process is running, and doing so MUST NOT lose anything from the library.
 It MUST NOT be committed to version control.
+
+Because it is never committed, its absence is the normal state of a freshly
+cloned library, not a defect. A reader MUST create the directories it needs
+instead of treating a missing `.snip/` as a malformed library.
 
 ```text
 .snip/

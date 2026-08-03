@@ -530,6 +530,21 @@ you can move or rename them by hand; the UUID in the manifest is the stable
 identity. Nothing under `.snip/` is user data, and deleting it while snip is not
 running never loses anything.
 
+Three kinds of state live in three places, and only one of them belongs in Git:
+
+| Where | What | Scope | In Git |
+|---|---|---|---|
+| `Main.sniplib/snip.toml`, `tags.toml` | library identity (UUID, name, schema) and the tag registry | one library | yes |
+| `Main.sniplib/snippets/`, `trash/` | every snippet and every soft-deleted one | one library | yes |
+| `Main.sniplib/.snip/` | library lock, in-flight transactions, reserved cache | one library, one machine | no |
+| `~/.config/snip/config.toml` | your preferences: default library, editor, pager, colors, theme, Git automation | all libraries, one machine | no — it lives outside the library |
+
+The distinction that matters when you sync: `snip.toml` says *what this library
+is* and travels with it, so the same library has the same UUID on every machine.
+`config.toml` says *how you use snip* and stays on the machine, which is why a
+second machine needs its own `snip config set default-library` after a clone.
+`.snip/` is scratch space, and holds nothing a clone needs to carry.
+
 Editor changes are picked up on the next scan. CLI writes take a library lock
 and are atomic, so `snip doctor --repair` can recover an interrupted one.
 
@@ -613,6 +628,33 @@ another snip process.
 
 snip never pulls, switches branches, or resolves conflicts. If a push is
 rejected, pull and resolve it in your terminal.
+
+### Restoring a library on another machine
+
+A backed-up library is restored by cloning it and pointing snip at it. The
+second step is separate because `default-library` is your own configuration, not
+part of the library, so it does not travel through Git:
+
+```bash
+gh repo clone gitkeniwo/Main.sniplib ~/Main.sniplib
+snip config set default-library ~/Main.sniplib
+```
+
+Use `gh repo clone` for a private repository, so credentials stay with `gh`;
+`git clone` works for a public one. Nothing else needs restoring — the library
+UUID, every snippet, the trash, and the tag registry are all in the repository.
+
+Through 0.5.1 a clone needs one more step. `.snip/` is excluded from Git, and
+Git does not record empty directories, so the directory is absent after a clone
+and snip reports `library is missing directory: …/.snip`. Recreate it once:
+
+```bash
+mkdir -p ~/Main.sniplib/.snip/{cache,locks,transactions}
+```
+
+The same applies to `snippets/` or `trash/` if either was empty when you
+committed. A future release will create these on open instead of refusing to
+start, and will fold the whole sequence into a single `snip git clone`.
 
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
 back. Permanent deletion requires `snip purge SELECTOR --yes`.
