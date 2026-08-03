@@ -603,14 +603,22 @@ snip --library Main.sniplib git push
 snip --library Main.sniplib git fetch
 ```
 
+```bash
+snip git clone <remote> [path] [--gh] [--set-default]
+```
+
 `snip init --git` only applies at creation time; `snip git init` makes an
 existing library a repository, and is idempotent when it already is one.
-`commit` stages and commits only library content. `backup` commits when the
+`commit` stages and commits only library content. `clone` restores a library
+without first resolving an existing library; pass `--gh` to delegate GitHub
+credentials to the GitHub CLI. `backup` commits when the
 library is dirty and pushes whenever the branch is ahead of its upstream, so it
 also handles a clean worktree with earlier local commits. `push` retries only
 the push step. `fetch` refreshes and prunes remote-tracking refs without
-changing the worktree. `backup` is idempotent. These CLI operations are
-non-interactive and fail rather than waiting for credentials.
+changing the worktree. `backup` is idempotent. Background automation and all
+Git subcommands are non-interactive. Clone delegates credentials to Git or,
+with `--gh`, to the GitHub CLI; authentication failures fail fast instead of
+waiting for input.
 
 In the TUI, `Ctrl-g` opens the Git console: `b` backs up, `c` commits, `p`
 pushes, `f` fetches remote status in the background, and `C` enters a custom
@@ -644,17 +652,20 @@ Use `gh repo clone` for a private repository, so credentials stay with `gh`;
 `git clone` works for a public one. Nothing else needs restoring — the library
 UUID, every snippet, the trash, and the tag registry are all in the repository.
 
-Through 0.5.1 a clone needs one more step. `.snip/` is excluded from Git, and
-Git does not record empty directories, so the directory is absent after a clone
-and snip reports `library is missing directory: …/.snip`. Recreate it once:
+The same restore is available as one command:
 
 ```bash
-mkdir -p ~/Main.sniplib/.snip/{cache,locks,transactions}
+snip git clone gitkeniwo/Main.sniplib --gh --set-default
 ```
 
-The same applies to `snippets/` or `trash/` if either was empty when you
-committed. A future release will create these on open instead of refusing to
-start, and will fold the whole sequence into a single `snip git clone`.
+This is a convenience wrapper for cloning and, with `--set-default`, running
+`snip config set default-library`; it is not required. A manually cloned library
+works immediately with `snip --library ~/Main.sniplib`.
+
+`.snip/` is excluded from Git and Git does not record empty directories, so a
+clone arrives without it — and without `snippets/` or `trash/` if either was
+empty. snip recreates them the first time it opens the library, so there is
+nothing to repair by hand.
 
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
 back. Permanent deletion requires `snip purge SELECTOR --yes`.

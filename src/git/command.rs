@@ -3,14 +3,14 @@ use std::io;
 use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 
-pub(super) struct Output {
+pub struct Output {
     pub status: ExitStatus,
     pub stdout: Vec<u8>,
     pub stderr: String,
 }
 
 #[derive(Debug)]
-pub(super) enum SpawnError {
+pub enum SpawnError {
     NotInstalled,
     Io(String),
 }
@@ -38,7 +38,7 @@ pub(super) fn run(cwd: &Path, args: &[&str]) -> Result<Output, SpawnError> {
     })
 }
 
-pub(super) fn run_non_interactive(cwd: &Path, args: &[&str]) -> Result<Output, SpawnError> {
+pub fn run_non_interactive(cwd: &Path, args: &[&str]) -> Result<Output, SpawnError> {
     let mut command = non_interactive_command(cwd, args, std::env::var_os("GIT_SSH_COMMAND"));
     let output = command.output().map_err(spawn_error)?;
     Ok(Output {

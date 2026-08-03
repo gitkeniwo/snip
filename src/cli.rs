@@ -495,6 +495,21 @@ pub struct GitArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum GitCommand {
+    /// Clone a snip library from a Git remote.
+    Clone {
+        /// Remote to clone. Passed to git unchanged; with --gh it is passed to
+        /// gh, which also accepts an OWNER/REPO shorthand.
+        remote: String,
+        /// Destination directory. Defaults to ~/<repo name>.sniplib.
+        path: Option<PathBuf>,
+        /// Clone with `gh repo clone` instead of `git clone`, so GitHub
+        /// credentials come from the GitHub CLI.
+        #[arg(long)]
+        gh: bool,
+        /// Record the clone as default_library in the snip config.
+        #[arg(long)]
+        set_default: bool,
+    },
     /// Show read-only backup status for this library.
     Status,
     /// Make this library a Git repository when it is not one already.

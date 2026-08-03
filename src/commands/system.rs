@@ -1,10 +1,13 @@
 use serde::Serialize;
 use snip::Library;
+use snip::config::AppConfig;
 use snip::error::{Result, SnipError};
-use snip::git::{self, Status, Unavailable};
+use snip::git::{self, SpawnError, Status, Unavailable};
 use snip::importer::import_snippetslab;
 use snip::service::{doctor, organize};
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command as ProcessCommand, Stdio};
 
 use super::output::{print_record, print_records};
 use crate::cli::{
@@ -103,6 +106,9 @@ pub fn command_import(args: &ImportArgs, output: OutputMode) -> Result<()> {
 
 pub fn command_git(library: &Library, args: &GitArgs, output: OutputMode) -> Result<()> {
     match &args.command {
+        GitCommand::Clone { .. } => {
+            unreachable!("git clone is dispatched before library resolution")
+        }
         GitCommand::Status => command_git_status(library, output),
         GitCommand::Init => command_git_init(library, output),
         GitCommand::Commit { message } => command_git_commit(library, message.as_deref(), output),
@@ -110,6 +116,256 @@ pub fn command_git(library: &Library, args: &GitArgs, output: OutputMode) -> Res
         GitCommand::Push => command_git_push(library, output),
         GitCommand::Fetch => command_git_fetch(library, output),
     }
+}
+
+#[derive(Serialize)]
+struct GitCloneReport<'a> {
+    path: &'a Path,
+    id: uuid::Uuid,
+    name: &'a str,
+    schema_version: u32,
+    remote: &'a str,
+    via: &'static str,
+    default_library_set: bool,
+}
+
+pub fn command_git_clone(
+    remote: &str,
+    path: Option<&Path>,
+    gh: bool,
+    set_default: bool,
+    output: OutputMode,
+) -> Result<()> {
+    let destination = clone_destination(remote, path)?;
+    let destination = if destination.is_absolute() {
+        destination
+    } else {
+        std::env::current_dir()
+            .map_err(|error| SnipError::io(format!("cannot get current directory: {error}")))?
+            .join(destination)
+    };
+    let existed = destination.exists();
+    if existed && !destination.is_dir() {
+        return Err(destination_not_empty(&destination));
+    }
+    if existed
+        && fs::read_dir(&destination)
+            .map_err(|error| {
+                SnipError::io(format!("cannot read {}: {error}", destination.display()))
+            })?
+            .next()
+            .is_some()
+    {
+        return Err(destination_not_empty(&destination));
+    }
+
+    let parent = destination
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)
+        .map_err(|error| SnipError::io(format!("cannot create {}: {error}", parent.display())))?;
+    let destination_text = destination.to_string_lossy();
+    let clone_result = if gh {
+        run_gh_clone(remote, &destination_text)
+    } else {
+        run_git_clone(parent, remote, &destination_text)
+    };
+    if let Err(error) = clone_result {
+        cleanup_failed_clone(&destination, existed);
+        return Err(error);
+    }
+
+    if !destination.join("snip.toml").is_file() {
+        cleanup_failed_clone(&destination, existed);
+        return Err(SnipError::validation(format!(
+            "{remote} is not a snip library: no snip.toml at the repository root"
+        ))
+        .with_hint(
+            "snip git clone restores libraries created by snip init; use git clone if you only want the repository",
+        ));
+    }
+    let library = match Library::open(&destination) {
+        Ok(library) => library,
+        Err(error) => {
+            cleanup_failed_clone(&destination, existed);
+            return Err(error);
+        }
+    };
+
+    let mut config = AppConfig::load()?;
+    if set_default {
+        config.default_library = Some(library.root().to_path_buf());
+        config.save()?;
+    }
+    if output == OutputMode::Human {
+        print_clone_human(&library, &config, set_default);
+        return Ok(());
+    }
+    print_record(
+        &GitCloneReport {
+            path: library.root(),
+            id: library.manifest().id,
+            name: &library.manifest().name,
+            schema_version: library.manifest().schema_version,
+            remote,
+            via: if gh { "gh" } else { "git" },
+            default_library_set: set_default,
+        },
+        output,
+    )
+}
+
+fn clone_destination(remote: &str, explicit: Option<&Path>) -> Result<PathBuf> {
+    if let Some(path) = explicit {
+        return Ok(path.to_path_buf());
+    }
+    let trimmed = remote.trim_end_matches('/');
+    let trimmed = trimmed.strip_suffix(".git").unwrap_or(trimmed);
+    let separators: &[char] = if cfg!(windows) {
+        &['/', ':', '\\']
+    } else {
+        &['/', ':']
+    };
+    let name = trimmed
+        .rfind(separators)
+        .map_or(trimmed, |index| &trimmed[index + 1..]);
+    if name.is_empty() {
+        return Err(
+            SnipError::usage(format!("cannot derive a destination from remote {remote}"))
+                .with_hint("pass an explicit path: snip git clone <remote> <path>"),
+        );
+    }
+    let name = if name.ends_with(".sniplib") {
+        name.to_owned()
+    } else {
+        format!("{name}.sniplib")
+    };
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            SnipError::io("cannot locate home directory")
+                .with_hint("pass an explicit path: snip git clone <remote> <path>")
+        })?;
+    Ok(PathBuf::from(home).join(name))
+}
+
+fn destination_not_empty(path: &Path) -> SnipError {
+    SnipError::conflict(format!("destination is not empty: {}", path.display()))
+        .with_hint("pass a different path, or remove the directory first")
+}
+
+fn run_git_clone(parent: &Path, remote: &str, destination: &str) -> Result<()> {
+    let result = git::run_non_interactive(parent, &["clone", "--", remote, destination]);
+    let output = match result {
+        Ok(output) => output,
+        Err(SpawnError::NotInstalled) => return Err(SnipError::io("git not found in PATH")),
+        Err(SpawnError::Io(message)) => return Err(SnipError::io(message)),
+    };
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(clone_failed("git clone", remote, &output.stderr, false))
+}
+
+fn run_gh_clone(remote: &str, destination: &str) -> Result<()> {
+    let binary = std::env::var("SNIP_GH_BIN")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "gh".to_owned());
+    let output = ProcessCommand::new(binary)
+        .args(["repo", "clone", remote, destination])
+        .env("GH_NO_UPDATE_NOTIFIER", "1")
+        .env("GH_PROMPT_DISABLED", "1")
+        .env("GH_PAGER", "")
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                SnipError::io("gh not found in PATH").with_hint(
+                    "install the GitHub CLI from https://cli.github.com, or drop --gh and pass a full https or ssh remote",
+                )
+            } else {
+                SnipError::io(error.to_string())
+            }
+        })?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+    if stderr.contains("auth login") || stderr.contains("not logged") {
+        return Err(SnipError::io("gh is not authenticated").with_hint("run: gh auth login"));
+    }
+    Err(clone_failed("gh repo clone", remote, &stderr, true))
+}
+
+fn clone_failed(command: &str, remote: &str, stderr: &str, gh: bool) -> SnipError {
+    let error = SnipError::io(format!("{command} failed: {stderr}"));
+    if stderr.contains("Host key verification failed") {
+        return error.with_hint(
+            "the host key is not in known_hosts yet; connect once manually, for example: ssh -T git@github.com",
+        );
+    }
+    if !gh {
+        // The remaining hints all say "retry with --gh", which is useless advice
+        // when --gh is what just failed.
+        if stderr.contains("Permission denied (publickey)") {
+            return error.with_hint(
+                "no usable SSH key was found; add one with ssh-add, or retry with --gh",
+            );
+        }
+        if stderr.contains("could not read Username") {
+            return error.with_hint(
+                "this remote needs credentials; set up a credential helper with gh auth setup-git, or retry with --gh",
+            );
+        }
+        if looks_like_slug(remote) {
+            return error.with_hint("looks like a GitHub slug — retry with --gh");
+        }
+    }
+    error
+}
+
+fn looks_like_slug(remote: &str) -> bool {
+    !remote.contains("://")
+        && !remote.contains('@')
+        && !remote.contains(':')
+        && remote.split('/').count() == 2
+        && remote.split('/').all(|part| !part.is_empty())
+        && !Path::new(remote).exists()
+}
+
+fn cleanup_failed_clone(destination: &Path, existed: bool) {
+    if !existed && destination.is_dir() {
+        let _ = fs::remove_dir_all(destination);
+    }
+}
+
+fn print_clone_human(library: &Library, config: &AppConfig, set_default: bool) {
+    println!("\n  {:<9} {}", "cloned", library.root().display());
+    if set_default {
+        println!("  {:<9} {} [updated]", "default", library.root().display());
+        println!("\n  {:<22} snip\n", "open it");
+        return;
+    }
+    match config.default_library.as_deref() {
+        Some(path) => println!("  {:<9} {} [unchanged]", "default", path.display()),
+        None => println!("  {:<9} none set", "default"),
+    }
+    println!(
+        "\n  {:<22} snip --library {}",
+        "browse it now",
+        library.root().display()
+    );
+    println!(
+        "  {:<22} snip config set default-library {}\n",
+        "make it your default",
+        library.root().display()
+    );
 }
 
 #[derive(Serialize)]

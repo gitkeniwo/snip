@@ -172,11 +172,12 @@ library size.
 
 ## Library portability
 
-A library backed up with `snip git backup` cannot currently be restored on a
-second machine without hand-editing the filesystem. The three items below are
-ordered: the first is a bug fix, the second removes the remaining manual steps,
-the third gives the backup loop an entry point. A detailed plan will live in
-`docs/plans/library-restore.md`.
+A library backed up with `snip git backup` can now be restored on a second
+machine without hand-editing the filesystem. The three completed items below
+landed in order: the first is a bug fix, the second removes the remaining manual
+steps, and the third gives the backup loop an entry point. Tracks
+`docs/plans/library-restore.md`, which fixes the command surface, the exact
+output strings, and the error messages.
 
 ### Runtime directories must survive a clone
 
@@ -184,80 +185,73 @@ the third gives the backup loop an entry point. A detailed plan will live in
 `.snip/transactions/` (`src/filesystem/library.rs:77`) — which is every
 subdirectory `.snip/` has. Git does not record empty directories, so `.snip/`
 does not exist in the repository at all, and a clone arrives without it.
-`Library::open` then rejects the library outright
+`Library::open` previously rejected the library outright
 (`src/filesystem/library.rs:125`), and the fix is unreachable from the CLI:
 `snip doctor --repair` takes an already-open `Library` (`src/service/doctor.rs:43`,
 dispatched at `src/commands/mod.rs:86`), and `snip init` on an existing path
 routes to `finish_connected` (`src/commands/onboard.rs:87`), which opens the
-library too. Both fail with the same error. The only escape today is
-`mkdir -p <lib>/.snip/{cache,locks,transactions}`.
+library too. Both used to fail with the same error; self-healing in
+`Library::open` now covers every entry point.
 
 The same trap applies to `snippets/` and `trash/`: neither is ignored, but an
 empty one is equally absent from a clone and equally fatal on open.
 
-- [ ] Make `Library::open` self-heal: create any of `snippets/`, `trash/`,
+- [x] `Library::open` now self-heals: it creates any of `snippets/`, `trash/`,
   `.snip/cache/`, `.snip/locks/`, `.snip/transactions/` that are missing, and
-  keep the existing error only when creation fails. Best-effort rather than
+  keeps the existing error only when creation fails. Best-effort rather than
   `?`, since `open` is on read-only paths too and a read-only mount should not
   block reads that need no scratch space.
-- [ ] Decide whether `snip init` should also commit a tracked `.snip/.gitkeep`.
-  Self-healing makes it unnecessary and it contradicts "`.snip/` MUST NOT be
-  committed" in FORMAT.md, so the default answer is no — recorded here so the
-  question is not reopened.
-- [ ] Regression tests: build a library, delete each recreatable directory, and
-  assert `open` succeeds and a write still works. Add a `tests/git.rs` case that
+- [x] Do not commit a tracked `.snip/.gitkeep`: self-healing makes it
+  unnecessary and it contradicts "`.snip/` MUST NOT be committed" in
+  FORMAT.md.
+- [x] Regression tests build a library, delete each recreatable directory, and
+  assert `open` succeeds and a write still works, and a `tests/git.rs` case
   clones a committed library into a fresh path and runs a command against it, so
   the real failure mode is covered end to end.
-- [ ] FORMAT.md now requires readers to recreate these directories rather than
-  reject the library ("Directories that do not survive a clone"). Confirm the
-  implementation matches the wording before release.
+- [x] The implementation matches FORMAT.md's requirement to recreate runtime
+  directories on open only after `snip.toml` proves the directory is a library.
 
 ### Restoring a library on another machine
 
-Even with the fix above, a restore is clone, then `snip config set
-default-library`, because `default_library` lives in
+The underlying restore remains clone, then `snip config set default-library`,
+because `default_library` lives in
 `$XDG_CONFIG_HOME/snip/config.toml` and is deliberately not part of the library.
-That second step is discoverable only from the README.
+`snip git clone --set-default` provides both steps as one non-interactive
+command.
 
-- [ ] Improve the failure that people actually hit first: when `Library::open`
-  finds `snip.toml` but a directory it cannot create, and when `discover` finds
-  no library at all, the hint should name the restore path rather than only the
-  create path (`NO_LIBRARY_HINT`, `src/filesystem/library.rs:14`).
-- [ ] Teach the onboarding wizard's connect branch to accept a library that is
-  incomplete rather than reporting it as broken, so a cloned library is a
-  first-class answer to "connect to a library I already have"
-  (`src/commands/onboard.rs`).
-- [ ] Document the restore flow in `man snip-git` alongside the README section.
+- [x] `NO_LIBRARY_HINT` now names the path for an existing or freshly cloned
+  library as well as the create path.
+- [x] The onboarding wizard's unchanged connect branch accepts incomplete
+  clones through `Library::open` self-healing.
+- [x] The restore flow is documented in the generated `snip-git` manual and
+  the README.
 
 ### `snip git clone`
 
-Give the backup loop the entry point it lacks: `git init`, `commit`, `backup`,
-`push`, and `fetch` all exist, but nothing brings a library back.
+The backup loop now has its restore entry point alongside `git init`, `commit`,
+`backup`, `push`, and `fetch`:
 
 ```bash
-snip git clone <remote> [path] [--name NAME] [--set-default]
+snip git clone <remote> [path] [--gh] [--set-default]
 ```
 
-- [ ] Add `Clone` to `GitCommand` (`src/cli.rs:497`) and dispatch it before
+- [x] Added `Clone` to `GitCommand` and dispatch it before
   library resolution, next to `Init` and `Import` (`src/commands/mod.rs:55`) —
   every other Git subcommand receives an open `Library`, and this one runs when
   no library exists yet.
-- [ ] Default the destination to `~/<repo-name>.sniplib`, refuse a non-empty
-  target, and validate after cloning that the result really is a library
+- [x] The destination defaults to `~/<repo-name>.sniplib`, refuses a non-empty
+  target, and validates after cloning that the result really is a library
   (`snip.toml` present, schema accepted) — deleting a clone that is not one, so
   a typo'd remote does not leave a stray directory.
-- [ ] Delegate credentials: prefer `gh repo clone` when the remote is a GitHub
-  slug or URL and `gh` is on PATH, matching how `snip gist` already leaves auth
-  entirely to `gh` (`src/gist/gh.rs`); fall back to `git clone` otherwise. Keep it
-  non-interactive and fail with a clear message rather than blocking on a
-  credential prompt, consistent with the other Git commands.
-- [ ] Offer `--set-default` (and prompt for it in an interactive terminal) so
-  the restore is genuinely one command; print the exact
-  `snip config set default-library` line when it is declined.
-- [ ] Ship `man/snip-git-clone.1` with the other per-subcommand pages, and add
-  the command to `man/snip-git.1` and the README.
-- [ ] Once it exists, drop the manual `mkdir` note from the README's "Restoring
-  a library on another machine" and point the first-run wizard at it.
+- [x] Credentials remain delegated explicitly: Git is the default and `--gh`
+  selects `gh repo clone`; both paths are non-interactive and fail with a
+  targeted hint instead of prompting.
+- [x] `--set-default` updates the config without prompting; otherwise the
+  exact `snip config set default-library` command is printed.
+- [x] Shipped `man/snip-git-clone.1` with the other per-subcommand pages, and
+  added the command to `man/snip-git.1` and the README.
+- [x] Dropped the manual `mkdir` note from the README's "Restoring
+  a library on another machine" and pointed the first-run wizard at it.
 
 ## Sharing
 

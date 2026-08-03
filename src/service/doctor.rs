@@ -45,6 +45,9 @@ pub fn doctor(library: &Library, repair: bool) -> DoctorReport {
     let mut warnings = Vec::new();
     let mut repaired = Vec::new();
     let mut checked = 0;
+    for name in library.restored() {
+        repaired.push(format!("recreated missing directory: {name}"));
+    }
     let pending_transactions = list_transaction_names(library);
     if let Err(error) = library.tag_registry() {
         errors.push(error.to_string());
