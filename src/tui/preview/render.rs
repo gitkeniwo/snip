@@ -12,7 +12,6 @@ use super::super::selection::{SelectionKey, text_width};
 use super::super::state::Pane;
 use super::super::theme::TuiTheme;
 use super::super::widgets;
-use super::layout::{compose_preview, wrap_preview};
 
 const FRAGMENT_LIST_MAX_ROWS: usize = 12;
 const PREVIEW_MIN_CONTENT_ROWS: u16 = 3;
@@ -112,26 +111,27 @@ pub fn draw_preview_of(
             rule: rule_area,
         },
     );
-    match app
-        .preview
-        .get(&snippet, app.fragment_index, &app.highlighter, app.theme)
-    {
-        Ok(document) => {
-            let lines = compose_preview(
-                document,
-                app.show_line_numbers,
-                app.theme,
-                content_area.width.max(1),
-            );
-            let rendered = wrap_preview(lines, content_area.width.max(1), app.show_line_numbers);
-            app.preview_selection.prepare(
-                SelectionKey {
-                    snippet_id: snippet.id,
-                    fragment_index: app.fragment_index,
-                    fingerprint: snippet.fingerprint.0.clone(),
-                },
-                rendered.rows,
-            );
+    let mut preview_cache = std::mem::take(&mut app.preview);
+    match preview_cache.get(
+        &snippet,
+        app.fragment_index,
+        content_area.width.max(1),
+        app.show_line_numbers,
+        &app.highlighter,
+        app.theme,
+    ) {
+        Ok((rendered, rebuilt)) => {
+            let selection_key = SelectionKey {
+                snippet_id: snippet.id,
+                fragment_index: app.fragment_index,
+                fingerprint: snippet.fingerprint.0.clone(),
+            };
+            if rebuilt || !app.preview_selection.is_prepared_for(&selection_key) {
+                app.preview_selection
+                    .prepare(selection_key, rendered.rows.clone());
+            } else {
+                app.preview_selection.reclamp();
+            }
             let max_scroll = rendered
                 .text
                 .lines
@@ -139,10 +139,24 @@ pub fn draw_preview_of(
                 .saturating_sub(content_area.height as usize)
                 .min(u16::MAX as usize) as u16;
             app.preview_scroll = app.preview_scroll.min(max_scroll);
-            frame.render_widget(
-                Paragraph::new(rendered.text).scroll((app.preview_scroll, 0)),
-                content_area,
-            );
+            for (offset, line) in rendered
+                .text
+                .lines
+                .iter()
+                .skip(usize::from(app.preview_scroll))
+                .take(content_area.height as usize)
+                .enumerate()
+            {
+                frame.render_widget(
+                    line,
+                    Rect::new(
+                        content_area.x,
+                        content_area.y.saturating_add(offset as u16),
+                        content_area.width,
+                        1,
+                    ),
+                );
+            }
             draw_preview_selection(frame, app, content_area);
         }
         Err(error) => {
@@ -153,6 +167,7 @@ pub fn draw_preview_of(
             );
         }
     }
+    app.preview = preview_cache;
 }
 
 struct PreviewHeaderAreas {

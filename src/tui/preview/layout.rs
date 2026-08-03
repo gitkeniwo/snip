@@ -117,7 +117,7 @@ fn content_section_rule(label: &str, theme: TuiTheme) -> Line<'static> {
     ])
 }
 
-pub(super) struct WrappedPreview {
+pub struct WrappedPreview {
     pub(super) text: Text<'static>,
     pub(super) rows: Vec<SelectionRow>,
 }
@@ -358,70 +358,96 @@ pub fn jump_paragraph(app: &mut App, forward: bool) {
         return;
     };
     let width = app.layout.preview_content.width.max(1);
-    let Ok(document) = app
-        .preview
-        .get(&snippet, app.fragment_index, &app.highlighter, app.theme)
-    else {
-        return;
-    };
-    let lines = compose_preview(document, app.show_line_numbers, app.theme, width);
-    let rendered = wrap_preview(lines, width, app.show_line_numbers);
-    let total_lines = rendered.text.lines.len();
-    if total_lines == 0 {
-        return;
-    }
-
-    let is_blank = |line: &ratatui::text::Line| {
-        let plain = line
-            .spans
-            .iter()
-            .map(|span| span.content.as_ref())
-            .collect::<String>();
-        let stripped = if let Some(pos) = plain.find('│') {
-            &plain[pos + '│'.len_utf8()..]
-        } else {
-            &plain
+    let mut preview_cache = std::mem::take(&mut app.preview);
+    let target = (|| {
+        let (rendered, rebuilt) = preview_cache
+            .get(
+                &snippet,
+                app.fragment_index,
+                width,
+                app.show_line_numbers,
+                &app.highlighter,
+                app.theme,
+            )
+            .ok()?;
+        let selection_key = super::super::selection::SelectionKey {
+            snippet_id: snippet.id,
+            fragment_index: app.fragment_index,
+            fingerprint: snippet.fingerprint.0.clone(),
         };
-        stripped.trim().is_empty()
-    };
-
-    let current = usize::from(app.preview_scroll);
-    let target = if forward {
-        let mut i = current.saturating_add(1);
-        if i >= total_lines {
-            total_lines.saturating_sub(1)
+        if rebuilt || !app.preview_selection.is_prepared_for(&selection_key) {
+            app.preview_selection
+                .prepare(selection_key, rendered.rows.clone());
         } else {
-            if is_blank(&rendered.text.lines[current]) {
-                while i < total_lines && is_blank(&rendered.text.lines[i]) {
+            app.preview_selection.reclamp();
+        }
+        let total_lines = rendered.text.lines.len();
+        if total_lines == 0 {
+            return None;
+        }
+
+        let is_blank = |line: &ratatui::text::Line| {
+            let plain = line
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>();
+            let stripped = if let Some(pos) = plain.find('│') {
+                &plain[pos + '│'.len_utf8()..]
+            } else {
+                &plain
+            };
+            stripped.trim().is_empty()
+        };
+
+        let current = usize::from(app.preview_scroll);
+        Some(if forward {
+            let mut i = current.saturating_add(1);
+            if i >= total_lines {
+                total_lines.saturating_sub(1)
+            } else {
+                if is_blank(&rendered.text.lines[current]) {
+                    while i < total_lines && is_blank(&rendered.text.lines[i]) {
+                        i += 1;
+                    }
+                }
+                while i < total_lines && !is_blank(&rendered.text.lines[i]) {
                     i += 1;
                 }
+                i.min(total_lines.saturating_sub(1))
             }
-            while i < total_lines && !is_blank(&rendered.text.lines[i]) {
-                i += 1;
+        } else if current == 0 {
+            0
+        } else {
+            let mut i = current.saturating_sub(1);
+            if is_blank(&rendered.text.lines[current]) {
+                while i > 0 && is_blank(&rendered.text.lines[i]) {
+                    i -= 1;
+                }
             }
-            i.min(total_lines.saturating_sub(1))
-        }
-    } else if current == 0 {
-        0
-    } else {
-        let mut i = current.saturating_sub(1);
-        if is_blank(&rendered.text.lines[current]) {
-            while i > 0 && is_blank(&rendered.text.lines[i]) {
+            while i > 0 && !is_blank(&rendered.text.lines[i]) {
                 i -= 1;
             }
-        }
-        while i > 0 && !is_blank(&rendered.text.lines[i]) {
-            i -= 1;
-        }
-        i
-    };
-
-    app.preview_scroll = u16::try_from(target).unwrap_or(u16::MAX);
+            i
+        })
+    })();
+    app.preview = preview_cache;
+    if let Some(target) = target {
+        app.preview_scroll = u16::try_from(target).unwrap_or(u16::MAX);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct ExpectedRow<'a> {
+        text: &'a str,
+        display_width: u16,
+        gutter_width: u16,
+        ends_line: bool,
+    }
 
     fn rendered_lines(preview: &WrappedPreview) -> Vec<String> {
         preview
