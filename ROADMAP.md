@@ -106,7 +106,8 @@ total is healthy for a Rust TUI carrying a full syntax set, and is not worth
 optimizing on its own.
 
 What the measurement did surface is a per-frame allocation problem in the
-preview pane. Every frame, for the selected snippet, the draw path:
+preview pane. The rendered-preview cache now removes steps 2–4 on a cache hit;
+the remaining per-frame work is step 1, for the selected snippet:
 
 1. deep-copies the whole `Snippet` — including every loaded fragment's full
    text — at `src/tui/preview/render.rs:21` (`selected_snippet().cloned()`);
@@ -123,16 +124,20 @@ Steps 2–4 all repeat work whose inputs did not change. `jump_paragraph`
 a keypress, not per frame. The cost scales with fragment length, so it shows
 up as input latency on large snippets.
 
-- [ ] Cache the *rendered* preview instead of the intermediate document: key
+- [x] Cache the *rendered* preview instead of the intermediate document: key
   on `(fingerprint, fragment_index, content width, show_line_numbers)` and
   reuse the wrapped output across frames. This removes the document clone,
   the recompose, and the rewrap in one change, and makes an
   `Arc<PreviewDocument>` unnecessary.
 - [ ] Borrow the selected snippet in `draw_preview` rather than cloning it;
   the clone exists to end the `&App` borrow before `&mut App` is needed, so
-  this needs the borrow split untangled first.
-- [ ] Add a regression guard (a bench, or a counted-allocation test) so the
-  per-frame path cannot silently regress to cloning again.
+  this needs the borrow split untangled first. Deliberately retained after the
+  preview-cache work: the normal and trash preview ownership paths need a
+  wider borrow refactor, for a much smaller payoff than the removed wrapping
+  allocations.
+- [x] Add a counted-allocation regression guard for both direct cache hits and
+  the full preview draw path, including selection synchronization and per-Line
+  rendering.
 
 Two follow-ups were considered and rejected. Making the syntax set lazy buys
 nothing: the TUI draws the preview on its very first frame (`src/tui/ui.rs`
