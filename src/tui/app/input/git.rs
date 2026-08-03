@@ -83,6 +83,13 @@ impl App {
                     .map_or(Some(self.git_availability_refusal()), |status| {
                         git::check_push(status).err()
                     }),
+                GitAction::Pull => self
+                    .git
+                    .status
+                    .as_ref()
+                    .map_or(Some(self.git_availability_refusal()), |status| {
+                        git::check_pull(status, status.dirty_count()).err()
+                    }),
             };
         if let Some(refusal) = refusal {
             self.set_status(refusal.to_string(), StatusLevel::Error);

@@ -371,7 +371,7 @@ impl App {
         });
     }
 
-    /// Spawns a manual git operation (backup, commit, push) as a background
+    /// Spawns a manual git operation (backup, commit, push, pull) as a background
     /// task. The caller must have already set `operation_queued = true` and
     /// validated preconditions. Results arrive via `AppEvent::GitFinished`.
     pub(super) fn spawn_git_operation(&mut self, action: crate::git::GitAction) {
@@ -379,6 +379,7 @@ impl App {
             crate::git::GitAction::Backup => ("backup", "backing up…"),
             crate::git::GitAction::Commit { .. } => ("commit", "committing…"),
             crate::git::GitAction::Push => ("push", "pushing…"),
+            crate::git::GitAction::Pull => ("pull", "pulling…"),
             crate::git::GitAction::Init => {
                 debug_assert!(false, "Init must use the interactive RunGit effect");
                 self.set_status("git init requires the interactive flow", StatusLevel::Error);

@@ -6,8 +6,8 @@ use crate::error::{Result, SnipError};
 use crate::filesystem::Library;
 
 use super::{
-    GitAction, Repo, check_backup, check_commit, check_push, command, command_failed, probe,
-    refusal_error, spawn_error, status,
+    GitAction, Repo, check_backup, check_commit, check_pull, check_push, command, command_failed,
+    probe, refusal_error, repo_dirty_count, spawn_error, status,
 };
 
 #[derive(Clone, Copy)]
@@ -22,6 +22,13 @@ pub struct ActionOutcome {
     pub committed: bool,
     pub pushed: bool,
     pub message: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PullOutcome {
+    pub pulled: u32,
+    pub merged: bool,
+    pub conflicted: Vec<String>,
 }
 
 pub fn init(library_root: &Path) -> Result<()> {
@@ -50,6 +57,93 @@ pub fn fetch(repo: &Repo) -> Result<()> {
         Ok(())
     } else {
         Err(command_failed("git fetch", &output.stderr))
+    }
+}
+
+pub fn pull(repo: &Repo, ff_only: bool) -> Result<PullOutcome> {
+    let before = status(repo)?;
+    check_pull(&before, repo_dirty_count(repo)?).map_err(refusal_error)?;
+
+    fetch(repo)?;
+
+    let after_fetch = status(repo)?;
+    if after_fetch.behind == 0 {
+        return Ok(PullOutcome {
+            pulled: 0,
+            merged: false,
+            conflicted: Vec::new(),
+        });
+    }
+
+    check_pull(&after_fetch, repo_dirty_count(repo)?).map_err(refusal_error)?;
+
+    let library = Library::open(&repo.library_root)?;
+    let library_lock = library.lock()?;
+    let merge_args = if ff_only {
+        ["merge", "--ff-only", "@{u}"]
+    } else {
+        ["merge", "--no-edit", "@{u}"]
+    };
+    let merge =
+        command::run_non_interactive(&repo.library_root, &merge_args).map_err(spawn_error)?;
+    if !merge.status.success() {
+        let conflicted = status(repo)?.conflicted;
+        let abort = command::run_non_interactive(&repo.library_root, &["merge", "--abort"])
+            .map_err(spawn_error)?;
+        drop(library_lock);
+
+        let upstream = after_fetch.upstream.as_deref().unwrap_or("@{u}");
+        if ff_only && conflicted.is_empty() {
+            return Err(SnipError::conflict(format!(
+                "cannot fast-forward: the branch has diverged from {upstream}"
+            ))
+            .with_hint("drop --ff-only to merge, or reconcile the branches yourself with git"));
+        }
+        if !abort.status.success() {
+            return Err(SnipError::io(format!(
+                "git merge failed and could not be undone: {}",
+                merge.stderr
+            ))
+            .with_hint(format!(
+                "the library is mid-merge; recover it with: git -C {} merge --abort",
+                library.root().display()
+            )));
+        }
+        if conflicted.is_empty() {
+            return Err(SnipError::io(format!("git merge failed: {}", merge.stderr)));
+        }
+
+        let count = conflicted.len();
+        let unit = if count == 1 { "file" } else { "files" };
+        let mut message = format!("pull stopped: {count} {unit} conflict with {upstream}");
+        for path in conflicted.iter().take(10) {
+            message.push_str("\n  ");
+            message.push_str(path);
+        }
+        if count > 10 {
+            message.push_str(&format!("\n  … and {} more", count - 10));
+        }
+        return Err(SnipError::conflict(message).with_hint(
+            "your library was left untouched; resolve it with git in the library directory: git pull",
+        ));
+    }
+    drop(library_lock);
+
+    let after = status(repo)?;
+    Ok(PullOutcome {
+        pulled: after_fetch.behind,
+        merged: !ff_only && after.ahead > before.ahead,
+        conflicted: Vec::new(),
+    })
+}
+
+pub fn pull_message(outcome: &PullOutcome, upstream: &str) -> String {
+    match (outcome.pulled, outcome.merged) {
+        (0, _) => "already up to date".to_owned(),
+        (1, false) => "pulled 1 commit".to_owned(),
+        (count, false) => format!("pulled {count} commits"),
+        (1, true) => format!("merged 1 commit from {upstream}"),
+        (count, true) => format!("merged {count} commits from {upstream}"),
     }
 }
 
@@ -109,6 +203,16 @@ fn execute_with(repo: &Repo, action: &GitAction, mode: Mode) -> Result<ActionOut
                 committed: false,
                 pushed: true,
                 message: "backup pushed".to_owned(),
+            })
+        }
+        GitAction::Pull => {
+            let upstream = current.upstream.as_deref().unwrap_or("@{u}");
+            let outcome = pull(repo, false)?;
+            Ok(ActionOutcome {
+                action: "pull",
+                committed: false,
+                pushed: false,
+                message: pull_message(&outcome, upstream),
             })
         }
         GitAction::Init => unreachable!(),
