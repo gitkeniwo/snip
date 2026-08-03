@@ -1146,7 +1146,9 @@ fn pull_merges_cleanly_diverged_snippet_changes() {
             "\"outcome\": \"merged 1 commit from origin/main\"",
         ));
     assert_eq!(
-        fs::read_to_string(pair.b.join(&pair.shared_fragment)).unwrap(),
+        fs::read_to_string(pair.b.join(&pair.shared_fragment))
+            .unwrap()
+            .replace("\r\n", "\n"),
         "remote side\n"
     );
     assert!(
@@ -1230,7 +1232,9 @@ fn pull_aborts_real_conflicts_and_leaves_a_parseable_clean_library() {
             "pull stopped: 1 file conflict with origin/main",
         ))
         .stderr(predicate::str::contains(
-            pair.shared_fragment.to_string_lossy().as_ref(),
+            pair.shared_fragment
+                .to_string_lossy()
+                .replace('\\', "/"),
         ))
         .stderr(predicate::str::contains(
             "your library was left untouched; resolve it with git in the library directory: git pull",
