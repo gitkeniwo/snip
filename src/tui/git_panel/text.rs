@@ -428,7 +428,7 @@ pub(super) fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'stat
     let compact = width < 50;
     let entry_gap = if compact { 2 } else { 4 };
     let key_gap = if compact { 1 } else { 2 };
-    let groups: &[&[(&str, &str)]] = if width < 40 {
+    let groups: &[&[(&str, &str)]] = if width < 54 {
         &[
             &[("b", "backup"), ("c", "commit")],
             &[("p", "push"), ("l", "pull")],
