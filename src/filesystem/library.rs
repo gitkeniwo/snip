@@ -11,7 +11,7 @@ use super::paths::now_rfc3339;
 
 pub(crate) const LIBRARY_MANIFEST: &str = "snip.toml";
 pub const NO_LIBRARY_MESSAGE: &str = "no snip library found; pass --library, set SNIP_LIBRARY, run inside a library, or configure default_library";
-pub const NO_LIBRARY_HINT: &str = "create a library and make it the default:\n  snip init ~/Main.sniplib --name Main\n  snip config set default-library ~/Main.sniplib\n\nalready have one:\n  snip config set default-library <path>\n\nrun `snip` in an interactive terminal to do this step by step, or see `man snip-init`.";
+pub const NO_LIBRARY_HINT: &str = "create a library and make it the default:\n  snip init ~/Main.sniplib --name Main\n  snip config set default-library ~/Main.sniplib\n\nalready have one, including one you just cloned:\n  snip config set default-library <path>\n\nrun `snip` in an interactive terminal to do this step by step, or see `man snip-init`.";
 
 #[derive(Clone, Debug)]
 pub struct Library {
