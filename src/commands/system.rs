@@ -564,10 +564,7 @@ fn command_git_pull(library: &Library, ff_only: bool, output: OutputMode) -> Res
     let repo = require_repo(library)?;
     let pull = git::pull(&repo, ff_only)?;
     let after = git::status(&repo)?;
-    let upstream = after
-        .upstream
-        .as_deref()
-        .expect("pull requires an upstream");
+    let upstream = after.upstream.as_deref().unwrap_or("@{u}");
     let outcome = git::pull_message(&pull, upstream);
     let report = GitPullReport {
         action: "pull",
