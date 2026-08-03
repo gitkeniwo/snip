@@ -21,6 +21,7 @@ pub struct ActionOutcome {
     pub action: &'static str,
     pub committed: bool,
     pub pushed: bool,
+    pub pulled: u32,
     pub message: String,
 }
 
@@ -159,6 +160,7 @@ pub fn execute_interactive(library_root: &Path, action: &GitAction) -> Result<Ac
             action: "init",
             committed: false,
             pushed: false,
+            pulled: 0,
             message: "git repository initialized".to_owned(),
         });
     }
@@ -192,6 +194,7 @@ fn execute_with(repo: &Repo, action: &GitAction, mode: Mode) -> Result<ActionOut
                 action: "commit",
                 committed: true,
                 pushed: false,
+                pulled: 0,
                 message: "backup committed".to_owned(),
             })
         }
@@ -202,6 +205,7 @@ fn execute_with(repo: &Repo, action: &GitAction, mode: Mode) -> Result<ActionOut
                 action: "push",
                 committed: false,
                 pushed: true,
+                pulled: 0,
                 message: "backup pushed".to_owned(),
             })
         }
@@ -212,6 +216,7 @@ fn execute_with(repo: &Repo, action: &GitAction, mode: Mode) -> Result<ActionOut
                 action: "pull",
                 committed: false,
                 pushed: false,
+                pulled: outcome.pulled,
                 message: pull_message(&outcome, upstream),
             })
         }
@@ -288,6 +293,7 @@ fn backup_with(
         action: "backup",
         committed,
         pushed,
+        pulled: 0,
         message: if committed && pushed {
             "backup committed and pushed".to_owned()
         } else if pushed {
@@ -323,6 +329,21 @@ pub(crate) fn is_library_lock_conflict(error: &SnipError) -> bool {
         && error
             .message
             .starts_with("library is locked by another process:")
+}
+
+#[cfg(feature = "tui")]
+pub(crate) fn is_pull_refusal(error: &SnipError) -> bool {
+    error.kind == crate::error::ErrorKind::Conflict
+        && [
+            super::Refusal::Conflicted,
+            super::Refusal::MidOperation(super::RepoState::Merging),
+            super::Refusal::DetachedHead,
+            super::Refusal::NothingToCommit,
+            super::Refusal::NoUpstream,
+            super::Refusal::DirtyWorktree,
+        ]
+        .iter()
+        .any(|refusal| error.message == refusal.to_string())
 }
 
 fn run(mode: Mode, cwd: &Path, args: &[&str], label: &str) -> Result<()> {

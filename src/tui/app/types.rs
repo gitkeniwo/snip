@@ -52,6 +52,7 @@ pub struct GitState {
     pub open: bool,
     pub auto_commit_interval: u32,
     pub auto_push: bool,
+    pub auto_pull: bool,
     pub backup_on_quit: bool,
     pub auto_backup_paused: bool,
     pub last_commit_error: Option<String>,
@@ -61,6 +62,7 @@ pub struct GitState {
     pub auto_attempted_at: Option<Instant>,
     pub push_attempted_at: Option<Instant>,
     pub push_in_flight: bool,
+    pub pull_in_flight: bool,
     pub fetch_in_flight: bool,
     pub fetched_at: Option<Instant>,
     pub sender: Option<Sender<AppEvent>>,
@@ -82,6 +84,7 @@ impl GitState {
             open: false,
             auto_commit_interval: config.auto_commit_interval,
             auto_push: config.auto_push,
+            auto_pull: config.auto_pull,
             backup_on_quit: config.backup_on_quit,
             auto_backup_paused: false,
             last_commit_error: None,
@@ -91,6 +94,7 @@ impl GitState {
             auto_attempted_at: None,
             push_attempted_at: None,
             push_in_flight: false,
+            pull_in_flight: false,
             fetch_in_flight: false,
             fetched_at: None,
             sender: None,
@@ -108,11 +112,13 @@ impl GitState {
         let sender = self.sender.clone();
         let push_attempted_at = self.push_attempted_at;
         let push_in_flight = self.push_in_flight;
+        let pull_in_flight = self.pull_in_flight;
         let fetch_in_flight = self.fetch_in_flight;
         let fetched_at = self.fetched_at;
         let config = GitConfig {
             auto_commit_interval: self.auto_commit_interval,
             auto_push: self.auto_push,
+            auto_pull: self.auto_pull,
             backup_on_quit: self.backup_on_quit,
             ..GitConfig::default()
         };
@@ -125,6 +131,7 @@ impl GitState {
         self.sender = sender;
         self.push_attempted_at = push_attempted_at;
         self.push_in_flight = push_in_flight;
+        self.pull_in_flight = pull_in_flight;
         self.fetch_in_flight = fetch_in_flight;
         self.fetched_at = fetched_at;
     }

@@ -314,6 +314,7 @@ impl App {
             return;
         };
         if self.git.push_in_flight
+            || self.git.pull_in_flight
             || !crate::git::should_auto_push(
                 status,
                 self.git.auto_push,
@@ -330,6 +331,7 @@ impl App {
                     action: "push",
                     committed: false,
                     pushed: true,
+                    pulled: 0,
                     message: "backup pushed".to_owned(),
                 })
                 .map_err(|error| error.to_string());
@@ -346,7 +348,7 @@ impl App {
             self.set_status("Git fetch is unavailable", StatusLevel::Error);
             return;
         };
-        if self.git.push_in_flight || self.git.fetch_in_flight {
+        if self.git.push_in_flight || self.git.pull_in_flight || self.git.fetch_in_flight {
             self.set_status(
                 "a background Git network task is running",
                 StatusLevel::Error,
@@ -360,11 +362,56 @@ impl App {
                     action: "fetch",
                     committed: false,
                     pushed: false,
+                    pulled: 0,
                     message: "remote status refreshed".to_owned(),
                 })
                 .map_err(|error| error.to_string());
             let _ = sender.send(AppEvent::GitFinished(GitTaskResult {
                 action: "fetch",
+                outcome,
+                manual: false,
+            }));
+        });
+    }
+
+    pub fn spawn_auto_pull(&mut self) {
+        if !self.git.auto_pull || self.git.pull_in_flight {
+            return;
+        }
+        let (Some(repo), Some(sender), Some(status)) = (
+            self.git.repo.clone(),
+            self.git.sender.clone(),
+            self.git.status.as_ref(),
+        ) else {
+            return;
+        };
+        if crate::git::check_pull(status, status.dirty_count()).is_err() {
+            return;
+        }
+        let upstream = status.upstream.clone().unwrap_or_else(|| "@{u}".to_owned());
+        self.git.pull_in_flight = true;
+        std::thread::spawn(move || {
+            let outcome = match crate::git::pull(&repo, false) {
+                Ok(pull) => Ok(crate::git::ActionOutcome {
+                    action: "pull",
+                    committed: false,
+                    pushed: false,
+                    pulled: pull.pulled,
+                    message: crate::git::pull_message(&pull, &upstream),
+                }),
+                Err(error) if crate::git::is_pull_refusal(&error) => {
+                    Ok(crate::git::ActionOutcome {
+                        action: "pull",
+                        committed: false,
+                        pushed: false,
+                        pulled: 0,
+                        message: String::new(),
+                    })
+                }
+                Err(error) => Err(error.to_string()),
+            };
+            let _ = sender.send(AppEvent::GitFinished(GitTaskResult {
+                action: "pull",
                 outcome,
                 manual: false,
             }));
@@ -392,6 +439,9 @@ impl App {
             self.finish_git_operation();
             return;
         };
+        if matches!(action, crate::git::GitAction::Pull) {
+            self.git.pull_in_flight = true;
+        }
         self.set_status(pending, StatusLevel::Info);
         std::thread::spawn(move || {
             let outcome =
@@ -407,10 +457,19 @@ impl App {
     pub fn handle_git_task(&mut self, result: GitTaskResult) {
         if result.action == "push" && !result.manual {
             self.git.push_in_flight = false;
+        } else if result.action == "pull" {
+            self.git.pull_in_flight = false;
         } else if result.action == "fetch" {
             self.git.fetch_in_flight = false;
         }
-        self.refresh_git();
+        let pulled = result.outcome.as_ref().map_or(0, |outcome| outcome.pulled);
+        if pulled > 0 {
+            if let Err(error) = self.rescan() {
+                self.set_status(error.to_string(), StatusLevel::Error);
+            }
+        } else {
+            self.refresh_git();
+        }
         if result.manual {
             // Manual user-triggered operation: always show result.
             match &result.outcome {
@@ -428,11 +487,15 @@ impl App {
         } else {
             // Automatic background task: quiet on success, throttled on error.
             match result.outcome {
-                Ok(_) => {
+                Ok(outcome) => {
                     if result.action == "fetch" {
                         self.git.last_fetch_error = None;
                         self.git.fetched_at = Some(Instant::now());
                         self.set_status("remote status refreshed", StatusLevel::Info);
+                    } else if result.action == "pull" {
+                        if outcome.pulled > 0 {
+                            self.set_status(&outcome.message, StatusLevel::Info);
+                        }
                     } else {
                         self.git.last_push_error = None;
                     }

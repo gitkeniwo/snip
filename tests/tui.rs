@@ -99,6 +99,72 @@ fn init_git_repo(path: &std::path::Path) {
     git_ok(path, &["config", "user.email", "ci@example.invalid"]);
 }
 
+fn commit_all(path: &std::path::Path, message: &str) {
+    git_ok(path, &["add", "-A"]);
+    git_ok(path, &["commit", "-m", message]);
+}
+
+struct TuiPullPair {
+    _temporary: TempDir,
+    a: std::path::PathBuf,
+    library: Library,
+}
+
+impl TuiPullPair {
+    fn new() -> Self {
+        let temporary = tempfile::tempdir().unwrap();
+        let a = temporary.path().join("A.sniplib");
+        let b = temporary.path().join("B.sniplib");
+        let bare = temporary.path().join("origin.git");
+        let library_a = Library::init(&a, Some("TUI pull")).unwrap();
+        create_snippet(
+            &library_a,
+            &CreateOptions {
+                title: "Initial".to_owned(),
+                language: "text".to_owned(),
+                content: "initial\n".to_owned(),
+                ..CreateOptions::default()
+            },
+        )
+        .unwrap();
+        init_git_repo(&a);
+        commit_all(&a, "initial");
+        git_ok(
+            temporary.path(),
+            &["init", "--bare", bare.to_str().unwrap()],
+        );
+        git_ok(&a, &["remote", "add", "origin", bare.to_str().unwrap()]);
+        git_ok(&a, &["push", "-u", "origin", "main"]);
+        git_ok(
+            temporary.path(),
+            &["clone", bare.to_str().unwrap(), b.to_str().unwrap()],
+        );
+        git_ok(&b, &["config", "user.name", "snip CI"]);
+        git_ok(&b, &["config", "user.email", "ci@example.invalid"]);
+        let library = Library::open(&b).unwrap();
+        Self {
+            _temporary: temporary,
+            a,
+            library,
+        }
+    }
+
+    fn push_remote_snippet(&self, title: &str) {
+        create_snippet(
+            &Library::open(&self.a).unwrap(),
+            &CreateOptions {
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                content: "remote\n".to_owned(),
+                ..CreateOptions::default()
+            },
+        )
+        .unwrap();
+        commit_all(&self.a, "remote snippet");
+        git_ok(&self.a, &["push"]);
+    }
+}
+
 fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
     (0..buffer.area.width)
         .map(|x| buffer.cell((x, y)).unwrap().symbol())
@@ -1546,6 +1612,7 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
     });
     app.git.auto_commit_interval = 15;
     app.git.auto_push = true;
+    app.git.auto_pull = true;
     app.git.backup_on_quit = true;
     app.git.last_commit_error = Some("previous commit failure".to_owned());
     app.git.last_push_error = Some("previous push failure".to_owned());
@@ -1658,6 +1725,7 @@ fn git_panel_key_routing_badge_and_missing_binary_gate_work() {
     assert!(rendered.contains("AUTOMATION"));
     assert!(rendered.contains("commit every 15 min"));
     assert!(rendered.contains("push after commit"));
+    assert!(rendered.contains("pull on start"));
     assert!(rendered.contains("background push stalled"));
     assert!(rendered.contains("previous commit failure"));
     assert!(rendered.contains("previous push failure"));
@@ -2189,6 +2257,140 @@ fn auto_push_requires_an_opted_in_sender_and_blocks_manual_git_while_running() {
     app.git.push_in_flight = false;
     assert!(app.handle_key(key(KeyCode::Char('q'))).is_empty());
     assert!(app.should_quit);
+}
+
+#[test]
+fn manual_pull_key_runs_in_background_and_rescans_the_catalog() {
+    if !git_available() {
+        return;
+    }
+    let pair = TuiPullPair::new();
+    pair.push_remote_snippet("Pulled into view");
+    let mut app = App::new(pair.library, &AppConfig::default()).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
+    app.git.open = true;
+
+    assert!(app.handle_key(key(KeyCode::Char('l'))).is_empty());
+    assert!(app.git.pull_in_flight);
+    assert!(app.git.operation_queued);
+    let AppEvent::GitFinished(result) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+    else {
+        panic!("expected pull result");
+    };
+    assert!(result.manual);
+    assert!(matches!(result.outcome, Ok(ref outcome) if outcome.pulled == 1));
+    app.handle_git_task(result);
+
+    assert!(!app.git.pull_in_flight);
+    assert!(!app.git.operation_queued);
+    assert!(
+        app.catalog
+            .snippets
+            .iter()
+            .any(|snippet| snippet.title == "Pulled into view")
+    );
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("pulled 1 commit")
+    );
+}
+
+#[test]
+fn startup_auto_pull_reports_changes_and_rescans_the_catalog() {
+    if !git_available() {
+        return;
+    }
+    let pair = TuiPullPair::new();
+    pair.push_remote_snippet("Automatic arrival");
+    let config = AppConfig {
+        git: Some(GitConfig {
+            auto_pull: true,
+            ..GitConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(pair.library, &config).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
+
+    app.spawn_auto_pull();
+    assert!(app.git.pull_in_flight);
+    let AppEvent::GitFinished(result) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+    else {
+        panic!("expected automatic pull result");
+    };
+    assert!(!result.manual);
+    app.handle_git_task(result);
+
+    assert!(
+        app.catalog
+            .snippets
+            .iter()
+            .any(|snippet| snippet.title == "Automatic arrival")
+    );
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("pulled 1 commit")
+    );
+}
+
+#[test]
+fn startup_auto_pull_silently_skips_a_dirty_worktree() {
+    if !git_available() {
+        return;
+    }
+    let pair = TuiPullPair::new();
+    pair.push_remote_snippet("Must wait");
+    let tags = pair.library.root().join("tags.toml");
+    let mut content = std::fs::read_to_string(&tags).unwrap();
+    content.push_str("\n# dirty\n");
+    std::fs::write(tags, content).unwrap();
+    let config = AppConfig {
+        git: Some(GitConfig {
+            auto_pull: true,
+            ..GitConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(pair.library, &config).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    app.set_git_sender(sender);
+
+    app.spawn_auto_pull();
+    assert!(!app.git.pull_in_flight);
+    assert!(receiver.recv_timeout(Duration::from_millis(100)).is_err());
+    assert!(app.status.is_none());
+}
+
+#[test]
+fn pull_in_flight_blocks_git_actions_and_quit_with_pull_specific_messages() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = Library::init(
+        &temporary.path().join("Pull guard.sniplib"),
+        Some("Pull guard"),
+    )
+    .unwrap();
+    init_git_repo(library.root());
+    commit_all(library.root(), "initial");
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.git.pull_in_flight = true;
+    app.git.open = true;
+
+    assert!(app.handle_key(key(KeyCode::Char('b'))).is_empty());
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("a background pull is running")
+    );
+    app.git.open = false;
+    app.status = None;
+    assert!(app.handle_key(key(KeyCode::Char('q'))).is_empty());
+    assert!(app.pending_quit);
+    assert!(!app.should_quit);
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("finishing background pull…")
+    );
 }
 
 #[test]

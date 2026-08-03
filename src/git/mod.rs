@@ -18,7 +18,7 @@ pub use write::{
     pull_message, push,
 };
 #[cfg(feature = "tui")]
-pub(crate) use write::{execute_non_interactive, is_library_lock_conflict};
+pub(crate) use write::{execute_non_interactive, is_library_lock_conflict, is_pull_refusal};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]

@@ -18,9 +18,11 @@ impl App {
             KeyCode::Char('c') => return self.run_command(CommandId::GitCommit),
             KeyCode::Char('p') => return self.run_command(CommandId::GitPush),
             KeyCode::Char('f') => return self.run_command(CommandId::GitFetchRemoteStatus),
+            KeyCode::Char('l') => return self.run_command(CommandId::GitPull),
             KeyCode::Char('C') => return self.run_command(CommandId::GitCommitWithMessage),
             KeyCode::Char('a') => return self.run_command(CommandId::GitPauseAutoBackup),
             KeyCode::Char('u') => return self.run_command(CommandId::GitToggleAutoPush),
+            KeyCode::Char('U') => return self.run_command(CommandId::GitToggleAutoPull),
             KeyCode::Char('o') => return self.run_command(CommandId::GitToggleBackupOnQuit),
             KeyCode::Char('i') => {
                 if matches!(
@@ -37,10 +39,12 @@ impl App {
     }
 
     pub(in super::super) fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
-        if self.git.push_in_flight || self.git.fetch_in_flight {
+        if self.git.push_in_flight || self.git.pull_in_flight || self.git.fetch_in_flight {
             self.set_status(
                 if self.git.push_in_flight {
                     "a background push is running"
+                } else if self.git.pull_in_flight {
+                    "a background pull is running"
                 } else {
                     "a background fetch is running"
                 },
@@ -105,13 +109,19 @@ impl App {
     }
 
     pub(in super::super) fn request_quit(&mut self) -> Vec<Effect> {
-        if self.git.push_in_flight || self.git.fetch_in_flight || self.gist.in_flight {
+        if self.git.push_in_flight
+            || self.git.pull_in_flight
+            || self.git.fetch_in_flight
+            || self.gist.in_flight
+        {
             self.pending_quit = true;
             self.set_status(
                 if self.gist.in_flight {
                     "finishing gist operation…"
                 } else if self.git.push_in_flight {
                     "finishing background push…"
+                } else if self.git.pull_in_flight {
+                    "finishing background pull…"
                 } else {
                     "finishing background fetch…"
                 },
@@ -166,10 +176,12 @@ impl App {
     }
 
     pub(in super::super) fn open_git_message(&mut self) {
-        if self.git.push_in_flight || self.git.fetch_in_flight {
+        if self.git.push_in_flight || self.git.pull_in_flight || self.git.fetch_in_flight {
             self.set_status(
                 if self.git.push_in_flight {
                     "a background push is running"
+                } else if self.git.pull_in_flight {
+                    "a background pull is running"
                 } else {
                     "a background fetch is running"
                 },
@@ -205,7 +217,7 @@ impl App {
 
     pub(in super::super) fn toggle_auto_push(&mut self) {
         let next = !self.git.auto_push;
-        match self.persist_git_settings(None, Some(next), None) {
+        match self.persist_git_settings(None, Some(next), None, None) {
             Ok(()) => self.set_status(
                 if next {
                     "automatic push enabled"
@@ -218,9 +230,24 @@ impl App {
         }
     }
 
+    pub(in super::super) fn toggle_auto_pull(&mut self) {
+        let next = !self.git.auto_pull;
+        match self.persist_git_settings(None, None, Some(next), None) {
+            Ok(()) => self.set_status(
+                if next {
+                    "automatic pull on start enabled"
+                } else {
+                    "automatic pull on start disabled"
+                },
+                StatusLevel::Info,
+            ),
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
     pub(in super::super) fn toggle_backup_on_quit(&mut self) {
         let next = !self.git.backup_on_quit;
-        match self.persist_git_settings(None, None, Some(next)) {
+        match self.persist_git_settings(None, None, None, Some(next)) {
             Ok(()) => self.set_status(
                 if next {
                     "backup on quit enabled"
@@ -237,6 +264,7 @@ impl App {
         &mut self,
         interval: Option<u32>,
         auto_push: Option<bool>,
+        auto_pull: Option<bool>,
         backup_on_quit: Option<bool>,
     ) -> crate::error::Result<()> {
         let mut config = crate::config::AppConfig::load()?;
@@ -249,6 +277,9 @@ impl App {
         if let Some(auto_push) = auto_push {
             git.auto_push = auto_push;
         }
+        if let Some(auto_pull) = auto_pull {
+            git.auto_pull = auto_pull;
+        }
         if let Some(backup_on_quit) = backup_on_quit {
             git.backup_on_quit = backup_on_quit;
         }
@@ -258,6 +289,9 @@ impl App {
         }
         if let Some(auto_push) = auto_push {
             self.git.auto_push = auto_push;
+        }
+        if let Some(auto_pull) = auto_pull {
+            self.git.auto_pull = auto_pull;
         }
         if let Some(backup_on_quit) = backup_on_quit {
             self.git.backup_on_quit = backup_on_quit;

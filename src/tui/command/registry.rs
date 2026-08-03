@@ -20,7 +20,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 63] = [
+static COMMANDS: [Command; 65] = [
     command!(
         SnippetNew,
         "snippet.new",
@@ -470,6 +470,26 @@ static COMMANDS: [Command; 63] = [
         Some("Ctrl-g f"),
         git_available,
         git_fetch
+    ),
+    command!(
+        GitPull,
+        "git.pull",
+        "Git",
+        "Pull From Remote",
+        &["remote", "sync"],
+        Some("Ctrl-g l"),
+        git_available,
+        git_pull
+    ),
+    command!(
+        GitToggleAutoPull,
+        "git.toggle-auto-pull",
+        "Git",
+        "Toggle Auto Pull",
+        &["automatic"],
+        Some("Ctrl-g U"),
+        git_available,
+        git_auto_pull
     ),
     command!(
         GitRefreshLocalStatus,
