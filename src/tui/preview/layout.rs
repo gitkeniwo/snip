@@ -1,8 +1,9 @@
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
+use unicode_segmentation::UnicodeSegmentation;
 
 use super::super::app::App;
-use super::super::selection::{SelectionRow, char_width, text_width};
+use super::super::selection::{SelectionRow, cluster_width, text_width};
 use super::super::theme::TuiTheme;
 use super::cache::PreviewDocument;
 
@@ -192,19 +193,20 @@ pub(super) fn wrap_preview(
         let mut row_gutter = line_gutter;
         let mut continuation_bytes = 0;
         for span in line.spans {
-            for character in span.content.chars() {
-                let character_width = char_width(character);
+            for cluster in span.content.graphemes(true) {
+                let cluster_width = cluster_width(cluster);
                 if row_width > 0
-                    && row_width.saturating_add(character_width) > width
+                    && row_width.saturating_add(cluster_width) > width
                     && wrap == WrapMode::Word
                     && let Some(break_at) = row_text
-                        .char_indices()
+                        .grapheme_indices(true)
                         .filter(|(index, _)| *index >= continuation_bytes)
                         .rev()
-                        .find_map(|(index, character)| {
-                            character
-                                .is_whitespace()
-                                .then_some(index + character.len_utf8())
+                        .find_map(|(index, cluster)| {
+                            cluster
+                                .chars()
+                                .all(char::is_whitespace)
+                                .then_some(index + cluster.len())
                         })
                     && break_at < row_text.len()
                 {
@@ -225,7 +227,7 @@ pub(super) fn wrap_preview(
                     row_width = spans_width(&spans);
                     row_gutter = line_gutter;
                 }
-                if row_width > 0 && row_width.saturating_add(character_width) > width {
+                if row_width > 0 && row_width.saturating_add(cluster_width) > width {
                     push_preview_row(
                         &mut lines,
                         &mut rows,
@@ -247,9 +249,9 @@ pub(super) fn wrap_preview(
                         row_gutter = 0;
                     }
                 }
-                row_width = row_width.saturating_add(character_width);
-                row_text.push(character);
-                push_styled_character(&mut spans, character, span.style);
+                row_width = row_width.saturating_add(cluster_width);
+                row_text.push_str(cluster);
+                push_styled_cluster(&mut spans, cluster, span.style);
             }
         }
         push_preview_row(
@@ -268,13 +270,13 @@ pub(super) fn wrap_preview(
     }
 }
 
-fn push_styled_character(spans: &mut Vec<Span<'static>>, character: char, style: Style) {
+fn push_styled_cluster(spans: &mut Vec<Span<'static>>, cluster: &str, style: Style) {
     if let Some(last) = spans.last_mut()
         && last.style == style
     {
-        last.content.to_mut().push(character);
+        last.content.to_mut().push_str(cluster);
     } else {
-        spans.push(Span::styled(character.to_string(), style));
+        spans.push(Span::styled(cluster.to_owned(), style));
     }
 }
 
@@ -294,6 +296,12 @@ fn split_spans_at(
             tail.push(span);
         } else {
             let content = span.content.into_owned();
+            debug_assert!(
+                content
+                    .grapheme_indices(true)
+                    .any(|(index, _)| index == remaining),
+                "span split must fall on a grapheme boundary"
+            );
             let (before, after) = content.split_at(remaining);
             head.push(Span::styled(before.to_owned(), span.style));
             tail.push(Span::styled(after.to_owned(), span.style));
@@ -491,8 +499,8 @@ mod tests {
     fn style_at_column(line: &Line<'_>, column: u16) -> Style {
         let mut current = 0;
         for span in &line.spans {
-            for character in span.content.chars() {
-                let next = current + char_width(character);
+            for cluster in span.content.graphemes(true) {
+                let next = current + cluster_width(cluster);
                 if column < next {
                     return span.style;
                 }
@@ -731,5 +739,67 @@ mod tests {
 
         assert_eq!(preview.text.lines.len(), 1);
         assert!(preview.text.lines[0].spans.len() < 5);
+    }
+
+    #[test]
+    fn zwj_emoji_wraps_at_word_boundaries_using_cluster_width() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("echo 👨\u{200d}💻 👨\u{200d}👩\u{200d}👧 café done"),
+                wrap: WrapMode::Word,
+            }],
+            20,
+            false,
+        );
+
+        assert_eq!(
+            rendered_lines(&preview),
+            ["echo 👨\u{200d}💻 👨\u{200d}👩\u{200d}👧 café done"]
+        );
+        assert_rows(
+            &preview,
+            &[row(
+                "echo 👨\u{200d}💻 👨\u{200d}👩\u{200d}👧 café done",
+                20,
+                0,
+                true,
+            )],
+        );
+    }
+
+    #[test]
+    fn character_wrap_never_splits_a_zwj_emoji() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("👨\u{200d}💻x"),
+                wrap: WrapMode::Character,
+            }],
+            2,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["👨\u{200d}💻", "x"]);
+        assert_rows(
+            &preview,
+            &[row("👨\u{200d}💻", 2, 0, false), row("x", 1, 0, true)],
+        );
+    }
+
+    #[test]
+    fn nfd_grapheme_uses_one_display_cell_when_wrapping() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("e\u{301}x"),
+                wrap: WrapMode::Character,
+            }],
+            1,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["e\u{301}", "x"]);
+        assert_rows(
+            &preview,
+            &[row("e\u{301}", 1, 0, false), row("x", 1, 0, true)],
+        );
     }
 }

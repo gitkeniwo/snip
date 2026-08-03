@@ -1033,6 +1033,24 @@ mod tests {
     }
 
     #[test]
+    fn preview_header_keeps_zwj_titles_on_cluster_boundaries() {
+        let mut snippet = snippet();
+        snippet.manifest.title = "👨\u{200d}💻 my snippet title".to_owned();
+
+        let rows = preview_rows(snippet, 11, false);
+        let title_row = &rows[1];
+        assert!(
+            title_row.contains("👨\u{200d}💻"),
+            "title row: {title_row:?}"
+        );
+        assert!(
+            !title_row.contains("👨\u{200d}…"),
+            "title row: {title_row:?}"
+        );
+        assert!(title_row.contains("G✓"), "title row: {title_row:?}");
+    }
+
+    #[test]
     fn preview_metadata_keeps_the_fingerprint_when_the_folder_is_wide() {
         let mut snippet = snippet();
         snippet.folder = "工作文档归档目录很长很长很长很长很长很长很长".to_owned();

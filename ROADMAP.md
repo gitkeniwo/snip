@@ -58,15 +58,18 @@ flush-right layout in the TUI (preview header, snippet list, panel/help text,
 fragment tree) is affected, since they all route through `char_width` /
 `text_width` / `truncate_end`.
 
-- [ ] Switch `char_width`/`truncate_end` to walk grapheme clusters (e.g. via
+- [x] Switch `char_width`/`truncate_end` to walk grapheme clusters (e.g. via
   `unicode-segmentation`) instead of `chars()`, so multi-scalar emoji and
   other combining sequences are measured and truncated as one unit.
-- [ ] `char_width` is also used by the prose/code line-wrapping in
+- [x] `char_width` is also used by the prose/code line-wrapping in
   `src/tui/preview/layout.rs`, so a fix needs to keep that wrapping correct
   too, not just the truncation call sites.
-- [ ] Add a regression test with a ZWJ emoji sequence in a title, mirroring
+- [x] Add a regression test with a ZWJ emoji sequence in a title, mirroring
   the existing CJK-width tests in `src/tui/widgets.rs` and
   `src/tui/preview/render.rs`.
+- [ ] Expand tabs before syntax highlighting using an explicit tab-stop policy;
+  ratatui filters the control character itself, so tabs currently collapse to
+  one visual column. This is independent of grapheme-cluster measurement.
 
 Found while fixing commit `3558bc2` ("fix(tui): keep flush-right markers and
 dates with wide glyphs") and its follow-up, which made truncation cell-aware
