@@ -384,6 +384,7 @@ fn cli_git_clone_reports_destination_derivation_and_home_errors() {
         .unwrap()
         .env("XDG_CONFIG_HOME", temporary.path().join("config"))
         .env_remove("HOME")
+        .env_remove("USERPROFILE")
         .args(["git", "clone", "owner/repo"])
         .assert()
         .code(1)
