@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-03
+
+### Added
+
+- **Fragment editing in the terminal browser.** In-place fragment operations in the preview pane: add (`n.add`), rename (`n.rename`), reorder (`n.reorder`), and remove (`n.remove`), matching the CLI's `snip fragment` commands.
+- **Fragment grab interaction.** Interactive grab-and-move for reordering fragments directly within a snippet in the TUI.
+
+### Fixed
+
+- **Viewport offset clamping on list refresh and sidebar rebuild.** `refresh_visible` no longer selects an out-of-bounds index on short or filtered lists and clamps list viewport offsets to prevent the cursor row from going off-screen while preserving valid offsets during background rescans. `rebuild_sidebar` clamps excess sidebar offsets similarly.
+
 ## [0.5.0] - 2026-08-02
 
 ### Added
@@ -289,6 +300,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.5.1]: https://github.com/gitkeniwo/snip/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/gitkeniwo/snip/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/gitkeniwo/snip/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/gitkeniwo/snip/compare/v0.3.2...v0.4.0
