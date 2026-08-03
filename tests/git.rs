@@ -35,6 +35,7 @@ fn git_ok(path: &Path, arguments: &[&str]) {
 
 fn init_repo(path: &Path) {
     git_ok(path, &["init"]);
+    git_ok(path, &["config", "core.autocrlf", "false"]);
     git_ok(path, &["config", "user.name", "snip CI"]);
     git_ok(path, &["config", "user.email", "ci@example.invalid"]);
 }
@@ -104,6 +105,7 @@ impl PullPair {
             temporary.path(),
             &["clone", bare.to_str().unwrap(), b.to_str().unwrap()],
         );
+        git_ok(&b, &["config", "core.autocrlf", "false"]);
         git_ok(&b, &["config", "user.name", "snip CI"]);
         git_ok(&b, &["config", "user.email", "ci@example.invalid"]);
         Library::open(&b).unwrap();
