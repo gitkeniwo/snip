@@ -486,6 +486,32 @@ fn cli_git_clone_selects_failure_hints_in_order() {
 
 #[cfg(unix)]
 #[test]
+fn cli_git_clone_does_not_suggest_gh_when_gh_already_failed() {
+    let temporary = tempfile::tempdir().unwrap();
+    let stub = temporary.path().join("gh");
+    executable(
+        &stub,
+        "#!/bin/sh\nprintf '%s\\n' 'Permission denied (publickey)' >&2\nexit 1\n",
+    );
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", temporary.path().join("config"))
+        .env("SNIP_GH_BIN", &stub)
+        .args([
+            "git",
+            "clone",
+            "owner/repo",
+            temporary.path().join("clone").to_str().unwrap(),
+            "--gh",
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("gh repo clone failed"))
+        .stderr(predicate::str::contains("retry with --gh").not());
+}
+
+#[cfg(unix)]
+#[test]
 fn cli_git_clone_uses_gh_with_the_exact_arguments() {
     if !git_available() {
         return;

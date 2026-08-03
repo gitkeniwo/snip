@@ -260,7 +260,7 @@ fn run_git_clone(parent: &Path, remote: &str, destination: &str) -> Result<()> {
     if output.status.success() {
         return Ok(());
     }
-    Err(clone_failed("git clone", remote, &output.stderr))
+    Err(clone_failed("git clone", remote, &output.stderr, false))
 }
 
 fn run_gh_clone(remote: &str, destination: &str) -> Result<()> {
@@ -294,28 +294,32 @@ fn run_gh_clone(remote: &str, destination: &str) -> Result<()> {
     if stderr.contains("auth login") || stderr.contains("not logged") {
         return Err(SnipError::io("gh is not authenticated").with_hint("run: gh auth login"));
     }
-    Err(clone_failed("gh repo clone", remote, &stderr))
+    Err(clone_failed("gh repo clone", remote, &stderr, true))
 }
 
-fn clone_failed(command: &str, remote: &str, stderr: &str) -> SnipError {
+fn clone_failed(command: &str, remote: &str, stderr: &str, gh: bool) -> SnipError {
     let error = SnipError::io(format!("{command} failed: {stderr}"));
     if stderr.contains("Host key verification failed") {
         return error.with_hint(
             "the host key is not in known_hosts yet; connect once manually, for example: ssh -T git@github.com",
         );
     }
-    if stderr.contains("Permission denied (publickey)") {
-        return error.with_hint(
-            "no usable SSH key was found; add one with ssh-add, or retry with --gh",
-        );
-    }
-    if stderr.contains("could not read Username") {
-        return error.with_hint(
-            "this remote needs credentials; set up a credential helper with gh auth setup-git, or retry with --gh",
-        );
-    }
-    if looks_like_slug(remote) {
-        return error.with_hint("looks like a GitHub slug — retry with --gh");
+    if !gh {
+        // The remaining hints all say "retry with --gh", which is useless advice
+        // when --gh is what just failed.
+        if stderr.contains("Permission denied (publickey)") {
+            return error.with_hint(
+                "no usable SSH key was found; add one with ssh-add, or retry with --gh",
+            );
+        }
+        if stderr.contains("could not read Username") {
+            return error.with_hint(
+                "this remote needs credentials; set up a credential helper with gh auth setup-git, or retry with --gh",
+            );
+        }
+        if looks_like_slug(remote) {
+            return error.with_hint("looks like a GitHub slug — retry with --gh");
+        }
     }
     error
 }
