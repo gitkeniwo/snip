@@ -37,6 +37,79 @@ fn create_example(library: &Library, locked: bool) -> snip::Snippet {
 }
 
 #[test]
+fn open_restores_recreatable_directories_and_remains_writable() {
+    for missing in [".snip", "snippets", "trash"] {
+        let (_temporary, library) = library();
+        let root = library.root().to_path_buf();
+        fs::remove_dir_all(root.join(missing)).unwrap();
+
+        let restored = Library::open(&root).unwrap();
+        assert!(root.join("snippets").is_dir());
+        assert!(root.join("trash").is_dir());
+        assert!(root.join(".snip/cache").is_dir());
+        assert!(root.join(".snip/locks").is_dir());
+        assert!(root.join(".snip/transactions").is_dir());
+        create_example(&restored, false);
+    }
+}
+
+#[test]
+fn open_reports_every_restored_directory_in_order() {
+    let (_temporary, library) = library();
+    let root = library.root().to_path_buf();
+    fs::remove_dir_all(root.join("snippets")).unwrap();
+    fs::remove_dir_all(root.join("trash")).unwrap();
+    fs::remove_dir_all(root.join(".snip")).unwrap();
+
+    let restored = Library::open(&root).unwrap();
+    assert_eq!(
+        restored.restored(),
+        [
+            "snippets",
+            "trash",
+            ".snip/cache",
+            ".snip/locks",
+            ".snip/transactions",
+        ]
+    );
+}
+
+#[test]
+fn complete_library_has_no_restored_directories() {
+    let (_temporary, library) = library();
+    assert!(Library::open(library.root()).unwrap().restored().is_empty());
+}
+
+#[test]
+fn invalid_manifest_does_not_create_library_directories() {
+    for manifest in ["", "not valid toml = ["] {
+        let temporary = tempfile::tempdir().unwrap();
+        fs::write(temporary.path().join("snip.toml"), manifest).unwrap();
+
+        assert!(Library::open(temporary.path()).is_err());
+        assert!(!temporary.path().join("snippets").exists());
+        assert!(!temporary.path().join("trash").exists());
+        assert!(!temporary.path().join(".snip").exists());
+    }
+}
+
+#[test]
+fn doctor_reports_directories_restored_during_open() {
+    let (_temporary, library) = library();
+    let root = library.root().to_path_buf();
+    fs::remove_dir_all(root.join(".snip/locks")).unwrap();
+
+    let restored = Library::open(&root).unwrap();
+    let report = doctor(&restored, false);
+    assert!(report.ok);
+    assert!(
+        report
+            .repaired
+            .contains(&"recreated missing directory: .snip/locks".to_owned())
+    );
+}
+
+#[test]
 fn filesystem_is_the_source_of_truth() {
     let (_temporary, library) = library();
     let snippet = create_example(&library, false);

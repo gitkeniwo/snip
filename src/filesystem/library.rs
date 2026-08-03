@@ -17,6 +17,9 @@ pub const NO_LIBRARY_HINT: &str = "create a library and make it the default:\n  
 pub struct Library {
     pub(crate) root: PathBuf,
     pub(crate) manifest: LibraryManifest,
+    /// Directories this `open` had to recreate, in `RECREATABLE` order.
+    /// Empty for a library that was already complete, and for `init`.
+    pub(crate) restored: Vec<&'static str>,
 }
 
 pub struct LibraryLock {
@@ -122,15 +125,37 @@ impl Library {
             )));
         }
         validate_schema(manifest.schema_version, &manifest_path)?;
-        for required in ["snippets", "trash", ".snip"] {
-            if !root.join(required).is_dir() {
+        const RECREATABLE: [&str; 5] = [
+            "snippets",
+            "trash",
+            ".snip/cache",
+            ".snip/locks",
+            ".snip/transactions",
+        ];
+
+        let mut restored = Vec::new();
+        for required in RECREATABLE {
+            let path = root.join(required);
+            if path.is_dir() {
+                continue;
+            }
+            // Best-effort: a read-only mount must still serve reads that need no
+            // scratch space, so a failed create is only fatal if the directory is
+            // still missing afterwards.
+            let _ = fs::create_dir_all(&path);
+            if !path.is_dir() {
                 return Err(SnipError::validation(format!(
                     "library is missing directory: {}",
-                    root.join(required).display()
+                    path.display()
                 )));
             }
+            restored.push(required);
         }
-        Ok(Self { root, manifest })
+        Ok(Self {
+            root,
+            manifest,
+            restored,
+        })
     }
 
     pub fn root(&self) -> &Path {
@@ -139,6 +164,11 @@ impl Library {
 
     pub fn manifest(&self) -> &LibraryManifest {
         &self.manifest
+    }
+
+    /// Recreatable directories that were missing when this handle was opened.
+    pub fn restored(&self) -> &[&'static str] {
+        &self.restored
     }
 
     pub fn snippets_dir(&self) -> PathBuf {
