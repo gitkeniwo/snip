@@ -8,6 +8,7 @@ use predicates::prelude::*;
 use snip::Library;
 use snip::config::AppConfig;
 use snip::git::{self, Branch, RepoState, Unavailable};
+use snip::service::{CreateOptions, create_snippet};
 
 fn git_available() -> bool {
     ProcessCommand::new("git")
@@ -62,6 +63,78 @@ fn committed_library(parent: &Path, name: &str) -> std::path::PathBuf {
     root
 }
 
+struct PullPair {
+    _temporary: tempfile::TempDir,
+    a: std::path::PathBuf,
+    b: std::path::PathBuf,
+    shared_fragment: std::path::PathBuf,
+}
+
+impl PullPair {
+    fn new() -> Self {
+        let temporary = tempfile::tempdir().unwrap();
+        let a = temporary.path().join("A.sniplib");
+        let b = temporary.path().join("B.sniplib");
+        let bare = temporary.path().join("origin.git");
+        let library = Library::init(&a, Some("Pull test")).unwrap();
+        let shared = create_snippet(
+            &library,
+            &CreateOptions {
+                title: "Shared snippet".to_owned(),
+                language: "text".to_owned(),
+                content: "base\n".to_owned(),
+                ..CreateOptions::default()
+            },
+        )
+        .unwrap();
+        let shared_fragment = shared.loaded_fragments[0]
+            .absolute_path
+            .strip_prefix(library.root())
+            .unwrap()
+            .to_path_buf();
+        init_repo(&a);
+        commit_all(&a, "initial");
+        git_ok(
+            temporary.path(),
+            &["init", "--bare", bare.to_str().unwrap()],
+        );
+        git_ok(&a, &["remote", "add", "origin", bare.to_str().unwrap()]);
+        git_ok(&a, &["push", "-u", "origin", "main"]);
+        git_ok(
+            temporary.path(),
+            &["clone", bare.to_str().unwrap(), b.to_str().unwrap()],
+        );
+        git_ok(&b, &["config", "user.name", "snip CI"]);
+        git_ok(&b, &["config", "user.email", "ci@example.invalid"]);
+        Library::open(&b).unwrap();
+        Self {
+            _temporary: temporary,
+            a,
+            b,
+            shared_fragment,
+        }
+    }
+
+    fn push_a(&self, message: &str) {
+        commit_all(&self.a, message);
+        git_ok(&self.a, &["push"]);
+    }
+
+    fn create_snippet(&self, root: &Path, title: &str, content: &str) {
+        let library = Library::open(root).unwrap();
+        create_snippet(
+            &library,
+            &CreateOptions {
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                content: content.to_owned(),
+                ..CreateOptions::default()
+            },
+        )
+        .unwrap();
+    }
+}
+
 #[cfg(unix)]
 fn executable(path: &Path, script: &str) {
     use std::os::unix::fs::PermissionsExt;
@@ -93,6 +166,26 @@ fn git_stdout(path: &Path, arguments: &[&str]) -> String {
         arguments.join(" ")
     );
     String::from_utf8(output.stdout).unwrap()
+}
+
+fn assert_no_conflict_markers(path: &Path) {
+    for entry in fs::read_dir(path).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_name() == ".git" {
+            continue;
+        }
+        let path = entry.path();
+        if entry.file_type().unwrap().is_dir() {
+            assert_no_conflict_markers(&path);
+        } else {
+            let bytes = fs::read(&path).unwrap();
+            assert!(
+                !bytes.windows(7).any(|window| window == b"<<<<<<<"),
+                "conflict marker remained in {}",
+                path.display()
+            );
+        }
+    }
 }
 
 #[test]
@@ -967,6 +1060,236 @@ fn fetch_refreshes_remote_commit_and_behind_count_without_touching_worktree() {
         Some("remote change")
     );
     assert!(!root.join("remote-only.txt").exists());
+}
+
+#[test]
+fn pull_fast_forwards_and_makes_remote_snippets_readable() {
+    if !git_available() {
+        return;
+    }
+    let pair = PullPair::new();
+    pair.create_snippet(&pair.a, "Remote arrival", "remote\n");
+    pair.push_a("remote snippet");
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", pair.b.to_str().unwrap(), "git", "pull"])
+        .assert()
+        .success()
+        .stdout("pulled 1 commit\nahead/behind: 0/0\n");
+    let catalog = Library::open(&pair.b).unwrap().scan().unwrap();
+    assert!(
+        catalog
+            .snippets
+            .iter()
+            .any(|snippet| snippet.title == "Remote arrival")
+    );
+}
+
+#[test]
+fn pull_reports_already_up_to_date_with_stable_json_fields() {
+    if !git_available() {
+        return;
+    }
+    let pair = PullPair::new();
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            pair.b.to_str().unwrap(),
+            "--output",
+            "json",
+            "git",
+            "pull",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["action"], "pull");
+    assert_eq!(value["pulled"], 0);
+    assert_eq!(value["merged"], false);
+    assert_eq!(value["outcome"], "already up to date");
+    assert!(value["status"].is_object());
+}
+
+#[test]
+fn pull_merges_cleanly_diverged_snippet_changes() {
+    if !git_available() {
+        return;
+    }
+    let pair = PullPair::new();
+    fs::write(pair.a.join(&pair.shared_fragment), "remote side\n").unwrap();
+    pair.push_a("remote edit");
+    pair.create_snippet(&pair.b, "Local only", "local\n");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", pair.b.to_str().unwrap(), "git", "commit"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            pair.b.to_str().unwrap(),
+            "--output",
+            "json",
+            "git",
+            "pull",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"pulled\": 1"))
+        .stdout(predicate::str::contains("\"merged\": true"))
+        .stdout(predicate::str::contains(
+            "\"outcome\": \"merged 1 commit from origin/main\"",
+        ));
+    assert_eq!(
+        fs::read_to_string(pair.b.join(&pair.shared_fragment)).unwrap(),
+        "remote side\n"
+    );
+    assert!(
+        Library::open(&pair.b)
+            .unwrap()
+            .scan()
+            .unwrap()
+            .snippets
+            .iter()
+            .any(|snippet| snippet.title == "Local only")
+    );
+    assert!(
+        !git_stdout(&pair.b, &["log", "-1", "--merges", "--format=%H"])
+            .trim()
+            .is_empty()
+    );
+}
+
+#[test]
+fn pull_ff_only_refuses_divergence_without_touching_the_worktree() {
+    if !git_available() {
+        return;
+    }
+    let pair = PullPair::new();
+    fs::write(pair.a.join(&pair.shared_fragment), "remote side\n").unwrap();
+    pair.push_a("remote edit");
+    pair.create_snippet(&pair.b, "Local only", "local\n");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", pair.b.to_str().unwrap(), "git", "commit"])
+        .assert()
+        .success();
+    let head = git_stdout(&pair.b, &["rev-parse", "HEAD"]);
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            pair.b.to_str().unwrap(),
+            "git",
+            "pull",
+            "--ff-only",
+        ])
+        .assert()
+        .code(4)
+        .stderr(predicate::str::contains(
+            "cannot fast-forward: the branch has diverged from origin/main",
+        ))
+        .stderr(predicate::str::contains(
+            "drop --ff-only to merge, or reconcile the branches yourself with git",
+        ));
+    assert_eq!(git_stdout(&pair.b, &["rev-parse", "HEAD"]), head);
+    assert!(git_stdout(&pair.b, &["status", "--porcelain"]).is_empty());
+    assert_eq!(
+        fs::read_to_string(pair.b.join(&pair.shared_fragment)).unwrap(),
+        "base\n"
+    );
+}
+
+#[test]
+fn pull_aborts_real_conflicts_and_leaves_a_parseable_clean_library() {
+    if !git_available() {
+        return;
+    }
+    let pair = PullPair::new();
+    fs::write(pair.a.join(&pair.shared_fragment), "remote side\n").unwrap();
+    pair.push_a("remote conflict");
+    fs::write(pair.b.join(&pair.shared_fragment), "local side\n").unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", pair.b.to_str().unwrap(), "git", "commit"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", pair.b.to_str().unwrap(), "git", "pull"])
+        .assert()
+        .code(4)
+        .stderr(predicate::str::contains(
+            "pull stopped: 1 file conflict with origin/main",
+        ))
+        .stderr(predicate::str::contains(
+            pair.shared_fragment.to_string_lossy().as_ref(),
+        ))
+        .stderr(predicate::str::contains(
+            "your library was left untouched; resolve it with git in the library directory: git pull",
+        ));
+    assert!(git_stdout(&pair.b, &["status", "--porcelain"]).is_empty());
+    assert_no_conflict_markers(&pair.b);
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", pair.b.to_str().unwrap(), "list"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn pull_refuses_a_dirty_worktree_before_merging() {
+    if !git_available() {
+        return;
+    }
+    let pair = PullPair::new();
+    fs::write(pair.a.join(&pair.shared_fragment), "remote side\n").unwrap();
+    pair.push_a("remote edit");
+    append(&pair.b.join("tags.toml"), "\n# local dirt\n");
+    let head = git_stdout(&pair.b, &["rev-parse", "HEAD"]);
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", pair.b.to_str().unwrap(), "git", "pull"])
+        .assert()
+        .code(4)
+        .stderr(predicate::str::contains(
+            "commit or stash your changes before pulling",
+        ));
+    assert_eq!(git_stdout(&pair.b, &["rev-parse", "HEAD"]), head);
+    assert!(
+        fs::read_to_string(pair.b.join("tags.toml"))
+            .unwrap()
+            .contains("local dirt")
+    );
+}
+
+#[test]
+fn pull_refuses_a_repository_without_an_upstream() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("No upstream.sniplib");
+    Library::init(&root, Some("No upstream")).unwrap();
+    init_repo(&root);
+    commit_all(&root, "initial");
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", root.to_str().unwrap(), "git", "pull"])
+        .assert()
+        .code(4)
+        .stderr(predicate::str::contains(
+            "no upstream is configured; run git push -u origin <branch> once in your terminal",
+        ));
 }
 
 #[test]
