@@ -80,6 +80,8 @@ tui = [
     "dep:notify-debouncer-mini",
     "dep:nucleo-matcher",
     "dep:ratatui",
+    "dep:unicode-segmentation",
+    "dep:unicode-width",
 ]
 
 [dependencies]
@@ -105,6 +107,8 @@ notify-debouncer-mini = { version = "0.7", optional = true }
 nucleo-matcher = { version = "0.3.1", optional = true }
 ratatui = { version = "0.30.2", optional = true }
 regex = { version = "1.13.1", default-features = false, features = ["std", "perf", "unicode"] }
+unicode-segmentation = { version = "1.13.3", optional = true }
+unicode-width = { version = "0.2.1", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2.1"

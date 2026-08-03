@@ -1,3 +1,5 @@
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -167,11 +169,11 @@ impl SelectionRow {
         let from = from.max(self.gutter_width);
         let mut output = String::new();
         let mut column = 0_u16;
-        for character in self.text.chars() {
-            let width = char_width(character);
+        for cluster in self.text.graphemes(true) {
+            let width = cluster_width(cluster);
             let end = column.saturating_add(width);
             if end > from && column < to && end > self.gutter_width {
-                output.push(character);
+                output.push_str(cluster);
             }
             column = end;
         }
@@ -180,12 +182,78 @@ impl SelectionRow {
 }
 
 pub fn text_width(value: &str) -> u16 {
-    value.chars().map(char_width).fold(0, u16::saturating_add)
+    value
+        .graphemes(true)
+        .map(cluster_width)
+        .fold(0, u16::saturating_add)
 }
 
-pub fn char_width(value: char) -> u16 {
-    ratatui::text::Line::raw(value.to_string())
-        .width()
+pub fn cluster_width(cluster: &str) -> u16 {
+    UnicodeWidthStr::width(cluster)
         .max(1)
         .min(u16::MAX as usize) as u16
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::text::Line;
+
+    #[test]
+    fn grapheme_cluster_widths_match_terminal_cells() {
+        for (value, expected) in [
+            ("👨\u{200d}💻", 2),
+            ("👨\u{200d}👩\u{200d}👧", 2),
+            ("👍🏽", 2),
+            ("e\u{301}", 1),
+            ("中文", 4),
+            ("abc", 3),
+        ] {
+            assert_eq!(text_width(value), expected, "{value:?}");
+        }
+    }
+
+    #[test]
+    fn selection_text_keeps_overlapping_grapheme_clusters_whole() {
+        let row = SelectionRow {
+            text: "👨\u{200d}💻x".to_owned(),
+            display_width: 3,
+            gutter_width: 0,
+            ends_line: true,
+        };
+
+        assert_eq!(row.text_between(1, 3), "👨\u{200d}💻x");
+        assert_eq!(row.text_between(2, 3), "x");
+    }
+
+    #[test]
+    fn text_width_matches_ratatui_line_width_for_grapheme_corpus() {
+        for value in [
+            "ASCII",
+            "中文",
+            "👨\u{200d}💻",
+            "👍🏽",
+            "e\u{301}",
+            "한",
+            "नमस्ते",
+        ] {
+            assert_eq!(usize::from(text_width(value)), Line::raw(value).width());
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "ratatui cell_width adds one cell")]
+    fn halfwidth_voicing_marks_are_a_known_ratatui_cell_width_exception() {
+        // U+FF9E/U+FF9F only receive ratatui's private cell_width compensation
+        // when they follow a halfwidth katakana base character. Public
+        // Line::width and unicode-width report one cell for this cluster.
+        let voiced_katakana = "\u{ff76}\u{ff9e}"; // ｶﾞ
+        assert_eq!(text_width(voiced_katakana), 1);
+        assert_eq!(Line::raw(voiced_katakana).width(), 1);
+        assert_eq!(
+            text_width(voiced_katakana),
+            2,
+            "ratatui cell_width adds one cell"
+        );
+    }
 }
