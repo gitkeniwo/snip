@@ -1923,6 +1923,8 @@ dependencies = [
  "time",
  "toml",
  "two-face",
+ "unicode-segmentation",
+ "unicode-width",
  "uuid",
 ]
 

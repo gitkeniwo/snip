@@ -3,9 +3,10 @@ use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use unicode_segmentation::UnicodeSegmentation;
 
 use super::icons;
-use super::selection::{char_width, text_width};
+use super::selection::{cluster_width, text_width};
 use super::theme::TuiTheme;
 use crate::domain::Snippet;
 
@@ -145,13 +146,13 @@ pub fn truncate_end(value: &str, width: usize) -> String {
     let target = width.saturating_sub(1);
     let mut out = String::new();
     let mut cells = 0;
-    for character in value.chars() {
-        let character_width = char_width(character) as usize;
-        if cells + character_width > target {
+    for cluster in value.graphemes(true) {
+        let cluster_width = cluster_width(cluster) as usize;
+        if cells + cluster_width > target {
             break;
         }
-        out.push(character);
-        cells += character_width;
+        out.push_str(cluster);
+        cells += cluster_width;
     }
     out.push('…');
     out
@@ -198,5 +199,31 @@ mod tests {
         assert_eq!(truncate_end("代码评审", 0), "");
         // A budget of one cell cannot hold a wide glyph — only the ellipsis.
         assert_eq!(truncate_end("代码", 1), "…");
+    }
+
+    #[test]
+    fn truncation_never_splits_a_zwj_grapheme_cluster() {
+        let value = "👨\u{200d}💻 title";
+        let boundaries = value
+            .grapheme_indices(true)
+            .map(|(index, _)| index)
+            .chain(std::iter::once(value.len()))
+            .collect::<Vec<_>>();
+
+        for width in 0..=8 {
+            let truncated = truncate_end(value, width);
+            let prefix = truncated.strip_suffix('…').unwrap_or(&truncated);
+            assert!(value.starts_with(prefix), "width {width}: {truncated:?}");
+            assert!(
+                boundaries.contains(&prefix.len()),
+                "width {width}: {truncated:?}"
+            );
+            assert!(
+                !prefix.ends_with('\u{200d}'),
+                "width {width}: {truncated:?}"
+            );
+        }
+
+        assert_eq!(truncate_end(value, 4), "👨\u{200d}💻 …");
     }
 }
