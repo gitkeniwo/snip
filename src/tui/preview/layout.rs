@@ -190,48 +190,38 @@ pub(super) fn wrap_preview(
         let mut row_text = String::new();
         let mut row_width = 0_u16;
         let mut row_gutter = line_gutter;
-        let mut continuation_chars = 0;
+        let mut continuation_bytes = 0;
         for span in line.spans {
             for character in span.content.chars() {
                 let character_width = char_width(character);
                 if row_width > 0
                     && row_width.saturating_add(character_width) > width
                     && wrap == WrapMode::Word
-                    && let Some(break_at) = spans
-                        .iter()
-                        .enumerate()
-                        .skip(continuation_chars)
+                    && let Some(break_at) = row_text
+                        .char_indices()
+                        .filter(|(index, _)| *index >= continuation_bytes)
                         .rev()
-                        .find_map(|(index, span): (usize, &Span<'static>)| {
-                            span.content
-                                .chars()
-                                .next()
-                                .is_some_and(char::is_whitespace)
-                                .then_some(index + 1)
+                        .find_map(|(index, character)| {
+                            character
+                                .is_whitespace()
+                                .then_some(index + character.len_utf8())
                         })
-                    && break_at < spans.len()
+                    && break_at < row_text.len()
                 {
-                    let tail = spans.split_off(break_at);
-                    let head_text = spans_text(&spans);
-                    let head_width = spans_width(&spans);
+                    let (head, tail) = split_spans_at(std::mem::take(&mut spans), break_at);
+                    let head_text = spans_text(&head);
+                    let head_width = spans_width(&head);
                     push_preview_row(
-                        &mut lines,
-                        &mut rows,
-                        std::mem::take(&mut spans),
-                        head_text,
-                        head_width,
-                        row_gutter,
-                        false,
+                        &mut lines, &mut rows, head, head_text, head_width, row_gutter, false,
                     );
                     let (mut next_spans, next_text) = continuation.as_ref().map_or_else(
                         || (Vec::new(), String::new()),
-                        |(prefix, text)| (expand_spans(prefix), text.clone()),
+                        |(prefix, text)| (prefix.clone(), text.clone()),
                     );
-                    continuation_chars = next_spans.len();
+                    continuation_bytes = next_text.len();
                     next_spans.extend(tail);
                     spans = next_spans;
-                    row_text =
-                        format!("{next_text}{}", spans_text_from(&spans, continuation_chars));
+                    row_text = format!("{next_text}{}", &row_text[break_at..]);
                     row_width = spans_width(&spans);
                     row_gutter = line_gutter;
                 }
@@ -246,20 +236,20 @@ pub(super) fn wrap_preview(
                         false,
                     );
                     if let Some((continuation_spans, continuation_text)) = &continuation {
-                        spans = expand_spans(continuation_spans);
-                        continuation_chars = spans.len();
+                        spans = continuation_spans.clone();
+                        continuation_bytes = continuation_text.len();
                         row_text = continuation_text.clone();
                         row_width = line_gutter;
                         row_gutter = line_gutter;
                     } else {
-                        continuation_chars = 0;
+                        continuation_bytes = 0;
                         row_width = 0;
                         row_gutter = 0;
                     }
                 }
                 row_width = row_width.saturating_add(character_width);
                 row_text.push(character);
-                spans.push(Span::styled(character.to_string(), span.style));
+                push_styled_character(&mut spans, character, span.style);
             }
         }
         push_preview_row(
@@ -278,16 +268,39 @@ pub(super) fn wrap_preview(
     }
 }
 
-fn expand_spans(spans: &[Span<'static>]) -> Vec<Span<'static>> {
-    spans
-        .iter()
-        .flat_map(|span| {
-            span.content
-                .chars()
-                .map(|character| Span::styled(character.to_string(), span.style))
-                .collect::<Vec<_>>()
-        })
-        .collect()
+fn push_styled_character(spans: &mut Vec<Span<'static>>, character: char, style: Style) {
+    if let Some(last) = spans.last_mut()
+        && last.style == style
+    {
+        last.content.to_mut().push(character);
+    } else {
+        spans.push(Span::styled(character.to_string(), style));
+    }
+}
+
+fn split_spans_at(
+    spans: Vec<Span<'static>>,
+    byte_offset: usize,
+) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+    let mut head = Vec::new();
+    let mut tail = Vec::new();
+    let mut remaining = byte_offset;
+    for span in spans {
+        let content_len = span.content.len();
+        if remaining >= content_len {
+            remaining -= content_len;
+            head.push(span);
+        } else if remaining == 0 {
+            tail.push(span);
+        } else {
+            let content = span.content.into_owned();
+            let (before, after) = content.split_at(remaining);
+            head.push(Span::styled(before.to_owned(), span.style));
+            tail.push(Span::styled(after.to_owned(), span.style));
+            remaining = 0;
+        }
+    }
+    (head, tail)
 }
 
 fn spans_text(spans: &[Span<'static>]) -> String {
@@ -295,10 +308,6 @@ fn spans_text(spans: &[Span<'static>]) -> String {
         .iter()
         .map(|span| span.content.as_ref())
         .collect::<String>()
-}
-
-fn spans_text_from(spans: &[Span<'static>], start: usize) -> String {
-    spans_text(&spans[start.min(spans.len())..])
 }
 
 fn spans_width(spans: &[Span<'static>]) -> u16 {
@@ -648,6 +657,53 @@ mod tests {
             false,
         );
         assert_eq!(rendered_lines(&preview), ["中文内", "容没有", "空格"]);
-        assert_eq!(preview.text.lines.len(), preview.rows.len());
+        assert_rows(
+            &preview,
+            &[
+                row("中文内", 6, 0, false),
+                row("容没有", 6, 0, false),
+                row("空格", 4, 0, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn prose_word_longer_than_width_falls_back_to_character_columns() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("supercalifragilistic"),
+                wrap: WrapMode::Word,
+            }],
+            7,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["superca", "lifragi", "listic"]);
+        assert_rows(
+            &preview,
+            &[
+                row("superca", 7, 0, false),
+                row("lifragi", 7, 0, false),
+                row("listic", 6, 0, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn span_count_tracks_style_runs_instead_of_character_count() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::styled(
+                    "x".repeat(200),
+                    Style::default().fg(ratatui::style::Color::Red),
+                ),
+                wrap: WrapMode::Character,
+            }],
+            200,
+            false,
+        );
+
+        assert_eq!(preview.text.lines.len(), 1);
+        assert!(preview.text.lines[0].spans.len() < 5);
     }
 }
