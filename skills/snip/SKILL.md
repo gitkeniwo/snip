@@ -260,6 +260,7 @@ snip git commit -m "…"           # stage and commit library content
 snip git backup                  # commit if dirty, then push when ahead
 snip git push                    # push without committing
 snip git fetch                   # refresh remote-tracking refs only
+snip git pull [--ff-only]        # fetch and merge the configured upstream
 snip git clone <remote> [path]   # restore a library; --gh for private GitHub repos
 ```
 
@@ -275,10 +276,12 @@ An unavailable library is **not an error** — `available: false` with a
 exit 0. Branch on `available`, not on the exit code. When it is false the safety
 net does not exist; tell the user instead of assuming it does.
 
-Git commands never pull, never switch branches, and never prompt for
-credentials — a push needing a passphrase fails fast instead of hanging you.
-Automatic commits and pushes are a TUI feature driven by user config; do not
-count on them having run.
+Git commands never switch branches and never prompt for credentials — a push or
+pull needing a passphrase fails fast instead of hanging you. `snip git pull`
+aborts a conflicting merge and leaves the library untouched; use raw Git when
+the branches need manual reconciliation. Automatic commits, pushes, and the
+optional one-time pull at TUI startup are driven by user config; do not count on
+them having run.
 
 `snip git clone` never prompts: a remote that needs credentials fails fast.
 Never type a credential yourself — surface the error and its hint to the user.
