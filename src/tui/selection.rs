@@ -40,6 +40,14 @@ impl PreviewSelection {
         self.clamp_points();
     }
 
+    pub fn reclamp(&mut self) {
+        self.clamp_points();
+    }
+
+    pub fn is_prepared_for(&self, key: &SelectionKey) -> bool {
+        self.key.as_ref() == Some(key)
+    }
+
     pub fn clear(&mut self) {
         self.anchor = None;
         self.head = None;

@@ -117,7 +117,7 @@ fn content_section_rule(label: &str, theme: TuiTheme) -> Line<'static> {
     ])
 }
 
-pub(super) struct WrappedPreview {
+pub struct WrappedPreview {
     pub(super) text: Text<'static>,
     pub(super) rows: Vec<SelectionRow>,
 }
@@ -190,48 +190,38 @@ pub(super) fn wrap_preview(
         let mut row_text = String::new();
         let mut row_width = 0_u16;
         let mut row_gutter = line_gutter;
-        let mut continuation_chars = 0;
+        let mut continuation_bytes = 0;
         for span in line.spans {
             for character in span.content.chars() {
                 let character_width = char_width(character);
                 if row_width > 0
                     && row_width.saturating_add(character_width) > width
                     && wrap == WrapMode::Word
-                    && let Some(break_at) = spans
-                        .iter()
-                        .enumerate()
-                        .skip(continuation_chars)
+                    && let Some(break_at) = row_text
+                        .char_indices()
+                        .filter(|(index, _)| *index >= continuation_bytes)
                         .rev()
-                        .find_map(|(index, span): (usize, &Span<'static>)| {
-                            span.content
-                                .chars()
-                                .next()
-                                .is_some_and(char::is_whitespace)
-                                .then_some(index + 1)
+                        .find_map(|(index, character)| {
+                            character
+                                .is_whitespace()
+                                .then_some(index + character.len_utf8())
                         })
-                    && break_at < spans.len()
+                    && break_at < row_text.len()
                 {
-                    let tail = spans.split_off(break_at);
-                    let head_text = spans_text(&spans);
-                    let head_width = spans_width(&spans);
+                    let (head, tail) = split_spans_at(std::mem::take(&mut spans), break_at);
+                    let head_text = spans_text(&head);
+                    let head_width = spans_width(&head);
                     push_preview_row(
-                        &mut lines,
-                        &mut rows,
-                        std::mem::take(&mut spans),
-                        head_text,
-                        head_width,
-                        row_gutter,
-                        false,
+                        &mut lines, &mut rows, head, head_text, head_width, row_gutter, false,
                     );
                     let (mut next_spans, next_text) = continuation.as_ref().map_or_else(
                         || (Vec::new(), String::new()),
-                        |(prefix, text)| (expand_spans(prefix), text.clone()),
+                        |(prefix, text)| (prefix.clone(), text.clone()),
                     );
-                    continuation_chars = next_spans.len();
+                    continuation_bytes = next_text.len();
                     next_spans.extend(tail);
                     spans = next_spans;
-                    row_text =
-                        format!("{next_text}{}", spans_text_from(&spans, continuation_chars));
+                    row_text = format!("{next_text}{}", &row_text[break_at..]);
                     row_width = spans_width(&spans);
                     row_gutter = line_gutter;
                 }
@@ -246,20 +236,20 @@ pub(super) fn wrap_preview(
                         false,
                     );
                     if let Some((continuation_spans, continuation_text)) = &continuation {
-                        spans = expand_spans(continuation_spans);
-                        continuation_chars = spans.len();
+                        spans = continuation_spans.clone();
+                        continuation_bytes = continuation_text.len();
                         row_text = continuation_text.clone();
                         row_width = line_gutter;
                         row_gutter = line_gutter;
                     } else {
-                        continuation_chars = 0;
+                        continuation_bytes = 0;
                         row_width = 0;
                         row_gutter = 0;
                     }
                 }
                 row_width = row_width.saturating_add(character_width);
                 row_text.push(character);
-                spans.push(Span::styled(character.to_string(), span.style));
+                push_styled_character(&mut spans, character, span.style);
             }
         }
         push_preview_row(
@@ -278,16 +268,39 @@ pub(super) fn wrap_preview(
     }
 }
 
-fn expand_spans(spans: &[Span<'static>]) -> Vec<Span<'static>> {
-    spans
-        .iter()
-        .flat_map(|span| {
-            span.content
-                .chars()
-                .map(|character| Span::styled(character.to_string(), span.style))
-                .collect::<Vec<_>>()
-        })
-        .collect()
+fn push_styled_character(spans: &mut Vec<Span<'static>>, character: char, style: Style) {
+    if let Some(last) = spans.last_mut()
+        && last.style == style
+    {
+        last.content.to_mut().push(character);
+    } else {
+        spans.push(Span::styled(character.to_string(), style));
+    }
+}
+
+fn split_spans_at(
+    spans: Vec<Span<'static>>,
+    byte_offset: usize,
+) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+    let mut head = Vec::new();
+    let mut tail = Vec::new();
+    let mut remaining = byte_offset;
+    for span in spans {
+        let content_len = span.content.len();
+        if remaining >= content_len {
+            remaining -= content_len;
+            head.push(span);
+        } else if remaining == 0 {
+            tail.push(span);
+        } else {
+            let content = span.content.into_owned();
+            let (before, after) = content.split_at(remaining);
+            head.push(Span::styled(before.to_owned(), span.style));
+            tail.push(Span::styled(after.to_owned(), span.style));
+            remaining = 0;
+        }
+    }
+    (head, tail)
 }
 
 fn spans_text(spans: &[Span<'static>]) -> String {
@@ -295,10 +308,6 @@ fn spans_text(spans: &[Span<'static>]) -> String {
         .iter()
         .map(|span| span.content.as_ref())
         .collect::<String>()
-}
-
-fn spans_text_from(spans: &[Span<'static>], start: usize) -> String {
-    spans_text(&spans[start.min(spans.len())..])
 }
 
 fn spans_width(spans: &[Span<'static>]) -> u16 {
@@ -349,70 +358,96 @@ pub fn jump_paragraph(app: &mut App, forward: bool) {
         return;
     };
     let width = app.layout.preview_content.width.max(1);
-    let Ok(document) = app
-        .preview
-        .get(&snippet, app.fragment_index, &app.highlighter, app.theme)
-    else {
-        return;
-    };
-    let lines = compose_preview(document, app.show_line_numbers, app.theme, width);
-    let rendered = wrap_preview(lines, width, app.show_line_numbers);
-    let total_lines = rendered.text.lines.len();
-    if total_lines == 0 {
-        return;
-    }
-
-    let is_blank = |line: &ratatui::text::Line| {
-        let plain = line
-            .spans
-            .iter()
-            .map(|span| span.content.as_ref())
-            .collect::<String>();
-        let stripped = if let Some(pos) = plain.find('│') {
-            &plain[pos + '│'.len_utf8()..]
-        } else {
-            &plain
+    let mut preview_cache = std::mem::take(&mut app.preview);
+    let target = (|| {
+        let (rendered, rebuilt) = preview_cache
+            .get(
+                &snippet,
+                app.fragment_index,
+                width,
+                app.show_line_numbers,
+                &app.highlighter,
+                app.theme,
+            )
+            .ok()?;
+        let selection_key = super::super::selection::SelectionKey {
+            snippet_id: snippet.id,
+            fragment_index: app.fragment_index,
+            fingerprint: snippet.fingerprint.0.clone(),
         };
-        stripped.trim().is_empty()
-    };
-
-    let current = usize::from(app.preview_scroll);
-    let target = if forward {
-        let mut i = current.saturating_add(1);
-        if i >= total_lines {
-            total_lines.saturating_sub(1)
+        if rebuilt || !app.preview_selection.is_prepared_for(&selection_key) {
+            app.preview_selection
+                .prepare(selection_key, rendered.rows.clone());
         } else {
-            if is_blank(&rendered.text.lines[current]) {
-                while i < total_lines && is_blank(&rendered.text.lines[i]) {
+            app.preview_selection.reclamp();
+        }
+        let total_lines = rendered.text.lines.len();
+        if total_lines == 0 {
+            return None;
+        }
+
+        let is_blank = |line: &ratatui::text::Line| {
+            let plain = line
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>();
+            let stripped = if let Some(pos) = plain.find('│') {
+                &plain[pos + '│'.len_utf8()..]
+            } else {
+                &plain
+            };
+            stripped.trim().is_empty()
+        };
+
+        let current = usize::from(app.preview_scroll);
+        Some(if forward {
+            let mut i = current.saturating_add(1);
+            if i >= total_lines {
+                total_lines.saturating_sub(1)
+            } else {
+                if is_blank(&rendered.text.lines[current]) {
+                    while i < total_lines && is_blank(&rendered.text.lines[i]) {
+                        i += 1;
+                    }
+                }
+                while i < total_lines && !is_blank(&rendered.text.lines[i]) {
                     i += 1;
                 }
+                i.min(total_lines.saturating_sub(1))
             }
-            while i < total_lines && !is_blank(&rendered.text.lines[i]) {
-                i += 1;
+        } else if current == 0 {
+            0
+        } else {
+            let mut i = current.saturating_sub(1);
+            if is_blank(&rendered.text.lines[current]) {
+                while i > 0 && is_blank(&rendered.text.lines[i]) {
+                    i -= 1;
+                }
             }
-            i.min(total_lines.saturating_sub(1))
-        }
-    } else if current == 0 {
-        0
-    } else {
-        let mut i = current.saturating_sub(1);
-        if is_blank(&rendered.text.lines[current]) {
-            while i > 0 && is_blank(&rendered.text.lines[i]) {
+            while i > 0 && !is_blank(&rendered.text.lines[i]) {
                 i -= 1;
             }
-        }
-        while i > 0 && !is_blank(&rendered.text.lines[i]) {
-            i -= 1;
-        }
-        i
-    };
-
-    app.preview_scroll = u16::try_from(target).unwrap_or(u16::MAX);
+            i
+        })
+    })();
+    app.preview = preview_cache;
+    if let Some(target) = target {
+        app.preview_scroll = u16::try_from(target).unwrap_or(u16::MAX);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct ExpectedRow<'a> {
+        text: &'a str,
+        display_width: u16,
+        gutter_width: u16,
+        ends_line: bool,
+    }
 
     fn rendered_lines(preview: &WrappedPreview) -> Vec<String> {
         preview
@@ -426,6 +461,181 @@ mod tests {
                     .collect::<String>()
             })
             .collect()
+    }
+
+    fn assert_rows(preview: &WrappedPreview, expected: &[ExpectedRow<'_>]) {
+        assert_eq!(preview.text.lines.len(), preview.rows.len());
+        assert_eq!(preview.rows.len(), expected.len());
+        for (actual, expected) in preview.rows.iter().zip(expected) {
+            assert_eq!(actual.text, expected.text);
+            assert_eq!(actual.display_width, expected.display_width);
+            assert_eq!(actual.gutter_width, expected.gutter_width);
+            assert_eq!(actual.ends_line, expected.ends_line);
+        }
+    }
+
+    fn row(
+        text: &'static str,
+        display_width: u16,
+        gutter_width: u16,
+        ends_line: bool,
+    ) -> ExpectedRow<'static> {
+        ExpectedRow {
+            text,
+            display_width,
+            gutter_width,
+            ends_line,
+        }
+    }
+
+    fn style_at_column(line: &Line<'_>, column: u16) -> Style {
+        let mut current = 0;
+        for span in &line.spans {
+            for character in span.content.chars() {
+                let next = current + char_width(character);
+                if column < next {
+                    return span.style;
+                }
+                current = next;
+            }
+        }
+        Style::default()
+    }
+
+    #[test]
+    fn code_wraps_at_character_columns_and_preserves_row_metadata() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("abcdefghij"),
+                wrap: WrapMode::Character,
+            }],
+            4,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["abcd", "efgh", "ij"]);
+        assert_rows(
+            &preview,
+            &[
+                row("abcd", 4, 0, false),
+                row("efgh", 4, 0, false),
+                row("ij", 2, 0, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn prose_wraps_at_whitespace_and_preserves_row_metadata() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("alpha beta gamma"),
+                wrap: WrapMode::Word,
+            }],
+            10,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["alpha ", "beta gamma"]);
+        assert_rows(
+            &preview,
+            &[row("alpha ", 6, 0, false), row("beta gamma", 10, 0, true)],
+        );
+    }
+
+    #[test]
+    fn line_number_continuations_repeat_the_rule_gutter() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::from(vec![
+                    Span::styled("12", Style::default().fg(ratatui::style::Color::Red)),
+                    Span::styled("│ ", Style::default().fg(ratatui::style::Color::Blue)),
+                    Span::raw("abcdef"),
+                ]),
+                wrap: WrapMode::Character,
+            }],
+            6,
+            true,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["12│ ab", "  │ cd", "  │ ef"]);
+        assert_rows(
+            &preview,
+            &[
+                row("12│ ab", 6, 4, false),
+                row("  │ cd", 6, 4, false),
+                row("  │ ef", 6, 4, true),
+            ],
+        );
+        assert_eq!(
+            style_at_column(&preview.text.lines[1], 0).fg,
+            Some(ratatui::style::Color::Red)
+        );
+        assert_eq!(
+            style_at_column(&preview.text.lines[1], 2).fg,
+            Some(ratatui::style::Color::Blue)
+        );
+    }
+
+    #[test]
+    fn prose_inset_is_repeated_on_continuation_rows() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw(" alpha beta gamma"),
+                wrap: WrapMode::Word,
+            }],
+            8,
+            true,
+        );
+
+        assert_eq!(rendered_lines(&preview), [" alpha ", " beta ", " gamma"]);
+        assert_rows(
+            &preview,
+            &[
+                row(" alpha ", 7, 1, false),
+                row(" beta ", 6, 1, false),
+                row(" gamma", 6, 1, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn decorations_do_not_acquire_line_or_prose_gutters() {
+        for decoration in ["Note", "── readme ──", "────"] {
+            let preview = wrap_preview(
+                vec![PreviewLine {
+                    line: Line::raw(decoration),
+                    wrap: WrapMode::Character,
+                }],
+                20,
+                true,
+            );
+
+            assert_eq!(rendered_lines(&preview), [decoration]);
+            assert_rows(
+                &preview,
+                &[row(
+                    decoration,
+                    text_width(decoration),
+                    text_width(decoration),
+                    false,
+                )],
+            );
+        }
+    }
+
+    #[test]
+    fn empty_line_has_a_terminal_default_selection_row() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::default(),
+                wrap: WrapMode::Character,
+            }],
+            10,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), [""]);
+        assert_rows(&preview, &[row("", 0, 0, true)]);
     }
 
     #[test]
@@ -473,6 +683,53 @@ mod tests {
             false,
         );
         assert_eq!(rendered_lines(&preview), ["中文内", "容没有", "空格"]);
-        assert_eq!(preview.text.lines.len(), preview.rows.len());
+        assert_rows(
+            &preview,
+            &[
+                row("中文内", 6, 0, false),
+                row("容没有", 6, 0, false),
+                row("空格", 4, 0, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn prose_word_longer_than_width_falls_back_to_character_columns() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("supercalifragilistic"),
+                wrap: WrapMode::Word,
+            }],
+            7,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["superca", "lifragi", "listic"]);
+        assert_rows(
+            &preview,
+            &[
+                row("superca", 7, 0, false),
+                row("lifragi", 7, 0, false),
+                row("listic", 6, 0, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn span_count_tracks_style_runs_instead_of_character_count() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::styled(
+                    "x".repeat(200),
+                    Style::default().fg(ratatui::style::Color::Red),
+                ),
+                wrap: WrapMode::Character,
+            }],
+            200,
+            false,
+        );
+
+        assert_eq!(preview.text.lines.len(), 1);
+        assert!(preview.text.lines[0].spans.len() < 5);
     }
 }
