@@ -526,6 +526,13 @@ pub enum GitCommand {
     Push,
     /// Fetch and prune remote-tracking refs without touching the worktree.
     Fetch,
+    /// Fetch from the upstream and merge it into the current branch.
+    Pull {
+        /// Refuse to merge when the branch has diverged, instead of creating a
+        /// merge commit.
+        #[arg(long)]
+        ff_only: bool,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -795,6 +802,7 @@ pub enum ConfigKey {
     TuiLineNumbers,
     GitAutoCommitInterval,
     GitAutoPush,
+    GitAutoPull,
     GitBackupOnQuit,
 }
 

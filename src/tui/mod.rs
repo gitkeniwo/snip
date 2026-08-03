@@ -61,6 +61,7 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     let (sender, receiver) = mpsc::channel();
     app.set_git_sender(sender.clone());
     app.set_gist_sender(sender.clone());
+    app.spawn_auto_pull();
     let _watcher = event::start_watcher(app.library.root(), sender)?;
 
     while !app.should_quit {
@@ -82,7 +83,11 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
         // `pending_quit` also marks an already-queued quit backup. Only the
         // background-push form has no manual Git operation queued yet.
         if app.pending_quit && !app.git.operation_queued {
-            if app.git.push_in_flight || app.git.fetch_in_flight || app.gist.in_flight {
+            if app.git.push_in_flight
+                || app.git.pull_in_flight
+                || app.git.fetch_in_flight
+                || app.gist.in_flight
+            {
                 app.set_status(
                     if app.gist.in_flight {
                         "finishing gist operation…"

@@ -244,6 +244,9 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
         ConfigKey::GitAutoPush => {
             config.git.get_or_insert_with(GitConfig::default).auto_push = parse_bool(value)?;
         }
+        ConfigKey::GitAutoPull => {
+            config.git.get_or_insert_with(GitConfig::default).auto_pull = parse_bool(value)?;
+        }
         ConfigKey::GitBackupOnQuit => {
             config
                 .git
@@ -299,6 +302,9 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         }
         ConfigKey::GitAutoPush => {
             config.git.get_or_insert_with(GitConfig::default).auto_push = false
+        }
+        ConfigKey::GitAutoPull => {
+            config.git.get_or_insert_with(GitConfig::default).auto_pull = false
         }
         ConfigKey::GitBackupOnQuit => {
             config

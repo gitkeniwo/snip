@@ -330,6 +330,7 @@ accent = "#123456"
 [git]
 auto_commit_interval = 15
 auto_push = true
+auto_pull = true
 backup_on_quit = true
 future_remote_policy = "manual"
 "##,
@@ -362,12 +363,13 @@ future_remote_policy = "manual"
         config.git.as_ref().map(|git| (
             git.auto_commit_interval,
             git.auto_push,
+            git.auto_pull,
             git.backup_on_quit,
             git.extra
                 .get("future_remote_policy")
                 .and_then(toml::Value::as_str)
         )),
-        Some((15, true, true, Some("manual")))
+        Some((15, true, true, true, Some("manual")))
     );
 
     config.save_to(&path).unwrap();

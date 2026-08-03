@@ -13,9 +13,12 @@ use crate::error::{Result, SnipError};
 
 pub use command::{Output as CommandOutput, SpawnError, run_non_interactive};
 pub use parse::relative_time;
-pub use write::{ActionOutcome, backup, commit, execute_interactive, fetch, init, push};
+pub use write::{
+    ActionOutcome, PullOutcome, backup, commit, execute_interactive, fetch, init, pull,
+    pull_message, push,
+};
 #[cfg(feature = "tui")]
-pub(crate) use write::{execute_non_interactive, is_library_lock_conflict};
+pub(crate) use write::{execute_non_interactive, is_library_lock_conflict, is_pull_refusal};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
@@ -43,6 +46,7 @@ pub enum Refusal {
     NothingToCommit,
     NoUpstream,
     NothingToPush,
+    DirtyWorktree,
 }
 
 impl fmt::Display for Refusal {
@@ -58,6 +62,7 @@ impl fmt::Display for Refusal {
                 "no upstream is configured; run git push -u origin <branch> once in your terminal"
             }
             Self::NothingToPush => "there are no commits to push",
+            Self::DirtyWorktree => "commit or stash your changes before pulling",
         })
     }
 }
@@ -67,6 +72,7 @@ pub enum GitAction {
     Backup,
     Commit { message: Option<String> },
     Push,
+    Pull,
     Init,
 }
 
@@ -172,6 +178,28 @@ pub fn check_push(status: &Status) -> std::result::Result<(), Refusal> {
     }
     if status.ahead == 0 {
         return Err(Refusal::NothingToPush);
+    }
+    Ok(())
+}
+
+pub fn check_pull(status: &Status, repo_dirty: usize) -> std::result::Result<(), Refusal> {
+    if !status.conflicted.is_empty() {
+        return Err(Refusal::Conflicted);
+    }
+    if status.state != RepoState::Clean {
+        return Err(Refusal::MidOperation(status.state));
+    }
+    if matches!(status.branch, Branch::Detached { .. }) {
+        return Err(Refusal::DetachedHead);
+    }
+    if matches!(status.branch, Branch::Unborn) {
+        return Err(Refusal::NothingToCommit);
+    }
+    if status.upstream.is_none() {
+        return Err(Refusal::NoUpstream);
+    }
+    if repo_dirty > 0 {
+        return Err(Refusal::DirtyWorktree);
     }
     Ok(())
 }
@@ -343,6 +371,19 @@ pub fn status(repo: &Repo) -> Result<Status> {
         last_commit,
         upstream_commit,
     })
+}
+
+fn repo_dirty_count(repo: &Repo) -> Result<usize> {
+    let output = command::run(
+        &repo.root,
+        &["status", "--porcelain=v2", "-z", "--untracked-files=normal"],
+    )
+    .map_err(spawn_error)?;
+    if !output.status.success() {
+        return Err(command_failed("git status", &output.stderr));
+    }
+    let parsed = parse::parse_status_v2(&output.stdout);
+    Ok(parsed.staged + parsed.unstaged + parsed.untracked)
 }
 
 fn canonicalize_probe_path(path: &Path, label: &str) -> std::result::Result<PathBuf, Unavailable> {
@@ -532,6 +573,57 @@ mod write_tests {
             short_id: "abcdef0".to_owned(),
         };
         assert_eq!(check_push(&status), Err(Refusal::DetachedHead));
+    }
+
+    #[test]
+    fn pull_preconditions_follow_the_required_priority() {
+        let mut status = clean_status();
+        status.unstaged = 0;
+        status.untracked = 0;
+        status.ahead = 0;
+        assert_eq!(check_pull(&status, 0), Ok(()));
+
+        status.conflicted.push("snippet.toml".to_owned());
+        status.state = RepoState::Merging;
+        status.branch = Branch::Detached {
+            short_id: "abcdef0".to_owned(),
+        };
+        status.upstream = None;
+        assert_eq!(check_pull(&status, 1), Err(Refusal::Conflicted));
+
+        status.conflicted.clear();
+        assert_eq!(
+            check_pull(&status, 1),
+            Err(Refusal::MidOperation(RepoState::Merging))
+        );
+
+        status.state = RepoState::Clean;
+        assert_eq!(check_pull(&status, 1), Err(Refusal::DetachedHead));
+
+        status.branch = Branch::Unborn;
+        assert_eq!(check_pull(&status, 1), Err(Refusal::NothingToCommit));
+
+        status.branch = Branch::Named {
+            name: "main".to_owned(),
+        };
+        assert_eq!(check_pull(&status, 1), Err(Refusal::NoUpstream));
+
+        status.upstream = Some("origin/main".to_owned());
+        assert_eq!(check_pull(&status, 1), Err(Refusal::DirtyWorktree));
+    }
+
+    #[test]
+    fn pull_accepts_stale_zero_behind_and_checks_repository_wide_dirt() {
+        let mut status = clean_status();
+        status.ahead = 0;
+        status.behind = 0;
+        status.staged = 0;
+        status.unstaged = 0;
+        status.untracked = 0;
+
+        assert_eq!(check_pull(&status, 0), Ok(()));
+        assert_eq!(status.dirty_count(), 0);
+        assert_eq!(check_pull(&status, 1), Err(Refusal::DirtyWorktree));
     }
 
     #[test]

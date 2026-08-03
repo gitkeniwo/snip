@@ -154,6 +154,12 @@ pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
             app.theme,
         ),
         checkbox_line(
+            app.git.auto_pull,
+            "U",
+            "pull on start".to_owned(),
+            app.theme,
+        ),
+        checkbox_line(
             app.git.backup_on_quit,
             "o",
             "backup on quit".to_owned(),
@@ -171,7 +177,9 @@ pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
         ),
         key_value(
             "network",
-            if app.git.fetch_in_flight {
+            if app.git.pull_in_flight {
+                "pulling…".to_owned()
+            } else if app.git.fetch_in_flight {
                 "fetching remote status…".to_owned()
             } else if app.git.push_in_flight
                 && app
@@ -420,13 +428,14 @@ pub(super) fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'stat
     let compact = width < 50;
     let entry_gap = if compact { 2 } else { 4 };
     let key_gap = if compact { 1 } else { 2 };
-    let groups: &[&[(&str, &str)]] = if width < 40 {
+    let groups: &[&[(&str, &str)]] = if width < 54 {
         &[
             &[("b", "backup"), ("c", "commit")],
-            &[("p", "push"), ("f", "fetch")],
+            &[("p", "push"), ("l", "pull")],
+            &[("f", "fetch"), ("r", "refresh")],
             &[("i", "interval"), ("u", "auto push")],
-            &[("o", "on quit"), ("C", "message")],
-            &[("a", "pause"), ("r", "refresh")],
+            &[("U", "auto pull"), ("o", "on quit")],
+            &[("C", "message"), ("a", "pause")],
             &[("Esc", "close")],
         ]
     } else {
@@ -435,15 +444,21 @@ pub(super) fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'stat
                 ("b", "backup"),
                 ("c", "commit"),
                 ("p", "push"),
-                ("f", "fetch"),
+                ("l", "pull"),
             ],
-            &[("i", "interval"), ("u", "auto push"), ("o", "on quit")],
             &[
+                ("f", "fetch"),
+                ("i", "interval"),
+                ("u", "auto push"),
+                ("U", "auto pull"),
+            ],
+            &[
+                ("o", "on quit"),
                 ("C", "message"),
                 ("a", "pause"),
                 ("r", "refresh"),
-                ("Esc", "close"),
             ],
+            &[("Esc", "close")],
         ]
     };
     let mut lines = groups

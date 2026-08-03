@@ -115,6 +115,7 @@ pub fn command_git(library: &Library, args: &GitArgs, output: OutputMode) -> Res
         GitCommand::Backup => command_git_backup(library, output),
         GitCommand::Push => command_git_push(library, output),
         GitCommand::Fetch => command_git_fetch(library, output),
+        GitCommand::Pull { ff_only } => command_git_pull(library, *ff_only, output),
     }
 }
 
@@ -551,6 +552,40 @@ fn command_git_fetch(library: &Library, output: OutputMode) -> Result<()> {
 }
 
 #[derive(Serialize)]
+struct GitPullReport<'a> {
+    action: &'static str,
+    pulled: u32,
+    merged: bool,
+    outcome: &'a str,
+    status: &'a Status,
+}
+
+fn command_git_pull(library: &Library, ff_only: bool, output: OutputMode) -> Result<()> {
+    let repo = require_repo(library)?;
+    let pull = git::pull(&repo, ff_only)?;
+    let after = git::status(&repo)?;
+    let upstream = after.upstream.as_deref().unwrap_or("@{u}");
+    let outcome = git::pull_message(&pull, upstream);
+    let report = GitPullReport {
+        action: "pull",
+        pulled: pull.pulled,
+        merged: pull.merged,
+        outcome: &outcome,
+        status: &after,
+    };
+    if output == OutputMode::Human {
+        println!("{}", report.outcome);
+        println!(
+            "ahead/behind: {}/{}",
+            report.status.ahead, report.status.behind
+        );
+        Ok(())
+    } else {
+        print_record(&report, output)
+    }
+}
+
+#[derive(Serialize)]
 struct GitInitReport<'a> {
     action: &'static str,
     created: bool,
@@ -625,5 +660,39 @@ fn branch_label(status: &Status) -> String {
         git::Branch::Named { name } => name.clone(),
         git::Branch::Detached { short_id } => format!("detached@{short_id}"),
         git::Branch::Unborn => "no commits".to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pull_outcome_messages_cover_merge_and_pluralization() {
+        let outcome = |pulled, merged| git::PullOutcome {
+            pulled,
+            merged,
+            conflicted: Vec::new(),
+        };
+        assert_eq!(
+            git::pull_message(&outcome(0, false), "origin/main"),
+            "already up to date"
+        );
+        assert_eq!(
+            git::pull_message(&outcome(1, false), "origin/main"),
+            "pulled 1 commit"
+        );
+        assert_eq!(
+            git::pull_message(&outcome(3, false), "origin/main"),
+            "pulled 3 commits"
+        );
+        assert_eq!(
+            git::pull_message(&outcome(1, true), "origin/main"),
+            "merged 1 commit from origin/main"
+        );
+        assert_eq!(
+            git::pull_message(&outcome(3, true), "origin/main"),
+            "merged 3 commits from origin/main"
+        );
     }
 }

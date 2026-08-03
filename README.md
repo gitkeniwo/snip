@@ -601,6 +601,7 @@ snip --library Main.sniplib git commit -m "before refactoring"
 snip --library Main.sniplib git backup
 snip --library Main.sniplib git push
 snip --library Main.sniplib git fetch
+snip --library Main.sniplib git pull
 ```
 
 ```bash
@@ -615,27 +616,32 @@ credentials to the GitHub CLI. `backup` commits when the
 library is dirty and pushes whenever the branch is ahead of its upstream, so it
 also handles a clean worktree with earlier local commits. `push` retries only
 the push step. `fetch` refreshes and prunes remote-tracking refs without
-changing the worktree. `backup` is idempotent. Background automation and all
+changing the worktree. `pull` fetches and merges the upstream branch; pass
+`--ff-only` to reject a diverged history instead of creating a merge commit.
+If a merge conflicts, snip aborts it immediately and leaves the library at its
+pre-pull state. `backup` is idempotent. Background automation and all
 Git subcommands are non-interactive. Clone delegates credentials to Git or,
 with `--gh`, to the GitHub CLI; authentication failures fail fast instead of
 waiting for input.
 
 In the TUI, `Ctrl-g` opens the Git console: `b` backs up, `c` commits, `p`
 pushes, `f` fetches remote status in the background, and `C` enters a custom
-message. Automation is editable there too: `i` sets the commit interval, `u`
-toggles automatic push, `o` toggles backup on quit, and `a` pauses automation
-for the current session. In a library that is not yet a repository, `i`
-initializes it.
+message. `l` pulls from the upstream in the background. Automation is editable
+there too: `i` sets the commit interval, `u` toggles automatic push, `U`
+toggles a one-time pull on TUI startup, `o` toggles backup on quit, and `a`
+pauses automation for the current session. In a library that is not yet a
+repository, `i` initializes it.
 
 Automatic behavior is off by default. Set `git-auto-commit-interval` to make the
 TUI create a local commit when the library is dirty and the last commit is at
 least that many minutes old. Set `git-auto-push` to push ahead commits in a
 background worker on the same interval. Automatic work skips conflicts, detached
 HEADs, in-progress Git operations, open modals, and a library lock held by
-another snip process.
+another snip process. Set `git-auto-pull` to fetch and merge once when the TUI
+starts; a repository that is dirty or cannot be pulled is skipped silently.
 
-snip never pulls, switches branches, or resolves conflicts. If a push is
-rejected, pull and resolve it in your terminal.
+snip never switches branches or resolves conflicts. If a pull cannot merge
+cleanly, reconcile it with Git in the library directory.
 
 ### Restoring a library on another machine
 
@@ -661,6 +667,16 @@ snip git clone gitkeniwo/Main.sniplib --gh --set-default
 This is a convenience wrapper for cloning and, with `--set-default`, running
 `snip config set default-library`; it is not required. A manually cloned library
 works immediately with `snip --library ~/Main.sniplib`.
+
+Keep that restored library synchronized with later upstream commits by pulling
+them into its current branch:
+
+```bash
+snip --library ~/Main.sniplib git pull
+```
+
+The default merge mode handles both fast-forwards and cleanly diverged snippet
+changes. Use `--ff-only` when you require linear history.
 
 `.snip/` is excluded from Git and Git does not record empty directories, so a
 clone arrives without it — and without `snippets/` or `trash/` if either was

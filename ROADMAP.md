@@ -253,6 +253,15 @@ snip git clone <remote> [path] [--gh] [--set-default]
 - [x] Dropped the manual `mkdir` note from the README's "Restoring
   a library on another machine" and pointed the first-run wizard at it.
 
+### 持续同步
+
+- [x] Git 核心层支持安全的 `fetch + merge` 拉取：仓库级脏检查、工作区阶段持锁，
+  冲突时立即 `merge --abort`。
+- [x] CLI 提供 `snip git pull [--ff-only]`、稳定的人类/JSON 输出，以及快进、
+  分叉、冲突回滚和拒绝路径的集成测试。
+- [x] TUI 提供 `Ctrl-g l` 手动拉取和 `Ctrl-g U` 启动自动拉取；成功后显式重扫
+  catalog，自动拉取的前置条件拒绝保持静默。
+
 ## Sharing
 
 ### Publish a snippet as a Gist

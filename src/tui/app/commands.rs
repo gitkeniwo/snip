@@ -249,8 +249,10 @@ effect!(library_clear_filter, app => { app.filter = Default::default(); app.sear
 effect!(git_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.gist.open = false; app.git.open = true; app.refresh_git(); });
 effect!(git_message, app => app.open_git_message());
 effect!(git_fetch, app => app.spawn_fetch());
+effect!(git_pull, app => app.git_effect(crate::git::GitAction::Pull));
 effect!(git_refresh, app => app.refresh_git());
 effect!(git_auto_push, app => app.toggle_auto_push());
+effect!(git_auto_pull, app => app.toggle_auto_pull());
 effect!(git_backup_on_quit, app => app.toggle_backup_on_quit());
 effect!(git_pause, app => app.toggle_auto_backup());
 effect!(git_interval, app => app.open_auto_commit_interval());

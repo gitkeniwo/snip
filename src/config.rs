@@ -117,6 +117,8 @@ pub struct GitConfig {
     #[serde(default)]
     pub auto_push: bool,
     #[serde(default)]
+    pub auto_pull: bool,
+    #[serde(default)]
     pub backup_on_quit: bool,
     #[serde(flatten)]
     pub extra: toml::Table,
