@@ -1245,6 +1245,51 @@ fn pull_aborts_real_conflicts_and_leaves_a_parseable_clean_library() {
 }
 
 #[test]
+fn pull_reports_unrelated_histories_without_a_false_merge_recovery_hint() {
+    if !git_available() {
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let local = temporary.path().join("Local.sniplib");
+    let remote = temporary.path().join("Remote.sniplib");
+    let bare = temporary.path().join("origin.git");
+
+    Library::init(&local, Some("Local")).unwrap();
+    init_repo(&local);
+    commit_all(&local, "local initial");
+
+    Library::init(&remote, Some("Remote")).unwrap();
+    init_repo(&remote);
+    commit_all(&remote, "remote initial");
+    git_ok(
+        temporary.path(),
+        &["init", "--bare", bare.to_str().unwrap()],
+    );
+    git_ok(
+        &remote,
+        &["remote", "add", "origin", bare.to_str().unwrap()],
+    );
+    git_ok(&remote, &["push", "-u", "origin", "main"]);
+
+    git_ok(&local, &["remote", "add", "origin", bare.to_str().unwrap()]);
+    git_ok(&local, &["config", "branch.main.remote", "origin"]);
+    git_ok(&local, &["config", "branch.main.merge", "refs/heads/main"]);
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", local.to_str().unwrap(), "git", "pull"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "git merge failed: fatal: refusing to merge unrelated histories",
+        ))
+        .stderr(predicate::str::contains("could not be undone").not())
+        .stderr(predicate::str::contains("recover it with").not());
+    assert!(!local.join(".git/MERGE_HEAD").exists());
+    assert!(git_stdout(&local, &["status", "--porcelain=v2"]).is_empty());
+}
+
+#[test]
 fn pull_refuses_a_dirty_worktree_before_merging() {
     if !git_available() {
         return;

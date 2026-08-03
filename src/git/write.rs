@@ -101,6 +101,10 @@ pub fn pull(repo: &Repo, ff_only: bool) -> Result<PullOutcome> {
             .with_hint("drop --ff-only to merge, or reconcile the branches yourself with git"));
         }
         if !abort.status.success() {
+            let after_abort = status(repo)?;
+            if after_abort.state == super::RepoState::Clean && after_abort.conflicted.is_empty() {
+                return Err(SnipError::io(format!("git merge failed: {}", merge.stderr)));
+            }
             return Err(SnipError::io(format!(
                 "git merge failed and could not be undone: {}",
                 merge.stderr
