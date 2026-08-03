@@ -428,6 +428,181 @@ mod tests {
             .collect()
     }
 
+    fn assert_rows(preview: &WrappedPreview, expected: &[ExpectedRow<'_>]) {
+        assert_eq!(preview.text.lines.len(), preview.rows.len());
+        assert_eq!(preview.rows.len(), expected.len());
+        for (actual, expected) in preview.rows.iter().zip(expected) {
+            assert_eq!(actual.text, expected.text);
+            assert_eq!(actual.display_width, expected.display_width);
+            assert_eq!(actual.gutter_width, expected.gutter_width);
+            assert_eq!(actual.ends_line, expected.ends_line);
+        }
+    }
+
+    fn row(
+        text: &'static str,
+        display_width: u16,
+        gutter_width: u16,
+        ends_line: bool,
+    ) -> ExpectedRow<'static> {
+        ExpectedRow {
+            text,
+            display_width,
+            gutter_width,
+            ends_line,
+        }
+    }
+
+    fn style_at_column(line: &Line<'_>, column: u16) -> Style {
+        let mut current = 0;
+        for span in &line.spans {
+            for character in span.content.chars() {
+                let next = current + char_width(character);
+                if column < next {
+                    return span.style;
+                }
+                current = next;
+            }
+        }
+        Style::default()
+    }
+
+    #[test]
+    fn code_wraps_at_character_columns_and_preserves_row_metadata() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("abcdefghij"),
+                wrap: WrapMode::Character,
+            }],
+            4,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["abcd", "efgh", "ij"]);
+        assert_rows(
+            &preview,
+            &[
+                row("abcd", 4, 0, false),
+                row("efgh", 4, 0, false),
+                row("ij", 2, 0, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn prose_wraps_at_whitespace_and_preserves_row_metadata() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw("alpha beta gamma"),
+                wrap: WrapMode::Word,
+            }],
+            10,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["alpha ", "beta gamma"]);
+        assert_rows(
+            &preview,
+            &[row("alpha ", 6, 0, false), row("beta gamma", 10, 0, true)],
+        );
+    }
+
+    #[test]
+    fn line_number_continuations_repeat_the_rule_gutter() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::from(vec![
+                    Span::styled("12", Style::default().fg(ratatui::style::Color::Red)),
+                    Span::styled("│ ", Style::default().fg(ratatui::style::Color::Blue)),
+                    Span::raw("abcdef"),
+                ]),
+                wrap: WrapMode::Character,
+            }],
+            6,
+            true,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["12│ ab", "  │ cd", "  │ ef"]);
+        assert_rows(
+            &preview,
+            &[
+                row("12│ ab", 6, 4, false),
+                row("  │ cd", 6, 4, false),
+                row("  │ ef", 6, 4, true),
+            ],
+        );
+        assert_eq!(
+            style_at_column(&preview.text.lines[1], 0).fg,
+            Some(ratatui::style::Color::Red)
+        );
+        assert_eq!(
+            style_at_column(&preview.text.lines[1], 2).fg,
+            Some(ratatui::style::Color::Blue)
+        );
+    }
+
+    #[test]
+    fn prose_inset_is_repeated_on_continuation_rows() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::raw(" alpha beta gamma"),
+                wrap: WrapMode::Word,
+            }],
+            8,
+            true,
+        );
+
+        assert_eq!(rendered_lines(&preview), [" alpha ", " beta ", " gamma"]);
+        assert_rows(
+            &preview,
+            &[
+                row(" alpha ", 7, 1, false),
+                row(" beta ", 6, 1, false),
+                row(" gamma", 6, 1, true),
+            ],
+        );
+    }
+
+    #[test]
+    fn decorations_do_not_acquire_line_or_prose_gutters() {
+        for decoration in ["Note", "── readme ──", "────"] {
+            let preview = wrap_preview(
+                vec![PreviewLine {
+                    line: Line::raw(decoration),
+                    wrap: WrapMode::Character,
+                }],
+                20,
+                true,
+            );
+
+            assert_eq!(rendered_lines(&preview), [decoration]);
+            assert_rows(
+                &preview,
+                &[row(
+                    decoration,
+                    text_width(decoration),
+                    text_width(decoration),
+                    false,
+                )],
+            );
+        }
+    }
+
+    #[test]
+    fn empty_line_has_a_terminal_default_selection_row() {
+        let preview = wrap_preview(
+            vec![PreviewLine {
+                line: Line::default(),
+                wrap: WrapMode::Character,
+            }],
+            10,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), [""]);
+        assert_rows(&preview, &[row("", 0, 0, true)]);
+    }
+
     #[test]
     fn prose_wraps_at_words_while_code_keeps_character_columns() {
         let prose = wrap_preview(
