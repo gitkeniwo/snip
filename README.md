@@ -586,6 +586,10 @@ The importer preserves snippet and fragment UUIDs, hierarchy, tags, flags,
 timestamps, content, notes, and original lexer names. Attachments are reported
 but their private SnippetsLab relationships are not imported in format v1.
 
+A committed 2.6-format fixture under `src/importer/snippetslab/fixtures/` is
+imported by a regression test, so future format drift fails CI instead of
+surfacing as a broken user report.
+
 ## Git backup and deletion
 
 Git is optional. `snip git status` reports the branch, upstream, ahead/behind

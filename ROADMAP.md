@@ -292,7 +292,7 @@ library.
 - [ ] Import a real, current SnippetsLab library (both 1.x and 2.x exports) and
   confirm fields, folders, tags, fragments, and notes still land correctly;
   update the field mappings for any format the current decoder misses.
-- [ ] Commit a small, real-world fixture (or a sanitized dump) and a regression
+- [x] Commit a small, real-world fixture (or a sanitized dump) and a regression
   test that imports it, so future format drift fails CI instead of surfacing as
   a broken user report.
 
