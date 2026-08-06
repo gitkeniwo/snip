@@ -220,15 +220,34 @@ jobs:
           gpg --batch --yes --pinentry-mode loopback --passphrase "$PGP_PASSPHRASE" \
             --local-user "$PGP_FINGERPRINT" --armor --detach-sign "$archive"
           gpg --batch --verify "$archive.asc" "$archive"
+      - name: Prepare release assets and checksums
+        run: |
+          mkdir release-assets
+          for file in artifacts/*/*; do
+            name="${file##*/}"
+            if [ -e "release-assets/$name" ]; then
+              echo "::error::duplicate release asset name: $name"
+              exit 1
+            fi
+            cp "$file" "release-assets/$name"
+          done
+          cp "sniplab-$VERSION.tar.gz" "sniplab-$VERSION.tar.gz.asc" install.sh release-assets/
+          (
+            cd release-assets
+            sha256sum * > SHA256SUMS
+          )
+      - name: Sign SHA256SUMS
+        env:
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        run: |
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$PGP_PASSPHRASE" \
+            --local-user "$PGP_FINGERPRINT" --armor --detach-sign release-assets/SHA256SUMS
+          gpg --batch --verify release-assets/SHA256SUMS.asc release-assets/SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            sniplab-*.tar.gz
-            sniplab-*.tar.gz.asc
-            artifacts/*/*.tar.gz
-            artifacts/*/*.zip
-            artifacts/*/*.deb
-            artifacts/*/*.rpm
+            release-assets/*
           generate_release_notes: true
 
   nix:
