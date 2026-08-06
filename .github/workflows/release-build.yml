@@ -55,6 +55,12 @@ jobs:
             asset: snip-x86_64-unknown-linux-gnu
           - os: ubuntu-22.04-arm
             asset: snip-aarch64-unknown-linux-gnu
+          - os: ubuntu-24.04
+            asset: snip-x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            asset: snip-aarch64-unknown-linux-musl
+            target: aarch64-unknown-linux-musl
           - os: macos-latest
             asset: snip-aarch64-apple-darwin
           - os: macos-15-intel
@@ -67,13 +73,36 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.asset }}
+      - name: Install the musl toolchain
+        if: matrix.target != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+          rustup target add ${{ matrix.target }}
       - run: cargo build --locked --release --all-features
+        if: matrix.target == ''
+      - run: cargo build --locked --release --all-features --target ${{ matrix.target }}
+        if: matrix.target != ''
       - run: ./target/release/snip --version
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.target == ''
+      - run: ./target/${{ matrix.target }}/release/snip --version
+        if: matrix.target != ''
       - run: .\target\release\snip.exe --version
         if: runner.os == 'Windows'
+      - name: Verify the binary is statically linked
+        if: matrix.target != ''
+        run: |
+          bin="target/${{ matrix.target }}/release/snip"
+          # `ldd` gives inconsistent answers for static binaries: some implementations
+          # print a message, while others exit nonzero. Accept both, and only reject an
+          # actual list of shared-library dependencies.
+          if ldd "$bin" 2>&1 | grep -q '=>'; then
+            echo "::error::$bin is dynamically linked"
+            ldd "$bin"
+            exit 1
+          fi
       - name: Install Linux package builders
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.target == ''
         run: |
           cargo install cargo-deb --version 3.7.0 --locked
           cargo install cargo-generate-rpm --version 0.21.0 --locked
@@ -81,7 +110,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends rpm
       - name: Create portable archive (Unix)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.target == ''
         run: |
           stage="$RUNNER_TEMP/snip-archive"
           mkdir -p "$stage/man"
@@ -90,7 +119,23 @@ jobs:
           cp LICENSE README.md "$stage/"
           tar -C "$stage" -czf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" snip man LICENSE README.md
       - name: Verify portable archive (Unix)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.target == ''
+        run: |
+          tar -tzf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" > "$RUNNER_TEMP/archive.list"
+          grep -qx 'man/snip.1' "$RUNNER_TEMP/archive.list"
+          grep -qx 'LICENSE' "$RUNNER_TEMP/archive.list"
+          grep -qx 'README.md' "$RUNNER_TEMP/archive.list"
+      - name: Create portable archive (musl)
+        if: matrix.target != ''
+        run: |
+          stage="$RUNNER_TEMP/snip-archive"
+          mkdir -p "$stage/man"
+          cp target/${{ matrix.target }}/release/snip "$stage/snip"
+          cp man/*.1 "$stage/man/"
+          cp LICENSE README.md "$stage/"
+          tar -C "$stage" -czf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" snip man LICENSE README.md
+      - name: Verify portable archive (musl)
+        if: matrix.target != ''
         run: |
           tar -tzf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" > "$RUNNER_TEMP/archive.list"
           grep -qx 'man/snip.1' "$RUNNER_TEMP/archive.list"
@@ -100,12 +145,12 @@ jobs:
         if: runner.os == 'Windows'
         run: Compress-Archive -Path target/release/snip.exe -DestinationPath ${{ matrix.asset }}.zip
       - name: Create Linux packages
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.target == ''
         run: |
           cargo deb --no-build --output ${{ matrix.asset }}.deb
           cargo generate-rpm -o ${{ matrix.asset }}.rpm
       - name: Verify Linux packages
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.target == ''
         # Both builders use explicit asset lists, so a missing entry is silent.
         run: |
           pages="$(printf '%s\n' man/*.1 | wc -l)"
