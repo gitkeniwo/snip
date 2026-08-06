@@ -1,3 +1,7 @@
 # Generated from clap metadata. Keep deterministic LF endings, hide generated
 # noise on GitHub, and suppress local text diffs by default.
 man/*.1 text eol=lf linguist-generated -diff
+
+# Committed binary fixtures (Apple NSKeyedArchiver blobs). Treat as binary so
+# autocrlf never rewrites them and GitHub shows "Binary file changed".
+src/importer/snippetslab/fixtures/** -text
