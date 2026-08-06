@@ -293,8 +293,10 @@ library.
   confirm fields, folders, tags, fragments, and notes still land correctly;
   update the field mappings for any format the current decoder misses.
 - [x] Commit a small, real-world fixture (or a sanitized dump) and a regression
-  test that imports it, so future format drift fails CI instead of surfacing as
-  a broken user report.
+  test that imports it. The committed fixture mirrors the object graph of a
+  real 2.6 library (verified against one); it is rebuilt by the test builder
+  rather than captured verbatim, so it guards decoder regressions but not
+  upstream SnippetsLab format changes.
 
 ## Project homepage
 
