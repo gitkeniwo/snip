@@ -16,6 +16,15 @@ env:
   RUST_BACKTRACE: "1"
 
 jobs:
+  install-script:
+    name: install script
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: shellcheck --shell=sh install.sh
+      - run: sh -n install.sh
+      - run: sh install.sh --help
+
   quality:
     name: quality (stable)
     runs-on: ubuntu-24.04
