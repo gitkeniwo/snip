@@ -51,6 +51,26 @@ The crate is `sniplab`; the binary it installs is `snip`.
 brew install gitkeniwo/snip/snip
 ```
 
+### Install script
+
+```bash
+curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh | sh
+```
+
+The script installs `snip` to `~/.local/bin` without `sudo`. Re-run it to
+upgrade, or pass `--uninstall` to remove the binary:
+
+```bash
+curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh | sh -s -- --uninstall
+```
+
+Manual pages and shell completions are opt-in after installation:
+
+```bash
+snip man install
+snip completion bash|zsh|fish
+```
+
 ### Cargo
 
 Prebuilt binary via [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), no compilation:
@@ -67,8 +87,7 @@ cargo install sniplab
 
 ### Debian / Ubuntu
 
-For Ubuntu 24.04+, Debian 13+, and derivatives (Mint 22, Pop!_OS 24.04,
-elementary OS 8, Zorin OS 17):
+For Ubuntu 22.04+, Debian 12+, and derivatives with glibc 2.35 or newer:
 
 ```bash
 curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb
@@ -87,9 +106,9 @@ sudo dnf copr enable gitkeniwo/snip
 sudo dnf install sniplab
 ```
 
-Or grab the standalone `.rpm` from a release. This works on Fedora 40+ and the
+Or grab the standalone `.rpm` from a release. This works on Fedora 36+ and the
 Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux 10.0+, AlmaLinux 10.0+,
-Oracle Linux 10+, CentOS Stream 10+ — all of which ship glibc 2.39 or newer:
+Oracle Linux 10+, CentOS Stream 10+ — which ship glibc 2.35 or newer:
 
 ```bash
 curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm
@@ -171,8 +190,10 @@ Binaries and packages are on the
 |---|---|
 | macOS (Apple Silicon) | `snip-aarch64-apple-darwin.tar.gz` |
 | macOS (Intel) | `snip-x86_64-apple-darwin.tar.gz` |
-| Linux x86_64 | `snip-x86_64-unknown-linux-gnu.tar.gz`, `.deb`, `.rpm` |
-| Linux arm64 | `snip-aarch64-unknown-linux-gnu.tar.gz`, `.deb`, `.rpm` |
+| Linux x86_64 (GNU) | `snip-x86_64-unknown-linux-gnu.tar.gz`, `.deb`, `.rpm` |
+| Linux arm64 (GNU) | `snip-aarch64-unknown-linux-gnu.tar.gz`, `.deb`, `.rpm` |
+| Linux x86_64 (musl, static) | `snip-x86_64-unknown-linux-musl.tar.gz` |
+| Linux arm64 (musl, static) | `snip-aarch64-unknown-linux-musl.tar.gz` |
 | Windows x86_64 | `snip-x86_64-pc-windows-msvc.zip` |
 
 ```bash
@@ -194,12 +215,11 @@ For a smaller binary without the terminal browser, add `--no-default-features`.
 
 ### Notes
 
-Linux binaries are built on Ubuntu 24.04, so they need glibc 2.39 or newer.
-Older systems — RHEL/Rocky/AlmaLinux/Oracle/CentOS Stream 9 and older
-(glibc 2.34), Amazon Linux 2023 (2.34), Amazon Linux 2 (2.26), Ubuntu 22.04
-(2.35), Debian 12 (2.36), openSUSE Leap 15 (2.31) — fall short; install with
-`cargo install sniplab` there. Upgrading a `.deb`/`.rpm` means downloading the newer
-file again.
+GNU Linux archives and the `.deb` / `.rpm` packages are built on Ubuntu 22.04
+and need glibc 2.35 or newer. The static musl archives have no glibc version
+floor; the install script uses them on Linux. Copr builds from source on
+Fedora's infrastructure, so it is not affected by either binary requirement.
+Upgrading a downloaded `.deb` / `.rpm` means downloading the newer file again.
 
 Release history is in [CHANGELOG.md](CHANGELOG.md).
 

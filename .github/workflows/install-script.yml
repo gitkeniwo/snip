@@ -1,0 +1,124 @@
+name: Install script end-to-end
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published release version to test (without the leading v); blank uses latest
+        required: false
+        type: string
+      script_source:
+        description: Install script to test
+        required: true
+        default: checkout
+        type: choice
+        options:
+          - checkout
+          - published
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - macos-latest
+    env:
+      INSTALL_URL: https://github.com/gitkeniwo/snip/releases/latest/download/install.sh
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        if: inputs.script_source == 'checkout'
+      - name: Use the checked-out install script
+        if: inputs.script_source == 'checkout'
+        run: cp install.sh "$RUNNER_TEMP/install.sh"
+      - name: Download the published install script
+        if: inputs.script_source == 'published'
+        run: curl -fsSL "$INSTALL_URL" -o "$RUNNER_TEMP/install.sh"
+      - name: Install
+        run: |
+          set --
+          if [ -n "$VERSION" ]; then
+            set -- --version "$VERSION"
+          fi
+          output="$(sh "$RUNNER_TEMP/install.sh" "$@")"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -E \
+            "^installed snip [0-9]+\\.[0-9]+\\.[0-9]+ to $HOME/.local/bin/snip$"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Verify the installed binary
+        run: snip --version
+      - name: Install again
+        run: |
+          set --
+          if [ -n "$VERSION" ]; then
+            set -- --version "$VERSION"
+          fi
+          output="$(sh "$RUNNER_TEMP/install.sh" "$@")"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -E \
+            '^snip [0-9]+\.[0-9]+\.[0-9]+ is already installed$'
+      - name: Force reinstall
+        run: |
+          set --
+          if [ -n "$VERSION" ]; then
+            set -- --version "$VERSION"
+          fi
+          output="$(sh "$RUNNER_TEMP/install.sh" "$@" --force)"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -E \
+            "^installed snip [0-9]+\\.[0-9]+\\.[0-9]+ to $HOME/.local/bin/snip$"
+      - name: Refuse a downgrade
+        run: |
+          installed="$(snip --version)"
+          installed="${installed#* }"
+          IFS=. read -r major minor patch <<EOF
+          $installed
+          EOF
+          if [ "$patch" -gt 0 ]; then
+            downgrade="$major.$minor.$((patch - 1))"
+          elif [ "$minor" -gt 0 ]; then
+            downgrade="$major.$((minor - 1)).0"
+          elif [ "$major" -gt 0 ]; then
+            downgrade="$((major - 1)).0.0"
+          else
+            echo "::error::cannot derive a lower version from $installed"
+            exit 1
+          fi
+          if output="$(sh "$RUNNER_TEMP/install.sh" --version "$downgrade" 2>&1)"; then
+            echo "::error::downgrade unexpectedly succeeded"
+            exit 1
+          fi
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -Fx \
+            "refusing to downgrade snip $installed to $downgrade; pass --force to do it anyway"
+      - name: Protect an installation from another source
+        run: |
+          installed="$(snip --version)"
+          installed="${installed#* }"
+          managed_dir="$RUNNER_TEMP/managed/bin"
+          other_bin_dir="$RUNNER_TEMP/other/bin"
+          mkdir -p "$managed_dir" "$other_bin_dir"
+          cp "$HOME/.local/bin/snip" "$managed_dir/snip"
+          if output="$(PATH="$managed_dir:$PATH" sh "$RUNNER_TEMP/install.sh" \
+            --version "$installed" --bin-dir "$other_bin_dir" 2>&1)"; then
+            echo "::error::package-manager guard unexpectedly allowed replacement"
+            exit 1
+          fi
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -Fx \
+            "snip is already installed at $managed_dir/snip; upgrade it with the package manager that installed it, or pass --force to replace it with this script's copy"
+      - name: Uninstall
+        run: |
+          output="$(sh "$RUNNER_TEMP/install.sh" --uninstall)"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -Fx "removed $HOME/.local/bin/snip"
+      - name: Verify the binary was removed
+        run: test ! -e "$HOME/.local/bin/snip"
