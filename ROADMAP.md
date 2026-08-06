@@ -350,21 +350,15 @@ A curl-piped installer for platforms that have no package channel. Official
 repositories like apt will not take a new project, and `snip` has no built-in
 self-update, so the script also becomes the upgrade path.
 
-- [ ] `install.sh` fetches the release asset for the host platform and
+- [x] `install.sh` fetches the release asset for the host platform and
   architecture (`snip-<target>.tar.gz`) and installs the `snip` binary
   user-level (`~/.local/bin`), needing no `sudo`.
-- [ ] Resolve the target triple from `uname` / `uname -m` through a small
+- [x] Resolve the target triple from `uname` / `uname -m` through a small
   table, so new targets (e.g. `armv7`, `riscv64`) slot in by adding a row;
   fall back to `cargo install sniplab` with a clear message when the platform
-  has no prebuilt asset (e.g. glibc older than 2.39).
-- [ ] Install the man pages from the archive's `man/` into
-  `$XDG_DATA_HOME/man/man1` and the shell completions via
-  `snip completion bash|zsh|fish`, matching the manual routes the README
-  already documents.
-- [ ] Idempotent and upgrade-safe: re-running replaces the binary and refreshes
-  man pages and completions, prints the old and new versions, refuses to
-  downgrade, and leaves an install owned by a package manager
-  (brew / apt / dnf / nix) untouched.
-- [ ] Ship an `uninstall` mode and keep the script behind a stable URL; the
-  release tar.gz layout (`snip`, `man/`, `LICENSE`, `README.md`) is already
-  fixed, so no release-workflow change is needed for this to land.
+  has no prebuilt asset for its architecture.
+- [x] Idempotent and upgrade-safe: re-running replaces the binary, prints the
+  old and new versions, refuses to downgrade, and leaves an install owned by a
+  package manager (brew / apt / dnf / nix) untouched.
+- [x] Ship an `uninstall` mode and publish the script as a release asset behind
+  the stable `releases/latest/download/install.sh` URL.
