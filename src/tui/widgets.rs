@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::icons;
+use super::preview::PreviewTarget;
 use super::selection::{cluster_width, text_width};
 use super::theme::TuiTheme;
 use crate::domain::Snippet;
@@ -49,10 +50,10 @@ pub fn preview_block(
     focused: bool,
     theme: TuiTheme,
     snippet: Option<&Snippet>,
-    fragment_index: usize,
+    target: PreviewTarget,
     width: u16,
 ) -> Block<'static> {
-    preview_block_tinted(focused, theme, theme.accent, snippet, fragment_index, width)
+    preview_block_tinted(focused, theme, theme.accent, snippet, target, width)
 }
 
 pub fn preview_block_tinted(
@@ -60,11 +61,13 @@ pub fn preview_block_tinted(
     theme: TuiTheme,
     accent: ratatui::style::Color,
     snippet: Option<&Snippet>,
-    fragment_index: usize,
+    target: PreviewTarget,
     width: u16,
 ) -> Block<'static> {
     let mut block = pane_block_tinted("Preview", focused, theme, accent);
-    let Some(fragment) = snippet.and_then(|snippet| snippet.loaded_fragments.get(fragment_index))
+    let Some(fragment) = target
+        .fragment_index()
+        .and_then(|index| snippet.and_then(|snippet| snippet.loaded_fragments.get(index)))
     else {
         return block;
     };

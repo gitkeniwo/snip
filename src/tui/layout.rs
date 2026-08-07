@@ -1,5 +1,7 @@
 use ratatui::layout::Rect;
 
+use super::preview::PreviewTarget;
+
 #[derive(Clone, Debug, Default)]
 pub struct LayoutRects {
     pub top_bar: Rect,
@@ -8,7 +10,7 @@ pub struct LayoutRects {
     pub list: Rect,
     pub preview: Rect,
     pub preview_fragments: Rect,
-    pub fragment_rows: Vec<(u16, usize)>,
+    pub fragment_rows: Vec<(u16, PreviewTarget)>,
     pub preview_content: Rect,
 }
 

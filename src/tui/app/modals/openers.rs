@@ -252,7 +252,10 @@ impl App {
     }
 
     pub(in super::super) fn open_edit_language(&mut self) {
-        let fragment_index = self.fragment_index;
+        // The README is always Markdown, so there is nothing to pick.
+        let Some(fragment_index) = self.preview_target.fragment_index() else {
+            return;
+        };
         let Some((id, current)) = self.mutable_selected().and_then(|snippet| {
             snippet
                 .loaded_fragments
@@ -292,9 +295,10 @@ impl App {
             }
             number += 1;
         };
-        let language = snippet
-            .loaded_fragments
-            .get(self.fragment_index)
+        let language = self
+            .preview_target
+            .fragment_index()
+            .and_then(|index| snippet.loaded_fragments.get(index))
             .map(|fragment| fragment.language.as_str())
             .filter(|language| !language.is_empty())
             .or_else(|| {
@@ -319,9 +323,11 @@ impl App {
         match result {
             Ok(_) => match self.rescan() {
                 Ok(()) => {
-                    self.fragment_index = self.selected_snippet().map_or(0, |snippet| {
-                        snippet.loaded_fragments.len().saturating_sub(1)
-                    });
+                    self.preview_target = crate::tui::preview::PreviewTarget::Fragment(
+                        self.selected_snippet().map_or(0, |snippet| {
+                            snippet.loaded_fragments.len().saturating_sub(1)
+                        }),
+                    );
                     self.set_status(format!("{title} added; press e to edit"), StatusLevel::Info);
                 }
                 Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
@@ -331,7 +337,9 @@ impl App {
     }
 
     pub(in super::super) fn open_rename_fragment(&mut self) {
-        let fragment_index = self.fragment_index;
+        let Some(fragment_index) = self.preview_target.fragment_index() else {
+            return;
+        };
         let Some((id, title)) = self.selected_snippet().and_then(|snippet| {
             snippet
                 .loaded_fragments
@@ -348,7 +356,9 @@ impl App {
     }
 
     pub(in super::super) fn open_delete_fragment(&mut self) {
-        let fragment_index = self.fragment_index;
+        let Some(fragment_index) = self.preview_target.fragment_index() else {
+            return;
+        };
         let Some((id, title)) = self.selected_snippet().and_then(|snippet| {
             snippet
                 .loaded_fragments
@@ -366,9 +376,13 @@ impl App {
     }
 
     pub(in super::super) fn start_fragment_grab(&mut self) {
+        // The README is never a drag source and never a drop position.
+        let Some(index) = self.preview_target.fragment_index() else {
+            return;
+        };
         self.fragment_grab = Some(FragmentGrab {
-            origin: self.fragment_index,
-            current: self.fragment_index,
+            origin: index,
+            current: index,
         });
         self.set_status(
             "moving fragment; j/k to move, Enter to drop, Esc to cancel",

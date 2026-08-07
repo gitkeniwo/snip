@@ -64,7 +64,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         .preview
         .get(
             &snippet,
-            app.fragment_index,
+            app.preview_target,
             80,
             app.show_line_numbers,
             &app.highlighter,
@@ -76,7 +76,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         .preview
         .get(
             &snippet,
-            app.fragment_index,
+            app.preview_target,
             80,
             app.show_line_numbers,
             &app.highlighter,
@@ -88,7 +88,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         .preview
         .get(
             &snippet,
-            app.fragment_index,
+            app.preview_target,
             81,
             app.show_line_numbers,
             &app.highlighter,
@@ -100,7 +100,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         .preview
         .get(
             &snippet,
-            app.fragment_index,
+            app.preview_target,
             81,
             !app.show_line_numbers,
             &app.highlighter,
@@ -118,7 +118,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         .preview
         .get(
             &snippet,
-            app.fragment_index,
+            app.preview_target,
             81,
             !app.show_line_numbers,
             &app.highlighter,
@@ -134,7 +134,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         .preview
         .get(
             &snippet,
-            app.fragment_index,
+            app.preview_target,
             80,
             app.show_line_numbers,
             &app.highlighter,
@@ -149,7 +149,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         app.preview
             .get(
                 &snippet,
-                app.fragment_index,
+                app.preview_target,
                 80,
                 app.show_line_numbers,
                 &app.highlighter,
@@ -179,7 +179,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
     app.preview_selection.prepare(
         SelectionKey {
             snippet_id: uuid::Uuid::nil(),
-            fragment_index: app.fragment_index,
+            target: app.preview_target,
             fingerprint: snippet.fingerprint.0.clone(),
         },
         Vec::new(),

@@ -203,7 +203,10 @@ impl App {
                 match self.focus {
                     Pane::Sidebar => self.select_sidebar(index),
                     Pane::List => self.select_list(index),
-                    Pane::Preview => self.select_fragment(index),
+                    // Numbered keys address fragments; the README has no number.
+                    Pane::Preview => {
+                        self.select_fragment(crate::tui::preview::PreviewTarget::Fragment(index))
+                    }
                 }
             }
             _ => self.handle_pane_key(key),

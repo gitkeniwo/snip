@@ -2,10 +2,12 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use uuid::Uuid;
 
+use super::preview::PreviewTarget;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SelectionKey {
     pub snippet_id: Uuid,
-    pub fragment_index: usize,
+    pub target: PreviewTarget,
     pub fingerprint: String,
 }
 

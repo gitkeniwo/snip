@@ -20,7 +20,7 @@ use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
 use super::super::modal::Modal;
 use super::super::palette::PaletteState;
-use super::super::preview::PreviewCache;
+use super::super::preview::{PreviewCache, PreviewTarget};
 use super::super::selection::PreviewSelection;
 use super::super::state::{
     Filter, Pane, SearchState, SidebarState, SortMode, StatusMessage, VisibleRow,
@@ -178,7 +178,7 @@ pub struct App {
     pub visible: Vec<VisibleRow>,
     pub list_state: ListState,
     pub selected_id: Option<Uuid>,
-    pub fragment_index: usize,
+    pub preview_target: PreviewTarget,
     pub fragment_grab: Option<FragmentGrab>,
     pub preview_scroll: u16,
     pub show_line_numbers: bool,

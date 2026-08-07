@@ -37,6 +37,62 @@ themes cheap to extend.
 - [x] Curated 28 built-in base16 themes through `SPECS`, including twelve light
   themes, while retaining generated assets and hand-verifiable provenance.
 
+### README as a first-class preview item
+
+An agent asked to "put the comment in the note" wrote it to the snippet README
+instead (`Main.sniplib/snippets/Reading Experience/mdbook-settings--6aa36e89/`:
+`README.md` present, `notes/` empty). That was arguably the right call — the
+prose describes all four fragments and the build command, so no single fragment
+owns it — but the confusion is real, and it is a presentation problem, not a
+data-model one. The two slots differ in cardinality and cannot merge: a note
+attaches to *one* fragment (N fragments, up to N notes), a README describes the
+*whole* snippet (at most one). FORMAT.md already discriminates them downstream
+— `include_notes` / `include_readme` on the gist remote record, and `--field
+note` / `--field readme` in search — so collapsing them would lose two working
+knobs and leave snippet-level prose with nowhere to live.
+
+What is actually wrong is that the README is invisible as a *thing*.
+`compose_preview` (`src/tui/preview/layout.rs:70`) appends it below whichever
+fragment is on screen, under a `── readme ──` rule, so it reads as a trailing
+part of that fragment and repeats itself on every fragment switch. Nothing in
+the snippet list or the fragment line says a README exists, so the author
+cannot tell where their prose landed.
+
+The fix is to promote the README to a first-class *navigation* item without
+making it a fragment — the manifest, the fingerprint, and `snip fragment`
+stay untouched. The model is the GitHub Gist one: `README.md` is just a file
+that sorts to the bottom of the file list, with no decoration of its own.
+Tracks `docs/plans/readme-preview-item.md`, which fixes the exact rendering,
+the action gating, and the strings.
+
+- [x] Replace `App.fragment_index: usize` with a
+  `PreviewTarget { Fragment(usize), Readme }` enum, threaded through the
+  preview cache key and `SelectionKey`. The enum is the point: it makes the
+  compiler enumerate every fragment-scoped action and force an answer for the
+  README case, where a sentinel index would turn each one into a silent no-op.
+- [x] Turn `PreviewDocument` (`src/tui/preview/cache.rs:11`) into an enum, so
+  the appended README tail in `compose_preview`
+  (`src/tui/preview/layout.rs:70`) is not merely deleted but unrepresentable.
+  The `── readme ──` rule goes with it — the tree row is the label.
+- [x] Add the README as the last row of the fragment tree
+  (`draw_fragment_tree`, `src/tui/preview/render.rs:564`), labelled
+  `README.md`, with a blank index column and excluded from the header count
+  and from `current/total` in `make_fragment_line` (`:373`). The collapsed
+  line for a README target reads `+ README.md  ·  38 L` — no `x/y`, since the
+  README is not in the fragment count.
+- [x] Wrap `[` / `]` fragment switching around the ends, so `[` from the first
+  fragment lands directly on the README. With one to five fragments, clamping
+  at the boundary signals nothing worth keeping.
+- [x] The row is drawn only when a README exists; nothing takes its place
+  otherwise. `snippet.edit-readme` already covers creation from the palette
+  (`src/tui/command/registry.rs:55`), and a placeholder would be the only
+  action row in a tree of content rows. No `+r` marker either — once the
+  README has its own row, the row's presence is the indicator.
+- [ ] Independently, state the choosing rule in one line in `skills/snip` and
+  the `snip create` help: prose about *this one file* is a note, prose about
+  *the set* is the README. `snip create --note` silently targets the single
+  fragment it creates, which is what made the agent reach for `--readme`.
+
 ### User-defined key bindings
 
 - [ ] Make every TUI action rebindable through the config file, with the

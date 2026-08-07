@@ -23,6 +23,7 @@ use snip::tui::event::AppEvent;
 use snip::tui::highlight::Highlighter;
 use snip::tui::icons::IconMode;
 use snip::tui::modal::{InputModal, Modal, ModalAction};
+use snip::tui::preview::PreviewTarget;
 use snip::tui::state::{Pane, SidebarItem, SortMode};
 use snip::tui::theme::{Appearance, TuiTheme};
 use snip::{AppConfig, GitConfig, Library, TuiConfig, TuiDensitySetting, TuiThemeSetting};
@@ -972,7 +973,7 @@ fn every_builtin_theme_renders_legible_text_in_every_focus_state() {
     }
     let mut app = App::new(library, &AppConfig::default()).unwrap();
     app.fragments_expanded = true;
-    app.fragment_index = 1;
+    app.preview_target = PreviewTarget::Fragment(1);
     let backend = TestBackend::new(100, 30);
     let mut terminal = Terminal::new(backend).unwrap();
 
@@ -1156,14 +1157,14 @@ fn arrows_sort_and_mouse_use_the_rendered_layout() {
         .layout
         .fragment_rows
         .iter()
-        .find_map(|(y, index)| (*index == 1).then_some(*y))
+        .find_map(|(y, target)| (*target == PreviewTarget::Fragment(1)).then_some(*y))
         .unwrap();
     let _ = app.handle_mouse(mouse(
         MouseEventKind::Down(MouseButton::Left),
         app.layout.preview_fragments.x,
         row,
     ));
-    assert_eq!(app.fragment_index, 1);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(1));
     let _ = app.handle_mouse(mouse(
         MouseEventKind::ScrollDown,
         app.layout.preview_content.x,
@@ -1204,7 +1205,7 @@ fn the_fragment_list_costs_one_row_collapsed_and_grows_when_expanded() {
     assert_eq!(app.layout.preview_fragments.height, 1);
 
     app.fragments_expanded = true;
-    app.fragment_index = 1;
+    app.preview_target = PreviewTarget::Fragment(1);
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
@@ -1216,13 +1217,13 @@ fn the_fragment_list_costs_one_row_collapsed_and_grows_when_expanded() {
         .layout
         .fragment_rows
         .iter()
-        .find_map(|(y, index)| (*index == 1).then_some(*y))
+        .find_map(|(y, target)| (*target == PreviewTarget::Fragment(1)).then_some(*y))
         .unwrap();
     let last_y = app
         .layout
         .fragment_rows
         .iter()
-        .find_map(|(y, index)| (*index == 2).then_some(*y))
+        .find_map(|(y, target)| (*target == PreviewTarget::Fragment(2)).then_some(*y))
         .unwrap();
     assert!(row_text(terminal.backend().buffer(), selected_y).contains("├>"));
     assert!(row_text(terminal.backend().buffer(), last_y).contains("└─"));
@@ -1285,7 +1286,7 @@ fn a_single_fragment_can_expand_but_an_empty_preview_cannot_toggle() {
             .contains("- fragment  1")
     );
     assert_eq!(app.layout.fragment_rows.len(), 1);
-    assert_eq!(app.layout.fragment_rows[0].1, 0);
+    assert_eq!(app.layout.fragment_rows[0].1, PreviewTarget::Fragment(0));
 
     app.handle_key(key(KeyCode::Char('-')));
     assert!(!app.fragments_expanded);
@@ -1351,7 +1352,7 @@ fn clicking_a_fragment_row_selects_it_and_clicking_the_header_collapses() {
         .layout
         .fragment_rows
         .iter()
-        .find_map(|(y, index)| (*index == 2).then_some(*y))
+        .find_map(|(y, target)| (*target == PreviewTarget::Fragment(2)).then_some(*y))
         .unwrap();
 
     let _ = app.handle_mouse(mouse(
@@ -1359,7 +1360,7 @@ fn clicking_a_fragment_row_selects_it_and_clicking_the_header_collapses() {
         app.layout.preview_fragments.x,
         row,
     ));
-    assert_eq!(app.fragment_index, 2);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(2));
     let _ = app.handle_mouse(mouse(
         MouseEventKind::Down(MouseButton::Left),
         app.layout.preview_fragments.x,
@@ -1385,7 +1386,7 @@ fn the_expanded_list_scrolls_to_keep_the_selected_fragment_visible() {
         .unwrap();
     }
     let mut app = App::new(library, &AppConfig::default()).unwrap();
-    app.fragment_index = 19;
+    app.preview_target = PreviewTarget::Fragment(19);
     app.fragments_expanded = true;
     let backend = TestBackend::new(100, 30);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -1397,7 +1398,7 @@ fn the_expanded_list_scrolls_to_keep_the_selected_fragment_visible() {
         app.layout
             .fragment_rows
             .iter()
-            .any(|(_, index)| *index == 19)
+            .any(|(_, target)| *target == PreviewTarget::Fragment(19))
     );
 }
 
@@ -2708,7 +2709,7 @@ fn edit_language_only_changes_the_current_fragment() {
     .unwrap();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
     app.focus = Pane::Preview;
-    app.fragment_index = 1;
+    app.preview_target = PreviewTarget::Fragment(1);
 
     app.handle_key(key(KeyCode::Char('f')));
     for character in "typescript".chars() {
@@ -3599,15 +3600,15 @@ fn digit_keys_jump_to_items_or_fragments_in_panes() {
     app.refresh_visible();
     app.focus = Pane::Preview;
 
-    assert_eq!(app.fragment_index, 0);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
 
     // Jump to 2nd fragment
     app.handle_key(key(KeyCode::Char('2')));
-    assert_eq!(app.fragment_index, 1);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(1));
 
     // Jump back to 1st fragment
     app.handle_key(key(KeyCode::Char('1')));
-    assert_eq!(app.fragment_index, 0);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
 }
 
 fn command_state(app: &App, id: CommandId) -> snip::tui::command::CommandState {
@@ -3695,11 +3696,11 @@ fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
     assert_eq!(snippet.loaded_fragments[1].title, "Fragment 2");
     assert_eq!(snippet.loaded_fragments[1].language, "rust");
     assert!(snippet.loaded_fragments[1].content.is_empty());
-    assert_eq!(app.fragment_index, 1);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(1));
 
     remove_fragment(&app.library, &first_id.to_string(), "2", None, false).unwrap();
     app.rescan().unwrap();
-    app.fragment_index = 0;
+    app.preview_target = PreviewTarget::Fragment(0);
     app.handle_key(key(KeyCode::Char('n')));
     assert_eq!(
         app.selected_snippet().unwrap().loaded_fragments[1].title,
@@ -3761,7 +3762,7 @@ fn fragment_grab_clamps_cancels_without_writes_and_drops_once() {
     assert_eq!(app.fragment_grab.unwrap().current, 2);
     app.handle_key(key(KeyCode::Enter));
     assert!(app.fragment_grab.is_none());
-    assert_eq!(app.fragment_index, 2);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(2));
     assert_eq!(
         app.selected_snippet().unwrap().loaded_fragments[2].title,
         "Fragment"
@@ -3788,7 +3789,7 @@ fn fragment_rename_and_delete_use_one_based_selectors_and_clamp_selection() {
     app.selected_id = Some(first_id);
     app.focus = Pane::Preview;
     app.fragments_expanded = true;
-    app.fragment_index = 1;
+    app.preview_target = PreviewTarget::Fragment(1);
 
     app.handle_key(key(KeyCode::Char('r')));
     let Some(Modal::Input(modal)) = app.modal.as_mut() else {
@@ -3803,12 +3804,12 @@ fn fragment_rename_and_delete_use_one_based_selectors_and_clamp_selection() {
         "Renamed"
     );
 
-    app.fragment_index = 2;
+    app.preview_target = PreviewTarget::Fragment(2);
     app.handle_key(key(KeyCode::Char('d')));
     assert!(matches!(app.modal, Some(Modal::Confirm(_))));
     app.handle_key(key(KeyCode::Enter));
     assert_eq!(app.selected_snippet().unwrap().loaded_fragments.len(), 2);
-    assert_eq!(app.fragment_index, 1);
+    assert_eq!(app.preview_target, PreviewTarget::Fragment(1));
 }
 
 #[test]

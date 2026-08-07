@@ -12,6 +12,11 @@ use super::super::selection::{SelectionKey, text_width};
 use super::super::state::Pane;
 use super::super::theme::TuiTheme;
 use super::super::widgets;
+use super::{PreviewTarget, has_readme};
+
+/// The tree row and status-line label for snippet-level prose. It is the
+/// filename the gist publisher writes, and it is its own icon.
+const README_LABEL: &str = "README.md";
 
 const FRAGMENT_LIST_MAX_ROWS: usize = 12;
 const PREVIEW_MIN_CONTENT_ROWS: u16 = 3;
@@ -36,7 +41,7 @@ pub fn draw_preview_of(
         app.theme,
         accent,
         snippet.as_ref(),
-        app.fragment_index,
+        app.preview_target,
         area.width,
     );
     let inner = block.inner(area);
@@ -55,7 +60,10 @@ pub fn draw_preview_of(
     let total_fragments = snippet.loaded_fragments.len();
     let expanded = app.fragments_expanded && total_fragments > 0;
     let fragment_rows = if expanded {
-        let wanted = 1 + total_fragments.min(FRAGMENT_LIST_MAX_ROWS) as u16;
+        // Sized on rows, not fragments: a snippet at the cap must not lose its
+        // README row silently.
+        let rows = total_fragments + usize::from(has_readme(&snippet));
+        let wanted = 1 + rows.min(FRAGMENT_LIST_MAX_ROWS) as u16;
         let fixed = 2 + u16::from(has_tags) + 1;
         let budget = inner
             .height
@@ -114,7 +122,7 @@ pub fn draw_preview_of(
     let mut preview_cache = std::mem::take(&mut app.preview);
     match preview_cache.get(
         &snippet,
-        app.fragment_index,
+        app.preview_target,
         content_area.width.max(1),
         app.show_line_numbers,
         &app.highlighter,
@@ -123,7 +131,7 @@ pub fn draw_preview_of(
         Ok((rendered, rebuilt)) => {
             let selection_key = SelectionKey {
                 snippet_id: snippet.id,
-                fragment_index: app.fragment_index,
+                target: app.preview_target,
                 fingerprint: snippet.fingerprint.0.clone(),
             };
             if rebuilt || !app.preview_selection.is_prepared_for(&selection_key) {
@@ -372,11 +380,14 @@ struct FragmentLineOptions {
 
 fn make_fragment_line(
     theme: TuiTheme,
-    current_index: usize,
+    target: PreviewTarget,
     snippet: &Snippet,
     options: FragmentLineOptions,
 ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
     let total = snippet.loaded_fragments.len();
+    let Some(current_index) = target.fragment_index() else {
+        return make_readme_line(theme, snippet, options);
+    };
     let current = current_index.saturating_add(1).min(total);
     let fragment = snippet.loaded_fragments.get(current_index);
     let mut left = vec![Span::styled(
@@ -431,32 +442,83 @@ fn make_fragment_line(
         }
     }
     let hint = if options.hint && total > 0 {
-        vec![
-            Span::styled(
-                "[ ]",
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" switch", Style::default().fg(theme.muted)),
-            Span::raw("  "),
-            Span::styled(
-                "=",
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" expand", Style::default().fg(theme.muted)),
-        ]
+        switch_and_expand_hint(theme)
     } else {
         Vec::new()
     };
     (left, hint)
 }
 
+/// The README's collapsed line. It carries no `x/y` counter — the README is
+/// outside the fragment count, so there is no position to report — no note
+/// marker, and no language badge.
+fn make_readme_line(
+    theme: TuiTheme,
+    snippet: &Snippet,
+    options: FragmentLineOptions,
+) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+    let mut left = vec![Span::styled(
+        "+ ",
+        Style::default()
+            .fg(theme.warning)
+            .add_modifier(Modifier::BOLD),
+    )];
+    if options.title {
+        left.push(Span::styled(
+            options.title_width.map_or_else(
+                || README_LABEL.to_owned(),
+                |width| widgets::truncate_end(README_LABEL, width),
+            ),
+            Style::default()
+                .fg(theme.bar_fg)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+    if options.lines {
+        left.push(Span::styled("  ·  ", Style::default().fg(theme.rule)));
+        left.push(Span::styled(
+            snippet
+                .readme
+                .as_deref()
+                .unwrap_or_default()
+                .lines()
+                .count()
+                .to_string(),
+            Style::default().fg(theme.accent),
+        ));
+        left.push(Span::styled(" L", Style::default().fg(theme.muted)));
+    }
+    let hint = if options.hint {
+        switch_and_expand_hint(theme)
+    } else {
+        Vec::new()
+    };
+    (left, hint)
+}
+
+fn switch_and_expand_hint(theme: TuiTheme) -> Vec<Span<'static>> {
+    vec![
+        Span::styled(
+            "[ ]",
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" switch", Style::default().fg(theme.muted)),
+        Span::raw("  "),
+        Span::styled(
+            "=",
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" expand", Style::default().fg(theme.muted)),
+    ]
+}
+
 fn fragment_line_spans(
     theme: TuiTheme,
-    current_index: usize,
+    target: PreviewTarget,
     snippet: &Snippet,
     width: u16,
 ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
@@ -468,45 +530,43 @@ fn fragment_line_spans(
         title_width: None,
     };
     let fits = |left: &[Span<'_>], hint: &[Span<'_>]| spans_fit_with_gap(left, hint, width);
-    let mut parts = make_fragment_line(theme, current_index, snippet, options);
+    let mut parts = make_fragment_line(theme, target, snippet, options);
     if !fits(&parts.0, &parts.1) {
         options.hint = false;
-        parts = make_fragment_line(theme, current_index, snippet, options);
+        parts = make_fragment_line(theme, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
         options.note = false;
-        parts = make_fragment_line(theme, current_index, snippet, options);
+        parts = make_fragment_line(theme, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
         options.lines = false;
-        parts = make_fragment_line(theme, current_index, snippet, options);
+        parts = make_fragment_line(theme, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
-        let title_width = parts
-            .0
-            .iter()
-            .find(|span| span.content.as_ref() == " · ")
-            .map_or(8, |_| {
-                let natural = snippet
-                    .loaded_fragments
-                    .get(current_index)
-                    .map(fragment_label)
-                    .map_or(8, |label| text_width(&label) as usize);
-                let without_title = spans_width(&parts.0).saturating_sub(natural as u16);
-                usize::from(width.saturating_sub(without_title)).max(8)
-            });
-        options.title_width = Some(title_width);
-        parts = make_fragment_line(theme, current_index, snippet, options);
+        // Measured from the label this target actually renders, not from a
+        // separator literal: the README's separator is not the fragment's.
+        let natural = match target {
+            PreviewTarget::Fragment(index) => snippet
+                .loaded_fragments
+                .get(index)
+                .map(fragment_label)
+                .map_or(8, |label| text_width(&label) as usize),
+            PreviewTarget::Readme => text_width(README_LABEL) as usize,
+        };
+        let without_title = spans_width(&parts.0).saturating_sub(natural as u16);
+        options.title_width = Some(usize::from(width.saturating_sub(without_title)).max(8));
+        parts = make_fragment_line(theme, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
         options.title = false;
-        parts = make_fragment_line(theme, current_index, snippet, options);
+        parts = make_fragment_line(theme, target, snippet, options);
     }
     parts
 }
 
 fn draw_fragment_line(frame: &mut Frame<'_>, app: &App, snippet: &Snippet, area: Rect) {
-    let (left, hint) = fragment_line_spans(app.theme, app.fragment_index, snippet, area.width);
+    let (left, hint) = fragment_line_spans(app.theme, app.preview_target, snippet, area.width);
     frame.render_widget(Paragraph::new(Line::from(left)), area);
     if !hint.is_empty() {
         frame.render_widget(
@@ -591,7 +651,9 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
         ),
         Span::styled(" collapse", Style::default().fg(app.theme.muted)),
     ];
-    let switch_hint = if total > 1 {
+    let readme = has_readme(snippet);
+    let rows = total + usize::from(readme);
+    let switch_hint = if rows > 1 {
         vec![
             Span::styled(
                 "[ ]",
@@ -654,18 +716,35 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
         }
     }
 
+    let readme_lines = if readme {
+        snippet
+            .readme
+            .as_deref()
+            .unwrap_or_default()
+            .lines()
+            .count()
+    } else {
+        0
+    };
     let visible = area.height.saturating_sub(1) as usize;
-    let selected_display = app
-        .fragment_grab
-        .map_or(app.fragment_index, |grab| grab.current);
+    let selected_display = app.fragment_grab.map_or_else(
+        || match app.preview_target {
+            PreviewTarget::Fragment(index) => index,
+            PreviewTarget::Readme => total,
+        },
+        |grab| grab.current,
+    );
     let scroll = selected_display
         .saturating_sub(visible.saturating_sub(1))
-        .min(total.saturating_sub(visible));
+        .min(rows.saturating_sub(visible));
+    // The README has no number and must not widen the index column.
     let idx_width = total.to_string().len();
     let line_width = snippet
         .loaded_fragments
         .iter()
-        .map(|fragment| fragment.content.lines().count().to_string().len())
+        .map(|fragment| fragment.content.lines().count())
+        .chain(readme.then_some(readme_lines))
+        .map(|count| count.to_string().len())
         .max()
         .unwrap_or(1)
         .max(3);
@@ -674,6 +753,7 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
         .iter()
         .map(fragment_label)
         .map(|label| text_width(&label) as usize)
+        .chain(readme.then(|| text_width(README_LABEL) as usize))
         .max()
         .unwrap_or(8);
     let columns = fragment_tree_columns(area.width, idx_width, line_width, natural_title_width);
@@ -682,26 +762,41 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
         || (0..total).collect(),
         |grab| super::super::app::types::grab_order(total, grab.origin, grab.current),
     );
-    for (screen_index, display) in (scroll..scroll.saturating_add(visible).min(total)).enumerate() {
-        let index = order[display];
-        let fragment = &snippet.loaded_fragments[index];
+    for (screen_index, display) in (scroll..scroll.saturating_add(visible).min(rows)).enumerate() {
+        // The README is always the last row, and is never grabbed or reordered.
+        let is_readme = display == total;
+        let target = if is_readme {
+            PreviewTarget::Readme
+        } else {
+            PreviewTarget::Fragment(order[display])
+        };
+        let fragment = target
+            .fragment_index()
+            .map(|index| &snippet.loaded_fragments[index]);
         let grabbed = app
             .fragment_grab
-            .is_some_and(|grab| display == grab.current);
-        let selected = app.fragment_grab.is_none() && index == app.fragment_index;
-        let last = display == total.saturating_sub(1);
+            .is_some_and(|grab| !is_readme && display == grab.current);
+        let selected = app.fragment_grab.is_none() && target == app.preview_target;
+        let last = display == rows.saturating_sub(1);
         let connector = match (last, selected || grabbed) {
             (true, true) => "└>",
             (true, false) => "└─",
             (false, true) => "├>",
             (false, false) => "├─",
         };
-        let label = widgets::truncate_end(&fragment_label(fragment), columns.title_width);
+        let index_column = match target {
+            PreviewTarget::Fragment(_) => format!("{display:>idx_width$}", display = display + 1),
+            PreviewTarget::Readme => " ".repeat(idx_width),
+        };
+        let label = widgets::truncate_end(
+            &fragment.map_or_else(|| README_LABEL.to_owned(), fragment_label),
+            columns.title_width,
+        );
         let label_padding = columns
             .title_width
             .saturating_sub(text_width(&label) as usize);
-        let badge = icons::language_badge(&fragment.language);
-        let line_count = fragment.content.lines().count();
+        let badge = fragment.map_or("md", |fragment| icons::language_badge(&fragment.language));
+        let line_count = fragment.map_or(readme_lines, |fragment| fragment.content.lines().count());
         let mut spans = vec![
             Span::raw("  "),
             Span::styled(
@@ -722,7 +817,7 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
             ),
             Span::raw(" "),
             Span::styled(
-                format!("{display:>idx_width$}", display = display + 1),
+                index_column,
                 Style::default()
                     .fg(if grabbed {
                         app.theme.accent_alt
@@ -756,7 +851,7 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
             spans.push(Span::styled(" L", Style::default().fg(app.theme.muted)));
         }
         if columns.note {
-            spans.push(if fragment_has_note(fragment) {
+            spans.push(if fragment.is_some_and(fragment_has_note) {
                 Span::styled(
                     "  +n",
                     Style::default()
@@ -782,7 +877,7 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
             }
         }
         let y = area.y.saturating_add(1 + screen_index as u16);
-        app.layout.fragment_rows.push((y, index));
+        app.layout.fragment_rows.push((y, target));
         frame.render_widget(
             Paragraph::new(Line::from(spans)),
             Rect {
@@ -836,7 +931,8 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        fragment_label, fragment_line_spans, fragment_tree_columns, spans_fit_with_gap, spans_width,
+        PreviewTarget, README_LABEL, fragment_label, fragment_line_spans, fragment_tree_columns,
+        spans_fit_with_gap, spans_width,
     };
     use crate::domain::{Fingerprint, Fragment, FragmentManifest, Snippet, SnippetManifest};
     use crate::tui::theme::TuiTheme;
@@ -914,22 +1010,32 @@ mod tests {
     fn a_narrow_fragment_line_drops_hint_then_note_then_metadata() {
         let snippet = snippet();
         let theme = TuiTheme::from(&crate::theme::load("dark-default").unwrap());
-        let (full_left, full_hint) = fragment_line_spans(theme, 0, &snippet, u16::MAX);
+        let (full_left, full_hint) =
+            fragment_line_spans(theme, PreviewTarget::Fragment(0), &snippet, u16::MAX);
         let full_width = spans_width(&full_left) + 2 + spans_width(&full_hint);
         assert!(!text(&full_left).contains("md"));
 
-        let (without_hint, hint) = fragment_line_spans(theme, 0, &snippet, full_width - 1);
+        let (without_hint, hint) =
+            fragment_line_spans(theme, PreviewTarget::Fragment(0), &snippet, full_width - 1);
         assert!(hint.is_empty());
         assert!(text(&without_hint).contains("+n"));
         assert!(text(&without_hint).contains(" L"));
 
-        let (without_note, _) =
-            fragment_line_spans(theme, 0, &snippet, spans_width(&without_hint) - 1);
+        let (without_note, _) = fragment_line_spans(
+            theme,
+            PreviewTarget::Fragment(0),
+            &snippet,
+            spans_width(&without_hint) - 1,
+        );
         assert!(!text(&without_note).contains("+n"));
         assert!(text(&without_note).contains(" L"));
 
-        let (without_lines, _) =
-            fragment_line_spans(theme, 0, &snippet, spans_width(&without_note) - 1);
+        let (without_lines, _) = fragment_line_spans(
+            theme,
+            PreviewTarget::Fragment(0),
+            &snippet,
+            spans_width(&without_note) - 1,
+        );
         assert!(!text(&without_lines).contains(" L"));
         assert!(text(&without_lines).contains("output-contract"));
     }
@@ -1062,6 +1168,72 @@ mod tests {
             metadata_row.contains("01234567"),
             "metadata row: {metadata_row:?}"
         );
+    }
+
+    /// The README sorts to the bottom like a gist file, carries no index, and
+    /// is not counted in the header.
+    #[test]
+    fn readme_row_is_last_and_unnumbered() {
+        let mut snippet = snippet();
+        snippet
+            .loaded_fragments
+            .push(fragment("third", "fragments/003-third.md", false));
+        snippet.readme = Some("prose\n".repeat(38));
+
+        let rows = preview_rows(snippet, 60, true);
+        let header = rows
+            .iter()
+            .find(|row| row.contains("fragments"))
+            .expect("the tree header");
+        assert!(header.contains(" 3"), "header: {header:?}");
+        let tree = rows
+            .iter()
+            .filter(|row| row.contains('├') || row.contains('└'))
+            .collect::<Vec<_>>();
+        assert_eq!(tree.len(), 4, "rows: {rows:#?}");
+        let last = tree[3];
+        assert!(last.contains(README_LABEL), "readme row: {last:?}");
+        assert!(last.contains("38 L"), "readme row: {last:?}");
+        // The index column is blank: the README is neither numbered nor counted.
+        let connector = last.find('└').expect("the readme connector");
+        assert!(
+            last[connector..].starts_with("└─   "),
+            "readme row: {last:?}"
+        );
+    }
+
+    #[test]
+    fn no_readme_row_without_a_readme() {
+        let mut snippet = snippet();
+        snippet.readme = None;
+        snippet
+            .loaded_fragments
+            .push(fragment("third", "fragments/003-third.md", false));
+
+        let rows = preview_rows(snippet, 60, true);
+        let tree = rows
+            .iter()
+            .filter(|row| row.contains('├') || row.contains('└'))
+            .count();
+        assert_eq!(tree, 3, "rows: {rows:#?}");
+    }
+
+    #[test]
+    fn readme_status_line() {
+        let mut snippet = snippet();
+        snippet.readme = Some("prose\n".repeat(38));
+        let theme = TuiTheme::from(&crate::theme::load("dark-default").unwrap());
+
+        let (left, _) = fragment_line_spans(theme, PreviewTarget::Readme, &snippet, u16::MAX);
+        assert_eq!(text(&left), "+ README.md  ·  38 L");
+
+        // Narrowing drops the count, then truncates, but never mangles a label
+        // that still fits: the width budget is measured from `README.md`, not
+        // from the fragment line's separator.
+        for width in 11..20 {
+            let (left, _) = fragment_line_spans(theme, PreviewTarget::Readme, &snippet, width);
+            assert_eq!(text(&left), "+ README.md", "width {width}");
+        }
     }
 
     #[test]
