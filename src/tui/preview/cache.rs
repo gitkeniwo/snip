@@ -5,8 +5,8 @@ use crate::error::Result;
 
 use super::super::highlight::Highlighter;
 use super::super::theme::TuiTheme;
-use super::PreviewTarget;
 use super::layout::{WrappedPreview, compose_preview, wrap_preview};
+use super::{PreviewTarget, has_readme};
 
 /// The preview pane's content, in exactly one of its three shapes. Parallel
 /// fields would let a fragment body carry a README tail; this enum cannot.
@@ -79,12 +79,15 @@ fn build(
     theme: TuiTheme,
 ) -> Result<PreviewDocument> {
     let Some(fragment_index) = target.fragment_index() else {
-        return Ok(snippet
-            .readme
-            .as_deref()
-            .map_or(PreviewDocument::Empty, |readme| {
-                PreviewDocument::Readme(highlighter.markdown(readme, theme))
-            }));
+        // Gated on `has_readme`, the same predicate the tree row and the
+        // switching order use, so an empty README is absent everywhere.
+        return Ok(if has_readme(snippet) {
+            PreviewDocument::Readme(
+                highlighter.markdown(snippet.readme.as_deref().unwrap_or_default(), theme),
+            )
+        } else {
+            PreviewDocument::Empty
+        });
     };
     let Some(fragment) = snippet.loaded_fragments.get(fragment_index) else {
         return Ok(PreviewDocument::Empty);
@@ -190,11 +193,16 @@ mod tests {
         assert!(plain(&text).contains("snippet level prose"));
     }
 
+    /// An empty README is no README, on the same predicate the tree row and the
+    /// switching order use.
     #[test]
-    fn a_missing_readme_builds_an_empty_document() {
+    fn a_missing_or_empty_readme_builds_an_empty_document() {
         let (highlighter, theme) = highlighter();
-        let document = build(&snippet(None), PreviewTarget::Readme, &highlighter, theme).unwrap();
-        assert!(matches!(document, PreviewDocument::Empty));
+        for readme in [None, Some("")] {
+            let document =
+                build(&snippet(readme), PreviewTarget::Readme, &highlighter, theme).unwrap();
+            assert!(matches!(document, PreviewDocument::Empty), "{readme:?}");
+        }
     }
 
     #[test]

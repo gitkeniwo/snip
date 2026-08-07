@@ -544,20 +544,18 @@ fn fragment_line_spans(
         parts = make_fragment_line(theme, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
-        let title_width = parts
-            .0
-            .iter()
-            .find(|span| span.content.as_ref() == " · ")
-            .map_or(8, |_| {
-                let natural = target
-                    .fragment_index()
-                    .and_then(|index| snippet.loaded_fragments.get(index))
-                    .map(fragment_label)
-                    .map_or(8, |label| text_width(&label) as usize);
-                let without_title = spans_width(&parts.0).saturating_sub(natural as u16);
-                usize::from(width.saturating_sub(without_title)).max(8)
-            });
-        options.title_width = Some(title_width);
+        // Measured from the label this target actually renders, not from a
+        // separator literal: the README's separator is not the fragment's.
+        let natural = match target {
+            PreviewTarget::Fragment(index) => snippet
+                .loaded_fragments
+                .get(index)
+                .map(fragment_label)
+                .map_or(8, |label| text_width(&label) as usize),
+            PreviewTarget::Readme => text_width(README_LABEL) as usize,
+        };
+        let without_title = spans_width(&parts.0).saturating_sub(natural as u16);
+        options.title_width = Some(usize::from(width.saturating_sub(without_title)).max(8));
         parts = make_fragment_line(theme, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
@@ -1228,6 +1226,14 @@ mod tests {
 
         let (left, _) = fragment_line_spans(theme, PreviewTarget::Readme, &snippet, u16::MAX);
         assert_eq!(text(&left), "+ README.md  ·  38 L");
+
+        // Narrowing drops the count, then truncates, but never mangles a label
+        // that still fits: the width budget is measured from `README.md`, not
+        // from the fragment line's separator.
+        for width in 11..20 {
+            let (left, _) = fragment_line_spans(theme, PreviewTarget::Readme, &snippet, width);
+            assert_eq!(text(&left), "+ README.md", "width {width}");
+        }
     }
 
     #[test]
