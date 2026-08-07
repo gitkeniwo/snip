@@ -1,11 +1,8 @@
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
-
 use crate::service::restore_snippet;
 
-use super::super::command::CommandId;
 use super::super::modal::{ConfirmModal, Modal, ModalAction};
 use super::super::state::{SidebarItem, StatusLevel};
-use super::types::{App, Effect};
+use super::types::App;
 
 impl App {
     pub(super) fn open_trash(&mut self) {
@@ -51,29 +48,6 @@ impl App {
                 .unwrap_or_default();
             Some(snippet)
         });
-    }
-
-    pub(super) fn handle_trash_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            KeyCode::Char('q') => return self.request_quit(),
-            KeyCode::Esc | KeyCode::Char('T') => self.leave_trash(),
-            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
-            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
-            KeyCode::Char('g') | KeyCode::Home => {
-                return self.run_command(CommandId::NavFirst);
-            }
-            KeyCode::Char('G') | KeyCode::End => {
-                return self.run_command(CommandId::NavLast);
-            }
-            KeyCode::Enter | KeyCode::Char('u') => {
-                return self.run_command(crate::tui::command::CommandId::TrashRestoreSelected);
-            }
-            KeyCode::Char('x') => {
-                return self.run_command(crate::tui::command::CommandId::TrashPurgeSelected);
-            }
-            _ => {}
-        }
-        Vec::new()
     }
 
     pub(super) fn restore_selected_trash(&mut self) {

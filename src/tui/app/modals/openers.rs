@@ -35,18 +35,6 @@ impl App {
         self.modal = Some(Modal::Picker(picker));
     }
 
-    pub(in super::super) fn open_new_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentAdd);
-            return;
-        }
-        if self.focus != Pane::Sidebar {
-            let _ = self.run_command(crate::tui::command::CommandId::SnippetNew);
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::FolderNew);
-    }
-
     pub(in super::super) fn open_new_snippet(&mut self) {
         self.modal = Some(Modal::Input(InputModal::new(
             "Title",
@@ -77,18 +65,6 @@ impl App {
                 parent: parent.unwrap_or_default(),
             },
         )));
-    }
-
-    pub(in super::super) fn open_delete_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentRemove);
-            return;
-        }
-        if self.focus == Pane::Sidebar {
-            let _ = self.run_command(crate::tui::command::CommandId::SidebarDelete);
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::SnippetMoveToTrash);
     }
 
     pub(in super::super) fn open_delete_snippet(&mut self) {
@@ -130,18 +106,6 @@ impl App {
         )));
     }
 
-    pub(in super::super) fn open_rename_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentRename);
-            return;
-        }
-        if self.focus == Pane::Sidebar {
-            let _ = self.run_command(crate::tui::command::CommandId::SidebarRename);
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::SnippetRename);
-    }
-
     pub(in super::super) fn open_rename_snippet(&mut self) {
         let Some(snippet) = self.mutable_selected() else {
             return;
@@ -180,18 +144,6 @@ impl App {
             tag.clone(),
             ModalAction::RenameTag { tag },
         )));
-    }
-
-    pub(in super::super) fn open_move_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentReorder);
-            return;
-        }
-        if self.focus == Pane::Sidebar {
-            let _ = self.run_command(crate::tui::command::CommandId::FolderMove);
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::SnippetMove);
     }
 
     pub(in super::super) fn open_move_snippet(&mut self) {

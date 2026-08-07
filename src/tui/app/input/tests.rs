@@ -326,19 +326,24 @@ fn handwritten_dispatch_pins_shadowing_and_inline_closers() {
 fn a4_intentional_behavior_changes_are_explicit() {
     let (_temporary, mut app) = app();
 
-    // A4 changes these six expectations when Home/End become navigation aliases.
+    // A4: Home/End are navigation aliases in the three stacking pane modes.
     for mode in [TestMode::Sidebar, TestMode::List, TestMode::Preview] {
         for chord in ["home", "end"] {
             prepare(&mut app, mode);
             send(&mut app, chord);
-            assert_eq!(app.last_command, None, "{chord:?} in {mode:?}");
+            let expected = if chord == "home" {
+                CommandId::NavFirst
+            } else {
+                CommandId::NavLast
+            };
+            assert_eq!(app.last_command, Some(expected), "{chord:?} in {mode:?}");
         }
     }
 
-    // A4 changes this expectation when lookup starts matching exact modifiers.
+    // A4: exact modifiers stop Alt-s from falling through to plain s.
     prepare(&mut app, TestMode::Global);
     send(&mut app, "alt-s");
-    assert_eq!(app.last_command, Some(CommandId::ViewCycleSort));
+    assert_eq!(app.last_command, None);
 }
 
 #[test]

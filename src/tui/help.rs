@@ -337,17 +337,11 @@ mod tests {
 
     #[test]
     fn help_documents_every_literal_character_binding_in_input_routing() {
-        let mut bound = BTreeSet::new();
-        for source in [
-            include_str!("app/input/mod.rs"),
-            include_str!("app/input/gist.rs"),
-            include_str!("app/input/git.rs"),
-            include_str!("app/input/overlay.rs"),
-            include_str!("app/input/panes.rs"),
-            include_str!("app/trash_view.rs"),
-        ] {
-            for tail in source.split("KeyCode::Char('").skip(1) {
-                if let Some(character) = tail.chars().next() {
+        let keymap = crate::keys::Keymap::defaults();
+        let mut bound = BTreeSet::from_iter('0'..='9');
+        for mode in crate::keys::Mode::ALL {
+            for (chord, _) in keymap.bindings_for(mode) {
+                if let ratatui::crossterm::event::KeyCode::Char(character) = chord.code() {
                     bound.insert(character);
                 }
             }

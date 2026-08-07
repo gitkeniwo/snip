@@ -10,6 +10,7 @@ use crate::config::{GitConfig, TuiConfig, TuiDensitySetting, TuiThemeSetting};
 use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
 use crate::git;
+use crate::keys::Keymap;
 use crate::search::MemoryIndex;
 #[cfg(test)]
 use crate::tui::command::CommandId;
@@ -205,6 +206,7 @@ pub struct App {
     pub status: Option<StatusMessage>,
     pub modal: Option<Modal>,
     pub palette: PaletteState,
+    pub keymap: Keymap,
     pub(crate) session_state_extra: toml::Table,
     pub trash: TrashState,
     pub should_quit: bool,

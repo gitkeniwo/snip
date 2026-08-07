@@ -2,7 +2,7 @@ use crate::git::{GitAction, Unavailable};
 use crate::sort::SortMode;
 use crate::tui::app::{App, Effect};
 use crate::tui::command::{self, Command, CommandId, CommandState};
-use crate::tui::state::{Pane, SidebarItem, StatusLevel};
+use crate::tui::state::{Filter, Pane, SidebarItem, StatusLevel};
 
 use std::collections::HashSet;
 
@@ -241,6 +241,27 @@ pub(crate) fn git_init_or_set_interval(app: &mut App) -> Vec<Effect> {
         Vec::new()
     }
 }
+pub(crate) fn ui_dismiss(app: &mut App) -> Vec<Effect> {
+    if let Some(grab) = app.fragment_grab.take() {
+        app.preview_target = crate::tui::preview::PreviewTarget::Fragment(grab.origin);
+        app.set_status("move cancelled", StatusLevel::Info);
+    } else if app.gist.open {
+        app.gist.open = false;
+    } else if app.git.open {
+        app.git.open = false;
+    } else if app.show_help {
+        app.show_help = false;
+    } else if app.trash.open {
+        app.leave_trash();
+    } else if !app.search.query.is_empty() {
+        app.search.query.clear();
+        app.refresh_visible();
+    } else if !app.filter.is_empty() {
+        app.filter = Filter::default();
+        app.refresh_visible();
+    }
+    Vec::new()
+}
 
 effect!(snippet_new, app => app.open_new_snippet());
 effect!(palette_open, app => app.open_palette());
@@ -274,6 +295,10 @@ effect!(preview_next_paragraph, app => crate::tui::preview::jump_paragraph(app, 
 effect!(preview_expand_fragments, app => app.set_fragments_expanded(true));
 effect!(preview_collapse_fragments, app => app.set_fragments_expanded(false));
 effect!(grab_drop, app => app.drop_grabbed_fragment());
+effect!(trash_leave, app => app.leave_trash());
+effect!(help_close, app => app.show_help = false);
+effect!(git_close, app => app.git.open = false);
+effect!(gist_close, app => app.gist.open = false);
 effect!(snippet_rename, app => app.open_rename_snippet());
 effect!(snippet_move, app => app.open_move_snippet());
 effect!(snippet_tags, app => app.open_edit_tags());
@@ -304,7 +329,19 @@ effect!(library_search, app => app.search.active = true);
 effect!(library_rescan, app => app.rescan_now());
 effect!(library_trash, app => app.open_trash());
 effect!(library_clear_filter, app => { app.filter = Default::default(); app.search.query.clear(); app.refresh_visible(); });
-effect!(git_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.gist.open = false; app.git.open = true; app.refresh_git(); });
+pub(crate) fn git_open(app: &mut App) -> Vec<Effect> {
+    if matches!(app.git.unavailable, Some(Unavailable::BinaryMissing)) {
+        app.set_status("git not found in PATH", StatusLevel::Error);
+        return Vec::new();
+    }
+    app.show_help = false;
+    app.search.active = false;
+    app.trash.open = false;
+    app.gist.open = false;
+    app.git.open = true;
+    app.refresh_git();
+    Vec::new()
+}
 effect!(git_message, app => app.open_git_message());
 effect!(git_fetch, app => app.spawn_fetch());
 effect!(git_pull, app => app.git_effect(crate::git::GitAction::Pull));

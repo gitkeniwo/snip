@@ -1,100 +1,11 @@
 use std::time::{Duration, Instant};
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-
-use super::super::super::command::CommandId;
 use super::super::super::layout::{contains, inner};
 use super::super::super::preview::{PreviewTarget, has_readme};
 use super::super::super::state::{Pane, SidebarItem, StatusLevel};
 use super::super::types::App;
-use super::super::types::Effect;
 
 impl App {
-    pub(super) fn handle_fragment_grab_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
-            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
-            KeyCode::Esc | KeyCode::Char('-') => {
-                let Some(grab) = self.fragment_grab.as_ref() else {
-                    return Vec::new();
-                };
-                let origin = grab.origin;
-                self.fragment_grab = None;
-                self.preview_target = PreviewTarget::Fragment(origin);
-                self.set_status("move cancelled", StatusLevel::Info);
-            }
-            KeyCode::Enter => return self.run_command(CommandId::GrabDrop),
-            _ => {}
-        }
-        Vec::new()
-    }
-
-    pub(super) fn handle_pane_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match self.focus {
-            Pane::Sidebar => self.handle_sidebar_key(key),
-            Pane::List => self.handle_list_key(key),
-            Pane::Preview => self.handle_preview_key(key),
-        }
-    }
-
-    pub(super) fn handle_sidebar_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
-            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
-            KeyCode::Char('g') => return self.run_command(CommandId::NavFirst),
-            KeyCode::Char('G') => return self.run_command(CommandId::NavLast),
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.run_command(CommandId::NavPageDown);
-            }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.run_command(CommandId::NavPageUp);
-            }
-            KeyCode::Enter => return self.run_command(CommandId::SidebarActivate),
-            KeyCode::Char(' ') => return self.run_command(CommandId::SidebarToggleFolder),
-            _ => {}
-        }
-        Vec::new()
-    }
-
-    pub(super) fn handle_list_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
-            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
-            KeyCode::Char('g') => return self.run_command(CommandId::NavFirst),
-            KeyCode::Char('G') => return self.run_command(CommandId::NavLast),
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.run_command(CommandId::NavPageDown);
-            }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.run_command(CommandId::NavPageUp);
-            }
-            KeyCode::Enter => return self.run_command(CommandId::ListEnterPreview),
-            _ => {}
-        }
-        Vec::new()
-    }
-
-    pub(super) fn handle_preview_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
-            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
-            KeyCode::Char('g') => return self.run_command(CommandId::NavFirst),
-            KeyCode::Char('G') => return self.run_command(CommandId::NavLast),
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.run_command(CommandId::NavPageDown);
-            }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return self.run_command(CommandId::NavPageUp);
-            }
-            KeyCode::Char('{') => return self.run_command(CommandId::PreviewPreviousParagraph),
-            KeyCode::Char('}') => return self.run_command(CommandId::PreviewNextParagraph),
-            KeyCode::Char('=') => return self.run_command(CommandId::PreviewExpandFragments),
-            KeyCode::Char('-') => return self.run_command(CommandId::PreviewCollapseFragments),
-            _ => {}
-        }
-        Vec::new()
-    }
-
     pub(in super::super) fn navigate_down(&mut self) {
         let fragment_count = self
             .selected_snippet()

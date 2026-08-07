@@ -53,7 +53,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 89] = [
+static COMMANDS: [Command; 94] = [
     key_command!(
         PaletteOpen,
         "palette.open",
@@ -185,6 +185,17 @@ static COMMANDS: [Command; 89] = [
         "Drop Fragment",
         grab_drop
     ),
+    key_command!(UiDismiss, "ui.dismiss", "UI", "Dismiss", ui_dismiss),
+    key_command!(
+        TrashLeave,
+        "trash.leave",
+        "Trash",
+        "Leave Trash",
+        trash_leave
+    ),
+    key_command!(HelpClose, "help.close", "Help", "Close Help", help_close),
+    key_command!(GitClose, "git.close", "Git", "Close Console", git_close),
+    key_command!(GistClose, "gist.close", "Gist", "Close Panel", gist_close),
     command!(
         SnippetNew,
         "snippet.new",

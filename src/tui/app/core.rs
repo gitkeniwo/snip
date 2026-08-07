@@ -102,6 +102,7 @@ impl App {
             status: None,
             modal: None,
             palette: Default::default(),
+            keymap: crate::keys::Keymap::defaults(),
             session_state_extra: extra,
             trash: TrashState::default(),
             should_quit: false,
