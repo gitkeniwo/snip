@@ -1,5 +1,6 @@
 use super::super::editor::{EditOutcome, EditRequest, EditTarget};
 use super::super::modal::{ConfirmModal, Modal, ModalAction};
+use super::super::preview::PreviewTarget;
 use super::super::state::StatusLevel;
 use super::types::{App, Effect};
 
@@ -28,6 +29,9 @@ impl App {
     }
 
     pub(super) fn edit_effect(&mut self) -> Vec<Effect> {
+        if self.preview_target == PreviewTarget::Readme {
+            return self.edit_readme_effect();
+        }
         let Some(snippet) = self.selected_snippet() else {
             return Vec::new();
         };
@@ -38,7 +42,11 @@ impl App {
             );
             return Vec::new();
         }
-        let Some(fragment) = snippet.loaded_fragments.get(self.fragment_index) else {
+        let Some(fragment) = self
+            .preview_target
+            .fragment_index()
+            .and_then(|index| snippet.loaded_fragments.get(index))
+        else {
             return Vec::new();
         };
         let suffix = std::path::Path::new(&fragment.file)
@@ -59,10 +67,15 @@ impl App {
     }
 
     pub(super) fn edit_note_effect(&mut self) -> Vec<Effect> {
+        // The README has no note; refuse before `mutable_selected` can post a
+        // status about a snippet this keypress was never going to touch.
+        let Some(index) = self.preview_target.fragment_index() else {
+            return Vec::new();
+        };
         let Some(snippet) = self.mutable_selected() else {
             return Vec::new();
         };
-        let Some(fragment) = snippet.loaded_fragments.get(self.fragment_index) else {
+        let Some(fragment) = snippet.loaded_fragments.get(index) else {
             return Vec::new();
         };
         vec![Effect::SpawnEditor(EditRequest {
@@ -93,10 +106,23 @@ impl App {
 
     pub(super) fn copy_content_effect(&self) -> Vec<Effect> {
         self.selected_snippet()
-            .and_then(|snippet| snippet.loaded_fragments.get(self.fragment_index))
-            .map(|fragment| Effect::CopyToClipboard {
-                text: fragment.content.clone(),
-                label: "fragment".to_owned(),
+            .and_then(|snippet| match self.preview_target.fragment_index() {
+                Some(index) => {
+                    snippet
+                        .loaded_fragments
+                        .get(index)
+                        .map(|fragment| Effect::CopyToClipboard {
+                            text: fragment.content.clone(),
+                            label: "fragment".to_owned(),
+                        })
+                }
+                None => snippet
+                    .readme
+                    .as_ref()
+                    .map(|readme| Effect::CopyToClipboard {
+                        text: readme.clone(),
+                        label: "README".to_owned(),
+                    }),
             })
             .into_iter()
             .collect()
@@ -115,11 +141,14 @@ impl App {
     pub(super) fn copy_path_effect(&self) -> Vec<Effect> {
         self.selected_snippet()
             .map(|snippet| {
-                let path = snippet
-                    .loaded_fragments
-                    .get(self.fragment_index)
-                    .map(|fragment| &fragment.absolute_path)
-                    .unwrap_or(&snippet.package_path);
+                let path = match self.preview_target.fragment_index() {
+                    Some(index) => snippet
+                        .loaded_fragments
+                        .get(index)
+                        .map(|fragment| fragment.absolute_path.clone())
+                        .unwrap_or_else(|| snippet.package_path.clone()),
+                    None => snippet.package_path.join("README.md"),
+                };
                 Effect::CopyToClipboard {
                     text: path.display().to_string(),
                     label: "snippet path".to_owned(),
@@ -132,11 +161,14 @@ impl App {
     pub(super) fn open_vscode_effect(&self) -> Vec<Effect> {
         self.selected_snippet()
             .map(|snippet| {
-                let path = snippet
-                    .loaded_fragments
-                    .get(self.fragment_index)
-                    .map(|fragment| fragment.absolute_path.clone())
-                    .unwrap_or_else(|| snippet.package_path.clone());
+                let path = match self.preview_target.fragment_index() {
+                    Some(index) => snippet
+                        .loaded_fragments
+                        .get(index)
+                        .map(|fragment| fragment.absolute_path.clone())
+                        .unwrap_or_else(|| snippet.package_path.clone()),
+                    None => snippet.package_path.join("README.md"),
+                };
                 Effect::OpenInVsCode { path }
             })
             .into_iter()

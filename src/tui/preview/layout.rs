@@ -24,9 +24,25 @@ pub(super) fn compose_preview(
     theme: TuiTheme,
     width: u16,
 ) -> Vec<PreviewLine> {
-    let mut lines = Vec::new();
     let prose_inset = usize::from(show_line_numbers);
-    if let Some(note) = document.note {
+    let (note, fragment) = match document {
+        PreviewDocument::Fragment { note, body } => (note, body),
+        // Just the file, exactly like a gist. The tree row is the label, so a
+        // second one inside the pane would only repeat it.
+        PreviewDocument::Readme(readme) => {
+            return readme
+                .lines
+                .into_iter()
+                .map(|line| PreviewLine {
+                    line: inset_preview_line(line, prose_inset),
+                    wrap: WrapMode::Word,
+                })
+                .collect();
+        }
+        PreviewDocument::Empty => return Vec::new(),
+    };
+    let mut lines = Vec::new();
+    if let Some(note) = note {
         lines.push(PreviewLine {
             line: inset_preview_line(note_header(theme), prose_inset),
             wrap: WrapMode::Character,
@@ -44,8 +60,8 @@ pub(super) fn compose_preview(
         });
     }
 
-    let number_width = document.fragment.lines.len().max(1).to_string().len();
-    for (index, line) in document.fragment.lines.into_iter().enumerate() {
+    let number_width = fragment.lines.len().max(1).to_string().len();
+    for (index, line) in fragment.lines.into_iter().enumerate() {
         if show_line_numbers {
             let mut spans = vec![
                 Span::styled(
@@ -67,20 +83,6 @@ pub(super) fn compose_preview(
         }
     }
 
-    if let Some(readme) = document.readme {
-        lines.push(PreviewLine {
-            line: Line::default(),
-            wrap: WrapMode::Character,
-        });
-        lines.push(PreviewLine {
-            line: inset_preview_line(content_section_rule("readme", theme), prose_inset),
-            wrap: WrapMode::Character,
-        });
-        lines.extend(readme.lines.into_iter().map(|line| PreviewLine {
-            line: inset_preview_line(line, prose_inset),
-            wrap: WrapMode::Word,
-        }));
-    }
     lines
 }
 
@@ -105,17 +107,6 @@ fn note_footer(theme: TuiTheme, width: u16) -> Line<'static> {
         "─".repeat(width as usize),
         Style::default().fg(theme.rule),
     ))
-}
-
-fn content_section_rule(label: &str, theme: TuiTheme) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("── ", Style::default().fg(theme.rule)),
-        Span::styled(
-            label.to_owned(),
-            Style::default().fg(theme.muted).add_modifier(Modifier::DIM),
-        ),
-        Span::styled(" ──", Style::default().fg(theme.rule)),
-    ])
 }
 
 pub struct WrappedPreview {
@@ -327,9 +318,7 @@ fn spans_width(spans: &[Span<'static>]) -> u16 {
 
 fn is_preview_decoration(value: &str) -> bool {
     let value = value.trim_start();
-    value == "Note"
-        || value.starts_with("── readme ")
-        || (!value.is_empty() && value.chars().all(|character| character == '─'))
+    value == "Note" || (!value.is_empty() && value.chars().all(|character| character == '─'))
 }
 
 fn push_preview_row(
@@ -371,7 +360,7 @@ pub fn jump_paragraph(app: &mut App, forward: bool) {
         let (rendered, rebuilt) = preview_cache
             .get(
                 &snippet,
-                app.fragment_index,
+                app.preview_target,
                 width,
                 app.show_line_numbers,
                 &app.highlighter,
@@ -380,7 +369,7 @@ pub fn jump_paragraph(app: &mut App, forward: bool) {
             .ok()?;
         let selection_key = super::super::selection::SelectionKey {
             snippet_id: snippet.id,
-            fragment_index: app.fragment_index,
+            target: app.preview_target,
             fingerprint: snippet.fingerprint.0.clone(),
         };
         if rebuilt || !app.preview_selection.is_prepared_for(&selection_key) {
@@ -606,9 +595,34 @@ mod tests {
         );
     }
 
+    /// The README used to be appended below the fragment under a `── readme ──`
+    /// rule. It is its own target now, so the pane is just the file.
+    #[test]
+    fn readme_preview_has_no_section_rule() {
+        let theme = TuiTheme::from(&crate::theme::load("dark-default").unwrap());
+        let readme = Text::from(vec![Line::raw("alpha beta"), Line::raw("gamma")]);
+        let preview = wrap_preview(
+            compose_preview(PreviewDocument::Readme(readme), false, theme, 40),
+            40,
+            false,
+        );
+
+        assert_eq!(rendered_lines(&preview), ["alpha beta", "gamma"]);
+        for line in rendered_lines(&preview) {
+            assert!(!line.contains("──"), "readme line: {line:?}");
+            assert!(!line.trim().is_empty(), "readme line: {line:?}");
+        }
+    }
+
+    #[test]
+    fn an_empty_document_renders_nothing() {
+        let theme = TuiTheme::from(&crate::theme::load("dark-default").unwrap());
+        assert!(compose_preview(PreviewDocument::Empty, false, theme, 40).is_empty());
+    }
+
     #[test]
     fn decorations_do_not_acquire_line_or_prose_gutters() {
-        for decoration in ["Note", "── readme ──", "────"] {
+        for decoration in ["Note", "────"] {
             let preview = wrap_preview(
                 vec![PreviewLine {
                     line: Line::raw(decoration),

@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::super::super::layout::{contains, inner};
+use super::super::super::preview::{PreviewTarget, has_readme};
 use super::super::super::state::{Pane, SidebarItem, StatusLevel};
 use super::super::types::App;
 use super::super::types::Effect;
@@ -25,7 +26,7 @@ impl App {
             KeyCode::Esc | KeyCode::Char('-') => {
                 let origin = grab.origin;
                 self.fragment_grab = None;
-                self.fragment_index = origin;
+                self.preview_target = PreviewTarget::Fragment(origin);
                 self.set_status("move cancelled", StatusLevel::Info);
             }
             KeyCode::Enter => {
@@ -50,7 +51,7 @@ impl App {
                 match result {
                     Ok(_) => match self.rescan() {
                         Ok(()) => {
-                            self.fragment_index = grab.current;
+                            self.preview_target = PreviewTarget::Fragment(grab.current);
                             self.fragment_grab = None;
                             self.set_status("fragment moved", StatusLevel::Info);
                         }
@@ -275,13 +276,13 @@ impl App {
                 self.focus = Pane::Preview;
                 return;
             }
-            if let Some(index) = self
+            if let Some(target) = self
                 .layout
                 .fragment_rows
                 .iter()
-                .find_map(|(y, index)| (*y == row).then_some(*index))
+                .find_map(|(y, target)| (*y == row).then_some(*target))
             {
-                self.select_fragment(index);
+                self.select_fragment(target);
                 self.focus = Pane::Preview;
                 return;
             }
@@ -435,27 +436,47 @@ impl App {
         if let Some(row) = self.visible.get(index) {
             self.list_state.select(Some(index));
             self.selected_id = Some(row.snippet_id);
-            self.fragment_index = 0;
+            self.preview_target = PreviewTarget::Fragment(0);
             self.preview_scroll = 0;
             self.preview.invalidate();
         }
     }
 
-    pub(super) fn previous_fragment(&mut self) {
-        self.fragment_index = self.fragment_index.saturating_sub(1);
+    /// The switchable positions, fragments first and the README last. With one
+    /// to five fragments there is nothing to gain from clamping at the ends, so
+    /// both directions wrap: `[` from the first fragment lands on the README.
+    fn preview_positions(&self) -> (usize, usize) {
+        let snippet = self.selected_snippet();
+        let total = snippet.map_or(0, |snippet| snippet.loaded_fragments.len());
+        (total, total + usize::from(snippet.is_some_and(has_readme)))
+    }
+
+    fn step_preview_target(&mut self, delta: usize) {
+        let (total, rows) = self.preview_positions();
+        if rows == 0 {
+            return;
+        }
+        let current = match self.preview_target {
+            PreviewTarget::Fragment(index) => index.min(rows.saturating_sub(1)),
+            PreviewTarget::Readme => total,
+        };
+        let next = (current + delta) % rows;
+        self.preview_target = if next < total {
+            PreviewTarget::Fragment(next)
+        } else {
+            PreviewTarget::Readme
+        };
         self.preview_scroll = 0;
         self.preview.invalidate();
     }
 
+    pub(super) fn previous_fragment(&mut self) {
+        let (_, rows) = self.preview_positions();
+        self.step_preview_target(rows.saturating_sub(1));
+    }
+
     pub(super) fn next_fragment(&mut self) {
-        let count = self
-            .selected_snippet()
-            .map_or(0, |snippet| snippet.loaded_fragments.len());
-        if self.fragment_index + 1 < count {
-            self.fragment_index += 1;
-            self.preview_scroll = 0;
-            self.preview.invalidate();
-        }
+        self.step_preview_target(1);
     }
 
     pub(in super::super) fn toggle_fragments_expanded(&mut self) {
@@ -473,17 +494,84 @@ impl App {
         self.preview_selection.clear();
     }
 
-    pub(super) fn select_fragment(&mut self, index: usize) {
-        let count = self
-            .selected_snippet()
-            .map_or(0, |snippet| snippet.loaded_fragments.len());
-        if count > 0 {
-            let target = index.min(count.saturating_sub(1));
-            if self.fragment_index != target {
-                self.fragment_index = target;
-                self.preview_scroll = 0;
-                self.preview.invalidate();
+    pub(super) fn select_fragment(&mut self, target: PreviewTarget) {
+        let (total, rows) = self.preview_positions();
+        let target = match target {
+            PreviewTarget::Fragment(_) if total == 0 => return,
+            PreviewTarget::Fragment(index) => {
+                PreviewTarget::Fragment(index.min(total.saturating_sub(1)))
             }
+            PreviewTarget::Readme if rows > total => PreviewTarget::Readme,
+            PreviewTarget::Readme => return,
+        };
+        if self.preview_target != target {
+            self.preview_target = target;
+            self.preview_scroll = 0;
+            self.preview.invalidate();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::super::preview::PreviewTarget;
+    use super::super::super::types::App;
+
+    /// A three-fragment snippet, optionally carrying a README.
+    fn app_with(readme: Option<&str>) -> (tempfile::TempDir, App) {
+        let temporary = tempfile::tempdir().unwrap();
+        let library =
+            crate::filesystem::library::Library::init(&temporary.path().join("T.sniplib"), None)
+                .unwrap();
+        let created = crate::service::create_snippet(
+            &library,
+            &crate::service::CreateOptions {
+                title: "Snippet".to_owned(),
+                language: "rust".to_owned(),
+                content: "one\n".to_owned(),
+                readme: readme.map(str::to_owned),
+                ..crate::service::CreateOptions::default()
+            },
+        )
+        .unwrap();
+        for index in 2..=3 {
+            crate::service::add_fragment(
+                &library,
+                &created.id.to_string(),
+                &crate::service::FragmentAddOptions {
+                    title: format!("Fragment {index}"),
+                    language: "rust".to_owned(),
+                    content: format!("{index}\n"),
+                    ..crate::service::FragmentAddOptions::default()
+                },
+            )
+            .unwrap();
+        }
+        let app = App::new(library, &crate::config::AppConfig::default()).unwrap();
+        (temporary, app)
+    }
+
+    #[test]
+    fn switching_wraps_through_the_readme() {
+        let (_temporary, mut app) = app_with(Some("snippet level prose\n"));
+        assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
+
+        app.previous_fragment();
+        assert_eq!(app.preview_target, PreviewTarget::Readme);
+        app.previous_fragment();
+        assert_eq!(app.preview_target, PreviewTarget::Fragment(2));
+
+        app.preview_target = PreviewTarget::Readme;
+        app.next_fragment();
+        assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
+    }
+
+    #[test]
+    fn switching_wraps_without_a_readme() {
+        let (_temporary, mut app) = app_with(None);
+        app.previous_fragment();
+        assert_eq!(app.preview_target, PreviewTarget::Fragment(2));
+        app.next_fragment();
+        assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
     }
 }

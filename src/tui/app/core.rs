@@ -17,7 +17,7 @@ use super::super::highlight::Highlighter;
 use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
 use super::super::persist::SessionState;
-use super::super::preview::PreviewCache;
+use super::super::preview::{PreviewCache, PreviewTarget, has_readme};
 use super::super::selection::PreviewSelection;
 use super::super::sidebar;
 use super::super::state::{
@@ -79,7 +79,7 @@ impl App {
             visible: Vec::new(),
             list_state: ListState::default(),
             selected_id: None,
-            fragment_index: 0,
+            preview_target: PreviewTarget::default(),
             fragment_grab: None,
             preview_scroll: 0,
             show_line_numbers,
@@ -659,11 +659,20 @@ impl App {
         *self.sidebar.list_state.offset_mut() = self.sidebar.list_state.offset().min(max_offset);
     }
 
+    /// Re-anchors the preview target after a rescan. A README selection
+    /// survives as long as the README does — it only falls back when the file
+    /// was deleted out from under us.
     pub(super) fn clamp_fragment(&mut self) {
-        let count = self
-            .selected_snippet()
-            .map_or(0, |snippet| snippet.loaded_fragments.len());
-        self.fragment_index = self.fragment_index.min(count.saturating_sub(1));
+        let snippet = self.selected_snippet();
+        let count = snippet.map_or(0, |snippet| snippet.loaded_fragments.len());
+        let readme = snippet.is_some_and(has_readme);
+        self.preview_target = match self.preview_target {
+            PreviewTarget::Fragment(index) => {
+                PreviewTarget::Fragment(index.min(count.saturating_sub(1)))
+            }
+            PreviewTarget::Readme if readme => PreviewTarget::Readme,
+            PreviewTarget::Readme => PreviewTarget::Fragment(0),
+        };
     }
 
     pub(super) fn title_for(&self, id: Uuid) -> &str {
@@ -752,6 +761,43 @@ mod tests {
             fingerprint: Fingerprint("abc".to_owned()),
             loaded_fragments: vec![],
         }
+    }
+
+    /// An app over a one-fragment snippet, with or without a README.
+    fn app_with_readme(readme: Option<&str>) -> (tempfile::TempDir, App) {
+        let temporary = tempfile::tempdir().unwrap();
+        let library =
+            crate::filesystem::library::Library::init(&temporary.path().join("T.sniplib"), None)
+                .unwrap();
+        crate::service::create_snippet(
+            &library,
+            &crate::service::CreateOptions {
+                title: "Snippet".to_owned(),
+                language: "rust".to_owned(),
+                content: "let value = 1;\n".to_owned(),
+                readme: readme.map(str::to_owned),
+                ..crate::service::CreateOptions::default()
+            },
+        )
+        .unwrap();
+        let app = App::new(library, &AppConfig::default()).unwrap();
+        (temporary, app)
+    }
+
+    #[test]
+    fn rescan_keeps_the_readme_target() {
+        let (_temporary, mut app) = app_with_readme(Some("snippet level prose\n"));
+        app.preview_target = PreviewTarget::Readme;
+        app.clamp_fragment();
+        assert_eq!(app.preview_target, PreviewTarget::Readme);
+    }
+
+    #[test]
+    fn rescan_drops_a_vanished_readme() {
+        let (_temporary, mut app) = app_with_readme(None);
+        app.preview_target = PreviewTarget::Readme;
+        app.clamp_fragment();
+        assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
     }
 
     #[test]

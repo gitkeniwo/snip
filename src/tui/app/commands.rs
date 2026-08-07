@@ -133,7 +133,13 @@ pub(crate) fn can_edit_fragment(app: &App) -> CommandState {
         Ok(snippet) => snippet,
         Err(state) => return state,
     };
-    if snippet.loaded_fragments.get(app.fragment_index).is_some() {
+    let selected = match app.preview_target.fragment_index() {
+        Some(index) => snippet.loaded_fragments.get(index).is_some(),
+        // The README is a valid edit target of its own; the fragment-only
+        // commands gate themselves in their openers.
+        None => crate::tui::preview::has_readme(snippet),
+    };
+    if selected {
         CommandState::Enabled
     } else {
         CommandState::Disabled("no fragment selected")
