@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-08-07
+
+### Added
+
+- **Standalone install script.** `curl -fsSL
+  https://github.com/gitkeniwo/snip/releases/latest/download/install.sh | sh`
+  installs `snip` to `~/.local/bin` without `sudo`, on macOS and Linux. Re-run
+  it to upgrade and pass `--uninstall` to remove the binary. It verifies the
+  download against the published checksums, refuses to downgrade, and leaves an
+  installation owned by Homebrew, apt, dnf, nix, or cargo untouched. Manual
+  pages and shell completions stay opt-in through `snip man install` and
+  `snip completion`.
+- **Static musl Linux binaries.** `snip-x86_64-unknown-linux-musl.tar.gz` and
+  `snip-aarch64-unknown-linux-musl.tar.gz` are statically linked and have no
+  glibc version floor, so they run on Alpine and on distributions older than the
+  GNU archives support. The install script uses them on Linux, and
+  `cargo binstall sniplab` picks them up on musl hosts.
+- **Published checksums.** Every release now carries a `SHA256SUMS` file
+  covering all of its assets, plus a detached OpenPGP signature in
+  `SHA256SUMS.asc`.
+
+### Changed
+
+- **Lower glibc requirement.** The GNU Linux archives and the `.deb` / `.rpm`
+  packages are built on Ubuntu 22.04 and need glibc 2.35 rather than 2.39, so
+  Ubuntu 22.04, Debian 12, and their derivatives are supported again.
+
 ## [0.5.3] - 2026-08-04
 
 ### Added
@@ -330,6 +357,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.5.4]: https://github.com/gitkeniwo/snip/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/gitkeniwo/snip/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/gitkeniwo/snip/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/gitkeniwo/snip/compare/v0.5.0...v0.5.1
