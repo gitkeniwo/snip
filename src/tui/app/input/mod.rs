@@ -303,3 +303,6 @@ pub(super) fn is_palette_trigger(key: KeyEvent) -> bool {
         || (key.modifiers.contains(KeyModifiers::CONTROL)
             && matches!(key.code, KeyCode::Char('p') | KeyCode::Char('P')))
 }
+
+#[cfg(test)]
+mod tests;
