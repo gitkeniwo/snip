@@ -165,6 +165,8 @@ impl Keymap {
         keymap.bind(Trash, NavUp, &["k", "up"]);
         keymap.bind(Trash, NavFirst, &["g", "home"]);
         keymap.bind(Trash, NavLast, &["G", "end"]);
+        keymap.bind(Trash, NavPageDown, &["ctrl-d"]);
+        keymap.bind(Trash, NavPageUp, &["ctrl-u"]);
         keymap.bind(Trash, TrashRestoreSelected, &["enter", "u"]);
         keymap.bind(Trash, TrashPurgeSelected, &["x"]);
         keymap.bind(Trash, UiDismiss, &["esc", "q"]);

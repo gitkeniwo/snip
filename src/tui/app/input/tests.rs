@@ -225,6 +225,10 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("home", CommandId::NavFirst),
             ("G", CommandId::NavLast),
             ("end", CommandId::NavLast),
+            // Not in the handwritten dispatch: paging was help-only, and the
+            // asymmetry was an oversight rather than a decision.
+            ("ctrl-d", CommandId::NavPageDown),
+            ("ctrl-u", CommandId::NavPageUp),
             ("enter", CommandId::TrashRestoreSelected),
             ("u", CommandId::TrashRestoreSelected),
             ("x", CommandId::TrashPurgeSelected),
