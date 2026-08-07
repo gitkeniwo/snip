@@ -85,16 +85,7 @@ impl App {
             return;
         }
         if self.focus == Pane::Sidebar {
-            let selected = self.sidebar.selected().cloned();
-            match selected.map(|row| row.item) {
-                Some(SidebarItem::Folder(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::FolderDelete);
-                }
-                Some(SidebarItem::Tag(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::TagDelete);
-                }
-                _ => {}
-            }
+            let _ = self.run_command(crate::tui::command::CommandId::SidebarDelete);
             return;
         }
         let _ = self.run_command(crate::tui::command::CommandId::SnippetMoveToTrash);
@@ -145,16 +136,7 @@ impl App {
             return;
         }
         if self.focus == Pane::Sidebar {
-            let selected = self.sidebar.selected().cloned();
-            match selected.map(|row| row.item) {
-                Some(SidebarItem::Folder(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::FolderRename);
-                }
-                Some(SidebarItem::Tag(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::TagRename);
-                }
-                _ => {}
-            }
+            let _ = self.run_command(crate::tui::command::CommandId::SidebarRename);
             return;
         }
         let _ = self.run_command(crate::tui::command::CommandId::SnippetRename);

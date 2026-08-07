@@ -2,6 +2,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 use crate::service::restore_snippet;
 
+use super::super::command::CommandId;
 use super::super::modal::{ConfirmModal, Modal, ModalAction};
 use super::super::state::{SidebarItem, StatusLevel};
 use super::types::{App, Effect};
@@ -56,21 +57,13 @@ impl App {
         match key.code {
             KeyCode::Char('q') => return self.request_quit(),
             KeyCode::Esc | KeyCode::Char('T') => self.leave_trash(),
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.trash.move_selection(1);
-                self.sync_trash_preview();
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.trash.move_selection(-1);
-                self.sync_trash_preview();
-            }
+            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
+            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
             KeyCode::Char('g') | KeyCode::Home => {
-                self.trash.selected = 0;
-                self.sync_trash_preview();
+                return self.run_command(CommandId::NavFirst);
             }
             KeyCode::Char('G') | KeyCode::End => {
-                self.trash.selected = self.trash.entries.len().saturating_sub(1);
-                self.sync_trash_preview();
+                return self.run_command(CommandId::NavLast);
             }
             KeyCode::Enter | KeyCode::Char('u') => {
                 return self.run_command(crate::tui::command::CommandId::TrashRestoreSelected);

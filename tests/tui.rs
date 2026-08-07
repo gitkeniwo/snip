@@ -353,7 +353,8 @@ fn command_palette_shows_position_only_when_results_overflow() {
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
-    let first_count = format!("1/{}", registry().len());
+    let palette_count = registry().iter().filter(|command| command.palette).count();
+    let first_count = format!("1/{palette_count}");
     assert!((0..12).any(|row| row_text(terminal.backend().buffer(), row).contains(&first_count)));
     for _ in 0..3 {
         app.handle_key(key(KeyCode::Down));
@@ -361,7 +362,7 @@ fn command_palette_shows_position_only_when_results_overflow() {
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
-    let selected_count = format!("4/{}", registry().len());
+    let selected_count = format!("4/{palette_count}");
     assert!(
         (0..12).any(|row| row_text(terminal.backend().buffer(), row).contains(&selected_count))
     );

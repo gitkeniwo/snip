@@ -10,6 +10,39 @@ macro_rules! command {
             title: $title,
             keywords: $keywords,
             key_hint: $key,
+            palette: true,
+            state: $state,
+            run: $run,
+        }
+    };
+}
+
+macro_rules! key_command {
+    ($id:ident, $slug:literal, $category:literal, $title:literal, $run:ident) => {
+        Command {
+            id: CommandId::$id,
+            slug: $slug,
+            category: $category,
+            title: $title,
+            keywords: &[],
+            key_hint: None,
+            palette: false,
+            state: enabled,
+            run: $run,
+        }
+    };
+}
+
+macro_rules! key_command_state {
+    ($id:ident, $slug:literal, $category:literal, $title:literal, $state:ident, $run:ident) => {
+        Command {
+            id: CommandId::$id,
+            slug: $slug,
+            category: $category,
+            title: $title,
+            keywords: &[],
+            key_hint: None,
+            palette: false,
             state: $state,
             run: $run,
         }
@@ -20,7 +53,138 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 65] = [
+static COMMANDS: [Command; 89] = [
+    key_command!(
+        PaletteOpen,
+        "palette.open",
+        "UI",
+        "Open Palette",
+        palette_open
+    ),
+    key_command!(NavDown, "nav.down", "Navigation", "Move Down", nav_down),
+    key_command!(NavUp, "nav.up", "Navigation", "Move Up", nav_up),
+    key_command!(
+        NavFirst,
+        "nav.first",
+        "Navigation",
+        "Move to First",
+        nav_first
+    ),
+    key_command!(NavLast, "nav.last", "Navigation", "Move to Last", nav_last),
+    key_command!(
+        NavPageDown,
+        "nav.page-down",
+        "Navigation",
+        "Page Down",
+        nav_page_down
+    ),
+    key_command!(
+        NavPageUp,
+        "nav.page-up",
+        "Navigation",
+        "Page Up",
+        nav_page_up
+    ),
+    key_command!(PaneNext, "pane.next", "Pane", "Next Pane", pane_next),
+    key_command!(
+        PanePrevious,
+        "pane.previous",
+        "Pane",
+        "Previous Pane",
+        pane_previous
+    ),
+    key_command!(PaneBack, "pane.back", "Pane", "Go Back", pane_back),
+    key_command!(
+        PaneForward,
+        "pane.forward",
+        "Pane",
+        "Go Forward",
+        pane_forward
+    ),
+    key_command!(
+        SidebarActivate,
+        "sidebar.activate",
+        "Sidebar",
+        "Activate",
+        sidebar_activate
+    ),
+    key_command!(
+        SidebarToggleFolder,
+        "sidebar.toggle-folder",
+        "Sidebar",
+        "Toggle Folder",
+        sidebar_toggle_folder
+    ),
+    key_command!(
+        SidebarRename,
+        "sidebar.rename",
+        "Sidebar",
+        "Rename",
+        sidebar_rename
+    ),
+    key_command!(
+        SidebarDelete,
+        "sidebar.delete",
+        "Sidebar",
+        "Delete",
+        sidebar_delete
+    ),
+    key_command!(
+        ListEnterPreview,
+        "list.enter-preview",
+        "List",
+        "Enter Preview",
+        list_enter_preview
+    ),
+    key_command!(
+        PreviewPreviousItem,
+        "preview.previous-item",
+        "Preview",
+        "Previous Item",
+        preview_previous_item
+    ),
+    key_command!(
+        PreviewNextItem,
+        "preview.next-item",
+        "Preview",
+        "Next Item",
+        preview_next_item
+    ),
+    key_command!(
+        PreviewPreviousParagraph,
+        "preview.previous-paragraph",
+        "Preview",
+        "Previous Paragraph",
+        preview_previous_paragraph
+    ),
+    key_command!(
+        PreviewNextParagraph,
+        "preview.next-paragraph",
+        "Preview",
+        "Next Paragraph",
+        preview_next_paragraph
+    ),
+    key_command!(
+        PreviewExpandFragments,
+        "preview.expand-fragments",
+        "Preview",
+        "Expand Fragments",
+        preview_expand_fragments
+    ),
+    key_command!(
+        PreviewCollapseFragments,
+        "preview.collapse-fragments",
+        "Preview",
+        "Collapse Fragments",
+        preview_collapse_fragments
+    ),
+    key_command!(
+        GrabDrop,
+        "grab.drop",
+        "Fragment",
+        "Drop Fragment",
+        grab_drop
+    ),
     command!(
         SnippetNew,
         "snippet.new",
@@ -510,6 +674,14 @@ static COMMANDS: [Command; 65] = [
         Some("Ctrl-g i"),
         can_init_git,
         git_init
+    ),
+    key_command_state!(
+        GitInitOrSetInterval,
+        "git.init-or-set-interval",
+        "Git",
+        "Init or Set Interval",
+        can_init_or_configure_git,
+        git_init_or_set_interval
     ),
     command!(
         GitToggleAutoPush,

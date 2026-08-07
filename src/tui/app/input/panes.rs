@@ -2,6 +2,7 @@ use std::time::{Duration, Instant};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use super::super::super::command::CommandId;
 use super::super::super::layout::{contains, inner};
 use super::super::super::preview::{PreviewTarget, has_readme};
 use super::super::super::state::{Pane, SidebarItem, StatusLevel};
@@ -10,62 +11,25 @@ use super::super::types::Effect;
 
 impl App {
     pub(super) fn handle_fragment_grab_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        let total = self
-            .selected_snippet()
-            .map_or(0, |snippet| snippet.loaded_fragments.len());
-        let Some(grab) = self.fragment_grab.as_mut() else {
-            return Vec::new();
-        };
         match key.code {
-            KeyCode::Char('j') | KeyCode::Down => {
-                grab.current = grab.current.saturating_add(1).min(total.saturating_sub(1));
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                grab.current = grab.current.saturating_sub(1);
-            }
+            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
+            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
             KeyCode::Esc | KeyCode::Char('-') => {
+                let Some(grab) = self.fragment_grab.as_ref() else {
+                    return Vec::new();
+                };
                 let origin = grab.origin;
                 self.fragment_grab = None;
                 self.preview_target = PreviewTarget::Fragment(origin);
                 self.set_status("move cancelled", StatusLevel::Info);
             }
-            KeyCode::Enter => {
-                let grab = *grab;
-                if grab.current == grab.origin {
-                    self.fragment_grab = None;
-                    self.set_status("fragment order unchanged", StatusLevel::Info);
-                    return Vec::new();
-                }
-                let Some(id) = self.selected_snippet().map(|snippet| snippet.id) else {
-                    self.fragment_grab = None;
-                    return Vec::new();
-                };
-                let result = crate::service::reorder_fragment(
-                    &self.library,
-                    &id.to_string(),
-                    &(grab.origin + 1).to_string(),
-                    grab.current + 1,
-                    None,
-                    false,
-                );
-                match result {
-                    Ok(_) => match self.rescan() {
-                        Ok(()) => {
-                            self.preview_target = PreviewTarget::Fragment(grab.current);
-                            self.fragment_grab = None;
-                            self.set_status("fragment moved", StatusLevel::Info);
-                        }
-                        Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
-                    },
-                    Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
-                }
-            }
+            KeyCode::Enter => return self.run_command(CommandId::GrabDrop),
             _ => {}
         }
         Vec::new()
     }
 
-    pub(super) fn handle_pane_key(&mut self, key: KeyEvent) {
+    pub(super) fn handle_pane_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         match self.focus {
             Pane::Sidebar => self.handle_sidebar_key(key),
             Pane::List => self.handle_list_key(key),
@@ -73,66 +37,195 @@ impl App {
         }
     }
 
-    pub(super) fn handle_sidebar_key(&mut self, key: KeyEvent) {
+    pub(super) fn handle_sidebar_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         match key.code {
-            KeyCode::Char('j') | KeyCode::Down => self.move_sidebar(1),
-            KeyCode::Char('k') | KeyCode::Up => self.move_sidebar(-1),
-            KeyCode::Char('g') => self.select_sidebar(0),
-            KeyCode::Char('G') => self.select_sidebar(self.sidebar.rows.len().saturating_sub(1)),
+            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
+            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
+            KeyCode::Char('g') => return self.run_command(CommandId::NavFirst),
+            KeyCode::Char('G') => return self.run_command(CommandId::NavLast),
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.move_sidebar(10)
+                return self.run_command(CommandId::NavPageDown);
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.move_sidebar(-10)
+                return self.run_command(CommandId::NavPageUp);
             }
-            KeyCode::Enter => self.apply_sidebar_filter(),
-            KeyCode::Char(' ') => self.toggle_sidebar_folder(),
+            KeyCode::Enter => return self.run_command(CommandId::SidebarActivate),
+            KeyCode::Char(' ') => return self.run_command(CommandId::SidebarToggleFolder),
             _ => {}
+        }
+        Vec::new()
+    }
+
+    pub(super) fn handle_list_key(&mut self, key: KeyEvent) -> Vec<Effect> {
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
+            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
+            KeyCode::Char('g') => return self.run_command(CommandId::NavFirst),
+            KeyCode::Char('G') => return self.run_command(CommandId::NavLast),
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.run_command(CommandId::NavPageDown);
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.run_command(CommandId::NavPageUp);
+            }
+            KeyCode::Enter => return self.run_command(CommandId::ListEnterPreview),
+            _ => {}
+        }
+        Vec::new()
+    }
+
+    pub(super) fn handle_preview_key(&mut self, key: KeyEvent) -> Vec<Effect> {
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
+            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
+            KeyCode::Char('g') => return self.run_command(CommandId::NavFirst),
+            KeyCode::Char('G') => return self.run_command(CommandId::NavLast),
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.run_command(CommandId::NavPageDown);
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return self.run_command(CommandId::NavPageUp);
+            }
+            KeyCode::Char('{') => return self.run_command(CommandId::PreviewPreviousParagraph),
+            KeyCode::Char('}') => return self.run_command(CommandId::PreviewNextParagraph),
+            KeyCode::Char('=') => return self.run_command(CommandId::PreviewExpandFragments),
+            KeyCode::Char('-') => return self.run_command(CommandId::PreviewCollapseFragments),
+            _ => {}
+        }
+        Vec::new()
+    }
+
+    pub(in super::super) fn navigate_down(&mut self) {
+        let fragment_count = self
+            .selected_snippet()
+            .map_or(0, |snippet| snippet.loaded_fragments.len());
+        if let Some(grab) = self.fragment_grab.as_mut() {
+            grab.current = grab
+                .current
+                .saturating_add(1)
+                .min(fragment_count.saturating_sub(1));
+        } else if self.show_help {
+            self.help_scroll = self.help_scroll.saturating_add(1);
+        } else if self.trash.open && self.focus == Pane::List {
+            self.trash.move_selection(1);
+            self.sync_trash_preview();
+        } else {
+            match self.focus {
+                Pane::Sidebar => self.move_sidebar(1),
+                Pane::List => self.move_list(1),
+                Pane::Preview => self.preview_scroll = self.preview_scroll.saturating_add(1),
+            }
         }
     }
 
-    pub(super) fn handle_list_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => self.move_list(1),
-            KeyCode::Char('k') | KeyCode::Up => self.move_list(-1),
-            KeyCode::Char('g') => self.select_list(0),
-            KeyCode::Char('G') => self.select_list(self.visible.len().saturating_sub(1)),
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.move_list(10)
+    pub(in super::super) fn navigate_up(&mut self) {
+        if let Some(grab) = self.fragment_grab.as_mut() {
+            grab.current = grab.current.saturating_sub(1);
+        } else if self.show_help {
+            self.help_scroll = self.help_scroll.saturating_sub(1);
+        } else if self.trash.open && self.focus == Pane::List {
+            self.trash.move_selection(-1);
+            self.sync_trash_preview();
+        } else {
+            match self.focus {
+                Pane::Sidebar => self.move_sidebar(-1),
+                Pane::List => self.move_list(-1),
+                Pane::Preview => self.preview_scroll = self.preview_scroll.saturating_sub(1),
             }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.move_list(-10)
-            }
-            KeyCode::Enter => self.focus = Pane::Preview,
-            _ => {}
         }
     }
 
-    pub(super) fn handle_preview_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.preview_scroll = self.preview_scroll.saturating_add(1)
+    pub(in super::super) fn navigate_first(&mut self) {
+        if self.trash.open && self.focus == Pane::List {
+            self.trash.selected = 0;
+            self.sync_trash_preview();
+        } else {
+            match self.focus {
+                Pane::Sidebar => self.select_sidebar(0),
+                Pane::List => self.select_list(0),
+                Pane::Preview => self.preview_scroll = 0,
             }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.preview_scroll = self.preview_scroll.saturating_sub(1)
-            }
-            KeyCode::Char('g') => self.preview_scroll = 0,
-            KeyCode::Char('G') => self.preview_scroll = u16::MAX,
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.preview_scroll = self.preview_scroll.saturating_add(10)
-            }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.preview_scroll = self.preview_scroll.saturating_sub(10)
-            }
-            KeyCode::Char('{') => crate::tui::preview::jump_paragraph(self, false),
-            KeyCode::Char('}') => crate::tui::preview::jump_paragraph(self, true),
-            KeyCode::Char('=') => self.set_fragments_expanded(true),
-            KeyCode::Char('-') => self.set_fragments_expanded(false),
-            _ => {}
         }
     }
 
-    pub(super) fn drill_back(&mut self) {
+    pub(in super::super) fn navigate_last(&mut self) {
+        if self.trash.open && self.focus == Pane::List {
+            self.trash.selected = self.trash.entries.len().saturating_sub(1);
+            self.sync_trash_preview();
+        } else {
+            match self.focus {
+                Pane::Sidebar => self.select_sidebar(self.sidebar.rows.len().saturating_sub(1)),
+                Pane::List => self.select_list(self.visible.len().saturating_sub(1)),
+                Pane::Preview => self.preview_scroll = u16::MAX,
+            }
+        }
+    }
+
+    pub(in super::super) fn navigate_page_down(&mut self) {
+        if self.show_help {
+            self.help_scroll = self.help_scroll.saturating_add(10);
+        } else if self.trash.open && self.focus == Pane::List {
+            self.trash.move_selection(10);
+            self.sync_trash_preview();
+        } else {
+            match self.focus {
+                Pane::Sidebar => self.move_sidebar(10),
+                Pane::List => self.move_list(10),
+                Pane::Preview => self.preview_scroll = self.preview_scroll.saturating_add(10),
+            }
+        }
+    }
+
+    pub(in super::super) fn navigate_page_up(&mut self) {
+        if self.show_help {
+            self.help_scroll = self.help_scroll.saturating_sub(10);
+        } else if self.trash.open && self.focus == Pane::List {
+            self.trash.move_selection(-10);
+            self.sync_trash_preview();
+        } else {
+            match self.focus {
+                Pane::Sidebar => self.move_sidebar(-10),
+                Pane::List => self.move_list(-10),
+                Pane::Preview => self.preview_scroll = self.preview_scroll.saturating_sub(10),
+            }
+        }
+    }
+
+    pub(in super::super) fn drop_grabbed_fragment(&mut self) {
+        let Some(grab) = self.fragment_grab else {
+            return;
+        };
+        if grab.current == grab.origin {
+            self.fragment_grab = None;
+            self.set_status("fragment order unchanged", StatusLevel::Info);
+            return;
+        }
+        let Some(id) = self.selected_snippet().map(|snippet| snippet.id) else {
+            self.fragment_grab = None;
+            return;
+        };
+        let result = crate::service::reorder_fragment(
+            &self.library,
+            &id.to_string(),
+            &(grab.origin + 1).to_string(),
+            grab.current + 1,
+            None,
+            false,
+        );
+        match result {
+            Ok(_) => match self.rescan() {
+                Ok(()) => {
+                    self.preview_target = PreviewTarget::Fragment(grab.current);
+                    self.fragment_grab = None;
+                    self.set_status("fragment moved", StatusLevel::Info);
+                }
+                Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+            },
+            Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
+        }
+    }
+
+    pub(in super::super) fn drill_back(&mut self) {
         match self.focus {
             Pane::Preview => self.focus = Pane::List,
             Pane::List => self.focus = Pane::Sidebar,
@@ -150,7 +243,7 @@ impl App {
         }
     }
 
-    pub(super) fn drill_forward(&mut self) {
+    pub(in super::super) fn drill_forward(&mut self) {
         match self.focus {
             Pane::Sidebar => self.apply_sidebar_filter(),
             Pane::List => self.focus = Pane::Preview,
@@ -342,7 +435,7 @@ impl App {
         self.sync_sidebar_filter();
     }
 
-    pub(super) fn apply_sidebar_filter(&mut self) {
+    pub(in super::super) fn apply_sidebar_filter(&mut self) {
         if self.activate_sidebar_row() {
             self.focus = Pane::List;
         }
@@ -407,7 +500,7 @@ impl App {
         true
     }
 
-    pub(super) fn toggle_sidebar_folder(&mut self) {
+    pub(in super::super) fn toggle_sidebar_folder(&mut self) {
         let folder = self.sidebar.selected().and_then(|row| match &row.item {
             SidebarItem::Folder(folder) if row.has_children => Some(folder.clone()),
             _ => None,
@@ -470,12 +563,12 @@ impl App {
         self.preview.invalidate();
     }
 
-    pub(super) fn previous_fragment(&mut self) {
+    pub(in super::super) fn previous_fragment(&mut self) {
         let (_, rows) = self.preview_positions();
         self.step_preview_target(rows.saturating_sub(1));
     }
 
-    pub(super) fn next_fragment(&mut self) {
+    pub(in super::super) fn next_fragment(&mut self) {
         self.step_preview_target(1);
     }
 
@@ -483,7 +576,7 @@ impl App {
         self.set_fragments_expanded(!self.fragments_expanded);
     }
 
-    fn set_fragments_expanded(&mut self, expanded: bool) {
+    pub(in super::super) fn set_fragments_expanded(&mut self, expanded: bool) {
         let can_expand = self
             .selected_snippet()
             .is_some_and(|snippet| !snippet.loaded_fragments.is_empty());

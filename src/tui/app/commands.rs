@@ -2,16 +2,22 @@ use crate::git::{GitAction, Unavailable};
 use crate::sort::SortMode;
 use crate::tui::app::{App, Effect};
 use crate::tui::command::{self, Command, CommandId, CommandState};
-use crate::tui::state::{SidebarItem, StatusLevel};
+use crate::tui::state::{Pane, SidebarItem, StatusLevel};
 
 use std::collections::HashSet;
 
 impl App {
     pub fn run_command(&mut self, id: CommandId) -> Vec<Effect> {
+        #[cfg(test)]
+        {
+            self.last_command = Some(id);
+        }
         let command = command::get(id);
         match (command.state)(self) {
             CommandState::Enabled => {
-                self.palette.record_recent(id);
+                if command.palette {
+                    self.palette.record_recent(id);
+                }
                 (command.run)(self)
             }
             CommandState::Disabled(reason) => {
@@ -41,7 +47,7 @@ impl App {
 fn hidden_command_ids(app: &App, commands: &[Command]) -> HashSet<CommandId> {
     commands
         .iter()
-        .filter(|command| matches!((command.state)(app), CommandState::Hidden))
+        .filter(|command| !command.palette || matches!((command.state)(app), CommandState::Hidden))
         .map(|command| command.id)
         .collect()
 }
@@ -101,6 +107,13 @@ pub(crate) fn can_init_git(app: &App) -> CommandState {
         CommandState::Enabled
     } else {
         CommandState::Disabled("already a Git repository")
+    }
+}
+pub(crate) fn can_init_or_configure_git(app: &App) -> CommandState {
+    if matches!(app.git.unavailable, Some(Unavailable::NotARepository)) {
+        CommandState::Enabled
+    } else {
+        git_available(app)
     }
 }
 pub(crate) fn has_trash_selection(app: &App) -> CommandState {
@@ -220,8 +233,47 @@ pub(crate) fn git_init(app: &mut App) -> Vec<Effect> {
 pub(crate) fn app_quit(app: &mut App) -> Vec<Effect> {
     app.request_quit()
 }
+pub(crate) fn git_init_or_set_interval(app: &mut App) -> Vec<Effect> {
+    if matches!(app.git.unavailable, Some(Unavailable::NotARepository)) {
+        git_init(app)
+    } else {
+        git_interval(app);
+        Vec::new()
+    }
+}
 
 effect!(snippet_new, app => app.open_new_snippet());
+effect!(palette_open, app => app.open_palette());
+effect!(nav_down, app => app.navigate_down());
+effect!(nav_up, app => app.navigate_up());
+effect!(nav_first, app => app.navigate_first());
+effect!(nav_last, app => app.navigate_last());
+effect!(nav_page_down, app => app.navigate_page_down());
+effect!(nav_page_up, app => app.navigate_page_up());
+effect!(pane_next, app => app.focus = app.focus.next());
+effect!(pane_previous, app => app.focus = app.focus.previous());
+effect!(pane_back, app => app.drill_back());
+effect!(pane_forward, app => app.drill_forward());
+effect!(sidebar_activate, app => app.apply_sidebar_filter());
+effect!(sidebar_toggle_folder, app => app.toggle_sidebar_folder());
+effect!(sidebar_rename, app => match app.sidebar.selected().map(|row| &row.item) {
+    Some(SidebarItem::Folder(_)) => app.open_rename_folder(),
+    Some(SidebarItem::Tag(_)) => app.open_rename_tag(),
+    _ => {}
+});
+effect!(sidebar_delete, app => match app.sidebar.selected().map(|row| &row.item) {
+    Some(SidebarItem::Folder(_)) => app.open_delete_folder(),
+    Some(SidebarItem::Tag(_)) => app.open_delete_tag(),
+    _ => {}
+});
+effect!(list_enter_preview, app => app.focus = Pane::Preview);
+effect!(preview_previous_item, app => app.previous_fragment());
+effect!(preview_next_item, app => app.next_fragment());
+effect!(preview_previous_paragraph, app => crate::tui::preview::jump_paragraph(app, false));
+effect!(preview_next_paragraph, app => crate::tui::preview::jump_paragraph(app, true));
+effect!(preview_expand_fragments, app => app.set_fragments_expanded(true));
+effect!(preview_collapse_fragments, app => app.set_fragments_expanded(false));
+effect!(grab_drop, app => app.drop_grabbed_fragment());
 effect!(snippet_rename, app => app.open_rename_snippet());
 effect!(snippet_move, app => app.open_move_snippet());
 effect!(snippet_tags, app => app.open_edit_tags());
@@ -301,6 +353,7 @@ mod tests {
             title: "Hidden",
             keywords: &[],
             key_hint: None,
+            palette: false,
             state: hidden,
             run: noop,
         }];
@@ -312,6 +365,24 @@ mod tests {
                 .matches
                 .iter()
                 .any(|matched| matched.id == CommandId::GitPush)
+        );
+    }
+
+    #[test]
+    fn key_only_commands_stay_out_of_palette_and_recents() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Keys.sniplib"), None).unwrap();
+        let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+        app.run_command(CommandId::NavDown);
+        assert!(app.palette.recent().is_empty());
+
+        app.open_palette();
+        assert!(
+            !app.palette
+                .matches
+                .iter()
+                .any(|matched| matched.id == CommandId::NavDown)
         );
     }
 }

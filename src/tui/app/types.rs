@@ -11,6 +11,8 @@ use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
 use crate::git;
 use crate::search::MemoryIndex;
+#[cfg(test)]
+use crate::tui::command::CommandId;
 
 use super::super::editor::EditRequest;
 use super::super::event::AppEvent;
@@ -215,6 +217,8 @@ pub struct App {
     pub default_folder: Option<String>,
     pub default_tags: Vec<String>,
     pub(super) last_click: Option<(usize, Instant)>,
+    #[cfg(test)]
+    pub(crate) last_command: Option<CommandId>,
 }
 
 #[cfg(test)]

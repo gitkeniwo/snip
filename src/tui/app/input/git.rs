@@ -12,7 +12,9 @@ impl App {
         match key.code {
             _ if super::is_ctrl_s(key) => return self.run_command(CommandId::GistOpenPanel),
             _ if super::is_ctrl_g(key) || key.code == KeyCode::Esc => self.git.open = false,
-            _ if super::is_palette_trigger(key) => self.open_palette(),
+            _ if super::is_palette_trigger(key) => {
+                return self.run_command(CommandId::PaletteOpen);
+            }
             KeyCode::Char('r') => return self.run_command(CommandId::GitRefreshLocalStatus),
             KeyCode::Char('b') => return self.run_command(CommandId::GitBackup),
             KeyCode::Char('c') => return self.run_command(CommandId::GitCommit),
@@ -24,15 +26,7 @@ impl App {
             KeyCode::Char('u') => return self.run_command(CommandId::GitToggleAutoPush),
             KeyCode::Char('U') => return self.run_command(CommandId::GitToggleAutoPull),
             KeyCode::Char('o') => return self.run_command(CommandId::GitToggleBackupOnQuit),
-            KeyCode::Char('i') => {
-                if matches!(
-                    self.git.unavailable.as_ref(),
-                    Some(Unavailable::NotARepository)
-                ) {
-                    return self.run_command(CommandId::GitInitRepository);
-                }
-                return self.run_command(CommandId::GitSetAutoCommitInterval);
-            }
+            KeyCode::Char('i') => return self.run_command(CommandId::GitInitOrSetInterval),
             _ => {}
         }
         Vec::new()

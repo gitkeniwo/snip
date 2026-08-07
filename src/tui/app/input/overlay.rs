@@ -81,20 +81,18 @@ impl App {
     }
     pub(super) fn handle_help_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         match key.code {
-            _ if super::is_palette_trigger(key) => self.open_palette(),
+            _ if super::is_palette_trigger(key) => {
+                return self.run_command(CommandId::PaletteOpen);
+            }
             KeyCode::Char('q') => return self.run_command(CommandId::AppQuit),
             KeyCode::Char('?') | KeyCode::Esc => self.show_help = false,
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.help_scroll = self.help_scroll.saturating_add(1)
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.help_scroll = self.help_scroll.saturating_sub(1)
-            }
+            KeyCode::Char('j') | KeyCode::Down => return self.run_command(CommandId::NavDown),
+            KeyCode::Char('k') | KeyCode::Up => return self.run_command(CommandId::NavUp),
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.help_scroll = self.help_scroll.saturating_add(10)
+                return self.run_command(CommandId::NavPageDown);
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.help_scroll = self.help_scroll.saturating_sub(10)
+                return self.run_command(CommandId::NavPageUp);
             }
             _ => {}
         }

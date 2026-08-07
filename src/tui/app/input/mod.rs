@@ -51,8 +51,7 @@ impl App {
         }
         if self.trash.open {
             if is_palette_trigger(key) {
-                self.open_palette();
-                return Vec::new();
+                return self.run_command(CommandId::PaletteOpen);
             }
             // The trash occupies the list pane rather than covering everything,
             // so its keys apply only when that pane has focus; the sidebar keeps
@@ -69,12 +68,14 @@ impl App {
             return self.handle_fragment_grab_key(key);
         }
         match key.code {
-            _ if is_palette_trigger(key) => self.open_palette(),
+            _ if is_palette_trigger(key) => return self.run_command(CommandId::PaletteOpen),
             KeyCode::Char('q') => return self.run_command(CommandId::AppQuit),
-            KeyCode::Tab => self.focus = self.focus.next(),
-            KeyCode::BackTab => self.focus = self.focus.previous(),
-            KeyCode::Char('h') | KeyCode::Left => self.drill_back(),
-            KeyCode::Char('l') | KeyCode::Right => self.drill_forward(),
+            KeyCode::Tab => return self.run_command(CommandId::PaneNext),
+            KeyCode::BackTab => return self.run_command(CommandId::PanePrevious),
+            KeyCode::Char('h') | KeyCode::Left => return self.run_command(CommandId::PaneBack),
+            KeyCode::Char('l') | KeyCode::Right => {
+                return self.run_command(CommandId::PaneForward);
+            }
             KeyCode::Char('/') => return self.run_command(CommandId::LibrarySearch),
             KeyCode::Esc => {
                 if self.show_help {
@@ -176,10 +177,12 @@ impl App {
             KeyCode::Char('p') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return self.run_command(CommandId::CopyManagedPath);
             }
-            KeyCode::Char('[') => self.previous_fragment(),
-            KeyCode::Char(']') => self.next_fragment(),
-            KeyCode::Char('{') => crate::tui::preview::jump_paragraph(self, false),
-            KeyCode::Char('}') => crate::tui::preview::jump_paragraph(self, true),
+            KeyCode::Char('[') => return self.run_command(CommandId::PreviewPreviousItem),
+            KeyCode::Char(']') => return self.run_command(CommandId::PreviewNextItem),
+            KeyCode::Char('{') => {
+                return self.run_command(CommandId::PreviewPreviousParagraph);
+            }
+            KeyCode::Char('}') => return self.run_command(CommandId::PreviewNextParagraph),
             KeyCode::Char('1')
             | KeyCode::Char('2')
             | KeyCode::Char('3')
@@ -209,7 +212,7 @@ impl App {
                     }
                 }
             }
-            _ => self.handle_pane_key(key),
+            _ => return self.handle_pane_key(key),
         }
         Vec::new()
     }

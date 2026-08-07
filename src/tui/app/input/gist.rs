@@ -23,7 +23,9 @@ impl App {
         match key.code {
             _ if super::is_ctrl_g(key) => return self.run_command(CommandId::GitOpenConsole),
             _ if super::is_ctrl_s(key) || key.code == KeyCode::Esc => self.gist.open = false,
-            _ if super::is_palette_trigger(key) => self.open_palette(),
+            _ if super::is_palette_trigger(key) => {
+                return self.run_command(CommandId::PaletteOpen);
+            }
             KeyCode::Char('p') => return self.run_command(CommandId::GistPush),
             KeyCode::Char('P') => return self.run_command(CommandId::GistPushPublic),
             KeyCode::Char('y') => return self.run_command(CommandId::GistCopyUrl),

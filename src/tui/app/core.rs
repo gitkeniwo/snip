@@ -117,6 +117,8 @@ impl App {
             default_folder: config.default_folder.clone(),
             default_tags: config.default_tags.clone(),
             last_click: None,
+            #[cfg(test)]
+            last_command: None,
         };
         app.palette.set_recent(
             recent_commands
