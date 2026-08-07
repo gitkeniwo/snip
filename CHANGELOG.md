@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The TUI keyboard is one table.** Every key now resolves through a keymap of
+  *(mode, chord) → action* instead of six hand-written dispatch functions, which
+  is the groundwork for user-defined bindings. Four keys behave differently:
+  `q` in the trash and in the help pane closes the overlay instead of quitting
+  the application (matching the Git console, and `ctrl-c` still quits from
+  anywhere); `Home` and `End` jump to the first and last item in every pane, not
+  only in the trash; `Ctrl-d` and `Ctrl-u` page the trash as they already paged
+  the help pane; and `Alt-s` no longer falls through to `s`, so it stops cycling
+  the sort order. Everything else is unchanged.
+
 ## [0.5.5] - 2026-08-07
 
 ### Changed
