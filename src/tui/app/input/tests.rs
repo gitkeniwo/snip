@@ -2,7 +2,7 @@ use ratatui::crossterm::event::KeyEvent;
 
 use crate::config::AppConfig;
 use crate::filesystem::Library;
-use crate::keys::Chord;
+use crate::keys::{Chord, Keymap, Mode};
 use crate::tui::app::types::FragmentGrab;
 use crate::tui::command::CommandId;
 use crate::tui::state::Pane;
@@ -22,6 +22,38 @@ enum TestMode {
     Git,
     Gist,
     Search,
+}
+
+impl TestMode {
+    const ALL: [Self; 11] = [
+        Self::Global,
+        Self::Sidebar,
+        Self::List,
+        Self::Preview,
+        Self::Fragment,
+        Self::FragmentGrab,
+        Self::Trash,
+        Self::Help,
+        Self::Git,
+        Self::Gist,
+        Self::Search,
+    ];
+
+    fn keymap_mode(self) -> Mode {
+        match self {
+            Self::Global => Mode::Global,
+            Self::Sidebar => Mode::Sidebar,
+            Self::List => Mode::List,
+            Self::Preview => Mode::Preview,
+            Self::Fragment => Mode::Fragment,
+            Self::FragmentGrab => Mode::FragmentGrab,
+            Self::Trash => Mode::Trash,
+            Self::Help => Mode::Help,
+            Self::Git => Mode::Git,
+            Self::Gist => Mode::Gist,
+            Self::Search => Mode::Search,
+        }
+    }
 }
 
 fn app() -> (tempfile::TempDir, App) {
@@ -94,11 +126,19 @@ fn assert_bindings(app: &mut App, mode: TestMode, bindings: &[(&str, CommandId)]
 #[test]
 fn handwritten_dispatch_matches_the_characterization_table() {
     let (_temporary, mut app) = app();
+    for (mode, bindings) in characterization_table() {
+        assert_bindings(&mut app, mode, &bindings);
+    }
+}
 
-    assert_bindings(
-        &mut app,
+/// The behaviour oracle: what the handwritten dispatch did, chord by chord.
+/// `every_default_binding_is_characterized` keeps it exhaustive.
+fn characterization_table() -> Vec<(TestMode, Vec<(&'static str, CommandId)>)> {
+    let mut table = Vec::new();
+
+    table.push((
         TestMode::Global,
-        &[
+        vec![
             (":", CommandId::PaletteOpen),
             ("ctrl-p", CommandId::PaletteOpen),
             ("q", CommandId::AppQuit),
@@ -126,7 +166,7 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("ctrl-g", CommandId::GitToggleConsole),
             ("ctrl-s", CommandId::GistTogglePanel),
         ],
-    );
+    ));
 
     let navigation = [
         ("j", CommandId::NavDown),
@@ -188,35 +228,31 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ][..],
         ),
     ] {
-        assert_bindings(&mut app, mode, &navigation);
-        assert_bindings(&mut app, mode, bindings);
+        table.push((mode, [&navigation[..], bindings].concat()));
     }
 
-    assert_bindings(
-        &mut app,
+    table.push((
         TestMode::Fragment,
-        &[
+        vec![
             ("n", CommandId::FragmentAdd),
             ("r", CommandId::FragmentRename),
             ("m", CommandId::FragmentReorder),
             ("d", CommandId::FragmentRemove),
         ],
-    );
-    assert_bindings(
-        &mut app,
+    ));
+    table.push((
         TestMode::FragmentGrab,
-        &[
+        vec![
             ("j", CommandId::NavDown),
             ("down", CommandId::NavDown),
             ("k", CommandId::NavUp),
             ("up", CommandId::NavUp),
             ("enter", CommandId::GrabDrop),
         ],
-    );
-    assert_bindings(
-        &mut app,
+    ));
+    table.push((
         TestMode::Trash,
-        &[
+        vec![
             ("j", CommandId::NavDown),
             ("down", CommandId::NavDown),
             ("k", CommandId::NavUp),
@@ -233,11 +269,10 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("u", CommandId::TrashRestoreSelected),
             ("x", CommandId::TrashPurgeSelected),
         ],
-    );
-    assert_bindings(
-        &mut app,
+    ));
+    table.push((
         TestMode::Help,
-        &[
+        vec![
             ("j", CommandId::NavDown),
             ("down", CommandId::NavDown),
             ("k", CommandId::NavUp),
@@ -245,11 +280,10 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("ctrl-d", CommandId::NavPageDown),
             ("ctrl-u", CommandId::NavPageUp),
         ],
-    );
-    assert_bindings(
-        &mut app,
+    ));
+    table.push((
         TestMode::Git,
-        &[
+        vec![
             ("r", CommandId::GitRefreshLocalStatus),
             ("b", CommandId::GitBackup),
             ("c", CommandId::GitCommit),
@@ -263,11 +297,10 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("o", CommandId::GitToggleBackupOnQuit),
             ("i", CommandId::GitInitOrSetInterval),
         ],
-    );
-    assert_bindings(
-        &mut app,
+    ));
+    table.push((
         TestMode::Gist,
-        &[
+        vec![
             ("p", CommandId::GistPush),
             ("P", CommandId::GistPushPublic),
             ("y", CommandId::GistCopyUrl),
@@ -277,7 +310,12 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("x", CommandId::GistDelete),
             ("r", CommandId::GistVerifyRemote),
         ],
-    );
+    ));
+
+    // Search binds nothing of its own; everything unclaimed is query text.
+    table.push((TestMode::Search, Vec::new()));
+
+    table
 }
 
 #[test]
@@ -408,6 +446,74 @@ fn search_keeps_the_panel_toggles_reachable() {
         );
         assert_eq!(app.search.query, chord, "{chord:?} must reach the query");
     }
+}
+
+#[test]
+fn every_default_binding_is_characterized() {
+    use std::collections::BTreeSet;
+
+    let keymap = Keymap::defaults();
+    let mut characterized: BTreeSet<(String, String)> = characterization_table()
+        .into_iter()
+        .flat_map(|(mode, bindings)| {
+            bindings.into_iter().map(move |(chord, _)| {
+                (
+                    format!("{:?}", mode.keymap_mode()),
+                    chord.parse::<Chord>().unwrap().to_string(),
+                )
+            })
+        })
+        .collect();
+    for (mode, chord) in characterized_elsewhere() {
+        characterized.insert((
+            format!("{:?}", mode.keymap_mode()),
+            chord.parse::<Chord>().unwrap().to_string(),
+        ));
+    }
+
+    let bound: BTreeSet<(String, String)> = TestMode::ALL
+        .into_iter()
+        .flat_map(|mode| {
+            let mode = mode.keymap_mode();
+            keymap
+                .bindings_for(mode)
+                .map(move |(chord, _)| (format!("{mode:?}"), chord.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    let untested: Vec<_> = bound.difference(&characterized).collect();
+    let stale: Vec<_> = characterized.difference(&bound).collect();
+    assert!(
+        untested.is_empty() && stale.is_empty(),
+        "default bindings with no test: {untested:?}\n\
+         tested chords that are no longer bound: {stale:?}"
+    );
+}
+
+/// Chords the tests above pin outside the characterization table, so that
+/// `every_default_binding_is_characterized` still sees full coverage.
+fn characterized_elsewhere() -> Vec<(TestMode, &'static str)> {
+    vec![
+        // a4_intentional_behavior_changes_are_explicit
+        (TestMode::Sidebar, "home"),
+        (TestMode::Sidebar, "end"),
+        (TestMode::List, "home"),
+        (TestMode::List, "end"),
+        (TestMode::Preview, "home"),
+        (TestMode::Preview, "end"),
+        // handwritten_dispatch_pins_shadowing_and_inline_closers
+        (TestMode::FragmentGrab, "-"),
+        (TestMode::Trash, "q"),
+        (TestMode::Help, "q"),
+        // escape_dismisses_whatever_owns_the_keyboard
+        (TestMode::Global, "esc"),
+        (TestMode::FragmentGrab, "esc"),
+        (TestMode::Trash, "esc"),
+        (TestMode::Help, "esc"),
+        (TestMode::Git, "esc"),
+        (TestMode::Gist, "esc"),
+    ]
 }
 
 #[test]
