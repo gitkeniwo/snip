@@ -66,7 +66,7 @@ implicit. An agent asked to "put the comment in the note" wrote it to the snippe
 README instead, because `snip create --note` silently targets the single fragment
 it creates.
 
-- [ ] State the choosing rule in one line in `skills/snip` and the `snip create`
+- [x] State the choosing rule in one line in `skills/snip` and the `snip create`
   help: prose about *this one file* is a note, prose about *the set* is the
   README.
 

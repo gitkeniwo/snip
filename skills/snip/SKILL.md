@@ -59,9 +59,19 @@ refers to the whole entry, never to a single file.
 Resolution order: `--library <path>` → `$SNIP_LIBRARY` → the nearest ancestor
 directory containing `snip.toml` → `default_library` from the user config.
 
-If the user has one library configured, plain commands just work. When you are
-scripting several commands, exporting `SNIP_LIBRARY` once is cleaner than
-repeating `--library`.
+**When the user does not name a library, do not ask which one and do not go
+looking for one.** Run the command with no `--library` and let the order above
+land on their default — "my snippets" means the default library. Pass
+`--library` only when the user named a specific library or path.
+
+One trap in that order: the nearest-ancestor `snip.toml` outranks
+`default_library`, so when your working directory sits inside some other
+library, plain commands quietly target *that* one instead of the default.
+`snip info` below reports which one won — check it before writing when you might
+be inside a library.
+
+When you are scripting several commands, exporting `SNIP_LIBRARY` once is
+cleaner than repeating `--library`.
 
 A freshly cloned library works directly with `snip --library <path>`: snip
 recreates missing runtime directories when it opens the library, so it does not
@@ -149,6 +159,11 @@ Text comes in two forms, and the same pair exists for `--note` and `--readme`:
 They are mutually exclusive, so passing both is a usage error rather than a
 silent choice.
 
+Choosing between the two prose slots: prose about **this one file** is a note,
+prose about **the set** is the README. Watch the scope on `create` — `--note`
+attaches to the single fragment it creates, so a description of the whole
+snippet written there ends up owned by one file instead of by the snippet.
+
 **Creating** is unconditional — nothing exists yet to conflict with:
 
 ```bash
@@ -233,6 +248,35 @@ snip tag delete obsolete                         # removes it everywhere
 `folder rename` and `folder move` are different operations: rename keeps the
 parent and takes a bare name, move takes a full path and reparents. Passing a
 path to `rename` is a usage error rather than a silent move.
+
+### Matching a folder the user named
+
+**Treat a folder the user mentions as one that already exists.** Real folder
+names carry capitalization, emoji, and spacing that nobody reproduces from
+memory — `AI 👾`, `Data Science/Queries` — so "put it in AI" means that folder,
+not a new one.
+
+Resolve the name before you use it: run `snip folder list --output json`, match
+what the user said against the real paths while ignoring case, emoji,
+punctuation, and small typos, then pass the **exact existing path**. Create a
+folder only when the user explicitly asks for a new one, or when nothing in the
+list is a plausible match. When the match was not exact, tell the user which
+folder you picked.
+
+This matters because `--folder` on `create` and `edit` creates the folder when
+it does not exist — silently, exit 0, no warning. snip folds case for you, so
+`ai 👾` does find `AI 👾`. **Nothing else is forgiving:** a missing emoji, a
+doubled space, or a typo yields a second folder beside the real one, with the
+snippet filed in the wrong place.
+
+```bash
+snip folder list --output json                 # ["AI 👾"]
+snip create --title Probe --folder "AI" …      # exit 0, no warning
+snip folder list --output json                 # ["AI", "AI 👾"] — silent duplicate
+```
+
+`snip folder delete` cleans that up, but only once the stray folder is empty, so
+it is far cheaper to list first than to unpick afterwards.
 
 ## Deleting
 
