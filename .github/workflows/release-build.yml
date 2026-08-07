@@ -365,9 +365,14 @@ jobs:
           import hashlib, os, pathlib, re, sys
 
           version = os.environ["VERSION"].lstrip("v")
+          # The musl archives exist for the install script and for `cargo binstall`
+          # on musl hosts. Homebrew, including Linuxbrew, targets glibc, so the
+          # formula only ever references the darwin and gnu archives — counting the
+          # musl ones here would make the platform check below fail.
           sums = {
               path.name: hashlib.sha256(path.read_bytes()).hexdigest()
               for path in pathlib.Path("artifacts").rglob("snip-*.tar.gz")
+              if "-linux-musl" not in path.name
           }
           if not sums:
               sys.exit("no release archives were downloaded")
