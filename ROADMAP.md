@@ -59,17 +59,6 @@ grows linearly with library size.
   or be renamed to reflect that it is a linear scanner. This depends on the
   library size we intend to support and is not urgent at today's scale.
 
-### Note vs. README guidance
-
-The README is a first-class preview item now, but the *authoring* rule is still
-implicit. An agent asked to "put the comment in the note" wrote it to the snippet
-README instead, because `snip create --note` silently targets the single fragment
-it creates.
-
-- [x] State the choosing rule in one line in `skills/snip` and the `snip create`
-  help: prose about *this one file* is a note, prose about *the set* is the
-  README.
-
 ## Sharing
 
 ### GitLab snippets
@@ -268,3 +257,10 @@ there is no popularity threshold for new packages.
   leaves package-manager-owned installs untouched); ships an `uninstall` mode and
   is published at the stable `releases/latest/download/install.sh` URL.
   (`docs/plans/install-script.md`)
+
+### Skill
+
+- **Note vs. README guidance** — the choosing rule ("prose about *this one file*
+  is a note, prose about *the set* is the README") is stated in `skills/snip`
+  and the `snip create` help, so agents no longer file whole-snippet prose in
+  the single fragment's note.
