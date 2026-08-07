@@ -3,418 +3,268 @@
 Planned work, roughly in the order it is likely to land. Nothing here is a
 commitment to a date.
 
+Open work comes first, grouped by area. [Shipped](#shipped) at the bottom is a
+one-line-per-item record — the design rationale behind those items lives in
+`docs/plans/` and in the commit history, not here.
+
 ## TUI
-
-### Color themes
-
-- [x] Ship selectable TUI color themes: seventeen built-in light and dark
-  themes, editable TOML themes under the user config directory, `snip theme`
-  inspection and switching commands, `tui-light-theme` / `tui-dark-theme`
-  config keys, and a command-palette picker with live full-UI and
-  syntax-highlighting preview. (landed in 0.3.2)
-
-### Theme readability (in progress)
-
-Tracks `docs/plans/theme-contrast.md`. Fix the systemic "unreadable text"
-problem (several built-in themes render text at 1.0:1 contrast), then make
-themes cheap to extend.
-
-- [x] A — runtime `legible_on` fallback: every pill / retained-selection
-  foreground picks a readable color at render time instead of trusting the
-  role mapping.
-- [x] B — raise the generator's contrast floors to WCAG 4.5 and cover
-  `accent` / `accent_alt`; add graphic floors for `rule` (3.0) and `border`
-  (2.5); regenerate the built-ins.
-- [x] C — rewrite `theme check`'s pairs to the real render pairs and add
-  regression tests that no built-in fails.
-
-### Theme import & extension
-
-- [x] Shipped `snip theme import <scheme.yaml>`: the generator's base16 →
-  UI-role mapping, contrast clamping, and selection-foreground choice now live
-  in a shared library, so local base16/base24 schemes import as editable user
-  themes without adding a runtime dependency.
-- [x] Curated 28 built-in base16 themes through `SPECS`, including twelve light
-  themes, while retaining generated assets and hand-verifiable provenance.
-
-### README as a first-class preview item
-
-An agent asked to "put the comment in the note" wrote it to the snippet README
-instead (`Main.sniplib/snippets/Reading Experience/mdbook-settings--6aa36e89/`:
-`README.md` present, `notes/` empty). That was arguably the right call — the
-prose describes all four fragments and the build command, so no single fragment
-owns it — but the confusion is real, and it is a presentation problem, not a
-data-model one. The two slots differ in cardinality and cannot merge: a note
-attaches to *one* fragment (N fragments, up to N notes), a README describes the
-*whole* snippet (at most one). FORMAT.md already discriminates them downstream
-— `include_notes` / `include_readme` on the gist remote record, and `--field
-note` / `--field readme` in search — so collapsing them would lose two working
-knobs and leave snippet-level prose with nowhere to live.
-
-What is actually wrong is that the README is invisible as a *thing*.
-`compose_preview` (`src/tui/preview/layout.rs:70`) appends it below whichever
-fragment is on screen, under a `── readme ──` rule, so it reads as a trailing
-part of that fragment and repeats itself on every fragment switch. Nothing in
-the snippet list or the fragment line says a README exists, so the author
-cannot tell where their prose landed.
-
-The fix is to promote the README to a first-class *navigation* item without
-making it a fragment — the manifest, the fingerprint, and `snip fragment`
-stay untouched. The model is the GitHub Gist one: `README.md` is just a file
-that sorts to the bottom of the file list, with no decoration of its own.
-Tracks `docs/plans/readme-preview-item.md`, which fixes the exact rendering,
-the action gating, and the strings.
-
-- [x] Replace `App.fragment_index: usize` with a
-  `PreviewTarget { Fragment(usize), Readme }` enum, threaded through the
-  preview cache key and `SelectionKey`. The enum is the point: it makes the
-  compiler enumerate every fragment-scoped action and force an answer for the
-  README case, where a sentinel index would turn each one into a silent no-op.
-- [x] Turn `PreviewDocument` (`src/tui/preview/cache.rs:11`) into an enum, so
-  the appended README tail in `compose_preview`
-  (`src/tui/preview/layout.rs:70`) is not merely deleted but unrepresentable.
-  The `── readme ──` rule goes with it — the tree row is the label.
-- [x] Add the README as the last row of the fragment tree
-  (`draw_fragment_tree`, `src/tui/preview/render.rs:564`), labelled
-  `README.md`, with a blank index column and excluded from the header count
-  and from `current/total` in `make_fragment_line` (`:373`). The collapsed
-  line for a README target reads `+ README.md  ·  38 L` — no `x/y`, since the
-  README is not in the fragment count.
-- [x] Wrap `[` / `]` fragment switching around the ends, so `[` from the first
-  fragment lands directly on the README. With one to five fragments, clamping
-  at the boundary signals nothing worth keeping.
-- [x] The row is drawn only when a README exists; nothing takes its place
-  otherwise. `snippet.edit-readme` already covers creation from the palette
-  (`src/tui/command/registry.rs:55`), and a placeholder would be the only
-  action row in a tree of content rows. No `+r` marker either — once the
-  README has its own row, the row's presence is the indicator.
-- [ ] Independently, state the choosing rule in one line in `skills/snip` and
-  the `snip create` help: prose about *this one file* is a note, prose about
-  *the set* is the README. `snip create --note` silently targets the single
-  fragment it creates, which is what made the agent reach for `--readme`.
 
 ### User-defined key bindings
 
-- [ ] Make every TUI action rebindable through the config file, with the
-  current bindings as the default set. Needs a stable action name for each
-  command and a way to show the effective bindings (both in the help pane and
-  as JSON).
-
-### Grapheme-cluster-aware text width
-
-`char_width` (`src/tui/selection.rs`) measures width per `char` (Unicode
-scalar value) and falls back to `.max(1)` for anything ratatui reports as
-zero-width. That is correct for CJK and other genuinely wide code points, but
-wrong for multi-scalar grapheme clusters: a ZWJ sequence like `👨‍💻` is three
-scalars (`👨`, ZWJ, `💻`) that render as one glyph, so `char_width` sums them
-to more cells than the terminal actually uses, and `truncate_end`
-(`src/tui/widgets.rs`) can cut the string apart right after the ZWJ, leaving a
-dangling joiner plus an orphaned trailing emoji. Every truncation and
-flush-right layout in the TUI (preview header, snippet list, panel/help text,
-fragment tree) is affected, since they all route through `char_width` /
-`text_width` / `truncate_end`.
-
-- [x] Switch `char_width`/`truncate_end` to walk grapheme clusters (e.g. via
-  `unicode-segmentation`) instead of `chars()`, so multi-scalar emoji and
-  other combining sequences are measured and truncated as one unit.
-- [x] `char_width` is also used by the prose/code line-wrapping in
-  `src/tui/preview/layout.rs`, so a fix needs to keep that wrapping correct
-  too, not just the truncation call sites.
-- [x] Add a regression test with a ZWJ emoji sequence in a title, mirroring
-  the existing CJK-width tests in `src/tui/widgets.rs` and
-  `src/tui/preview/render.rs`.
-- [ ] Expand tabs before syntax highlighting using an explicit tab-stop policy;
-  ratatui filters the control character itself, so tabs currently collapse to
-  one visual column. This is independent of grapheme-cluster measurement.
-
-Found while fixing commit `3558bc2` ("fix(tui): keep flush-right markers and
-dates with wide glyphs") and its follow-up, which made truncation cell-aware
-for CJK — but the emoji case that commit's message also claimed to handle was
-never actually correct.
+- [ ] Make every TUI action rebindable through the config file, with the current
+  bindings as the default set. Needs a stable action name for each command and a
+  way to show the effective bindings (both in the help pane and as JSON).
 
 ### Configurable snippet editor
 
-- [ ] Let the user pick per preference:
-  - an in-TUI editor (`tui-textarea`), for quick edits without leaving the
-    browser
-  - `$EDITOR`, for terminal editors
-  - an external GUI editor, launched detached
-- [ ] The choice belongs in the config file, with a sensible fallback chain
-  when the configured editor is missing.
+- [ ] Let the user pick per preference: an in-TUI editor (`tui-textarea`) for
+  quick edits without leaving the browser, `$EDITOR` for terminal editors, or an
+  external GUI editor launched detached.
+- [ ] The choice belongs in the config file, with a sensible fallback chain when
+  the configured editor is missing.
 
-### Fragment editing
+### Tab expansion in the preview
 
-The TUI covers the full fragment surface — add, rename, reorder, remove, and
-browsing — via the command registry (`src/tui/command/registry.rs`):
-`n.add`, `n.rename`, `n.reorder`, `n.remove`, and `view.toggle-fragment-list`.
+- [ ] Expand tabs before syntax highlighting using an explicit tab-stop policy;
+  ratatui filters the control character itself, so tabs currently collapse to one
+  visual column. Independent of the grapheme-cluster measurement that shipped
+  alongside it.
 
-- [x] Add/create a fragment from the preview's fragment tree.
-- [x] Rename a fragment title in place.
-- [x] Move a fragment to another position within the snippet.
-- [x] Delete a fragment with a confirmation prompt.
+### Preview allocation follow-up
 
-### Preview render cost per frame
+The rendered-preview cache removed the per-frame recompose and rewrap. One clone
+per frame remains:
 
-Measured RSS for `snip tui` under a PTY: ~9.8 MB at 2s, ~11.5 MB at 6s, then
-flat at 11.5–11.8 MB through 15s — no growth, no leak. CLI commands sit at
-6.6–7.3 MB, so the TUI's increment is ~4.5 MB. An empty library still costs
-11.0 MB, and a 59-snippet library 11.8 MB, so library content is only ~0.8 MB;
-the rest is fixed (~5.4 MB binary/runtime baseline shared with the CLI, plus
-`two_face::syntax::extra_newlines()`, ratatui, and the file watcher). That
-total is healthy for a Rust TUI carrying a full syntax set, and is not worth
-optimizing on its own.
-
-What the measurement did surface is a per-frame allocation problem in the
-preview pane. The rendered-preview cache now removes steps 2–4 on a cache hit;
-the remaining per-frame work is step 1, for the selected snippet:
-
-1. deep-copies the whole `Snippet` — including every loaded fragment's full
-   text — at `src/tui/preview/render.rs:21` (`selected_snippet().cloned()`);
-2. deep-copies the cached `PreviewDocument` on a cache *hit*
-   (`src/tui/preview/cache.rs:37`), which is one owned `String` plus a `Style`
-   per highlight token;
-3. re-runs `compose_preview` (`src/tui/preview/layout.rs:20`), which consumes
-   that document by value and rebuilds every line to add gutters and insets;
-4. re-runs `wrap_preview` over the whole fragment, not just the visible
-   window.
-
-Steps 2–4 all repeat work whose inputs did not change. `jump_paragraph`
-(`src/tui/preview/layout.rs:347`) runs the same pipeline again, though only on
-a keypress, not per frame. The cost scales with fragment length, so it shows
-up as input latency on large snippets.
-
-- [x] Cache the *rendered* preview instead of the intermediate document: key
-  on `(fingerprint, fragment_index, content width, show_line_numbers)` and
-  reuse the wrapped output across frames. This removes the document clone,
-  the recompose, and the rewrap in one change, and makes an
-  `Arc<PreviewDocument>` unnecessary.
-- [ ] Borrow the selected snippet in `draw_preview` rather than cloning it;
-  the clone exists to end the `&App` borrow before `&mut App` is needed, so
-  this needs the borrow split untangled first. Deliberately retained after the
-  preview-cache work: the normal and trash preview ownership paths need a
-  wider borrow refactor, for a much smaller payoff than the removed wrapping
-  allocations.
-- [x] Add a counted-allocation regression guard for both direct cache hits and
-  the full preview draw path, including selection synchronization and per-Line
-  rendering.
-
-Two follow-ups were considered and rejected. Making the syntax set lazy buys
-nothing: the TUI draws the preview on its very first frame (`src/tui/ui.rs`
-calls `draw_preview` unconditionally), so a lazy `Highlighter` would
-initialize milliseconds after startup anyway; only a genuinely reduced
-`SyntaxSet` would shrink that cost, at the price of dropping language support.
-Highlighting only the visible window is likewise not worth it — syntect's
-`HighlightLines` is a stateful line scanner, so reaching line N still requires
-scanning lines 1..N; and once the render cache above lands, highlighting runs
-once per fragment switch rather than per frame.
+- [ ] Borrow the selected snippet in `draw_preview` rather than cloning it
+  (`src/tui/preview/render.rs:21`). The clone exists to end the `&App` borrow
+  before `&mut App` is needed, so this needs the borrow split untangled first.
+  Deliberately deferred after the cache work: the normal and trash preview
+  ownership paths need a wider borrow refactor, for a much smaller payoff than
+  the wrapping allocations already removed.
+  Tracks `docs/plans/preview-render-cost.md`.
 
 ### Catalog held twice in memory
 
-`App` holds a `CatalogSnapshot` and a `MemoryIndex` that is nothing but a
-second full copy of the same snapshot (`src/tui/app/core.rs:51` and `:496`
-call `MemoryIndex::new(catalog.clone())`; `src/search.rs:106` shows the struct
-has one field and builds no index — `search()` is a linear scan over
-`catalog.snippets`). A rescan transiently holds a third copy. At the current
-scale this is only the ~0.8 MB measured above, but it grows linearly with
-library size.
+`App` holds a `CatalogSnapshot` and a `MemoryIndex` that is nothing but a second
+full copy of it (`src/tui/app/core.rs:51` and `:496` call
+`MemoryIndex::new(catalog.clone())`; `src/search.rs:106` shows the struct has one
+field and builds no index — `search()` is a linear scan over `catalog.snippets`).
+A rescan transiently holds a third copy. That is ~0.8 MB at today's scale, but it
+grows linearly with library size.
 
-- [ ] Share one `Arc<CatalogSnapshot>` between `App` and `MemoryIndex`, or
-  have the search borrow the catalog directly, so the snapshot is stored once.
-- [ ] Separately: `MemoryIndex` is misnamed for what it does. Decide whether
-  it should acquire a real index (inverted index over titles/tags, or a
-  prefilter) or be renamed to reflect that it is a linear scanner. This
-  depends on the library size we intend to support and is not urgent at
-  today's scale.
+- [ ] Share one `Arc<CatalogSnapshot>` between `App` and `MemoryIndex`, or have
+  the search borrow the catalog directly, so the snapshot is stored once.
+- [ ] Separately: `MemoryIndex` is misnamed for what it does. Decide whether it
+  should acquire a real index (inverted index over titles/tags, or a prefilter)
+  or be renamed to reflect that it is a linear scanner. This depends on the
+  library size we intend to support and is not urgent at today's scale.
 
-## Library portability
+### Note vs. README guidance
 
-A library backed up with `snip git backup` can now be restored on a second
-machine without hand-editing the filesystem. The three completed items below
-landed in order: the first is a bug fix, the second removes the remaining manual
-steps, and the third gives the backup loop an entry point. Tracks
-`docs/plans/library-restore.md`, which fixes the command surface, the exact
-output strings, and the error messages.
+The README is a first-class preview item now, but the *authoring* rule is still
+implicit. An agent asked to "put the comment in the note" wrote it to the snippet
+README instead, because `snip create --note` silently targets the single fragment
+it creates.
 
-### Runtime directories must survive a clone
-
-`snip init` writes a `.gitignore` excluding `.snip/cache/`, `.snip/locks/`, and
-`.snip/transactions/` (`src/filesystem/library.rs:77`) — which is every
-subdirectory `.snip/` has. Git does not record empty directories, so `.snip/`
-does not exist in the repository at all, and a clone arrives without it.
-`Library::open` previously rejected the library outright
-(`src/filesystem/library.rs:125`), and the fix is unreachable from the CLI:
-`snip doctor --repair` takes an already-open `Library` (`src/service/doctor.rs:43`,
-dispatched at `src/commands/mod.rs:86`), and `snip init` on an existing path
-routes to `finish_connected` (`src/commands/onboard.rs:87`), which opens the
-library too. Both used to fail with the same error; self-healing in
-`Library::open` now covers every entry point.
-
-The same trap applies to `snippets/` and `trash/`: neither is ignored, but an
-empty one is equally absent from a clone and equally fatal on open.
-
-- [x] `Library::open` now self-heals: it creates any of `snippets/`, `trash/`,
-  `.snip/cache/`, `.snip/locks/`, `.snip/transactions/` that are missing, and
-  keeps the existing error only when creation fails. Best-effort rather than
-  `?`, since `open` is on read-only paths too and a read-only mount should not
-  block reads that need no scratch space.
-- [x] Do not commit a tracked `.snip/.gitkeep`: self-healing makes it
-  unnecessary and it contradicts "`.snip/` MUST NOT be committed" in
-  FORMAT.md.
-- [x] Regression tests build a library, delete each recreatable directory, and
-  assert `open` succeeds and a write still works, and a `tests/git.rs` case
-  clones a committed library into a fresh path and runs a command against it, so
-  the real failure mode is covered end to end.
-- [x] The implementation matches FORMAT.md's requirement to recreate runtime
-  directories on open only after `snip.toml` proves the directory is a library.
-
-### Restoring a library on another machine
-
-The underlying restore remains clone, then `snip config set default-library`,
-because `default_library` lives in
-`$XDG_CONFIG_HOME/snip/config.toml` and is deliberately not part of the library.
-`snip git clone --set-default` provides both steps as one non-interactive
-command.
-
-- [x] `NO_LIBRARY_HINT` now names the path for an existing or freshly cloned
-  library as well as the create path.
-- [x] The onboarding wizard's unchanged connect branch accepts incomplete
-  clones through `Library::open` self-healing.
-- [x] The restore flow is documented in the generated `snip-git` manual and
-  the README.
-
-### `snip git clone`
-
-The backup loop now has its restore entry point alongside `git init`, `commit`,
-`backup`, `push`, and `fetch`:
-
-```bash
-snip git clone <remote> [path] [--gh] [--set-default]
-```
-
-- [x] Added `Clone` to `GitCommand` and dispatch it before
-  library resolution, next to `Init` and `Import` (`src/commands/mod.rs:55`) —
-  every other Git subcommand receives an open `Library`, and this one runs when
-  no library exists yet.
-- [x] The destination defaults to `~/<repo-name>.sniplib`, refuses a non-empty
-  target, and validates after cloning that the result really is a library
-  (`snip.toml` present, schema accepted) — deleting a clone that is not one, so
-  a typo'd remote does not leave a stray directory.
-- [x] Credentials remain delegated explicitly: Git is the default and `--gh`
-  selects `gh repo clone`; both paths are non-interactive and fail with a
-  targeted hint instead of prompting.
-- [x] `--set-default` updates the config without prompting; otherwise the
-  exact `snip config set default-library` command is printed.
-- [x] Shipped `man/snip-git-clone.1` with the other per-subcommand pages, and
-  added the command to `man/snip-git.1` and the README.
-- [x] Dropped the manual `mkdir` note from the README's "Restoring
-  a library on another machine" and pointed the first-run wizard at it.
-
-### 持续同步
-
-- [x] Git 核心层支持安全的 `fetch + merge` 拉取：仓库级脏检查、工作区阶段持锁，
-  冲突时立即 `merge --abort`。
-- [x] CLI 提供 `snip git pull [--ff-only]`、稳定的人类/JSON 输出，以及快进、
-  分叉、冲突回滚和拒绝路径的集成测试。
-- [x] TUI 提供 `Ctrl-g l` 手动拉取和 `Ctrl-g U` 启动自动拉取；成功后显式重扫
-  catalog，自动拉取的前置条件拒绝保持静默。
+- [ ] State the choosing rule in one line in `skills/snip` and the `snip create`
+  help: prose about *this one file* is a note, prose about *the set* is the
+  README.
 
 ## Sharing
 
-### Publish a snippet as a Gist
+### GitLab snippets
 
-- [x] `snip gist` publishes a snippet to GitHub Gists through `gh`, with no
-  embedded API client and no token handling. Fragments become gist files, the
-  README becomes `README.md`, and the gist is recorded in `snippet.toml` so
-  `push` keeps the same URL. `push`, `url`, `status`, `attach`, `detach`,
-  `delete`, and `open` are the command set.
-- [ ] GitLab snippets through `glab`, reusing the `[[remotes]]` record with a
-  second `kind`.
-- [x] TUI integration: a `Ctrl-s` gist panel for the selected snippet, palette
-  entries for every gist command, a `Published` sidebar toggle that composes
-  with the folder and tag filters, and list/preview markers that appear only for
-  published snippets.
+- [ ] Publish through `glab`, reusing the `[[remotes]]` record in `snippet.toml`
+  with a second `kind`, alongside the shipped `snip gist` command set.
 
 ## Data import
 
 ### SnippetsLab importer audit
 
-`snip import snippetslab` reads the legacy SnippetsLab library bundle directly
-(`src/importer/snippetslab/`). It landed in 0.1.0 and has only been refactored
-since — never re-validated against a current SnippetsLab export. The code reads
-`version.plist` but only for the report; it does not adapt to the format that
-version describes, and the tests use a hand-built fixture rather than a real
-library.
+`snip import snippetslab` (`src/importer/snippetslab/`) landed in 0.1.0 and has
+only been refactored since — never re-validated against a current SnippetsLab
+export. The committed fixture mirrors the object graph of a real 2.6 library, so
+it guards decoder regressions but not upstream format changes; the decoder reads
+`version.plist` only for the report and does not adapt to the format that version
+describes.
 
 - [ ] Import a real, current SnippetsLab library (both 1.x and 2.x exports) and
   confirm fields, folders, tags, fragments, and notes still land correctly;
   update the field mappings for any format the current decoder misses.
-- [x] Commit a small, real-world fixture (or a sanitized dump) and a regression
-  test that imports it. The committed fixture mirrors the object graph of a
-  real 2.6 library (verified against one); it is rebuilt by the test builder
-  rather than captured verbatim, so it guards decoder regressions but not
-  upstream SnippetsLab format changes.
 
 ## Project homepage
 
-A lightweight showcase site for snip, kept distinct from the README so the
-repo stays the single source of truth.
+A lightweight showcase site for snip, kept distinct from the README so the repo
+stays the single source of truth.
 
 - [ ] Build a static landing page: tagline, feature highlights, screenshots of
-  the TUI, a one-line install command, and links to the README, manual pages,
-  and the latest release.
-- [ ] Derive the page content from `README.md` (generated or synced), so the
-  copy never drifts from the repo.
-- [ ] Serve it at a stable, branded URL (planned: `snip.gitkeniwo.tech`) and
-  point the README badge links at it.
+  the TUI, a one-line install command, and links to the README, manual pages, and
+  the latest release.
+- [ ] Derive the page content from `README.md` (generated or synced), so the copy
+  never drifts from the repo.
+- [ ] Serve it at a stable, branded URL (planned: `snip.gitkeniwo.tech`) and point
+  the README badge links at it.
 
 ## Packaging
 
+Existing channels: Homebrew, Nix (flake + Cachix), Copr, AUR (`sniplab` and
+`sniplab-bin`), Scoop, standalone `.deb` / `.rpm` / archives, and `install.sh`.
+
+### Gentoo overlay
+
+Gentoo users currently have `install.sh` and nothing native. The plan is a
+self-hosted overlay rather than a GURU submission, at least to start.
+
+- [ ] Add `packaging/gentoo/sniplab.ebuild.in`, rendered by the release workflow
+  the same way the Copr spec and the Scoop manifest are. Install the prebuilt
+  release archive instead of compiling: building from crates.io requires either
+  every dependency enumerated in `CRATES` (generated with `pycargoebuild`) or a
+  vendored tarball, and neither earns its keep in an overlay. Install the binary,
+  the shell completions, and `man/*.1`, mirroring the Copr spec's `%install`.
+- [ ] Publish it from a separate overlay repository (`metadata/layout.conf` plus
+  `profiles/repo_name`), so users add it with `eselect repository add`.
+- [ ] Register the overlay in `gentoo/api-gentoo-org`'s `repositories.xml` so it
+  appears in `eselect repository list` without a manual URL.
+- [ ] GURU is the eventual destination, not the starting point: it wants
+  OpenPGP-signed commits carrying `Signed-off-by`, plus push access requested on
+  IRC or the mailing list. Revisit once the overlay has been stable across a few
+  releases.
+
+### winget
+
+Windows already ships `snip-x86_64-pc-windows-msvc.zip` for Scoop, and
+winget-pkgs accepts a portable zip directly — no separate installer needed, and
+there is no popularity threshold for new packages.
+
+- [ ] Settle the package identifier (`Publisher.Package`, e.g. `gitkeniwo.snip`)
+  before the first submission; it is effectively permanent once accepted.
+- [ ] Add `packaging/winget/` manifests (version, locale, and installer YAML)
+  pointing at the existing zip with `InstallerType: zip`,
+  `NestedInstallerType: portable`, and `PortableCommandAlias: snip`.
+- [ ] Generate and submit the first version with `wingetcreate new`, which hashes
+  the asset, validates against the schema, and opens the PR against
+  `microsoft/winget-pkgs`. First submissions get a human review; later ones are
+  largely automated.
+- [ ] Automate subsequent releases with `wingetcreate update ... --submit` in the
+  release workflow, using a fork PAT, mirroring the existing Scoop bucket step.
+
 ### nixpkgs submission
 
-- [ ] `nix/package.nix` is written to nixpkgs conventions and is ready to move
-  to `pkgs/by-name/sn/sniplab/package.nix`. Before opening the PR:
+- [ ] `nix/package.nix` is written to nixpkgs conventions and is ready to move to
+  `pkgs/by-name/sn/sniplab/package.nix`. Before opening the PR:
   - [ ] run `nixfmt-rfc-style` on it, and fix everything `nixpkgs-hammering`
     reports
   - [ ] fill in `meta.maintainers`; a first-time submitter also has to add
-    themselves to `maintainers/maintainer-list.nix`, either in the same PR or
-    in one before it
+    themselves to `maintainers/maintainer-list.nix`, either in the same PR or in
+    one before it
 - [ ] Refresh the `version` and both hashes in `nix/package.nix` once, right
   before opening the PR (the flake never reads them).
 - [ ] Once it is in nixpkgs, users can install `pkgs.sniplab` without adding a
-  flake input at all, and the flake in this repository stays for tracking
-  `main`.
+  flake input at all, and the flake in this repository stays for tracking `main`.
 
-### Binary cache
+## Shipped
 
-- [x] Create a Cachix cache named `snip` and set `CACHIX_AUTH_TOKEN` in the
-  repo secrets, so the guarded Cachix steps in the `Nix` and `Release build`
-  workflows push prebuilt binaries and `nix run` / `nix profile install`
-  download them instead of building from source. (verified working on
-  x86_64-linux, aarch64-linux, and aarch64-darwin)
+### TUI
 
-### Arch binary package
+- **Color themes** — seventeen built-in light and dark themes, editable TOML
+  themes under the user config directory, `snip theme` inspection and switching,
+  `tui-light-theme` / `tui-dark-theme` config keys, and a command-palette picker
+  with live full-UI and syntax-highlighting preview. (0.3.2,
+  `docs/plans/color-schemes.md`)
+- **Theme readability** — runtime `legible_on` fallback so every pill and
+  retained-selection foreground picks a readable color at render time; the
+  generator's contrast floors raised to WCAG 4.5 (with graphic floors for `rule`
+  and `border`) and the built-ins regenerated; `theme check` rewritten to the
+  real render pairs, with regression tests that no built-in fails.
+  (`docs/plans/theme-contrast.md`)
+- **Theme import** — `snip theme import <scheme.yaml>` brings local base16/base24
+  schemes in as editable user themes; the base16 → UI-role mapping, contrast
+  clamping, and selection-foreground choice moved into a shared library, adding
+  no runtime dependency. 28 curated built-ins, twelve of them light, with
+  hand-verifiable provenance. (`docs/plans/theme-import.md`)
+- **README as a preview item** — `PreviewTarget { Fragment(usize), Readme }`
+  replaces `App.fragment_index` so the compiler forces an answer for every
+  fragment-scoped action; `PreviewDocument` became an enum, making the appended
+  README tail unrepresentable rather than merely deleted; the README is the last
+  row of the fragment tree, drawn only when it exists and excluded from the
+  fragment count; `[` / `]` wrap around the ends.
+  (`docs/plans/readme-preview-item.md`)
+- **Grapheme-cluster-aware width** — `char_width` / `truncate_end` walk grapheme
+  clusters instead of `chars()`, so ZWJ emoji measure and truncate as one unit;
+  the prose/code wrapping in `src/tui/preview/layout.rs` stays correct, covered by
+  a ZWJ regression test alongside the existing CJK ones.
+  (`docs/plans/grapheme-width.md`)
+- **Fragment editing** — add, rename, reorder, and delete-with-confirmation from
+  the preview's fragment tree, via `n.add` / `n.rename` / `n.reorder` /
+  `n.remove` in the command registry.
+  (`docs/plans/tui-fragment-editing.md`)
+- **Rendered-preview cache** — keyed on `(fingerprint, fragment_index, content
+  width, show_line_numbers)`, removing the per-frame document clone, recompose,
+  and rewrap in one change, with counted-allocation regression guards for both
+  cache hits and the full draw path. Measurement found no leak (TUI RSS flat at
+  11.5–11.8 MB; ~4.5 MB over the CLI, of which library content is ~0.8 MB), so
+  total footprint was not worth optimizing. A lazy syntax set and
+  visible-window-only highlighting were both considered and rejected.
+  (`docs/plans/preview-render-cost.md`)
 
-- [x] Ship `sniplab-bin` on the AUR so Arch users can
-  `yay -S sniplab-bin` without compiling. The release `aur` job now renders
-  both `sniplab` (source) and `sniplab-bin` (prebuilt) PKGBUILDs, and the
-  portable Linux archives carry `LICENSE` and `README.md` for the package
-  to install. The AUR repo is auto-created on the first push.
+### Library portability
 
-### Standalone install script
+- **Runtime directories survive a clone** — `.snip/` subdirectories are all
+  gitignored and Git records no empty directories, so a clone arrived without
+  them and `Library::open` rejected the library outright; `open` now self-heals
+  `snippets/`, `trash/`, `.snip/cache/`, `.snip/locks/`, and
+  `.snip/transactions/`, best-effort so read-only mounts still read. No tracked
+  `.gitkeep`, per FORMAT.md. (`docs/plans/library-restore.md`)
+- **Restoring on another machine** — `NO_LIBRARY_HINT` names the path for an
+  existing or freshly cloned library, the onboarding wizard's connect branch
+  accepts incomplete clones, and the flow is documented in the `snip-git` manual
+  and the README. `default_library` deliberately stays in the user config rather
+  than the library.
+- **`snip git clone <remote> [path] [--gh] [--set-default]`** — the restore entry
+  point beside `init` / `commit` / `backup` / `push` / `fetch`. Dispatched before
+  library resolution, defaults to `~/<repo-name>.sniplib`, refuses a non-empty
+  target, validates that the clone really is a library (deleting it if not), and
+  delegates credentials to Git or `gh` without ever prompting.
+- **Continuous sync** — safe `fetch + merge` in the Git core (repository-level
+  dirty check, lock held for the workspace stage, immediate `merge --abort` on
+  conflict); `snip git pull [--ff-only]` with stable human and JSON output and
+  integration tests for the fast-forward, divergence, conflict-rollback, and
+  refusal paths; `Ctrl-g l` to pull and `Ctrl-g U` to start auto-pull in the TUI,
+  with an explicit catalog rescan on success. (`docs/plans/library-pull.md`)
 
-A curl-piped installer for platforms that have no package channel. Official
-repositories like apt will not take a new project, and `snip` has no built-in
-self-update, so the script also becomes the upgrade path.
+### Sharing
 
-- [x] `install.sh` fetches the release asset for the host platform and
-  architecture (`snip-<target>.tar.gz`) and installs the `snip` binary
-  user-level (`~/.local/bin`), needing no `sudo`.
-- [x] Resolve the target triple from `uname` / `uname -m` through a small
-  table, so new targets (e.g. `armv7`, `riscv64`) slot in by adding a row;
-  fall back to `cargo install sniplab` with a clear message when the platform
-  has no prebuilt asset for its architecture.
-- [x] Idempotent and upgrade-safe: re-running replaces the binary, prints the
-  old and new versions, refuses to downgrade, and leaves an install owned by a
-  package manager (brew / apt / dnf / nix) untouched.
-- [x] Ship an `uninstall` mode and publish the script as a release asset behind
-  the stable `releases/latest/download/install.sh` URL.
+- **`snip gist`** — publishes a snippet to GitHub Gists through `gh`, with no
+  embedded API client and no token handling. Fragments become gist files, the
+  README becomes `README.md`, and the gist is recorded in `snippet.toml` so
+  `push` keeps the same URL. Commands: `push`, `url`, `status`, `attach`,
+  `detach`, `delete`, `open`. (`docs/plans/gist-publish.md`)
+- **Gist in the TUI** — a `Ctrl-s` panel for the selected snippet, palette
+  entries for every gist command, a `Published` sidebar toggle that composes with
+  the folder and tag filters, and list/preview markers that appear only for
+  published snippets. (`docs/plans/gist-tui.md`)
+
+### Data import
+
+- **SnippetsLab regression fixture** — a small, real-world fixture mirroring the
+  object graph of a real 2.6 library (verified against one), rebuilt by the test
+  builder rather than captured verbatim, plus a test that imports it.
+
+### Packaging
+
+- **Binary cache** — a Cachix cache named `snip` with `CACHIX_AUTH_TOKEN` in the
+  repo secrets, so the `Nix` and `Release build` workflows push prebuilt binaries
+  and `nix run` / `nix profile install` download instead of building. Verified on
+  x86_64-linux, aarch64-linux, and aarch64-darwin. (`docs/plans/nix-flake.md`)
+- **Arch binary package** — `sniplab-bin` on the AUR, so Arch users can
+  `yay -S sniplab-bin` without compiling. The release `aur` job renders both the
+  source and prebuilt PKGBUILDs, and the portable Linux archives carry `LICENSE`
+  and `README.md` for the package to install.
+- **Standalone install script** — `install.sh` fetches the release asset for the
+  host platform into `~/.local/bin`, needing no `sudo`; resolves the target
+  triple through a small `uname` table so new targets slot in by adding a row,
+  falling back to `cargo install sniplab` when there is no prebuilt asset;
+  idempotent and upgrade-safe (prints old and new versions, refuses to downgrade,
+  leaves package-manager-owned installs untouched); ships an `uninstall` mode and
+  is published at the stable `releases/latest/download/install.sh` URL.
+  (`docs/plans/install-script.md`)
