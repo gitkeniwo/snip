@@ -16,7 +16,7 @@ Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
 
 .TP
 \fB\-\-folder\fR \fI<FOLDER>\fR
-
+Folder to file the snippet under; created when it does not exist. Pass "" for Uncategorized
 .TP
 \fB\-\-output\fR \fI<OUTPUT>\fR
 Structured output mode for commands that return records
@@ -64,13 +64,13 @@ Initial fragment content, given inline
 Read initial fragment content from a UTF\-8 file; use \- for stdin
 .TP
 \fB\-\-note\fR \fI<NOTE>\fR
-Fragment note (Markdown), given inline
+Fragment note (Markdown), given inline. Prose about this one fragment; use \-\-readme for prose about the whole snippet
 .TP
 \fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
 
 .TP
 \fB\-\-readme\fR \fI<README>\fR
-Snippet README (Markdown), given inline
+Snippet README (Markdown), given inline. Prose about the whole snippet; use \-\-note for prose about one fragment
 .TP
 \fB\-\-readme\-file\fR \fI<README_FILE>\fR
 

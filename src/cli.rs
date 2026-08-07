@@ -235,6 +235,7 @@ pub struct OpenArgs {
 pub struct CreateArgs {
     #[arg(long)]
     pub title: String,
+    /// Folder to file the snippet under; created when it does not exist. Pass "" for Uncategorized.
     #[arg(long)]
     pub folder: Option<String>,
     #[arg(long = "tag")]
@@ -249,12 +250,12 @@ pub struct CreateArgs {
     /// Read initial fragment content from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub content_file: Option<String>,
-    /// Fragment note (Markdown), given inline.
+    /// Fragment note (Markdown), given inline. Prose about this one fragment; use --readme for prose about the whole snippet.
     #[arg(long, conflicts_with = "note_file")]
     pub note: Option<String>,
     #[arg(long)]
     pub note_file: Option<String>,
-    /// Snippet README (Markdown), given inline.
+    /// Snippet README (Markdown), given inline. Prose about the whole snippet; use --note for prose about one fragment.
     #[arg(long, conflicts_with = "readme_file")]
     pub readme: Option<String>,
     #[arg(long)]
