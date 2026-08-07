@@ -113,7 +113,7 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("s", CommandId::ViewCycleSort),
             ("z", CommandId::ViewToggleDensity),
             ("N", CommandId::ViewToggleLineNumbers),
-            ("T", CommandId::LibraryOpenTrash),
+            ("T", CommandId::LibraryToggleTrash),
             ("y", CommandId::CopyContent),
             ("Y", CommandId::CopySnippetId),
             ("p", CommandId::CopyManagedPath),
@@ -121,8 +121,8 @@ fn handwritten_dispatch_matches_the_characterization_table() {
             ("]", CommandId::PreviewNextItem),
             ("{", CommandId::PreviewPreviousParagraph),
             ("}", CommandId::PreviewNextParagraph),
-            ("ctrl-g", CommandId::GitOpenConsole),
-            ("ctrl-s", CommandId::GistOpenPanel),
+            ("ctrl-g", CommandId::GitToggleConsole),
+            ("ctrl-s", CommandId::GistTogglePanel),
         ],
     );
 
@@ -297,28 +297,34 @@ fn handwritten_dispatch_pins_shadowing_and_inline_closers() {
 
     prepare(&mut app, TestMode::Trash);
     send(&mut app, "q");
-    assert!(app.should_quit);
-    assert!(app.trash.open);
+    assert_eq!(app.last_command, Some(CommandId::UiDismiss));
+    assert!(!app.should_quit);
+    assert!(!app.trash.open);
 
     prepare(&mut app, TestMode::Help);
     send(&mut app, "q");
-    assert!(app.should_quit);
-    assert!(app.show_help);
+    assert_eq!(app.last_command, Some(CommandId::UiDismiss));
+    assert!(!app.should_quit);
+    assert!(!app.show_help);
 
     prepare(&mut app, TestMode::Trash);
     send(&mut app, "T");
+    assert_eq!(app.last_command, Some(CommandId::LibraryToggleTrash));
     assert!(!app.trash.open);
 
     prepare(&mut app, TestMode::Git);
     send(&mut app, "ctrl-g");
+    assert_eq!(app.last_command, Some(CommandId::GitToggleConsole));
     assert!(!app.git.open);
 
     prepare(&mut app, TestMode::Gist);
     send(&mut app, "ctrl-s");
+    assert_eq!(app.last_command, Some(CommandId::GistTogglePanel));
     assert!(!app.gist.open);
 
     prepare(&mut app, TestMode::Help);
     send(&mut app, "?");
+    assert_eq!(app.last_command, Some(CommandId::ViewToggleHelp));
     assert!(!app.show_help);
 }
 

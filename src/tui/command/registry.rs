@@ -53,7 +53,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 94] = [
+static COMMANDS: [Command; 90] = [
     key_command!(
         PaletteOpen,
         "palette.open",
@@ -186,16 +186,6 @@ static COMMANDS: [Command; 94] = [
         grab_drop
     ),
     key_command!(UiDismiss, "ui.dismiss", "UI", "Dismiss", ui_dismiss),
-    key_command!(
-        TrashLeave,
-        "trash.leave",
-        "Trash",
-        "Leave Trash",
-        trash_leave
-    ),
-    key_command!(HelpClose, "help.close", "Help", "Close Help", help_close),
-    key_command!(GitClose, "git.close", "Git", "Close Console", git_close),
-    key_command!(GistClose, "gist.close", "Gist", "Close Panel", gist_close),
     command!(
         SnippetNew,
         "snippet.new",
@@ -557,14 +547,14 @@ static COMMANDS: [Command; 94] = [
         library_rescan
     ),
     command!(
-        LibraryOpenTrash,
-        "library.open-trash",
+        LibraryToggleTrash,
+        "library.toggle-trash",
         "Library",
-        "Open Trash",
+        "Toggle Trash",
         &["deleted"],
         Some("T"),
         enabled,
-        library_trash
+        library_toggle_trash
     ),
     command!(
         LibraryClearFilter,
@@ -587,14 +577,14 @@ static COMMANDS: [Command; 94] = [
         library_toggle_published
     ),
     command!(
-        GitOpenConsole,
-        "git.open-console",
+        GitToggleConsole,
+        "git.toggle-console",
         "Git",
-        "Open Console",
+        "Toggle Console",
         &["source control"],
         Some("Ctrl-g"),
         enabled,
-        git_open
+        git_toggle_console
     ),
     command!(
         GitBackup,
@@ -735,14 +725,14 @@ static COMMANDS: [Command; 94] = [
         git_interval
     ),
     command!(
-        GistOpenPanel,
-        "gist.open-panel",
+        GistTogglePanel,
+        "gist.toggle-panel",
         "Gist",
-        "Open Panel",
+        "Toggle Panel",
         &["gist"],
         Some("Ctrl-s"),
         enabled,
-        gist_open
+        gist_toggle_panel
     ),
     command!(
         GistPush,

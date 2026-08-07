@@ -295,10 +295,6 @@ effect!(preview_next_paragraph, app => crate::tui::preview::jump_paragraph(app, 
 effect!(preview_expand_fragments, app => app.set_fragments_expanded(true));
 effect!(preview_collapse_fragments, app => app.set_fragments_expanded(false));
 effect!(grab_drop, app => app.drop_grabbed_fragment());
-effect!(trash_leave, app => app.leave_trash());
-effect!(help_close, app => app.show_help = false);
-effect!(git_close, app => app.git.open = false);
-effect!(gist_close, app => app.gist.open = false);
 effect!(snippet_rename, app => app.open_rename_snippet());
 effect!(snippet_move, app => app.open_move_snippet());
 effect!(snippet_tags, app => app.open_edit_tags());
@@ -327,9 +323,13 @@ effect!(view_pick_theme, app => app.open_theme_picker());
 effect!(toggle_help, app => { app.show_help = !app.show_help; app.help_scroll = 0; });
 effect!(library_search, app => app.search.active = true);
 effect!(library_rescan, app => app.rescan_now());
-effect!(library_trash, app => app.open_trash());
+effect!(library_toggle_trash, app => if app.trash.open { app.leave_trash() } else { app.open_trash() });
 effect!(library_clear_filter, app => { app.filter = Default::default(); app.search.query.clear(); app.refresh_visible(); });
-pub(crate) fn git_open(app: &mut App) -> Vec<Effect> {
+pub(crate) fn git_toggle_console(app: &mut App) -> Vec<Effect> {
+    if app.git.open {
+        app.git.open = false;
+        return Vec::new();
+    }
     if matches!(app.git.unavailable, Some(Unavailable::BinaryMissing)) {
         app.set_status("git not found in PATH", StatusLevel::Error);
         return Vec::new();
@@ -351,7 +351,7 @@ effect!(git_auto_pull, app => app.toggle_auto_pull());
 effect!(git_backup_on_quit, app => app.toggle_backup_on_quit());
 effect!(git_pause, app => app.toggle_auto_backup());
 effect!(git_interval, app => app.open_auto_commit_interval());
-effect!(gist_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.git.open = false; app.gist.open = true; });
+effect!(gist_toggle_panel, app => if app.gist.open { app.gist.open = false } else { app.show_help = false; app.search.active = false; app.trash.open = false; app.git.open = false; app.gist.open = true });
 effect!(gist_push, app => app.push_gist(false));
 effect!(gist_push_public, app => app.push_gist(true));
 effect!(gist_copy_url, app => app.copy_gist_url());

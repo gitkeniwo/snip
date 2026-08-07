@@ -68,22 +68,20 @@ impl Mode {
     pub fn inherits(self) -> &'static [CommandId] {
         use CommandId::*;
         match self {
-            Self::Git | Self::Gist => &[GitOpenConsole, GistOpenPanel, PaletteOpen],
+            Self::Git | Self::Gist => &[GitToggleConsole, GistTogglePanel, PaletteOpen],
             Self::Trash => &[
-                LibraryOpenTrash,
-                GitOpenConsole,
-                GistOpenPanel,
+                LibraryToggleTrash,
+                GitToggleConsole,
+                GistTogglePanel,
                 PaletteOpen,
-                AppQuit,
             ],
             Self::Help => &[
                 ViewToggleHelp,
-                GitOpenConsole,
-                GistOpenPanel,
+                GitToggleConsole,
+                GistTogglePanel,
                 PaletteOpen,
-                AppQuit,
             ],
-            Self::FragmentGrab => &[GitOpenConsole, GistOpenPanel],
+            Self::FragmentGrab => &[GitToggleConsole, GistTogglePanel],
             Self::Global | Self::Sidebar | Self::List | Self::Preview | Self::Fragment => &[],
         }
     }
@@ -115,7 +113,7 @@ impl Keymap {
         keymap.bind(Global, ViewCycleSort, &["s"]);
         keymap.bind(Global, ViewToggleDensity, &["z"]);
         keymap.bind(Global, ViewToggleLineNumbers, &["N"]);
-        keymap.bind(Global, LibraryOpenTrash, &["T"]);
+        keymap.bind(Global, LibraryToggleTrash, &["T"]);
         keymap.bind(Global, CopyContent, &["y"]);
         keymap.bind(Global, CopySnippetId, &["Y"]);
         keymap.bind(Global, CopyManagedPath, &["p"]);
@@ -123,8 +121,8 @@ impl Keymap {
         keymap.bind(Global, PreviewNextItem, &["]"]);
         keymap.bind(Global, PreviewPreviousParagraph, &["{"]);
         keymap.bind(Global, PreviewNextParagraph, &["}"]);
-        keymap.bind(Global, GitOpenConsole, &["ctrl-g"]);
-        keymap.bind(Global, GistOpenPanel, &["ctrl-s"]);
+        keymap.bind(Global, GitToggleConsole, &["ctrl-g"]);
+        keymap.bind(Global, GistTogglePanel, &["ctrl-s"]);
 
         for mode in [Sidebar, List, Preview] {
             keymap.bind(mode, NavDown, &["j", "down"]);
@@ -163,13 +161,13 @@ impl Keymap {
         keymap.bind(Trash, NavLast, &["G", "end"]);
         keymap.bind(Trash, TrashRestoreSelected, &["enter", "u"]);
         keymap.bind(Trash, TrashPurgeSelected, &["x"]);
-        keymap.bind(Trash, TrashLeave, &["esc", "T"]);
+        keymap.bind(Trash, UiDismiss, &["esc", "q"]);
 
         keymap.bind(Help, NavDown, &["j", "down"]);
         keymap.bind(Help, NavUp, &["k", "up"]);
         keymap.bind(Help, NavPageDown, &["ctrl-d"]);
         keymap.bind(Help, NavPageUp, &["ctrl-u"]);
-        keymap.bind(Help, HelpClose, &["esc", "?"]);
+        keymap.bind(Help, UiDismiss, &["esc", "q"]);
 
         keymap.bind(Git, GitRefreshLocalStatus, &["r"]);
         keymap.bind(Git, GitBackup, &["b"]);
@@ -183,7 +181,7 @@ impl Keymap {
         keymap.bind(Git, GitToggleAutoPull, &["U"]);
         keymap.bind(Git, GitToggleBackupOnQuit, &["o"]);
         keymap.bind(Git, GitInitOrSetInterval, &["i"]);
-        keymap.bind(Git, GitClose, &["esc", "ctrl-g"]);
+        keymap.bind(Git, UiDismiss, &["esc"]);
 
         keymap.bind(Gist, GistPush, &["p"]);
         keymap.bind(Gist, GistPushPublic, &["P"]);
@@ -193,7 +191,7 @@ impl Keymap {
         keymap.bind(Gist, GistDetach, &["d"]);
         keymap.bind(Gist, GistDelete, &["x"]);
         keymap.bind(Gist, GistVerifyRemote, &["r"]);
-        keymap.bind(Gist, GistClose, &["esc", "ctrl-s"]);
+        keymap.bind(Gist, UiDismiss, &["esc"]);
 
         keymap
     }
@@ -265,7 +263,15 @@ mod tests {
         let keymap = Keymap::defaults();
         assert_eq!(
             keymap.resolve(&[Mode::Git], "ctrl-s".parse().unwrap()),
-            Some(CommandId::GistOpenPanel)
+            Some(CommandId::GistTogglePanel)
+        );
+        assert_eq!(
+            keymap.resolve(&[Mode::Help], "ctrl-g".parse().unwrap()),
+            Some(CommandId::GitToggleConsole)
+        );
+        assert_eq!(
+            keymap.resolve(&[Mode::Trash], "ctrl-g".parse().unwrap()),
+            Some(CommandId::GitToggleConsole)
         );
         assert_eq!(keymap.resolve(&[Mode::Git], "q".parse().unwrap()), None);
     }
