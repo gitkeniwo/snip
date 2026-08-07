@@ -65,25 +65,25 @@ that sorts to the bottom of the file list, with no decoration of its own.
 Tracks `docs/plans/readme-preview-item.md`, which fixes the exact rendering,
 the action gating, and the strings.
 
-- [ ] Replace `App.fragment_index: usize` with a
+- [x] Replace `App.fragment_index: usize` with a
   `PreviewTarget { Fragment(usize), Readme }` enum, threaded through the
   preview cache key and `SelectionKey`. The enum is the point: it makes the
   compiler enumerate every fragment-scoped action and force an answer for the
   README case, where a sentinel index would turn each one into a silent no-op.
-- [ ] Turn `PreviewDocument` (`src/tui/preview/cache.rs:11`) into an enum, so
+- [x] Turn `PreviewDocument` (`src/tui/preview/cache.rs:11`) into an enum, so
   the appended README tail in `compose_preview`
   (`src/tui/preview/layout.rs:70`) is not merely deleted but unrepresentable.
   The `── readme ──` rule goes with it — the tree row is the label.
-- [ ] Add the README as the last row of the fragment tree
+- [x] Add the README as the last row of the fragment tree
   (`draw_fragment_tree`, `src/tui/preview/render.rs:564`), labelled
   `README.md`, with a blank index column and excluded from the header count
   and from `current/total` in `make_fragment_line` (`:373`). The collapsed
   line for a README target reads `+ README.md  ·  38 L` — no `x/y`, since the
   README is not in the fragment count.
-- [ ] Wrap `[` / `]` fragment switching around the ends, so `[` from the first
+- [x] Wrap `[` / `]` fragment switching around the ends, so `[` from the first
   fragment lands directly on the README. With one to five fragments, clamping
   at the boundary signals nothing worth keeping.
-- [ ] The row is drawn only when a README exists; nothing takes its place
+- [x] The row is drawn only when a README exists; nothing takes its place
   otherwise. `snippet.edit-readme` already covers creation from the palette
   (`src/tui/command/registry.rs:55`), and a placeholder would be the only
   action row in a tree of content rows. No `+r` marker either — once the

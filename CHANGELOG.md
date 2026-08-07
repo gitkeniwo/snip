@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-08-07
+
+### Changed
+
+- **The README is a first-class preview item.** Snippet-level prose used to be
+  appended below whichever fragment was on screen, under a `── readme ──`
+  rule — it read as a tail of that fragment and repeated on every switch.
+  It is now the last row of the fragment tree, labelled `README.md`, selected
+  and previewed like a fragment. `[` from the first fragment wraps straight to
+  it, copy and edit follow the selection, and the row appears only when a
+  README exists. It remains a non-fragment on disk: no manifest entry, no id,
+  and no change to the fingerprint or to `snip fragment`.
+
 ## [0.5.4] - 2026-08-07
 
 ### Added
