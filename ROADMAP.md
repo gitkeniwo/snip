@@ -3,10 +3,6 @@
 Planned work, roughly in the order it is likely to land. Nothing here is a
 commitment to a date.
 
-Open work comes first, grouped by area. [Shipped](#shipped) at the bottom is a
-one-line-per-item record — the design rationale behind those items lives in
-`docs/plans/` and in the commit history, not here.
-
 ## TUI
 
 ### User-defined key bindings
@@ -15,13 +11,35 @@ one-line-per-item record — the design rationale behind those items lives in
   bindings as the default set. Needs a stable action name for each command and a
   way to show the effective bindings (both in the help pane and as JSON).
 
-### Configurable snippet editor
+### Vendor-neutral GUI editor naming
 
-- [ ] Let the user pick per preference: an in-TUI editor (`tui-textarea`) for
-  quick edits without leaving the browser, `$EDITOR` for terminal editors, or an
-  external GUI editor launched detached.
-- [ ] The choice belongs in the config file, with a sensible fallback chain when
-  the configured editor is missing.
+The GUI launch path is already generic — `shlex::split` + `spawn` + the file path
+— so `vscode_cmd = "zed"` works today. Only the naming is wrong, in four places:
+the config key (`src/config.rs:143`), the command id `snippet.open-vscode` and
+its palette title (`src/tui/command/registry.rs:65`), and the help entry
+(`src/tui/help.rs:50`).
+
+- [ ] Add a `gui_editor` key, keeping `vscode_cmd` as a deprecated alias; rename
+  the command to `snippet.open-gui`; have the help and palette strings read the
+  configured command, so they say "open in zed" when that is what will happen.
+
+This is what remains of the former "Configurable snippet editor" item. Terminal
+editors are already covered by `editor` / `$VISUAL` / `$EDITOR`, and are a shell
+contract snip should respect rather than re-implement.
+
+### Inline preview editor — deferred, not scheduled
+
+The preview stays read-only; editing goes through `e` (`$EDITOR`) and `v` (GUI).
+An in-TUI `tui-textarea` editor was designed across four rounds and deliberately
+shelved: the cheaper it is, the less a vim user wants it, and the more usable it
+becomes, the more it duplicates `e`. The blocker is cursor positioning — `h`/`l`
+are globally bound before pane dispatch, so keyboard motion needs mode isolation,
+which lands back on emulating vim badly.
+
+Not a to-do. Read `docs/plans/inline-editor.md` before reopening it — it records
+the rejected options and the settled shape should it ever be built, plus one
+separable read-only idea (keyboard selection and yank, closing the gap where only
+mouse users can copy part of a fragment).
 
 ### Tab expansion in the preview
 
@@ -41,7 +59,7 @@ per frame remains:
   Deliberately deferred after the cache work: the normal and trash preview
   ownership paths need a wider borrow refactor, for a much smaller payoff than
   the wrapping allocations already removed.
-  Tracks `docs/plans/preview-render-cost.md`.
+  Tracks `docs/plans/completed/preview-render-cost.md`.
 
 ### Catalog held twice in memory
 
@@ -159,34 +177,34 @@ there is no popularity threshold for new packages.
   themes under the user config directory, `snip theme` inspection and switching,
   `tui-light-theme` / `tui-dark-theme` config keys, and a command-palette picker
   with live full-UI and syntax-highlighting preview. (0.3.2,
-  `docs/plans/color-schemes.md`)
+  `docs/plans/completed/color-schemes.md`)
 - **Theme readability** — runtime `legible_on` fallback so every pill and
   retained-selection foreground picks a readable color at render time; the
   generator's contrast floors raised to WCAG 4.5 (with graphic floors for `rule`
   and `border`) and the built-ins regenerated; `theme check` rewritten to the
   real render pairs, with regression tests that no built-in fails.
-  (`docs/plans/theme-contrast.md`)
+  (`docs/plans/completed/theme-contrast.md`)
 - **Theme import** — `snip theme import <scheme.yaml>` brings local base16/base24
   schemes in as editable user themes; the base16 → UI-role mapping, contrast
   clamping, and selection-foreground choice moved into a shared library, adding
   no runtime dependency. 28 curated built-ins, twelve of them light, with
-  hand-verifiable provenance. (`docs/plans/theme-import.md`)
+  hand-verifiable provenance. (`docs/plans/completed/theme-import.md`)
 - **README as a preview item** — `PreviewTarget { Fragment(usize), Readme }`
   replaces `App.fragment_index` so the compiler forces an answer for every
   fragment-scoped action; `PreviewDocument` became an enum, making the appended
   README tail unrepresentable rather than merely deleted; the README is the last
   row of the fragment tree, drawn only when it exists and excluded from the
   fragment count; `[` / `]` wrap around the ends.
-  (`docs/plans/readme-preview-item.md`)
+  (`docs/plans/completed/readme-preview-item.md`)
 - **Grapheme-cluster-aware width** — `char_width` / `truncate_end` walk grapheme
   clusters instead of `chars()`, so ZWJ emoji measure and truncate as one unit;
   the prose/code wrapping in `src/tui/preview/layout.rs` stays correct, covered by
   a ZWJ regression test alongside the existing CJK ones.
-  (`docs/plans/grapheme-width.md`)
+  (`docs/plans/completed/grapheme-width.md`)
 - **Fragment editing** — add, rename, reorder, and delete-with-confirmation from
   the preview's fragment tree, via `n.add` / `n.rename` / `n.reorder` /
   `n.remove` in the command registry.
-  (`docs/plans/tui-fragment-editing.md`)
+  (`docs/plans/completed/tui-fragment-editing.md`)
 - **Rendered-preview cache** — keyed on `(fingerprint, fragment_index, content
   width, show_line_numbers)`, removing the per-frame document clone, recompose,
   and rewrap in one change, with counted-allocation regression guards for both
@@ -194,7 +212,7 @@ there is no popularity threshold for new packages.
   11.5–11.8 MB; ~4.5 MB over the CLI, of which library content is ~0.8 MB), so
   total footprint was not worth optimizing. A lazy syntax set and
   visible-window-only highlighting were both considered and rejected.
-  (`docs/plans/preview-render-cost.md`)
+  (`docs/plans/completed/preview-render-cost.md`)
 
 ### Library portability
 
@@ -203,7 +221,7 @@ there is no popularity threshold for new packages.
   them and `Library::open` rejected the library outright; `open` now self-heals
   `snippets/`, `trash/`, `.snip/cache/`, `.snip/locks/`, and
   `.snip/transactions/`, best-effort so read-only mounts still read. No tracked
-  `.gitkeep`, per FORMAT.md. (`docs/plans/library-restore.md`)
+  `.gitkeep`, per FORMAT.md. (`docs/plans/completed/library-restore.md`)
 - **Restoring on another machine** — `NO_LIBRARY_HINT` names the path for an
   existing or freshly cloned library, the onboarding wizard's connect branch
   accepts incomplete clones, and the flow is documented in the `snip-git` manual
@@ -219,7 +237,7 @@ there is no popularity threshold for new packages.
   conflict); `snip git pull [--ff-only]` with stable human and JSON output and
   integration tests for the fast-forward, divergence, conflict-rollback, and
   refusal paths; `Ctrl-g l` to pull and `Ctrl-g U` to start auto-pull in the TUI,
-  with an explicit catalog rescan on success. (`docs/plans/library-pull.md`)
+  with an explicit catalog rescan on success. (`docs/plans/completed/library-pull.md`)
 
 ### Sharing
 
@@ -227,11 +245,11 @@ there is no popularity threshold for new packages.
   embedded API client and no token handling. Fragments become gist files, the
   README becomes `README.md`, and the gist is recorded in `snippet.toml` so
   `push` keeps the same URL. Commands: `push`, `url`, `status`, `attach`,
-  `detach`, `delete`, `open`. (`docs/plans/gist-publish.md`)
+  `detach`, `delete`, `open`. (`docs/plans/completed/gist-publish.md`)
 - **Gist in the TUI** — a `Ctrl-s` panel for the selected snippet, palette
   entries for every gist command, a `Published` sidebar toggle that composes with
   the folder and tag filters, and list/preview markers that appear only for
-  published snippets. (`docs/plans/gist-tui.md`)
+  published snippets. (`docs/plans/completed/gist-tui.md`)
 
 ### Data import
 
@@ -244,7 +262,7 @@ there is no popularity threshold for new packages.
 - **Binary cache** — a Cachix cache named `snip` with `CACHIX_AUTH_TOKEN` in the
   repo secrets, so the `Nix` and `Release build` workflows push prebuilt binaries
   and `nix run` / `nix profile install` download instead of building. Verified on
-  x86_64-linux, aarch64-linux, and aarch64-darwin. (`docs/plans/nix-flake.md`)
+  x86_64-linux, aarch64-linux, and aarch64-darwin. (`docs/plans/completed/nix-flake.md`)
 - **Arch binary package** — `sniplab-bin` on the AUR, so Arch users can
   `yay -S sniplab-bin` without compiling. The release `aur` job renders both the
   source and prebuilt PKGBUILDs, and the portable Linux archives carry `LICENSE`
@@ -256,7 +274,7 @@ there is no popularity threshold for new packages.
   idempotent and upgrade-safe (prints old and new versions, refuses to downgrade,
   leaves package-manager-owned installs untouched); ships an `uninstall` mode and
   is published at the stable `releases/latest/download/install.sh` URL.
-  (`docs/plans/install-script.md`)
+  (`docs/plans/completed/install-script.md`)
 
 ### Skill
 
