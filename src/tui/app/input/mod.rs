@@ -26,12 +26,14 @@ impl App {
         if self.palette.open {
             return self.handle_palette_key(key);
         }
-        if self.search.active {
-            return self.handle_search(key);
-        }
         let stack = Mode::stack(self);
         if let Some(id) = self.keymap.resolve(&stack, chord) {
             return self.run_command(id);
+        }
+        // Mode::Search binds nothing itself, so anything the keymap did not claim
+        // is text for the query editor. The digit fallback must not see it.
+        if self.search.active {
+            return self.handle_search(key);
         }
 
         match chord.code() {

@@ -18,10 +18,11 @@ pub enum Mode {
     Help,
     Git,
     Gist,
+    Search,
 }
 
 impl Mode {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Global,
         Self::Sidebar,
         Self::List,
@@ -32,6 +33,7 @@ impl Mode {
         Self::Help,
         Self::Git,
         Self::Gist,
+        Self::Search,
     ];
 
     pub fn stack(app: &App) -> Vec<Self> {
@@ -39,6 +41,10 @@ impl Mode {
             vec![Self::Git]
         } else if app.gist.open {
             vec![Self::Gist]
+        } else if app.search.active {
+            // Search owns the keyboard, but the two panels stay reachable from
+            // inside a query, as they were before the table took over.
+            vec![Self::Search]
         } else if app.show_help {
             // Help deliberately wins the one real overlap: help over trash.
             vec![Self::Help]
@@ -61,7 +67,7 @@ impl Mode {
     pub fn is_exclusive(self) -> bool {
         matches!(
             self,
-            Self::FragmentGrab | Self::Trash | Self::Help | Self::Git | Self::Gist
+            Self::FragmentGrab | Self::Trash | Self::Help | Self::Git | Self::Gist | Self::Search
         )
     }
 
@@ -81,7 +87,7 @@ impl Mode {
                 GistTogglePanel,
                 PaletteOpen,
             ],
-            Self::FragmentGrab => &[GitToggleConsole, GistTogglePanel],
+            Self::FragmentGrab | Self::Search => &[GitToggleConsole, GistTogglePanel],
             Self::Global | Self::Sidebar | Self::List | Self::Preview | Self::Fragment => &[],
         }
     }
@@ -274,5 +280,26 @@ mod tests {
             Some(CommandId::GitToggleConsole)
         );
         assert_eq!(keymap.resolve(&[Mode::Git], "q".parse().unwrap()), None);
+    }
+
+    #[test]
+    fn search_only_inherits_the_two_panel_toggles() {
+        let keymap = Keymap::defaults();
+        assert_eq!(
+            keymap.resolve(&[Mode::Search], "ctrl-g".parse().unwrap()),
+            Some(CommandId::GitToggleConsole)
+        );
+        assert_eq!(
+            keymap.resolve(&[Mode::Search], "ctrl-s".parse().unwrap()),
+            Some(CommandId::GistTogglePanel)
+        );
+        // Everything else belongs to the query editor, `esc` and `:` included.
+        for chord in ["esc", ":", "q", "/", "j"] {
+            assert_eq!(
+                keymap.resolve(&[Mode::Search], chord.parse().unwrap()),
+                None,
+                "{chord:?} must reach the search editor"
+            );
+        }
     }
 }

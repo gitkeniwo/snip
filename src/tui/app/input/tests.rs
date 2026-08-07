@@ -21,6 +21,7 @@ enum TestMode {
     Help,
     Git,
     Gist,
+    Search,
 }
 
 fn app() -> (tempfile::TempDir, App) {
@@ -69,6 +70,7 @@ fn prepare(app: &mut App, mode: TestMode) {
         TestMode::Help => app.show_help = true,
         TestMode::Git => app.git.open = true,
         TestMode::Gist => app.gist.open = true,
+        TestMode::Search => app.search.active = true,
     }
 }
 
@@ -326,6 +328,82 @@ fn handwritten_dispatch_pins_shadowing_and_inline_closers() {
     send(&mut app, "?");
     assert_eq!(app.last_command, Some(CommandId::ViewToggleHelp));
     assert!(!app.show_help);
+}
+
+#[test]
+fn escape_dismisses_whatever_owns_the_keyboard() {
+    let (_temporary, mut app) = app();
+
+    for mode in [
+        TestMode::Global,
+        TestMode::Sidebar,
+        TestMode::List,
+        TestMode::Preview,
+        TestMode::Fragment,
+        TestMode::FragmentGrab,
+        TestMode::Trash,
+        TestMode::Help,
+        TestMode::Git,
+        TestMode::Gist,
+    ] {
+        prepare(&mut app, mode);
+        send(&mut app, "esc");
+        assert_eq!(app.last_command, Some(CommandId::UiDismiss), "{mode:?}");
+    }
+
+    prepare(&mut app, TestMode::FragmentGrab);
+    send(&mut app, "esc");
+    assert!(app.fragment_grab.is_none());
+
+    prepare(&mut app, TestMode::Trash);
+    send(&mut app, "esc");
+    assert!(!app.trash.open);
+
+    prepare(&mut app, TestMode::Help);
+    send(&mut app, "esc");
+    assert!(!app.show_help);
+
+    prepare(&mut app, TestMode::Git);
+    send(&mut app, "esc");
+    assert!(!app.git.open);
+
+    prepare(&mut app, TestMode::Gist);
+    send(&mut app, "esc");
+    assert!(!app.gist.open);
+
+    // Search runs its own editor: `esc` leaves the query, it is not a command.
+    prepare(&mut app, TestMode::Search);
+    send(&mut app, "esc");
+    assert_eq!(app.last_command, None);
+    assert!(!app.search.active);
+}
+
+#[test]
+fn search_keeps_the_panel_toggles_reachable() {
+    let (_temporary, mut app) = app();
+
+    prepare(&mut app, TestMode::Search);
+    send(&mut app, "ctrl-g");
+    assert_eq!(app.last_command, Some(CommandId::GitToggleConsole));
+    assert!(app.git.open);
+
+    prepare(&mut app, TestMode::Search);
+    send(&mut app, "ctrl-s");
+    assert_eq!(app.last_command, Some(CommandId::GistTogglePanel));
+    assert!(app.gist.open);
+
+    // Nothing else escapes the query editor, including chords the panes bind.
+    for chord in ["q", "j", ":", "/", "T", "1"] {
+        prepare(&mut app, TestMode::Search);
+        app.search.query.clear();
+        send(&mut app, chord);
+        assert_eq!(app.last_command, None, "{chord:?} must stay query text");
+        assert!(
+            app.search.active,
+            "{chord:?} must stay in the search editor"
+        );
+        assert_eq!(app.search.query, chord, "{chord:?} must reach the query");
+    }
 }
 
 #[test]
