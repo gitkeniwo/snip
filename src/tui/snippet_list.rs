@@ -23,6 +23,11 @@ struct RowColumns {
     badge: bool,
 }
 
+struct TableColumns {
+    gist: bool,
+    badge: bool,
+}
+
 /// Chooses decoration by its measured display width rather than a terminal-width
 /// threshold. The date gives way first, then the gist column, then the language
 /// badge; `reserved` is state that must always remain visible.
@@ -30,12 +35,13 @@ fn row_columns(
     width: usize,
     date_available: bool,
     gist_available: bool,
+    badge_available: bool,
     reserved: usize,
 ) -> RowColumns {
     let mut columns = RowColumns {
         date: date_available,
         gist: gist_available,
-        badge: true,
+        badge: badge_available,
     };
     let fits = |columns: &RowColumns| {
         reserved
@@ -57,20 +63,25 @@ fn row_columns(
     columns
 }
 
-fn compact_gist_column<I>(width: usize, any_badge: bool, rows: I) -> bool
+/// Columns whose presence moves every title use one conservative decision for
+/// the whole table. Dates remain per-row because they are right-aligned.
+fn table_columns<I>(width: usize, gist_available: bool, compact: bool, rows: I) -> TableColumns
 where
     I: IntoIterator<Item = (bool, bool)>,
 {
-    any_badge
-        && rows.into_iter().all(|(date_available, locked)| {
-            row_columns(
-                width,
-                date_available,
-                true,
-                COMPACT_PIN_WIDTH + usize::from(locked) * LOCKED_MARKER_WIDTH,
-            )
-            .gist
-        })
+    let rows = rows.into_iter().collect::<Vec<_>>();
+    let fixed_width = |locked| {
+        usize::from(compact) * COMPACT_PIN_WIDTH + usize::from(locked) * LOCKED_MARKER_WIDTH
+    };
+    let gist = compact
+        && gist_available
+        && rows.iter().all(|&(date_available, locked)| {
+            row_columns(width, date_available, true, true, fixed_width(locked)).gist
+        });
+    let badge = rows.iter().all(|&(date_available, locked)| {
+        row_columns(width, date_available, gist, true, fixed_width(locked)).badge
+    });
+    TableColumns { gist, badge }
 }
 
 /// Width of the gist marker in a row: one leading space plus the glyph, or
@@ -93,11 +104,12 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
         .visible
         .iter()
         .any(|row| app.gist_badges.contains_key(&row.snippet_id));
-    // Gist padding keeps the date aligned down the compact list, so it must be
-    // an all-or-nothing table decision rather than something each row chooses.
-    let show_compact_gist = compact_gist_column(
+    // Both left-side columns shift every title, so they are all-or-nothing
+    // table decisions. A locked row cannot make only its own badge disappear.
+    let table_columns = table_columns(
         width,
         any_badge,
+        app.density == TuiDensitySetting::Compact,
         app.visible.iter().filter_map(|row| {
             app.catalog
                 .snippets
@@ -120,7 +132,8 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 let columns = row_columns(
                     width,
                     date_str.is_some(),
-                    show_compact_gist,
+                    table_columns.gist,
+                    table_columns.badge,
                     COMPACT_PIN_WIDTH + usize::from(snippet.locked) * LOCKED_MARKER_WIDTH,
                 );
                 let line = compact_line(
@@ -147,7 +160,13 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 .as_ref()
                 .map_or(0, |_| crate::tui::gist_panel::GLYPH_WIDTH + 1);
             let marker_width = usize::from(snippet.locked) * LOCKED_MARKER_WIDTH;
-            let columns = row_columns(width, date_str.is_some(), false, marker_width);
+            let columns = row_columns(
+                width,
+                date_str.is_some(),
+                false,
+                table_columns.badge,
+                marker_width,
+            );
             let left_width = usize::from(columns.badge) * BADGE_COLUMN_WIDTH;
             let date_width = usize::from(columns.date) * DATE_COLUMN_WIDTH;
             let title_width = width.saturating_sub(left_width + date_width + marker_width);
@@ -181,8 +200,8 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             // The second line is built into a narrowed width so the badge has
             // somewhere to sit, then right-aligned into the tail it left free.
             let second_width = width.saturating_sub(badge_width);
+            let indent = second_line_indent(columns.badge, snippet.pinned, second_width);
             let mut second = if let Some(excerpt) = row.excerpt.as_ref() {
-                let indent = 3.min(second_width);
                 Line::from(vec![
                     pin_gutter(app, snippet.pinned, indent),
                     Span::styled(
@@ -191,7 +210,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                     ),
                 ])
             } else {
-                metadata_line(app, snippet, second_width)
+                metadata_line(app, snippet, second_width, indent)
             };
             if let Some(spans) = badge {
                 let pad =
@@ -321,6 +340,12 @@ fn compact_pin(pinned: bool, color: ratatui::style::Color) -> Span<'static> {
     }
 }
 
+fn second_line_indent(show_badge: bool, pinned: bool, width: usize) -> usize {
+    (usize::from(show_badge) * BADGE_COLUMN_WIDTH)
+        .max(usize::from(pinned) * COMPACT_PIN_WIDTH)
+        .min(width)
+}
+
 fn snippet_date_yymmdd(snippet: &crate::domain::Snippet) -> Option<String> {
     let timestamp = snippet
         .modified_at
@@ -345,12 +370,17 @@ fn snippet_date_yymmdd(snippet: &crate::domain::Snippet) -> Option<String> {
     None
 }
 
-fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> Line<'static> {
+fn metadata_line(
+    app: &App,
+    snippet: &crate::domain::Snippet,
+    width: usize,
+    indent: usize,
+) -> Line<'static> {
     let folder_path = crate::domain::folder_label(&snippet.folder).replace('/', " > ");
     let folder = format!("[{folder_path}]");
-    // The three-cell badge plus its separator occupy the first four cells of
-    // row one. Indenting metadata by the same amount aligns it with the title.
-    let indent = 4.min(width);
+    // `items` matches this to the table-wide badge column, while reserving two
+    // cells when a pin must survive after that column is removed.
+    let indent = indent.min(width);
     let folder = widgets::truncate_end(&folder, width.saturating_sub(indent));
     let mut spans = vec![
         pin_gutter(app, snippet.pinned, indent),
@@ -389,13 +419,15 @@ fn metadata_line(app: &App, snippet: &crate::domain::Snippet, width: usize) -> L
 }
 
 fn pin_gutter(app: &App, pinned: bool, width: usize) -> Span<'static> {
-    if pinned && width >= 3 {
-        Span::styled(
+    match (pinned, width) {
+        (_, 0) => Span::raw(""),
+        (true, 1) => Span::styled("★", Style::default().fg(app.theme.warning)),
+        (true, 2) => Span::styled("★ ", Style::default().fg(app.theme.warning)),
+        (true, _) => Span::styled(
             format!(" ★ {}", " ".repeat(width - 3)),
             Style::default().fg(app.theme.warning),
-        )
-    } else {
-        Span::raw(" ".repeat(width))
+        ),
+        (false, _) => Span::raw(" ".repeat(width)),
     }
 }
 
@@ -456,7 +488,7 @@ mod tests {
         assert_eq!(date_str, Some("260726".to_owned()));
 
         for width in [30, 20, 14] {
-            let columns = row_columns(width, true, false, 0);
+            let columns = row_columns(width, true, false, true, 0);
             let left_width = usize::from(columns.badge) * BADGE_COLUMN_WIDTH;
             let date_width = usize::from(columns.date) * DATE_COLUMN_WIDTH;
             let title = widgets::truncate_end(
@@ -473,42 +505,44 @@ mod tests {
 
     #[test]
     fn row_columns_protect_the_title_in_priority_order() {
-        let full = row_columns(21, true, false, 0);
+        let full = row_columns(21, true, false, true, 0);
         assert!(full.date);
         assert!(full.badge);
 
-        let without_date = row_columns(20, true, false, 0);
+        let without_date = row_columns(20, true, false, true, 0);
         assert!(!without_date.date);
         assert!(without_date.badge);
 
-        let without_badge = row_columns(13, true, false, 0);
+        let without_badge = row_columns(13, true, false, true, 0);
         assert!(!without_badge.date);
         assert!(!without_badge.badge);
 
-        let compact_full = row_columns(26, true, true, COMPACT_PIN_WIDTH);
+        let compact_full = row_columns(26, true, true, true, COMPACT_PIN_WIDTH);
         assert!(compact_full.date);
         assert!(compact_full.gist);
         assert!(compact_full.badge);
 
-        let compact_without_date = row_columns(25, true, true, COMPACT_PIN_WIDTH);
+        let compact_without_date = row_columns(25, true, true, true, COMPACT_PIN_WIDTH);
         assert!(!compact_without_date.date);
         assert!(compact_without_date.gist);
         assert!(compact_without_date.badge);
 
-        let compact_without_gist = row_columns(18, true, true, COMPACT_PIN_WIDTH);
+        let compact_without_gist = row_columns(18, true, true, true, COMPACT_PIN_WIDTH);
         assert!(!compact_without_gist.date);
         assert!(!compact_without_gist.gist);
         assert!(compact_without_gist.badge);
     }
 
     #[test]
-    fn compact_gist_column_is_a_whole_list_decision() {
-        assert!(compact_gist_column(20, true, [(false, false)]));
-        assert!(!compact_gist_column(
-            20,
-            true,
-            [(false, false), (true, true)]
-        ));
+    fn shifting_columns_are_whole_list_decisions() {
+        let comfortable = table_columns(14, false, false, [(true, true), (true, false)]);
+        assert!(!comfortable.badge);
+
+        let compact = table_columns(16, false, true, [(true, true), (true, false)]);
+        assert!(!compact.badge);
+
+        assert!(table_columns(20, true, true, [(false, false)]).gist);
+        assert!(!table_columns(20, true, true, [(false, false), (true, true)]).gist);
     }
 
     #[test]
@@ -530,6 +564,36 @@ mod tests {
         let color = ratatui::style::Color::Yellow;
         assert_eq!(compact_pin(true, color).content.as_ref(), "★ ");
         assert_eq!(compact_pin(false, color).content.as_ref(), "  ");
+    }
+
+    #[test]
+    fn second_line_follows_the_badge_column_without_losing_a_pin() {
+        assert_eq!(second_line_indent(true, false, 12), 4);
+        assert_eq!(second_line_indent(false, false, 12), 0);
+        assert_eq!(second_line_indent(false, true, 12), 2);
+
+        let temporary = tempfile::tempdir().unwrap();
+        let library =
+            crate::filesystem::Library::init(&temporary.path().join("Test.sniplib"), None).unwrap();
+        let app = App::new(library, &crate::config::AppConfig::default()).unwrap();
+        assert_eq!(pin_gutter(&app, true, 2).content.as_ref(), "★ ");
+
+        let mut snippet = make_test_snippet("2026-07-26T12:00:00Z", None);
+        snippet.folder = "Code".to_owned();
+        let unindented = metadata_line(&app, &snippet, 12, 0)
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(unindented.starts_with("[Code]"));
+
+        snippet.manifest.pinned = true;
+        let pinned = metadata_line(&app, &snippet, 12, 2)
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(pinned.starts_with("★ [Code]"));
     }
 
     #[test]
