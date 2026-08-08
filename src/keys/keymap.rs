@@ -138,6 +138,7 @@ impl Keymap {
         keymap.bind(Global, ViewCycleSort, &["s"]);
         keymap.bind(Global, ViewToggleSidebar, &["S"]);
         keymap.bind(Global, ViewToggleDensity, &["z"]);
+        keymap.bind(Global, ViewCycleAppearance, &["A"]);
         keymap.bind(Global, ViewToggleLineNumbers, &["N"]);
         keymap.bind(Global, LibraryToggleTrash, &["T"]);
         keymap.bind(Global, CopyContent, &["y"]);

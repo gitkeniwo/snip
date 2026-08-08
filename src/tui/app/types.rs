@@ -28,7 +28,7 @@ use super::super::selection::PreviewSelection;
 use super::super::state::{
     Filter, Pane, SearchState, SidebarState, SortMode, StatusMessage, VisibleRow,
 };
-use super::super::theme::TuiTheme;
+use super::super::theme::{Appearance, TuiTheme};
 use super::super::trash::TrashState;
 
 #[derive(Clone, Debug)]
@@ -202,6 +202,14 @@ pub struct App {
     pub theme_setting: TuiThemeSetting,
     pub theme_config: TuiConfig,
     pub theme_overrides: toml::Table,
+    /// Set by `view.cycle-appearance`. Session-only: deliberately never written
+    /// to the config, unlike `density` and `line_numbers`. It corrects a wrong
+    /// reading of the host's appearance for one terminal, which is not a
+    /// preference worth carrying to the next machine.
+    pub appearance_override: Option<Appearance>,
+    /// `SNIP_TUI_THEME` as read once at startup, so an explicit override can
+    /// take its place rather than fight it.
+    pub theme_env: Option<String>,
     pub icon_mode: IconMode,
     pub git: GitState,
     pub gist: GistState,

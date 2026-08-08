@@ -50,7 +50,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 91] = [
+static COMMANDS: [Command; 93] = [
     key_command!(
         PaletteOpen,
         "palette.open",
@@ -481,6 +481,24 @@ static COMMANDS: [Command; 91] = [
         ],
         enabled,
         toggle_sidebar
+    ),
+    command!(
+        ViewCycleAppearance,
+        "view.cycle-appearance",
+        "View",
+        "Toggle Light / Dark",
+        &["light", "dark", "appearance", "mode", "force", "theme"],
+        enabled,
+        cycle_appearance
+    ),
+    command!(
+        ViewClearAppearanceOverride,
+        "view.clear-appearance-override",
+        "View",
+        "Clear Appearance Override",
+        &["clear", "override", "auto", "system", "appearance", "reset"],
+        enabled,
+        clear_appearance_override
     ),
     command!(
         ViewPickTheme,

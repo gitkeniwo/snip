@@ -23,7 +23,7 @@ use super::super::sidebar;
 use super::super::state::{
     Filter, Pane, SearchState, SidebarState, StatusLevel, StatusMessage, VisibleRow,
 };
-use super::super::theme::TuiTheme;
+use super::super::theme::{Appearance, TuiTheme};
 use super::super::trash::TrashState;
 use super::types::{App, GistState, GitState, ThemePreviewState};
 
@@ -73,7 +73,9 @@ impl App {
             .and_then(toml::Value::as_table)
             .cloned()
             .unwrap_or_default();
-        let (theme_source, theme_warnings) = crate::theme::resolve(&tui);
+        let theme_env = std::env::var("SNIP_TUI_THEME").ok();
+        let (theme_source, theme_warnings) =
+            Self::resolve_theme_for(&tui, None, theme_env.as_deref());
         let theme_name = theme_source.name.clone();
         let theme = TuiTheme::from(&theme_source).with_overrides(&theme_overrides);
         let sort = tui.sort;
@@ -114,6 +116,8 @@ impl App {
             theme_setting: tui.theme,
             theme_config: tui.clone(),
             theme_overrides,
+            appearance_override: None,
+            theme_env,
             icon_mode,
             theme_checked_at: Instant::now(),
             status: None,
@@ -240,7 +244,13 @@ impl App {
     }
 
     pub fn tick_theme(&mut self) -> Result<()> {
-        if self.theme_setting != TuiThemeSetting::Auto || self.theme_preview.is_some() {
+        // An explicit session override already occupies the environment slot in
+        // resolution. Re-probing the host every five seconds would only spawn a
+        // subprocess whose answer is discarded.
+        if self.theme_setting != TuiThemeSetting::Auto
+            || self.appearance_override.is_some()
+            || self.theme_preview.is_some()
+        {
             return Ok(());
         }
         if self.theme_checked_at.elapsed() < Duration::from_secs(5) {
@@ -248,7 +258,28 @@ impl App {
         }
         self.theme_checked_at = Instant::now();
         self.theme_config.theme = self.theme_setting;
-        let (source, warnings) = crate::theme::resolve(&self.theme_config);
+        self.apply_resolved_theme()
+    }
+
+    fn resolve_theme_for(
+        config: &crate::config::TuiConfig,
+        appearance_override: Option<Appearance>,
+        theme_env: Option<&str>,
+    ) -> (crate::theme::Theme, Vec<String>) {
+        let env = appearance_override.map(Appearance::as_str).or(theme_env);
+        crate::theme::resolve_with_environment(config, env)
+    }
+
+    fn resolve_theme(&self) -> (crate::theme::Theme, Vec<String>) {
+        Self::resolve_theme_for(
+            &self.theme_config,
+            self.appearance_override,
+            self.theme_env.as_deref(),
+        )
+    }
+
+    fn apply_resolved_theme(&mut self) -> Result<()> {
+        let (source, warnings) = self.resolve_theme();
         let theme = TuiTheme::from(&source).with_overrides(&self.theme_overrides);
         if source.name != self.theme_name || theme.appearance != self.theme.appearance {
             self.highlighter.set_theme(&source)?;
@@ -263,6 +294,39 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    pub(super) fn cycle_appearance(&mut self) {
+        let next = match self.appearance_override {
+            None => match self.theme.appearance {
+                Appearance::Dark => Appearance::Light,
+                Appearance::Light => Appearance::Dark,
+            },
+            Some(Appearance::Light) => Appearance::Dark,
+            Some(Appearance::Dark) => Appearance::Light,
+        };
+        self.appearance_override = Some(next);
+        self.set_status(
+            format!("appearance: {} (this session)", next.as_str()),
+            StatusLevel::Info,
+        );
+        if let Err(error) = self.apply_resolved_theme() {
+            self.set_status(
+                format!("appearance changed for this session: {error}"),
+                StatusLevel::Error,
+            );
+        }
+    }
+
+    pub(super) fn clear_appearance_override(&mut self) {
+        self.appearance_override = None;
+        self.set_status("appearance override cleared", StatusLevel::Info);
+        if let Err(error) = self.apply_resolved_theme() {
+            self.set_status(
+                format!("could not clear appearance override: {error}"),
+                StatusLevel::Error,
+            );
+        }
     }
 
     pub fn tick_git(&mut self) {

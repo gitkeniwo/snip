@@ -311,6 +311,7 @@ merely scrolling past it does nothing.
 | `j`/`k`, `g`/`G` | move; first/last |
 | `n`, `e`, `d` | create, edit in `$EDITOR`, move to trash |
 | `y` | copy content |
+| `A` | toggle light/dark for this session |
 | `Ctrl-g`, `Ctrl-s` | Git console, gist panel |
 
 Bindings can be changed per mode in `keys.toml`. Run `snip keys list` to see
@@ -341,8 +342,18 @@ terminal whose background differs from the system:
 SNIP_TUI_THEME=light snip     # or: snip config set tui-theme light
 ```
 
+While the TUI is running, press `A` to toggle light/dark for this session only.
+This is useful when the host's system appearance does not describe the terminal
+you are actually using, such as a phone connected over SSH. Run **Clear
+Appearance Override** from the command palette to restore normal theme
+resolution; it may use `tui.theme`, `SNIP_TUI_THEME`, or system detection.
+Neither command writes to `config.toml`.
+
 Any other `SNIP_TUI_THEME` value selects a theme by name for that run — see
-[Themes](#themes).
+[Themes](#themes). Pressing `A` deliberately overrides either form of
+`SNIP_TUI_THEME`. If the variable pins a theme name such as `dark-nord`, the
+first press drops that single-theme pin and loads the configured `light_theme`
+or `dark_theme` for the requested appearance.
 
 ### Themes
 
@@ -530,9 +541,11 @@ backup_on_quit = false
 ```
 
 `SNIP_TUI_THEME=light|dark` overrides `[tui].theme`; any other non-empty value
-selects a theme by name for that run. Config values are defaults
-only; explicit CLI options override them. Unknown TOML fields are preserved when
-`snip config set` or `unset` rewrites the file, so future settings can coexist.
+selects a theme by name for that run. An in-app `A` appearance override takes
+precedence over `SNIP_TUI_THEME` and lasts only for the current TUI session.
+Config values are defaults only; explicit CLI options override them. Unknown
+TOML fields are preserved when `snip config set` or `unset` rewrites the file,
+so future settings can coexist.
 
 ## Files are the database
 
