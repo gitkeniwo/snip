@@ -94,10 +94,16 @@ impl Mode {
 }
 
 pub struct Keymap {
-    modes: HashMap<Mode, HashMap<Chord, CommandId>>,
+    pub(super) modes: HashMap<Mode, HashMap<Chord, CommandId>>,
 }
 
 impl Keymap {
+    pub(super) fn empty() -> Self {
+        Self {
+            modes: HashMap::new(),
+        }
+    }
+
     pub fn defaults() -> Self {
         use CommandId::*;
         use Mode::*;
@@ -243,6 +249,30 @@ impl Keymap {
                 "duplicate built-in chord {chord} in {mode:?}"
             );
         }
+    }
+}
+
+impl Mode {
+    pub fn config_name(self) -> &'static str {
+        match self {
+            Self::Global => "global",
+            Self::Sidebar => "sidebar",
+            Self::List => "list",
+            Self::Preview => "preview",
+            Self::Fragment => "fragment",
+            Self::FragmentGrab => "fragment-grab",
+            Self::Trash => "trash",
+            Self::Help => "help",
+            Self::Git => "git",
+            Self::Gist => "gist",
+            Self::Search => "search",
+        }
+    }
+
+    pub fn from_config_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|mode| mode.config_name() == name)
     }
 }
 
