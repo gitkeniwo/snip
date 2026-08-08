@@ -37,6 +37,7 @@ fn theme_command(config_home: &Path, arguments: &[&str]) -> Command {
     command
 }
 
+#[cfg(feature = "tui")]
 fn keys_command(config_home: &Path, arguments: &[&str]) -> Command {
     let mut command = Command::cargo_bin("snip").unwrap();
     command
@@ -46,6 +47,7 @@ fn keys_command(config_home: &Path, arguments: &[&str]) -> Command {
     command
 }
 
+#[cfg(feature = "tui")]
 #[test]
 fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
     let temporary = tempfile::tempdir().unwrap();
@@ -103,7 +105,11 @@ fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
     let path: Value = serde_json::from_slice(&path.stdout).unwrap();
     assert_eq!(
         path["path"],
-        config_home.join("snip/keys.toml").display().to_string()
+        config_home
+            .join("snip")
+            .join("keys.toml")
+            .display()
+            .to_string()
     );
 
     keys_command(config_home, &["keys", "export", "--mode", "list"])
@@ -135,6 +141,7 @@ fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
     assert!(contents.contains("inherit-defaults = false"));
 }
 
+#[cfg(feature = "tui")]
 #[test]
 fn cli_keys_check_reports_strict_errors_warnings_and_infos() {
     let temporary = tempfile::tempdir().unwrap();
@@ -205,6 +212,7 @@ fn cli_keys_check_reports_strict_errors_warnings_and_infos() {
     );
 }
 
+#[cfg(feature = "tui")]
 #[test]
 fn cli_keys_check_succeeds_when_diagnostics_are_info_only() {
     let temporary = tempfile::tempdir().unwrap();
@@ -234,6 +242,7 @@ fn cli_keys_check_succeeds_when_diagnostics_are_info_only() {
     );
 }
 
+#[cfg(feature = "tui")]
 #[test]
 fn cli_keys_check_treats_an_explicit_unbind_as_info() {
     let temporary = tempfile::tempdir().unwrap();
