@@ -144,7 +144,7 @@ fn command_export(path: &Path, mode: Option<Mode>, force: bool, output: OutputMo
         )));
     }
     let modes = selected_modes(mode);
-    let contents = export_toml(&modes);
+    let contents = export_toml(&modes, mode.is_none());
     let parent = path
         .parent()
         .ok_or_else(|| SnipError::io(format!("{} has no parent directory", path.display())))?;
@@ -179,7 +179,8 @@ fn command_check(path: &Path, output: OutputMode) -> Result<()> {
             message: diagnostic.message,
         })
         .collect::<Vec<_>>();
-    diagnostics.extend(missing_default_actions(&keymap, &defaults));
+    let missing_actions = missing_default_actions(&keymap, &defaults, &diagnostics);
+    diagnostics.extend(missing_actions);
     diagnostics.extend(missing_exit_bindings(&keymap));
     diagnostics.extend(cross_mode_shadowing(&keymap, &defaults));
     let ok = !diagnostics
@@ -238,9 +239,12 @@ fn exact_binding(keymap: &Keymap, mode: Mode, chord: Chord) -> Option<CommandId>
         .find_map(|(bound_chord, id)| (bound_chord == chord).then_some(id))
 }
 
-fn export_toml(modes: &[Mode]) -> String {
+fn export_toml(modes: &[Mode], authoritative: bool) -> String {
     let defaults = Keymap::defaults();
-    let mut output = String::from("inherit-defaults = false\n");
+    let mut output = String::new();
+    if authoritative {
+        output.push_str("inherit-defaults = false\n");
+    }
     for &mode in modes {
         let mut actions = BTreeMap::<&str, Vec<String>>::new();
         for (chord, id) in defaults.bindings_for(mode) {
@@ -253,7 +257,10 @@ fn export_toml(modes: &[Mode]) -> String {
             chords.sort();
             chords.dedup();
         }
-        output.push_str(&format!("\n[{}]\n", mode.config_name()));
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str(&format!("[{}]\n", mode.config_name()));
         for (action, chords) in actions {
             let value = toml::Value::Array(
                 chords
@@ -267,7 +274,11 @@ fn export_toml(modes: &[Mode]) -> String {
     output
 }
 
-fn missing_default_actions(keymap: &Keymap, defaults: &Keymap) -> Vec<CheckDiagnostic> {
+fn missing_default_actions(
+    keymap: &Keymap,
+    defaults: &Keymap,
+    existing: &[CheckDiagnostic],
+) -> Vec<CheckDiagnostic> {
     let mut diagnostics = Vec::new();
     for mode in Mode::CONFIGURABLE {
         let mut default_actions = defaults
@@ -278,14 +289,16 @@ fn missing_default_actions(keymap: &Keymap, defaults: &Keymap) -> Vec<CheckDiagn
             .collect::<Vec<_>>();
         default_actions.sort_unstable_by_key(|action| command::get(*action).slug);
         for action in default_actions {
-            if keymap.chords_for(&[mode], action).is_empty() {
+            let slug = command::get(action).slug;
+            let eviction_suffix =
+                format!("; {slug} now has no key in mode \"{}\"", mode.config_name());
+            let eviction_already_reported = existing.iter().any(|diagnostic| {
+                diagnostic.level == "info" && diagnostic.message.ends_with(&eviction_suffix)
+            });
+            if keymap.chords_for(&[mode], action).is_empty() && !eviction_already_reported {
                 diagnostics.push(CheckDiagnostic {
-                    level: "error",
-                    message: format!(
-                        "{} has no key in mode \"{}\"",
-                        command::get(action).slug,
-                        mode.config_name()
-                    ),
+                    level: "info",
+                    message: format!("{} has no key in mode \"{}\"", slug, mode.config_name()),
                 });
             }
         }
@@ -447,8 +460,12 @@ mod tests {
 
     #[test]
     fn export_is_authoritative_stable_and_mode_filtered() {
-        let export = export_toml(&[Mode::Global]);
-        assert!(export.starts_with("inherit-defaults = false\n\n[global]\n"));
+        let full_export = export_toml(&Mode::CONFIGURABLE, true);
+        assert!(full_export.starts_with("inherit-defaults = false\n\n[global]\n"));
+
+        let export = export_toml(&[Mode::Global], false);
+        assert!(export.starts_with("[global]\n"));
+        assert!(!export.contains("inherit-defaults"));
         assert!(export.contains("\"palette.open\" = [\":\", \"ctrl-p\"]"));
         assert!(!export.contains("[list]"));
         let temporary = tempfile::tempdir().unwrap();
@@ -459,6 +476,10 @@ mod tests {
         assert_eq!(
             loaded.resolve(&[Mode::Global], "ctrl-p".parse().unwrap()),
             Some(CommandId::PaletteOpen)
+        );
+        assert_eq!(
+            loaded.resolve(&[Mode::List], "e".parse().unwrap()),
+            Some(CommandId::SnippetEditContent)
         );
     }
 
