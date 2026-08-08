@@ -57,7 +57,14 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     let _panic_hook = PanicHookGuard::install();
     let mut guard = TerminalGuard::new()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
-    let mut app = App::new_with_session_state(library, config, persist::SessionState::load())?;
+    let (keymap, key_diagnostics) = crate::keys::Keymap::load()?;
+    let mut app = App::new_with_keymap(
+        library,
+        config,
+        persist::SessionState::load(),
+        keymap,
+        key_diagnostics.len(),
+    )?;
     let (sender, receiver) = mpsc::channel();
     app.set_git_sender(sender.clone());
     app.set_gist_sender(sender.clone());
