@@ -3,6 +3,9 @@ use ratatui::text::{Line, Span, Text};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use crate::keys::{Keymap, Mode};
+use crate::tui::command::CommandId;
+
 use super::super::app::App;
 use super::super::panel_text::{key_value, section};
 use super::super::theme::TuiTheme;
@@ -53,7 +56,7 @@ fn unavailable_text(app: &App, reason: &str) -> Text<'static> {
             Style::default().fg(app.theme.accent_alt),
         ),
         Line::raw(""),
-        close_footer(app.theme),
+        close_footer(app),
     ])
 }
 
@@ -70,11 +73,26 @@ fn no_record_text(
         Line::raw(""),
         section("ACTIONS", width, app.theme),
         Line::raw(""),
-        action_line("p", "publish as a secret gist", app.theme, true),
-        action_line("P", "publish as a public gist", app.theme, true),
-        action_line("a", "link an existing gist…", app.theme, true),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistPush)]),
+            "publish as a secret gist",
+            app.theme,
+            true,
+        ),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistPushPublic)]),
+            "publish as a public gist",
+            app.theme,
+            true,
+        ),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistAttach)]),
+            "link an existing gist…",
+            app.theme,
+            true,
+        ),
         Line::raw(""),
-        close_footer(app.theme),
+        close_footer(app),
     ])
 }
 
@@ -117,15 +135,45 @@ fn record_text(
         Line::raw(""),
         section("ACTIONS", width, app.theme),
         Line::raw(""),
-        action_line("p", "update the gist", app.theme, true),
-        action_line("y", "copy link", app.theme, true),
-        action_line("o", "open in browser", app.theme, true),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistPush)]),
+            "update the gist",
+            app.theme,
+            true,
+        ),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistCopyUrl)]),
+            "copy link",
+            app.theme,
+            true,
+        ),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistOpenInBrowser)]),
+            "open in browser",
+            app.theme,
+            true,
+        ),
         Line::raw(""),
-        action_line("r", "check it still exists", app.theme, true),
-        action_line("d", "unlink (keeps the gist)…", app.theme, true),
-        action_line("x", "delete on GitHub…", app.theme, true),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistVerifyRemote)]),
+            "check it still exists",
+            app.theme,
+            true,
+        ),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistDetach)]),
+            "unlink (keeps the gist)…",
+            app.theme,
+            true,
+        ),
+        action_line(
+            binding_label(&app.keymap, &[(Mode::Gist, CommandId::GistDelete)]),
+            "delete on GitHub…",
+            app.theme,
+            true,
+        ),
         Line::raw(""),
-        close_footer(app.theme),
+        close_footer(app),
     ])
 }
 
@@ -169,7 +217,7 @@ fn state_line(state: &str, color: Color, width: usize, theme: TuiTheme) -> Line<
 
 /// One action per line. `primary` marks the everyday verbs so they carry more
 /// weight than the occasional ones sharing the panel.
-fn action_line(key: &str, label: &str, theme: TuiTheme, primary: bool) -> Line<'static> {
+fn action_line(key: String, label: &str, theme: TuiTheme, primary: bool) -> Line<'static> {
     let (key_style, label_style) = if primary {
         (
             Style::default()
@@ -185,28 +233,47 @@ fn action_line(key: &str, label: &str, theme: TuiTheme, primary: bool) -> Line<'
     };
     Line::from(vec![
         Span::raw("  "),
-        Span::styled(key.to_owned(), key_style),
+        Span::styled(key, key_style),
         Span::styled("  ", label_style),
         Span::styled(label.to_owned(), label_style),
     ])
 }
 
-fn close_footer(theme: TuiTheme) -> Line<'static> {
+fn close_footer(app: &App) -> Line<'static> {
+    let dismiss = binding_label(&app.keymap, &[(Mode::Gist, CommandId::UiDismiss)]);
+    let toggle = binding_label(&app.keymap, &[(Mode::Global, CommandId::GistTogglePanel)]);
     Line::from(vec![
         Span::styled(
-            "Esc",
+            dismiss,
             Style::default()
-                .fg(theme.warning)
+                .fg(app.theme.warning)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" / ", Style::default().fg(theme.muted)),
+        Span::styled(" / ", Style::default().fg(app.theme.muted)),
         Span::styled(
-            "Ctrl-s",
+            toggle,
             Style::default()
-                .fg(theme.warning)
+                .fg(app.theme.warning)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("  close", Style::default().fg(theme.muted)),
+        Span::styled("  close", Style::default().fg(app.theme.muted)),
     ])
     .centered()
+}
+
+fn binding_label(keymap: &Keymap, bindings: &[(Mode, CommandId)]) -> String {
+    let mut labels = Vec::new();
+    for (mode, command) in bindings {
+        for chord in keymap.chords_for(&[*mode], *command) {
+            let label = chord.display();
+            if !labels.contains(&label) {
+                labels.push(label);
+            }
+        }
+    }
+    if labels.is_empty() {
+        "—".to_owned()
+    } else {
+        labels.join(" / ")
+    }
 }
