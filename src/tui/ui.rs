@@ -30,30 +30,39 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
         Constraint::Length(1),
     ])
     .split(area);
-    let panes = Layout::horizontal([
-        Constraint::Length(24),
-        Constraint::Percentage(30),
-        Constraint::Min(0),
-    ])
-    .split(vertical[1]);
+    let (sidebar_area, list_area, preview_area) = if app.show_sidebar {
+        let panes = Layout::horizontal([
+            Constraint::Length(24),
+            Constraint::Percentage(30),
+            Constraint::Min(0),
+        ])
+        .split(vertical[1]);
+        (panes[0], panes[1], panes[2])
+    } else {
+        let panes =
+            Layout::horizontal([Constraint::Percentage(38), Constraint::Min(0)]).split(vertical[1]);
+        (Rect::ZERO, panes[0], panes[1])
+    };
     app.layout.top_bar = vertical[0];
     app.layout.bottom_bar = vertical[2];
-    app.layout.sidebar = panes[0];
-    app.layout.list = panes[1];
-    app.layout.preview = panes[2];
+    app.layout.sidebar = sidebar_area;
+    app.layout.list = list_area;
+    app.layout.preview = preview_area;
     app.layout.reset_fragment_rows();
     top_bar::draw_top_bar(frame, app, vertical[0]);
-    draw_sidebar(frame, app, panes[0]);
+    if app.show_sidebar {
+        draw_sidebar(frame, app, sidebar_area);
+    }
     if app.trash.open {
         // The trash takes over the two right panes rather than covering them,
         // so the sidebar stays usable and the entry can be previewed.
-        trash::draw_trash_list(frame, app, panes[1]);
+        trash::draw_trash_list(frame, app, list_area);
         let preview = app.trash.preview.clone();
         let accent = app.theme.accent_alt;
-        preview::draw_preview_of(frame, app, panes[2], preview, accent);
+        preview::draw_preview_of(frame, app, preview_area, preview, accent);
     } else {
-        draw_list(frame, app, panes[1]);
-        preview::draw_preview(frame, app, panes[2]);
+        draw_list(frame, app, list_area);
+        preview::draw_preview(frame, app, preview_area);
     }
 
     bottom_bar::draw_bottom_bar(frame, app, vertical[2]);

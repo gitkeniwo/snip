@@ -136,6 +136,7 @@ impl Keymap {
         keymap.bind(Global, ViewToggleHelp, &["?"]);
         keymap.bind(Global, LibraryRescan, &["f5", "ctrl-r"]);
         keymap.bind(Global, ViewCycleSort, &["s"]);
+        keymap.bind(Global, ViewToggleSidebar, &["S"]);
         keymap.bind(Global, ViewToggleDensity, &["z"]);
         keymap.bind(Global, ViewToggleLineNumbers, &["N"]);
         keymap.bind(Global, LibraryToggleTrash, &["T"]);

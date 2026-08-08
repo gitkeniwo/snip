@@ -40,6 +40,24 @@ impl Pane {
             Self::Preview => Self::List,
         }
     }
+
+    pub fn next_visible(self, show_sidebar: bool) -> Self {
+        let next = self.next();
+        if next == Self::Sidebar && !show_sidebar {
+            next.next()
+        } else {
+            next
+        }
+    }
+
+    pub fn previous_visible(self, show_sidebar: bool) -> Self {
+        let previous = self.previous();
+        if previous == Self::Sidebar && !show_sidebar {
+            previous.previous()
+        } else {
+            previous
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -102,7 +120,7 @@ impl Filter {
 
 #[cfg(test)]
 mod tests {
-    use super::Filter;
+    use super::{Filter, Pane};
 
     #[test]
     fn published_alone_keeps_the_filter_active() {
@@ -111,6 +129,14 @@ mod tests {
             ..Filter::default()
         };
         assert!(!filter.is_empty());
+    }
+
+    #[test]
+    fn visible_pane_cycle_skips_a_hidden_sidebar() {
+        assert_eq!(Pane::Preview.next_visible(false), Pane::List);
+        assert_eq!(Pane::List.next_visible(false), Pane::Preview);
+        assert_eq!(Pane::List.previous_visible(false), Pane::Preview);
+        assert_eq!(Pane::Preview.previous_visible(false), Pane::List);
     }
 }
 

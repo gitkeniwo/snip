@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hideable library pane.** `S` toggles the sidebar for the current TUI
+  session, giving its width to the list and preview on narrow terminals without
+  changing the next session's desktop layout.
 - **User-defined TUI key bindings.** Every bindable action can be overridden by
   mode in `keys.toml`, kept separate from the automatically rewritten
   `config.toml`. The command palette, help pane, bottom bar, and Git/Gist panels

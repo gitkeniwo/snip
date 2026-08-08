@@ -152,6 +152,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             keys!("toggle line numbers"; GLOBAL => ViewToggleLineNumbers),
             keys!("toggle fragment list"; CONFIGURABLE => ViewToggleFragmentList),
             keys!("toggle list density"; GLOBAL => ViewToggleDensity),
+            keys!("toggle library pane"; GLOBAL => ViewToggleSidebar),
             keys!("change color theme"; CONFIGURABLE => ViewPickTheme),
             keys!("toggle trash"; GLOBAL => LibraryToggleTrash),
             keys!("clear filter"; CONFIGURABLE => LibraryClearFilter),

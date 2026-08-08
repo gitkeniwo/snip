@@ -288,7 +288,9 @@ default.
 ## Terminal browser
 
 Three panes: the library on the left, snippets in the middle, a preview on the
-right. A file watcher picks up changes made outside the browser.
+right. Press `S` to hide the library pane for a narrow terminal; it is a
+session-only adjustment, so the pane returns the next time you open the TUI. A
+file watcher picks up changes made outside the browser.
 
 The left pane groups its rows: the scopes you can be in (`All snippets`,
 `Uncategorized`, `Trash`), then `Filters`, then the folder and tag trees.
@@ -304,6 +306,7 @@ merely scrolling past it does nothing.
 | `?` | the full key map |
 | `:` / `Ctrl-P` | command palette |
 | `/` | search |
+| `S` | show or hide the library pane |
 | `Tab`, `h`/`l` | switch pane; back out or drill in |
 | `j`/`k`, `g`/`G` | move; first/last |
 | `n`, `e`, `d` | create, edit in `$EDITOR`, move to trash |

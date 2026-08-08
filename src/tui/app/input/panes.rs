@@ -139,7 +139,8 @@ impl App {
     pub(in super::super) fn drill_back(&mut self) {
         match self.focus {
             Pane::Preview => self.focus = Pane::List,
-            Pane::List => self.focus = Pane::Sidebar,
+            Pane::List if self.show_sidebar => self.focus = Pane::Sidebar,
+            Pane::List => {}
             Pane::Sidebar => {
                 let folder = self.sidebar.selected().and_then(|row| match &row.item {
                     SidebarItem::Folder(folder) if row.expanded => Some(folder.clone()),
@@ -219,6 +220,21 @@ impl App {
                 StatusLevel::Error,
             ),
         }
+    }
+
+    pub(in super::super) fn toggle_sidebar(&mut self) {
+        self.show_sidebar = !self.show_sidebar;
+        if !self.show_sidebar && self.focus == Pane::Sidebar {
+            self.focus = Pane::List;
+        }
+        self.set_status(
+            if self.show_sidebar {
+                "library pane shown"
+            } else {
+                "library pane hidden"
+            },
+            StatusLevel::Info,
+        );
     }
 
     pub(super) fn click_at(&mut self, column: u16, row: u16) {

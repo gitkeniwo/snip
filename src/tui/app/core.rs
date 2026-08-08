@@ -99,6 +99,7 @@ impl App {
             fragment_grab: None,
             preview_scroll: 0,
             show_line_numbers,
+            show_sidebar: true,
             fragments_expanded: false,
             sort,
             density,
