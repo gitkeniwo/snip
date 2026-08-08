@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **User-defined TUI key bindings.** Every bindable action can be overridden by
+  mode in `keys.toml`, kept separate from the automatically rewritten
+  `config.toml`. The command palette, help pane, bottom bar, and Git/Gist panels
+  all show the effective bindings; changed help rows are marked. `snip keys`
+  lists or looks up bindings, prints the resolved path, exports an authoritative
+  default file, validates conflicts and lockouts, and supports JSON/JSONL output.
+
 ### Changed
 
 - **The TUI keyboard is one table.** Every key now resolves through a keymap of
@@ -16,8 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the application (matching the Git console, and `ctrl-c` still quits from
   anywhere); `Home` and `End` jump to the first and last item in every pane, not
   only in the trash; `Ctrl-d` and `Ctrl-u` page the trash as they already paged
-  the help pane; and `Alt-s` no longer falls through to `s`, so it stops cycling
-  the sort order. Everything else is unchanged.
+  the help pane; and modified character chords no longer fall through to their
+  plain key (`Alt-s`, for example, no longer cycles the sort order). Everything
+  else is unchanged.
 
 ## [0.5.5] - 2026-08-07
 

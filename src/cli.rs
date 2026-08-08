@@ -45,6 +45,9 @@ pub enum ColorMode {
 pub enum Command {
     /// Open the interactive terminal browser.
     #[cfg(feature = "tui")]
+    #[command(
+        long_about = "Open the interactive terminal browser.\n\nTUI bindings are loaded from keys.toml beside config.toml. Run `snip keys list` to inspect the effective bindings, `snip keys export` to create an editable starting point, and `snip keys check` to validate changes."
+    )]
     Tui,
     /// Inspect and modify ~/.config/snip/config.toml.
     Config(ConfigArgs),

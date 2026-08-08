@@ -310,6 +310,10 @@ merely scrolling past it does nothing.
 | `y` | copy content |
 | `Ctrl-g`, `Ctrl-s` | Git console, gist panel |
 
+Bindings can be changed per mode in `keys.toml`. Run `snip keys list` to see
+the effective map, `snip keys path` to locate the file, or `snip keys export`
+to create a complete editable starting point; `snip keys check` validates it.
+
 Keys are named after the CLI commands they run, so `r` on a folder is `snip
 folder rename`. The mouse works as expected: click to focus, double-click to
 drill in, scroll the pane under the cursor, drag across the preview to copy.
