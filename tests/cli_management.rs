@@ -37,6 +37,241 @@ fn theme_command(config_home: &Path, arguments: &[&str]) -> Command {
     command
 }
 
+#[cfg(feature = "tui")]
+fn keys_command(config_home: &Path, arguments: &[&str]) -> Command {
+    let mut command = Command::cargo_bin("snip").unwrap();
+    command
+        .env("XDG_CONFIG_HOME", config_home)
+        .args(["--output", "json"])
+        .args(arguments);
+    command
+}
+
+#[cfg(feature = "tui")]
+#[test]
+fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+
+    let listed = keys_command(config_home, &["keys", "list"])
+        .output()
+        .unwrap();
+    assert!(listed.status.success());
+    let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let bindings = listed.as_array().unwrap();
+    assert!(bindings.iter().any(|binding| {
+        binding["mode"] == "global"
+            && binding["chord"] == "ctrl-g"
+            && binding["action"] == "git.toggle-console"
+            && binding["source"] == "default"
+    }));
+
+    let list_mode = keys_command(config_home, &["keys", "list", "--mode", "list"])
+        .output()
+        .unwrap();
+    let list_mode: Value = serde_json::from_slice(&list_mode.stdout).unwrap();
+    assert!(
+        list_mode
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|binding| binding["mode"] == "list")
+    );
+
+    let shown = keys_command(config_home, &["keys", "show", "snippet.edit-content"])
+        .output()
+        .unwrap();
+    assert!(shown.status.success());
+    let shown: Value = serde_json::from_slice(&shown.stdout).unwrap();
+    assert_eq!(shown["action"], "snippet.edit-content");
+    assert_eq!(shown["bindings"].as_array().unwrap().len(), 2);
+
+    let checked = keys_command(config_home, &["keys", "check"])
+        .output()
+        .unwrap();
+    assert!(checked.status.success());
+    let checked: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(checked["ok"], true);
+    assert!(checked["diagnostics"].as_array().unwrap().is_empty());
+
+    keys_command(config_home, &["keys", "show", "snippet.edit-contnt"])
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("did you mean"));
+
+    let path = keys_command(config_home, &["keys", "path"])
+        .output()
+        .unwrap();
+    let path: Value = serde_json::from_slice(&path.stdout).unwrap();
+    assert_eq!(
+        path["path"],
+        config_home
+            .join("snip")
+            .join("keys.toml")
+            .display()
+            .to_string()
+    );
+
+    keys_command(config_home, &["keys", "export", "--mode", "list"])
+        .assert()
+        .success();
+    let exported = config_home.join("snip/keys.toml");
+    let contents = fs::read_to_string(&exported).unwrap();
+    assert!(contents.starts_with("# Key bindings for snip."));
+    assert!(
+        !contents
+            .lines()
+            .any(|line| line == "inherit-defaults = false")
+    );
+    assert!(contents.contains("[list]"));
+    assert!(!contents.contains("[global]"));
+    let global = keys_command(config_home, &["keys", "list", "--mode", "global"])
+        .output()
+        .unwrap();
+    assert!(global.status.success());
+    let global: Value = serde_json::from_slice(&global.stdout).unwrap();
+    assert!(!global.as_array().unwrap().is_empty());
+    keys_command(config_home, &["keys", "export"])
+        .assert()
+        .code(5);
+    keys_command(config_home, &["keys", "export", "--force"])
+        .assert()
+        .success();
+    let contents = fs::read_to_string(&exported).unwrap();
+    assert!(contents.contains("inherit-defaults = false"));
+}
+
+#[cfg(feature = "tui")]
+#[test]
+fn cli_keys_check_reports_strict_errors_warnings_and_infos() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+    let directory = config_home.join("snip");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(
+        directory.join("keys.toml"),
+        r#"
+            [global]
+            "library.search" = "e"
+            "not.a-real-action" = "x"
+            "git.toggle-console" = []
+
+            [list]
+            "snippet.edit-content" = "m"
+
+            [git]
+            "ui.dismiss" = []
+        "#,
+    )
+    .unwrap();
+
+    let checked = keys_command(config_home, &["keys", "check"])
+        .output()
+        .unwrap();
+    assert_eq!(checked.status.code(), Some(1));
+    let checked: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(checked["ok"], false);
+    let diagnostics = checked["diagnostics"].as_array().unwrap();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "error"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("unknown key binding action")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "warning"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("mode \"git\" has no exit binding")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "info"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("taken from snippet.move")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "info"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("shadows library.search")
+    }));
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("snippet.move"))
+            .count(),
+        1
+    );
+}
+
+#[cfg(feature = "tui")]
+#[test]
+fn cli_keys_check_succeeds_when_diagnostics_are_info_only() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+    let directory = config_home.join("snip");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(
+        directory.join("keys.toml"),
+        "[list]\n\"snippet.edit-content\" = \"m\"\n",
+    )
+    .unwrap();
+
+    let checked = keys_command(config_home, &["keys", "check"])
+        .output()
+        .unwrap();
+    assert!(checked.status.success());
+    let checked: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(checked["ok"], true);
+    let diagnostics = checked["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0]["level"], "info");
+    assert!(
+        diagnostics[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("taken from snippet.move")
+    );
+}
+
+#[cfg(feature = "tui")]
+#[test]
+fn cli_keys_check_treats_an_explicit_unbind_as_info() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+    let directory = config_home.join("snip");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(
+        directory.join("keys.toml"),
+        "[list]\n\"snippet.move-to-trash\" = []\n",
+    )
+    .unwrap();
+
+    let checked = keys_command(config_home, &["keys", "check"])
+        .output()
+        .unwrap();
+    assert!(checked.status.success());
+    let checked: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(checked["ok"], true);
+    let diagnostics = checked["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0]["level"], "info");
+    assert!(
+        diagnostics[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("snippet.move-to-trash has no key")
+    );
+}
+
 #[test]
 fn cli_lists_checks_uses_and_exports_themes_without_a_library() {
     let temporary = tempfile::tempdir().unwrap();
@@ -521,7 +756,7 @@ fn cli_reports_selector_ambiguity_and_jsonl_records() {
 
 #[test]
 fn list_sort_and_open_share_the_tui_vocabulary() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Sort.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
 
@@ -572,7 +807,7 @@ fn list_sort_and_open_share_the_tui_vocabulary() {
 
 #[test]
 fn inline_content_flags_match_their_file_counterparts() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Inline.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
 
@@ -664,7 +899,7 @@ fn inline_content_flags_match_their_file_counterparts() {
 
 #[test]
 fn folder_filters_include_subfolders_unless_opted_out() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Folders.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
 
@@ -748,7 +983,7 @@ fn folder_filters_include_subfolders_unless_opted_out() {
 
 #[test]
 fn external_editing_refuses_to_run_without_a_terminal() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Editor.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
     json(&library, &["create", "--title", "Solo", "--content", "x"]);
@@ -782,7 +1017,7 @@ fn external_editing_refuses_to_run_without_a_terminal() {
 
 #[test]
 fn search_supports_regex_context_fields_and_limits() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Search.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
     json(

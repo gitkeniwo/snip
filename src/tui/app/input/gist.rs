@@ -1,11 +1,8 @@
 use std::sync::mpsc::Sender;
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
-
 use crate::filesystem::Library;
 use crate::gist::gh::Unavailable;
 
-use super::super::super::command::CommandId;
 use super::super::super::event::{AppEvent, GistTaskResult};
 use super::super::super::modal::{ConfirmModal, InputModal, Modal, ModalAction};
 use super::super::super::state::StatusLevel;
@@ -19,24 +16,6 @@ pub(crate) enum GistAction {
 }
 
 impl App {
-    pub(super) fn handle_gist_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            _ if super::is_ctrl_g(key) => return self.run_command(CommandId::GitOpenConsole),
-            _ if super::is_ctrl_s(key) || key.code == KeyCode::Esc => self.gist.open = false,
-            _ if super::is_palette_trigger(key) => self.open_palette(),
-            KeyCode::Char('p') => return self.run_command(CommandId::GistPush),
-            KeyCode::Char('P') => return self.run_command(CommandId::GistPushPublic),
-            KeyCode::Char('y') => return self.run_command(CommandId::GistCopyUrl),
-            KeyCode::Char('o') => return self.run_command(CommandId::GistOpenInBrowser),
-            KeyCode::Char('a') => return self.run_command(CommandId::GistAttach),
-            KeyCode::Char('d') => return self.run_command(CommandId::GistDetach),
-            KeyCode::Char('x') => return self.run_command(CommandId::GistDelete),
-            KeyCode::Char('r') => return self.run_command(CommandId::GistVerifyRemote),
-            _ => {}
-        }
-        Vec::new()
-    }
-
     pub fn set_gist_sender(&mut self, sender: Sender<AppEvent>) {
         self.gist.sender = Some(sender);
     }

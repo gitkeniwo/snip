@@ -42,7 +42,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
 fn cached_preview_frames_keep_allocations_bounded() {
     const FRAMES: usize = 20;
 
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = Library::init(&temporary.path().join("Allocations.sniplib"), None).unwrap();
     let content = (0..3_000)
         .map(|index| format!("let value_{index} = {index};"))

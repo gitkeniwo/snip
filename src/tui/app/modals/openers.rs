@@ -1,5 +1,8 @@
+use crate::keys::Mode;
 use crate::service::{FragmentAddOptions, add_fragment};
 use crate::tui::app::types::App;
+use crate::tui::command::CommandId;
+use crate::tui::key_labels;
 use crate::tui::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerItem, PickerModal};
 use crate::tui::state::{Pane, SidebarItem, StatusLevel};
 
@@ -35,18 +38,6 @@ impl App {
         self.modal = Some(Modal::Picker(picker));
     }
 
-    pub(in super::super) fn open_new_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentAdd);
-            return;
-        }
-        if self.focus != Pane::Sidebar {
-            let _ = self.run_command(crate::tui::command::CommandId::SnippetNew);
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::FolderNew);
-    }
-
     pub(in super::super) fn open_new_snippet(&mut self) {
         self.modal = Some(Modal::Input(InputModal::new(
             "Title",
@@ -77,27 +68,6 @@ impl App {
                 parent: parent.unwrap_or_default(),
             },
         )));
-    }
-
-    pub(in super::super) fn open_delete_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentRemove);
-            return;
-        }
-        if self.focus == Pane::Sidebar {
-            let selected = self.sidebar.selected().cloned();
-            match selected.map(|row| row.item) {
-                Some(SidebarItem::Folder(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::FolderDelete);
-                }
-                Some(SidebarItem::Tag(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::TagDelete);
-                }
-                _ => {}
-            }
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::SnippetMoveToTrash);
     }
 
     pub(in super::super) fn open_delete_snippet(&mut self) {
@@ -139,27 +109,6 @@ impl App {
         )));
     }
 
-    pub(in super::super) fn open_rename_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentRename);
-            return;
-        }
-        if self.focus == Pane::Sidebar {
-            let selected = self.sidebar.selected().cloned();
-            match selected.map(|row| row.item) {
-                Some(SidebarItem::Folder(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::FolderRename);
-                }
-                Some(SidebarItem::Tag(_)) => {
-                    let _ = self.run_command(crate::tui::command::CommandId::TagRename);
-                }
-                _ => {}
-            }
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::SnippetRename);
-    }
-
     pub(in super::super) fn open_rename_snippet(&mut self) {
         let Some(snippet) = self.mutable_selected() else {
             return;
@@ -198,18 +147,6 @@ impl App {
             tag.clone(),
             ModalAction::RenameTag { tag },
         )));
-    }
-
-    pub(in super::super) fn open_move_for_context(&mut self) {
-        if self.fragment_context() {
-            let _ = self.run_command(crate::tui::command::CommandId::FragmentReorder);
-            return;
-        }
-        if self.focus == Pane::Sidebar {
-            let _ = self.run_command(crate::tui::command::CommandId::FolderMove);
-            return;
-        }
-        let _ = self.run_command(crate::tui::command::CommandId::SnippetMove);
     }
 
     pub(in super::super) fn open_move_snippet(&mut self) {
@@ -328,7 +265,22 @@ impl App {
                             snippet.loaded_fragments.len().saturating_sub(1)
                         }),
                     );
-                    self.set_status(format!("{title} added; press e to edit"), StatusLevel::Info);
+                    let edit = key_labels::display_primary_bindings(
+                        &self.keymap,
+                        &Mode::stack(self),
+                        &[
+                            (Mode::List, CommandId::SnippetEditContent),
+                            (Mode::Preview, CommandId::SnippetEditContent),
+                        ],
+                    );
+                    self.set_status(
+                        if edit.is_empty() {
+                            format!("{title} added")
+                        } else {
+                            format!("{title} added; press {edit} to edit")
+                        },
+                        StatusLevel::Info,
+                    );
                 }
                 Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
             },
@@ -384,8 +336,48 @@ impl App {
             origin: index,
             current: index,
         });
+        let stack = Mode::stack(self);
+        let bindings = [
+            (
+                key_labels::display_primary_bindings(
+                    &self.keymap,
+                    &stack,
+                    &[
+                        (Mode::FragmentGrab, CommandId::NavDown),
+                        (Mode::FragmentGrab, CommandId::NavUp),
+                    ],
+                ),
+                "move",
+            ),
+            (
+                key_labels::display_primary_bindings(
+                    &self.keymap,
+                    &stack,
+                    &[(Mode::FragmentGrab, CommandId::GrabDrop)],
+                ),
+                "drop",
+            ),
+            (
+                key_labels::display_primary_bindings(
+                    &self.keymap,
+                    &stack,
+                    &[(Mode::FragmentGrab, CommandId::UiDismiss)],
+                ),
+                "cancel",
+            ),
+        ];
+        let instructions = bindings
+            .into_iter()
+            .filter(|(keys, _)| !keys.is_empty())
+            .map(|(keys, action)| format!("{keys} to {action}"))
+            .collect::<Vec<_>>()
+            .join(", ");
         self.set_status(
-            "moving fragment; j/k to move, Enter to drop, Esc to cancel",
+            if instructions.is_empty() {
+                "moving fragment".to_owned()
+            } else {
+                format!("moving fragment; {instructions}")
+            },
             StatusLevel::Info,
         );
     }

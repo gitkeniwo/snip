@@ -4,6 +4,8 @@ use ratatui::text::{Line, Span, Text};
 use time::OffsetDateTime;
 
 use crate::git::{Branch, RepoState};
+use crate::keys::{Keymap, Mode};
+use crate::tui::command::CommandId;
 
 use super::super::app::App;
 use super::super::selection::text_width;
@@ -31,7 +33,7 @@ pub(super) fn probe_failed_text(app: &App, message: &str, width: usize) -> Text<
             Style::default().fg(app.theme.muted),
         ),
         Line::raw(""),
-        basic_footer(app.theme),
+        basic_footer(&app.keymap, app.theme),
     ])
 }
 
@@ -72,7 +74,7 @@ pub(super) fn not_repository_text(app: &App, width: usize) -> Text<'static> {
             Style::default().fg(app.theme.muted),
         ),
         Line::raw(""),
-        init_footer(app.theme),
+        init_footer(&app.keymap, app.theme),
     ])
 }
 
@@ -92,7 +94,7 @@ pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
                 Style::default().fg(app.theme.error),
             ),
             Line::raw(""),
-            basic_footer(app.theme),
+            basic_footer(&app.keymap, app.theme),
         ]);
     };
     let (verdict, verdict_color) = sync_verdict(status, app.theme);
@@ -139,7 +141,13 @@ pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
         section("AUTOMATION", width, app.theme),
         checkbox_line(
             app.git.auto_commit_interval > 0,
-            "i",
+            binding_label(
+                &app.keymap,
+                &[
+                    (Mode::Git, CommandId::GitInitOrSetInterval),
+                    (Mode::Git, CommandId::GitSetAutoCommitInterval),
+                ],
+            ),
             if app.git.auto_commit_interval > 0 {
                 format!("commit every {} min", app.git.auto_commit_interval)
             } else {
@@ -149,28 +157,37 @@ pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
         ),
         checkbox_line(
             app.git.auto_push,
-            "u",
+            binding_label(&app.keymap, &[(Mode::Git, CommandId::GitToggleAutoPush)]),
             "push after commit".to_owned(),
             app.theme,
         ),
         checkbox_line(
             app.git.auto_pull,
-            "U",
+            binding_label(&app.keymap, &[(Mode::Git, CommandId::GitToggleAutoPull)]),
             "pull on start".to_owned(),
             app.theme,
         ),
         checkbox_line(
             app.git.backup_on_quit,
-            "o",
+            binding_label(
+                &app.keymap,
+                &[(Mode::Git, CommandId::GitToggleBackupOnQuit)],
+            ),
             "backup on quit".to_owned(),
             app.theme,
         ),
         key_value(
             "session",
             if app.git.auto_backup_paused {
-                "paused (a to resume)".to_owned()
+                format!(
+                    "paused ({} to resume)",
+                    binding_label(&app.keymap, &[(Mode::Git, CommandId::GitPauseAutoBackup)])
+                )
             } else {
-                "active (a to pause)".to_owned()
+                format!(
+                    "active ({} to pause)",
+                    binding_label(&app.keymap, &[(Mode::Git, CommandId::GitPauseAutoBackup)])
+                )
             },
             width,
             app.theme,
@@ -252,7 +269,7 @@ pub(super) fn repository_text(app: &App, width: usize) -> Text<'static> {
             ),
         ]);
     }
-    lines.extend(repository_footer(width, app.theme));
+    lines.extend(repository_footer(&app.keymap, width, app.theme));
     Text::from(lines)
 }
 
@@ -372,14 +389,14 @@ fn elapsed_label(elapsed: std::time::Duration) -> String {
     crate::git::relative_time(0, seconds)
 }
 
-fn checkbox_line(checked: bool, key: &str, label: String, theme: TuiTheme) -> Line<'static> {
+fn checkbox_line(checked: bool, key: String, label: String, theme: TuiTheme) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             if checked { "  [x] " } else { "  [ ] " },
             Style::default().fg(if checked { theme.success } else { theme.muted }),
         ),
         Span::styled(
-            key.to_owned(),
+            key,
             Style::default()
                 .fg(theme.warning)
                 .add_modifier(Modifier::BOLD),
@@ -396,17 +413,19 @@ fn branch_text(branch: &Branch) -> String {
     }
 }
 
-fn basic_footer(theme: TuiTheme) -> Line<'static> {
+fn basic_footer(keymap: &Keymap, theme: TuiTheme) -> Line<'static> {
+    let close = binding_label(keymap, &[(Mode::Git, CommandId::UiDismiss)]);
+    let refresh = binding_label(keymap, &[(Mode::Git, CommandId::GitRefreshLocalStatus)]);
     Line::from(vec![
         Span::styled(
-            "Esc",
+            close,
             Style::default()
                 .fg(theme.warning)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled("  close    ", Style::default().fg(theme.muted)),
         Span::styled(
-            "r",
+            refresh,
             Style::default()
                 .fg(theme.warning)
                 .add_modifier(Modifier::BOLD),
@@ -416,49 +435,97 @@ fn basic_footer(theme: TuiTheme) -> Line<'static> {
     .centered()
 }
 
-fn init_footer(theme: TuiTheme) -> Line<'static> {
-    action_line(
-        &[("i", "initialize"), ("r", "refresh"), ("Esc", "close")],
-        theme,
-    )
-    .centered()
+fn init_footer(keymap: &Keymap, theme: TuiTheme) -> Line<'static> {
+    let entries = [
+        (
+            binding_label(
+                keymap,
+                &[
+                    (Mode::Git, CommandId::GitInitOrSetInterval),
+                    (Mode::Git, CommandId::GitInitRepository),
+                ],
+            ),
+            "initialize",
+        ),
+        (
+            binding_label(keymap, &[(Mode::Git, CommandId::GitRefreshLocalStatus)]),
+            "refresh",
+        ),
+        (
+            binding_label(keymap, &[(Mode::Git, CommandId::UiDismiss)]),
+            "close",
+        ),
+    ];
+    action_line(&entries, theme).centered()
 }
 
-pub(super) fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'static>> {
+pub(super) fn repository_footer(
+    keymap: &Keymap,
+    width: usize,
+    theme: TuiTheme,
+) -> Vec<Line<'static>> {
     let compact = width < 50;
     let entry_gap = if compact { 2 } else { 4 };
     let key_gap = if compact { 1 } else { 2 };
-    let groups: &[&[(&str, &str)]] = if width < 54 {
-        &[
-            &[("b", "backup"), ("c", "commit")],
-            &[("p", "push"), ("l", "pull")],
-            &[("f", "fetch"), ("r", "refresh")],
-            &[("i", "interval"), ("u", "auto push")],
-            &[("U", "auto pull"), ("o", "on quit")],
-            &[("C", "message"), ("a", "pause")],
-            &[("Esc", "close")],
+    let entry = |id, label| (binding_label(keymap, &[(Mode::Git, id)]), label);
+    let interval = || {
+        (
+            binding_label(
+                keymap,
+                &[
+                    (Mode::Git, CommandId::GitInitOrSetInterval),
+                    (Mode::Git, CommandId::GitSetAutoCommitInterval),
+                ],
+            ),
+            "interval",
+        )
+    };
+    let groups = if width < 54 {
+        vec![
+            vec![
+                entry(CommandId::GitBackup, "backup"),
+                entry(CommandId::GitCommit, "commit"),
+            ],
+            vec![
+                entry(CommandId::GitPush, "push"),
+                entry(CommandId::GitPull, "pull"),
+            ],
+            vec![
+                entry(CommandId::GitFetchRemoteStatus, "fetch"),
+                entry(CommandId::GitRefreshLocalStatus, "refresh"),
+            ],
+            vec![interval(), entry(CommandId::GitToggleAutoPush, "auto push")],
+            vec![
+                entry(CommandId::GitToggleAutoPull, "auto pull"),
+                entry(CommandId::GitToggleBackupOnQuit, "on quit"),
+            ],
+            vec![
+                entry(CommandId::GitCommitWithMessage, "message"),
+                entry(CommandId::GitPauseAutoBackup, "pause"),
+            ],
+            vec![entry(CommandId::UiDismiss, "close")],
         ]
     } else {
-        &[
-            &[
-                ("b", "backup"),
-                ("c", "commit"),
-                ("p", "push"),
-                ("l", "pull"),
+        vec![
+            vec![
+                entry(CommandId::GitBackup, "backup"),
+                entry(CommandId::GitCommit, "commit"),
+                entry(CommandId::GitPush, "push"),
+                entry(CommandId::GitPull, "pull"),
             ],
-            &[
-                ("f", "fetch"),
-                ("i", "interval"),
-                ("u", "auto push"),
-                ("U", "auto pull"),
+            vec![
+                entry(CommandId::GitFetchRemoteStatus, "fetch"),
+                interval(),
+                entry(CommandId::GitToggleAutoPush, "auto push"),
+                entry(CommandId::GitToggleAutoPull, "auto pull"),
             ],
-            &[
-                ("o", "on quit"),
-                ("C", "message"),
-                ("a", "pause"),
-                ("r", "refresh"),
+            vec![
+                entry(CommandId::GitToggleBackupOnQuit, "on quit"),
+                entry(CommandId::GitCommitWithMessage, "message"),
+                entry(CommandId::GitPauseAutoBackup, "pause"),
+                entry(CommandId::GitRefreshLocalStatus, "refresh"),
             ],
-            &[("Esc", "close")],
+            vec![entry(CommandId::UiDismiss, "close")],
         ]
     };
     let mut lines = groups
@@ -476,12 +543,12 @@ pub(super) fn repository_footer(width: usize, theme: TuiTheme) -> Vec<Line<'stat
     lines
 }
 
-fn action_line(entries: &[(&str, &str)], theme: TuiTheme) -> Line<'static> {
+fn action_line(entries: &[(String, &str)], theme: TuiTheme) -> Line<'static> {
     action_line_with_spacing(entries, theme, 4, 2)
 }
 
 fn action_line_with_spacing(
-    entries: &[(&str, &str)],
+    entries: &[(String, &str)],
     theme: TuiTheme,
     entry_gap: usize,
     key_gap: usize,
@@ -495,7 +562,7 @@ fn action_line_with_spacing(
             ));
         }
         spans.push(Span::styled(
-            (*key).to_owned(),
+            key.clone(),
             Style::default()
                 .fg(theme.warning)
                 .add_modifier(Modifier::BOLD),
@@ -506,4 +573,21 @@ fn action_line_with_spacing(
         ));
     }
     Line::from(spans)
+}
+
+fn binding_label(keymap: &Keymap, bindings: &[(Mode, CommandId)]) -> String {
+    let mut labels = Vec::new();
+    for (mode, command) in bindings {
+        for chord in keymap.chords_for(&[*mode], *command) {
+            let label = chord.display();
+            if !labels.contains(&label) {
+                labels.push(label);
+            }
+        }
+    }
+    if labels.is_empty() {
+        "—".to_owned()
+    } else {
+        labels.join(" / ")
+    }
 }

@@ -5,12 +5,6 @@ commitment to a date.
 
 ## TUI
 
-### User-defined key bindings
-
-- [ ] Make every TUI action rebindable through the config file, with the current
-  bindings as the default set. Needs a stable action name for each command and a
-  way to show the effective bindings (both in the help pane and as JSON).
-
 ### Vendor-neutral GUI editor naming
 
 The GUI launch path is already generic — `shlex::split` + `spawn` + the file path
@@ -172,6 +166,11 @@ there is no popularity threshold for new packages.
 ## Shipped
 
 ### TUI
+
+- **User-defined key bindings** — every TUI action has a stable name and can be
+  rebound per mode in `keys.toml`; all in-app hints read the effective map, and
+  `snip keys` lists, looks up, exports, and validates bindings with human or JSON
+  output. (`docs/plans/user-defined-keys.md`)
 
 - **Color themes** — seventeen built-in light and dark themes, editable TOML
   themes under the user config directory, `snip theme` inspection and switching,

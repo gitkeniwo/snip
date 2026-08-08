@@ -42,6 +42,22 @@ impl App {
         config: &AppConfig,
         session_state: SessionState,
     ) -> Result<Self> {
+        Self::new_with_keymap(
+            library,
+            config,
+            session_state,
+            crate::keys::Keymap::defaults(),
+            0,
+        )
+    }
+
+    pub(crate) fn new_with_keymap(
+        library: Library,
+        config: &AppConfig,
+        session_state: SessionState,
+        keymap: crate::keys::Keymap,
+        key_error_count: usize,
+    ) -> Result<Self> {
         let SessionState {
             recent_commands,
             extra,
@@ -102,6 +118,7 @@ impl App {
             status: None,
             modal: None,
             palette: Default::default(),
+            keymap,
             session_state_extra: extra,
             trash: TrashState::default(),
             should_quit: false,
@@ -117,6 +134,8 @@ impl App {
             default_folder: config.default_folder.clone(),
             default_tags: config.default_tags.clone(),
             last_click: None,
+            #[cfg(test)]
+            last_command: None,
         };
         app.palette.set_recent(
             recent_commands
@@ -130,6 +149,17 @@ impl App {
         app.refresh_git();
         if !theme_warnings.is_empty() {
             app.set_status(theme_warnings.join("; "), StatusLevel::Error);
+        }
+        if key_error_count > 0 {
+            let noun = if key_error_count == 1 {
+                "binding"
+            } else {
+                "bindings"
+            };
+            app.set_status(
+                format!("{key_error_count} key {noun} ignored; run \"snip keys check\""),
+                StatusLevel::Error,
+            );
         }
         Ok(app)
     }
@@ -853,6 +883,89 @@ mod tests {
                 .and_then(toml::Value::as_str),
             Some("kept")
         );
+    }
+
+    #[test]
+    fn user_keymap_and_diagnostic_summary_are_applied_at_startup() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Keys.sniplib"), None).unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(
+            &path,
+            r#"
+                [global]
+                "app.quit" = "x"
+
+                [search]
+                "snippet.new" = "n"
+            "#,
+        )
+        .unwrap();
+        let (keymap, diagnostics) = crate::keys::Keymap::load_from(&path).unwrap();
+        let error_count = crate::tui::key_error_count(&diagnostics);
+
+        let app = App::new_with_keymap(
+            library,
+            &AppConfig::default(),
+            SessionState::default(),
+            keymap,
+            error_count,
+        )
+        .unwrap();
+
+        assert_eq!(
+            app.keymap
+                .resolve(&[crate::keys::Mode::Global], "x".parse().unwrap()),
+            Some(CommandId::AppQuit)
+        );
+        assert_eq!(
+            app.keymap
+                .resolve(&[crate::keys::Mode::Global], "q".parse().unwrap()),
+            None
+        );
+        let status = app.status.as_ref().unwrap();
+        assert_eq!(
+            status.text,
+            "1 key binding ignored; run \"snip keys check\""
+        );
+        assert_eq!(status.level, StatusLevel::Error);
+    }
+
+    #[test]
+    fn info_only_key_diagnostics_do_not_raise_a_startup_error() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Keys.sniplib"), None).unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(
+            &path,
+            r#"
+                [list]
+                "snippet.edit-content" = "m"
+            "#,
+        )
+        .unwrap();
+        let (keymap, diagnostics) = crate::keys::Keymap::load_from(&path).unwrap();
+        let error_count = crate::tui::key_error_count(&diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].level, crate::keys::DiagnosticLevel::Info);
+        assert_eq!(error_count, 0);
+
+        let app = App::new_with_keymap(
+            library,
+            &AppConfig::default(),
+            SessionState::default(),
+            keymap,
+            error_count,
+        )
+        .unwrap();
+
+        assert_eq!(
+            app.keymap
+                .resolve(&[crate::keys::Mode::List], "m".parse().unwrap()),
+            Some(CommandId::SnippetEditContent)
+        );
+        assert!(app.status.is_none());
     }
 
     #[test]

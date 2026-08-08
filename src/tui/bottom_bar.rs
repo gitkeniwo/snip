@@ -5,14 +5,69 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 
 use super::app::App;
+use super::key_labels;
 use super::modal::Modal;
 use super::selection::text_width;
 use super::state::{Pane, StatusLevel};
 use super::theme::TuiTheme;
 use super::widgets;
+use crate::keys::{Keymap, Mode};
+use crate::tui::command::CommandId;
 
-type Shortcut<'a> = (&'a str, &'a str);
+type Shortcut<'a> = (String, &'a str);
 type ShortcutSet<'a> = &'a [Shortcut<'a>];
+
+#[derive(Clone, Copy)]
+struct ShortcutSpec {
+    modes: &'static [Mode],
+    commands: &'static [CommandId],
+    action: &'static str,
+    choice: ChordChoice,
+}
+
+#[derive(Clone, Copy)]
+enum ChordChoice {
+    All,
+    First,
+    Last,
+}
+
+macro_rules! shortcut {
+    ($action:literal; $modes:expr => $($command:ident),+ $(,)?) => {
+        ShortcutSpec {
+            modes: $modes,
+            commands: &[$(CommandId::$command),+],
+            action: $action,
+            choice: ChordChoice::All,
+        }
+    };
+}
+
+macro_rules! shortcut_first {
+    ($action:literal; $modes:expr => $($command:ident),+ $(,)?) => {{
+        let mut spec = shortcut!($action; $modes => $($command),+);
+        spec.choice = ChordChoice::First;
+        spec
+    }};
+}
+
+macro_rules! shortcut_last {
+    ($action:literal; $modes:expr => $($command:ident),+ $(,)?) => {{
+        let mut spec = shortcut!($action; $modes => $($command),+);
+        spec.choice = ChordChoice::Last;
+        spec
+    }};
+}
+
+const GLOBAL: &[Mode] = &[Mode::Global];
+const SIDEBAR: &[Mode] = &[Mode::Sidebar];
+const LIST: &[Mode] = &[Mode::List];
+const PREVIEW: &[Mode] = &[Mode::Preview];
+const FRAGMENT: &[Mode] = &[Mode::Fragment];
+const GRAB: &[Mode] = &[Mode::FragmentGrab];
+const TRASH: &[Mode] = &[Mode::Trash];
+const GIT: &[Mode] = &[Mode::Git];
+const GIST: &[Mode] = &[Mode::Gist];
 
 pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_widget(
@@ -114,104 +169,209 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         );
         return;
     }
-    let navigation_full: ShortcutSet<'_> = &[
-        ("←/→", "nav"),
-        ("/", "search"),
-        ("^g", "git"),
-        ("?", "help"),
-        ("q", "quit"),
-    ];
-    let navigation_medium: ShortcutSet<'_> = &[
-        ("←/→", "nav"),
-        ("/", "search"),
-        ("^g", "git"),
-        ("?", "help"),
-    ];
-    let navigation_compact: ShortcutSet<'_> = &[("←/→", ""), ("/", ""), ("?", "")];
-    let navigation_minimal: ShortcutSet<'_> = &[("/", "")];
+    let mode_stack = Mode::stack(app);
+    let navigation_full = resolve_shortcuts(
+        &app.keymap,
+        &mode_stack,
+        &[
+            shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
+            shortcut!("search"; GLOBAL => LibrarySearch),
+            shortcut!("git"; GLOBAL => GitToggleConsole),
+            shortcut!("help"; GLOBAL => ViewToggleHelp),
+            shortcut!("quit"; GLOBAL => AppQuit),
+        ],
+    );
+    let navigation_medium = resolve_shortcuts(
+        &app.keymap,
+        &mode_stack,
+        &[
+            shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
+            shortcut!("search"; GLOBAL => LibrarySearch),
+            shortcut!("git"; GLOBAL => GitToggleConsole),
+            shortcut!("help"; GLOBAL => ViewToggleHelp),
+        ],
+    );
+    let navigation_compact = resolve_shortcuts(
+        &app.keymap,
+        &mode_stack,
+        &[
+            shortcut_last!(""; GLOBAL => PaneBack, PaneForward),
+            shortcut!(""; GLOBAL => LibrarySearch),
+            shortcut!(""; GLOBAL => ViewToggleHelp),
+        ],
+    );
+    let navigation_minimal = resolve_shortcuts(
+        &app.keymap,
+        &mode_stack,
+        &[shortcut!(""; GLOBAL => LibrarySearch)],
+    );
 
-    let (actions_full, actions_medium, actions_compact): (
-        ShortcutSet<'_>,
-        ShortcutSet<'_>,
-        ShortcutSet<'_>,
-    ) = if app.fragment_grab.is_some() {
+    let (full_specs, medium_specs, compact_specs): (
+        &[ShortcutSpec],
+        &[ShortcutSpec],
+        &[ShortcutSpec],
+    ) = if app.git.open {
         (
-            &[("j/k", "move"), ("Enter", "drop"), ("Esc", "cancel")],
-            &[("j/k", "move"), ("Enter", "drop"), ("Esc", "cancel")],
-            &[("Enter", ""), ("Esc", "")],
+            &[
+                shortcut!("refresh"; GIT => GitRefreshLocalStatus),
+                shortcut!("backup"; GIT => GitBackup),
+                shortcut!("commit"; GIT => GitCommit),
+                shortcut!("push"; GIT => GitPush),
+                shortcut!("close"; GIT => UiDismiss),
+            ],
+            &[
+                shortcut!("backup"; GIT => GitBackup),
+                shortcut!("commit"; GIT => GitCommit),
+                shortcut!("push"; GIT => GitPush),
+                shortcut!("close"; GIT => UiDismiss),
+            ],
+            &[
+                shortcut!(""; GIT => GitBackup),
+                shortcut!(""; GIT => GitPush),
+                shortcut!(""; GIT => UiDismiss),
+            ],
+        )
+    } else if app.gist.open {
+        (
+            &[
+                shortcut!("publish"; GIST => GistPush),
+                shortcut!("copy"; GIST => GistCopyUrl),
+                shortcut!("open"; GIST => GistOpenInBrowser),
+                shortcut!("check"; GIST => GistVerifyRemote),
+                shortcut!("close"; GIST => UiDismiss),
+            ],
+            &[
+                shortcut!("publish"; GIST => GistPush),
+                shortcut!("copy"; GIST => GistCopyUrl),
+                shortcut!("open"; GIST => GistOpenInBrowser),
+                shortcut!("close"; GIST => UiDismiss),
+            ],
+            &[
+                shortcut!(""; GIST => GistPush),
+                shortcut!(""; GIST => GistCopyUrl),
+                shortcut!(""; GIST => UiDismiss),
+            ],
+        )
+    } else if app.fragment_grab.is_some() {
+        (
+            &[
+                shortcut_first!("move"; GRAB => NavDown, NavUp),
+                shortcut!("drop"; GRAB => GrabDrop),
+                shortcut_last!("cancel"; GRAB => UiDismiss),
+            ],
+            &[
+                shortcut_first!("move"; GRAB => NavDown, NavUp),
+                shortcut!("drop"; GRAB => GrabDrop),
+                shortcut_last!("cancel"; GRAB => UiDismiss),
+            ],
+            &[
+                shortcut!(""; GRAB => GrabDrop),
+                shortcut_last!(""; GRAB => UiDismiss),
+            ],
         )
     } else if app.fragment_context() {
         (
             &[
-                ("n", "add"),
-                ("r", "rename"),
-                ("m", "reorder"),
-                ("d", "delete"),
-                ("e", "edit"),
-                ("-", "collapse"),
+                shortcut!("add"; FRAGMENT => FragmentAdd),
+                shortcut!("rename"; FRAGMENT => FragmentRename),
+                shortcut!("reorder"; FRAGMENT => FragmentReorder),
+                shortcut!("delete"; FRAGMENT => FragmentRemove),
+                shortcut!("edit"; PREVIEW => SnippetEditContent),
+                shortcut!("collapse"; PREVIEW => PreviewCollapseFragments),
             ],
             &[
-                ("n", "add"),
-                ("r", "rename"),
-                ("d", "delete"),
-                ("-", "collapse"),
+                shortcut!("add"; FRAGMENT => FragmentAdd),
+                shortcut!("rename"; FRAGMENT => FragmentRename),
+                shortcut!("delete"; FRAGMENT => FragmentRemove),
+                shortcut!("collapse"; PREVIEW => PreviewCollapseFragments),
             ],
-            &[("n", ""), ("r", ""), ("d", "")],
+            &[
+                shortcut!(""; FRAGMENT => FragmentAdd),
+                shortcut!(""; FRAGMENT => FragmentRename),
+                shortcut!(""; FRAGMENT => FragmentRemove),
+            ],
         )
-    } else if app.trash.open {
+    } else if app.trash.open && app.focus == Pane::List {
         (
-            &[("j/k", "move"), ("u", "restore"), ("x", "purge")],
-            &[("u", "restore"), ("x", "purge")],
-            &[("u", ""), ("x", "")],
+            &[
+                shortcut_first!("move"; TRASH => NavDown, NavUp),
+                shortcut_first!("restore"; TRASH => TrashRestoreSelected),
+                shortcut!("purge"; TRASH => TrashPurgeSelected),
+            ],
+            &[
+                shortcut_first!("restore"; TRASH => TrashRestoreSelected),
+                shortcut!("purge"; TRASH => TrashPurgeSelected),
+            ],
+            &[
+                shortcut_first!(""; TRASH => TrashRestoreSelected),
+                shortcut!(""; TRASH => TrashPurgeSelected),
+            ],
         )
     } else {
         match app.focus {
             Pane::Sidebar => (
                 &[
-                    ("n", "create"),
-                    ("r", "rename"),
-                    ("m", "move"),
-                    ("d", "delete"),
-                    ("s", "sort"),
+                    shortcut!("create"; SIDEBAR => FolderNew),
+                    shortcut!("rename"; SIDEBAR => SidebarRename),
+                    shortcut!("move"; SIDEBAR => FolderMove),
+                    shortcut!("delete"; SIDEBAR => SidebarDelete),
+                    shortcut!("sort"; GLOBAL => ViewCycleSort),
                 ],
-                &[("n", "create"), ("r", "rename"), ("d", "delete")],
-                &[("n", ""), ("r", ""), ("d", "")],
-            ),
-            Pane::List => (
                 &[
-                    ("n", "create"),
-                    ("e", "edit"),
-                    ("t", "tags"),
-                    ("r", "rename"),
-                    ("m", "move"),
-                    ("y", "copy"),
-                    ("p", "path"),
+                    shortcut!("create"; SIDEBAR => FolderNew),
+                    shortcut!("rename"; SIDEBAR => SidebarRename),
+                    shortcut!("delete"; SIDEBAR => SidebarDelete),
                 ],
-                &[("n", "create"), ("e", "edit"), ("t", "tags"), ("y", "copy")],
-                &[("n", ""), ("e", ""), ("y", "")],
-            ),
-            Pane::Preview => (
                 &[
-                    ("n", "create"),
-                    ("e", "edit"),
-                    ("t", "tags"),
-                    ("r", "rename"),
-                    ("m", "move"),
-                    ("y", "copy"),
-                    ("p", "path"),
+                    shortcut!(""; SIDEBAR => FolderNew),
+                    shortcut!(""; SIDEBAR => SidebarRename),
+                    shortcut!(""; SIDEBAR => SidebarDelete),
                 ],
-                &[("n", "create"), ("e", "edit"), ("t", "tags"), ("y", "copy")],
-                &[("n", ""), ("e", ""), ("y", "")],
             ),
+            Pane::List | Pane::Preview => {
+                let mode = if app.focus == Pane::List {
+                    LIST
+                } else {
+                    PREVIEW
+                };
+                (
+                    &[
+                        shortcut!("create"; mode => SnippetNew),
+                        shortcut!("edit"; mode => SnippetEditContent),
+                        shortcut!("tags"; mode => SnippetEditTags),
+                        shortcut!("rename"; mode => SnippetRename),
+                        shortcut!("move"; mode => SnippetMove),
+                        shortcut!("copy"; GLOBAL => CopyContent),
+                        shortcut!("path"; GLOBAL => CopyManagedPath),
+                    ],
+                    &[
+                        shortcut!("create"; mode => SnippetNew),
+                        shortcut!("edit"; mode => SnippetEditContent),
+                        shortcut!("tags"; mode => SnippetEditTags),
+                        shortcut!("copy"; GLOBAL => CopyContent),
+                    ],
+                    &[
+                        shortcut!(""; mode => SnippetNew),
+                        shortcut!(""; mode => SnippetEditContent),
+                        shortcut!(""; GLOBAL => CopyContent),
+                    ],
+                )
+            }
         }
     };
+    let actions_full = resolve_shortcuts(&app.keymap, &mode_stack, full_specs);
+    let actions_medium = resolve_shortcuts(&app.keymap, &mode_stack, medium_specs);
+    let actions_compact = resolve_shortcuts(&app.keymap, &mode_stack, compact_specs);
 
     let tiers = [
-        (navigation_full, actions_full),
-        (navigation_medium, actions_medium),
-        (navigation_compact, actions_medium),
-        (navigation_compact, actions_compact),
-        (navigation_minimal, &actions_compact[..1]),
+        (navigation_full.as_slice(), actions_full.as_slice()),
+        (navigation_medium.as_slice(), actions_medium.as_slice()),
+        (navigation_compact.as_slice(), actions_medium.as_slice()),
+        (navigation_compact.as_slice(), actions_compact.as_slice()),
+        (
+            navigation_minimal.as_slice(),
+            &actions_compact[..actions_compact.len().min(1)],
+        ),
     ];
     let (navigation, actions) = tiers
         .into_iter()
@@ -219,13 +379,21 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
             shortcut_pills_width(navigation) + shortcut_pills_width(actions) + 2
                 <= area.width as usize
         })
-        .unwrap_or((navigation_minimal, &actions_compact[..1]));
+        .unwrap_or((
+            navigation_minimal.as_slice(),
+            &actions_compact[..actions_compact.len().min(1)],
+        ));
 
     let left = shortcut_pills(navigation, app.theme);
     let right = shortcut_pills_with_primary(
         actions,
         app.theme,
-        if app.trash.open || app.fragment_grab.is_some() || app.fragment_context() {
+        if app.git.open
+            || app.gist.open
+            || app.trash.open
+            || app.fragment_grab.is_some()
+            || app.fragment_context()
+        {
             app.theme.accent_alt
         } else {
             app.theme.pill_primary
@@ -239,6 +407,43 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Paragraph::new(right).alignment(Alignment::Right),
         regions[1],
     );
+}
+
+fn resolve_shortcuts(
+    keymap: &Keymap,
+    stack: &[Mode],
+    specs: &[ShortcutSpec],
+) -> Vec<Shortcut<'static>> {
+    specs
+        .iter()
+        .filter_map(|spec| {
+            let mut chords = Vec::new();
+            for command in spec.commands {
+                let bindings = spec
+                    .modes
+                    .iter()
+                    .map(|mode| (*mode, *command))
+                    .collect::<Vec<_>>();
+                let command_chords = key_labels::effective_chords(keymap, stack, &bindings);
+                match spec.choice {
+                    ChordChoice::All => chords.extend(command_chords),
+                    ChordChoice::First => chords.extend(command_chords.into_iter().next()),
+                    ChordChoice::Last => chords.extend(command_chords.into_iter().next_back()),
+                }
+            }
+            chords.dedup();
+            (!chords.is_empty()).then(|| {
+                (
+                    chords
+                        .into_iter()
+                        .map(key_labels::compact_chord)
+                        .collect::<Vec<_>>()
+                        .join("/"),
+                    spec.action,
+                )
+            })
+        })
+        .collect()
 }
 
 fn shortcut_pills_width(commands: ShortcutSet<'_>) -> usize {
@@ -273,7 +478,7 @@ fn shortcut_pills_with_primary(
         }
         spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, theme.bar_bg));
         spans.push(Span::styled(
-            (*key).to_owned(),
+            key.clone(),
             Style::default()
                 .fg(theme.legible_on(primary, theme.selection_fg))
                 .bg(primary)
@@ -302,4 +507,112 @@ fn shortcut_pills_with_primary(
         }
     }
     Line::from(spans)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shortcut_specs_use_compact_effective_bindings() {
+        let keymap = Keymap::defaults();
+        let shortcuts = resolve_shortcuts(
+            &keymap,
+            &[Mode::List, Mode::Global],
+            &[
+                shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
+                shortcut!("git"; GLOBAL => GitToggleConsole),
+            ],
+        );
+
+        assert_eq!(shortcuts[0], ("←/→".to_owned(), "nav"));
+        assert_eq!(shortcuts[1], ("^g".to_owned(), "git"));
+    }
+
+    #[test]
+    fn unbound_shortcuts_disappear_and_user_bindings_replace_defaults() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(
+            &path,
+            "[global]\n\"git.toggle-console\" = \"alt-g\"\n\"view.toggle-help\" = []\n",
+        )
+        .unwrap();
+        let (keymap, diagnostics) = Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+
+        let shortcuts = resolve_shortcuts(
+            &keymap,
+            &[Mode::List, Mode::Global],
+            &[
+                shortcut!("git"; GLOBAL => GitToggleConsole),
+                shortcut!("help"; GLOBAL => ViewToggleHelp),
+            ],
+        );
+        assert_eq!(shortcuts, [("Alt-g".to_owned(), "git")]);
+    }
+
+    #[test]
+    fn exclusive_modes_hide_shadowed_global_shortcuts() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(&path, "[global]\n\"app.quit\" = \"x\"\n").unwrap();
+        let (keymap, diagnostics) = Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+
+        let shortcuts = resolve_shortcuts(
+            &keymap,
+            &[Mode::Trash],
+            &[
+                shortcut!("quit"; GLOBAL => AppQuit),
+                shortcut!("purge"; TRASH => TrashPurgeSelected),
+            ],
+        );
+        assert_eq!(shortcuts, [("x".to_owned(), "purge")]);
+    }
+
+    #[test]
+    fn panel_shortcuts_use_their_own_mode_bindings() {
+        let keymap = Keymap::defaults();
+
+        let git = resolve_shortcuts(
+            &keymap,
+            &[Mode::Git],
+            &[
+                shortcut!("backup"; GIT => GitBackup),
+                shortcut!("commit"; GIT => GitCommit),
+                shortcut!("push"; GIT => GitPush),
+                shortcut!("close"; GIT => UiDismiss),
+            ],
+        );
+        assert_eq!(
+            git,
+            [
+                ("b".to_owned(), "backup"),
+                ("c".to_owned(), "commit"),
+                ("p".to_owned(), "push"),
+                ("Esc".to_owned(), "close"),
+            ]
+        );
+
+        let gist = resolve_shortcuts(
+            &keymap,
+            &[Mode::Gist],
+            &[
+                shortcut!("publish"; GIST => GistPush),
+                shortcut!("copy"; GIST => GistCopyUrl),
+                shortcut!("open"; GIST => GistOpenInBrowser),
+                shortcut!("close"; GIST => UiDismiss),
+            ],
+        );
+        assert_eq!(
+            gist,
+            [
+                ("p".to_owned(), "publish"),
+                ("y".to_owned(), "copy"),
+                ("o".to_owned(), "open"),
+                ("Esc".to_owned(), "close"),
+            ]
+        );
+    }
 }

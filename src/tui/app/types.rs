@@ -10,7 +10,10 @@ use crate::config::{GitConfig, TuiConfig, TuiDensitySetting, TuiThemeSetting};
 use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
 use crate::git;
+use crate::keys::Keymap;
 use crate::search::MemoryIndex;
+#[cfg(test)]
+use crate::tui::command::CommandId;
 
 use super::super::editor::EditRequest;
 use super::super::event::AppEvent;
@@ -203,6 +206,7 @@ pub struct App {
     pub status: Option<StatusMessage>,
     pub modal: Option<Modal>,
     pub palette: PaletteState,
+    pub keymap: Keymap,
     pub(crate) session_state_extra: toml::Table,
     pub trash: TrashState,
     pub should_quit: bool,
@@ -215,6 +219,8 @@ pub struct App {
     pub default_folder: Option<String>,
     pub default_tags: Vec<String>,
     pub(super) last_click: Option<(usize, Instant)>,
+    #[cfg(test)]
+    pub(crate) last_command: Option<CommandId>,
 }
 
 #[cfg(test)]

@@ -163,7 +163,8 @@ mod tests {
             assert_eq!(section("AUTOMATION", width, theme).width(), width);
         }
         for width in [30, 40] {
-            let footer = repository_footer(width, theme);
+            let keymap = crate::keys::Keymap::defaults();
+            let footer = repository_footer(&keymap, width, theme);
             assert!(footer.iter().all(|line| line.width() <= width));
             let rendered = footer
                 .iter()
@@ -188,6 +189,25 @@ mod tests {
                 assert!(rendered.contains(label), "missing footer action {label}");
             }
         }
+    }
+
+    #[test]
+    fn repository_footer_uses_the_effective_git_bindings() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(&path, "[git]\n\"git.backup\" = \"z\"\n").unwrap();
+        let (keymap, diagnostics) = crate::keys::Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+        let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
+
+        let footer = repository_footer(&keymap, 54, theme);
+        let key_spans = footer
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<Vec<_>>();
+        assert!(key_spans.contains(&"z"));
+        assert!(!key_spans.contains(&"b"));
     }
 
     #[test]

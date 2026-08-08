@@ -16,6 +16,7 @@ use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, edit_snippet,
     remove_fragment,
 };
+use snip::tui::app::types::FragmentGrab;
 use snip::tui::app::{App, Effect};
 use snip::tui::command::{CommandId, registry};
 use snip::tui::editor::{EditOutcome, EditTarget, force_save};
@@ -30,7 +31,7 @@ use snip::{AppConfig, GitConfig, Library, TuiConfig, TuiDensitySetting, TuiTheme
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("Tui.sniplib");
     let library = Library::init(&root, Some("TUI fixture")).unwrap();
     let first = create_snippet(
@@ -353,7 +354,8 @@ fn command_palette_shows_position_only_when_results_overflow() {
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
-    let first_count = format!("1/{}", registry().len());
+    let palette_count = registry().iter().filter(|command| command.palette).count();
+    let first_count = format!("1/{palette_count}");
     assert!((0..12).any(|row| row_text(terminal.backend().buffer(), row).contains(&first_count)));
     for _ in 0..3 {
         app.handle_key(key(KeyCode::Down));
@@ -361,7 +363,7 @@ fn command_palette_shows_position_only_when_results_overflow() {
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
-    let selected_count = format!("4/{}", registry().len());
+    let selected_count = format!("4/{palette_count}");
     assert!(
         (0..12).any(|row| row_text(terminal.backend().buffer(), row).contains(&selected_count))
     );
@@ -432,7 +434,7 @@ fn command_palette_opens_over_help_and_filters_hidden_commands() {
     assert!(app.palette.open);
 
     let hidden = std::collections::HashSet::from([CommandId::GitPush]);
-    app.palette.refresh(&hidden);
+    app.palette.refresh(&hidden, &app.keymap);
     assert!(
         !app.palette
             .matches
@@ -940,7 +942,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
 
 #[test]
 fn every_builtin_theme_renders_legible_text_in_every_focus_state() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library =
         Library::init(&temporary.path().join("Contrast.sniplib"), Some("Contrast")).unwrap();
     let first = create_snippet(
@@ -1211,8 +1213,8 @@ fn the_fragment_list_costs_one_row_collapsed_and_grows_when_expanded() {
         .unwrap();
     assert_eq!(app.layout.preview_fragments.height, 4);
     let header = row_text(terminal.backend().buffer(), app.layout.preview_fragments.y);
-    assert!(header.contains("[ ] switch"));
-    assert!(header.contains("- collapse"));
+    assert!(header.contains("[ / ] switch"));
+    assert!(!header.contains("collapse"));
     let selected_y = app
         .layout
         .fragment_rows
@@ -2988,6 +2990,7 @@ fn trash_overlay_uses_its_border_color_for_bottom_bar_shortcuts() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
     app.handle_key(key(KeyCode::Char('T')));
+    app.focus = Pane::List;
 
     let backend = TestBackend::new(100, 30);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -3611,6 +3614,56 @@ fn digit_keys_jump_to_items_or_fragments_in_panes() {
     assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
 }
 
+fn assert_exclusive_mode_ignores_digit_jump(app: &mut App) {
+    app.focus = Pane::List;
+    app.list_state.select(Some(0));
+    let selected_id = app.selected_id;
+
+    app.handle_key(key(KeyCode::Char('2')));
+
+    assert_eq!(app.list_state.selected(), Some(0));
+    assert_eq!(app.selected_id, selected_id);
+}
+
+#[test]
+fn exclusive_modes_do_not_move_hidden_selection_with_digit_fallback() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut git = App::new(library, &AppConfig::default()).unwrap();
+    git.git.open = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut git);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut gist = App::new(library, &AppConfig::default()).unwrap();
+    gist.gist.open = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut gist);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut help = App::new(library, &AppConfig::default()).unwrap();
+    help.show_help = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut help);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut trash = App::new(library, &AppConfig::default()).unwrap();
+    trash.trash.open = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut trash);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut grab = App::new(library, &AppConfig::default()).unwrap();
+    grab.fragment_grab = Some(FragmentGrab {
+        origin: 0,
+        current: 0,
+    });
+    assert_exclusive_mode_ignores_digit_jump(&mut grab);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut sidebar = App::new(library, &AppConfig::default()).unwrap();
+    sidebar.trash.open = true;
+    sidebar.focus = Pane::Sidebar;
+    sidebar.sidebar.list_state.select(Some(0));
+    sidebar.handle_key(key(KeyCode::Char('2')));
+    assert_eq!(sidebar.sidebar.list_state.selected(), Some(1));
+}
+
 fn command_state(app: &App, id: CommandId) -> snip::tui::command::CommandState {
     let command = registry().iter().find(|command| command.id == id).unwrap();
     (command.state)(app)
@@ -3683,8 +3736,17 @@ fn fragment_commands_follow_context_and_report_exact_disabled_reasons() {
 
 #[test]
 fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
-    let (_temporary, library, first_id, _second_id) = fixture();
+    let (temporary, library, first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let keymap_path = temporary.path().join("keys.toml");
+    std::fs::write(
+        &keymap_path,
+        "[preview]\n\"snippet.edit-content\" = \"i\"\n",
+    )
+    .unwrap();
+    let (keymap, diagnostics) = snip::keys::Keymap::load_from(&keymap_path).unwrap();
+    assert!(diagnostics.is_empty());
+    app.keymap = keymap;
     app.selected_id = Some(first_id);
     app.focus = Pane::Preview;
     app.fragments_expanded = true;
@@ -3697,6 +3759,11 @@ fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
     assert_eq!(snippet.loaded_fragments[1].language, "rust");
     assert!(snippet.loaded_fragments[1].content.is_empty());
     assert_eq!(app.preview_target, PreviewTarget::Fragment(1));
+    assert!(
+        app.status
+            .as_ref()
+            .is_some_and(|status| status.text.contains("press i to edit"))
+    );
 
     remove_fragment(&app.library, &first_id.to_string(), "2", None, false).unwrap();
     app.rescan().unwrap();
@@ -3710,6 +3777,22 @@ fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
     assert_eq!(
         app.selected_snippet().unwrap().loaded_fragments[2].title,
         "Fragment 3"
+    );
+}
+
+#[test]
+fn fragment_add_from_the_list_keeps_the_edit_hint() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.focus = Pane::List;
+
+    app.run_command(CommandId::FragmentAdd);
+
+    assert!(
+        app.status
+            .as_ref()
+            .is_some_and(|status| { status.text == "Fragment 2 added; press e to edit" })
     );
 }
 
@@ -3814,7 +3897,7 @@ fn fragment_rename_and_delete_use_one_based_selectors_and_clamp_selection() {
 
 #[test]
 fn fragment_grab_render_moves_the_row_and_shows_cancel_hint() {
-    let (_temporary, library, first_id, _second_id) = fixture();
+    let (temporary, library, first_id, _second_id) = fixture();
     for title in ["Second", "Third"] {
         add_fragment(
             &library,
@@ -3829,18 +3912,41 @@ fn fragment_grab_render_moves_the_row_and_shows_cancel_hint() {
         .unwrap();
     }
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let keymap_path = temporary.path().join("keys.toml");
+    std::fs::write(
+        &keymap_path,
+        r#"
+            [fragment-grab]
+            "nav.down" = "n"
+            "nav.up" = "p"
+            "grab.drop" = "x"
+            "ui.dismiss" = "z"
+        "#,
+    )
+    .unwrap();
+    let (keymap, diagnostics) = snip::keys::Keymap::load_from(&keymap_path).unwrap();
+    assert!(diagnostics.is_empty());
+    app.keymap = keymap;
     app.selected_id = Some(first_id);
     app.focus = Pane::Preview;
     app.fragments_expanded = true;
     app.handle_key(key(KeyCode::Char('m')));
-    app.handle_key(key(KeyCode::Char('j')));
+    assert!(app.status.as_ref().is_some_and(|status| {
+        status
+            .text
+            .contains("n / p to move, x to drop, z to cancel")
+    }));
+    app.handle_key(key(KeyCode::Char('n')));
     let backend = TestBackend::new(100, 30);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
     let header = row_text(terminal.backend().buffer(), app.layout.preview_fragments.y);
-    assert!(header.contains("Esc cancel"));
+    assert!(header.contains("x drop"));
+    assert!(header.contains("z cancel"));
+    assert!(!header.contains("Enter"));
+    assert!(!header.contains("Esc"));
     let moved_row = row_text(
         terminal.backend().buffer(),
         app.layout.preview_fragments.y + 2,

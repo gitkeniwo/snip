@@ -1,6 +1,5 @@
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::super::super::command::CommandId;
 use super::super::super::state::Pane;
 use super::super::types::{App, Effect};
 
@@ -74,27 +73,6 @@ impl App {
             {
                 self.search.query.push(value);
                 self.refresh_visible();
-            }
-            _ => {}
-        }
-        Vec::new()
-    }
-    pub(super) fn handle_help_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            _ if super::is_palette_trigger(key) => self.open_palette(),
-            KeyCode::Char('q') => return self.run_command(CommandId::AppQuit),
-            KeyCode::Char('?') | KeyCode::Esc => self.show_help = false,
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.help_scroll = self.help_scroll.saturating_add(1)
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.help_scroll = self.help_scroll.saturating_sub(1)
-            }
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.help_scroll = self.help_scroll.saturating_add(10)
-            }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.help_scroll = self.help_scroll.saturating_sub(10)
             }
             _ => {}
         }

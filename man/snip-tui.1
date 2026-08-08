@@ -6,7 +6,9 @@ snip\-tui \- Open the interactive terminal browser
 .SH SYNOPSIS
 \fBsnip tui\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
-Open the interactive terminal browser
+Open the interactive terminal browser.
+.PP
+TUI bindings are loaded from keys.toml beside config.toml. Run `snip keys list` to inspect the effective bindings, `snip keys export` to create an editable starting point, and `snip keys check` to validate changes.
 .SH OPTIONS
 .TP
 \fB\-\-library\fR \fI<LIBRARY>\fR
@@ -43,4 +45,4 @@ never
 .RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
-Print help
+Print help (see a summary with \*(Aq\-h\*(Aq)

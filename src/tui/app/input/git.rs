@@ -1,6 +1,3 @@
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
-
-use super::super::super::command::CommandId;
 use crate::git::{self, GitAction, Refusal, Unavailable};
 
 use super::super::super::modal::{InputModal, Modal, ModalAction};
@@ -8,36 +5,6 @@ use super::super::super::state::StatusLevel;
 use super::super::types::{App, Effect};
 
 impl App {
-    pub(super) fn handle_git_key(&mut self, key: KeyEvent) -> Vec<Effect> {
-        match key.code {
-            _ if super::is_ctrl_s(key) => return self.run_command(CommandId::GistOpenPanel),
-            _ if super::is_ctrl_g(key) || key.code == KeyCode::Esc => self.git.open = false,
-            _ if super::is_palette_trigger(key) => self.open_palette(),
-            KeyCode::Char('r') => return self.run_command(CommandId::GitRefreshLocalStatus),
-            KeyCode::Char('b') => return self.run_command(CommandId::GitBackup),
-            KeyCode::Char('c') => return self.run_command(CommandId::GitCommit),
-            KeyCode::Char('p') => return self.run_command(CommandId::GitPush),
-            KeyCode::Char('f') => return self.run_command(CommandId::GitFetchRemoteStatus),
-            KeyCode::Char('l') => return self.run_command(CommandId::GitPull),
-            KeyCode::Char('C') => return self.run_command(CommandId::GitCommitWithMessage),
-            KeyCode::Char('a') => return self.run_command(CommandId::GitPauseAutoBackup),
-            KeyCode::Char('u') => return self.run_command(CommandId::GitToggleAutoPush),
-            KeyCode::Char('U') => return self.run_command(CommandId::GitToggleAutoPull),
-            KeyCode::Char('o') => return self.run_command(CommandId::GitToggleBackupOnQuit),
-            KeyCode::Char('i') => {
-                if matches!(
-                    self.git.unavailable.as_ref(),
-                    Some(Unavailable::NotARepository)
-                ) {
-                    return self.run_command(CommandId::GitInitRepository);
-                }
-                return self.run_command(CommandId::GitSetAutoCommitInterval);
-            }
-            _ => {}
-        }
-        Vec::new()
-    }
-
     pub(in super::super) fn git_effect(&mut self, action: GitAction) -> Vec<Effect> {
         if self.git.push_in_flight || self.git.pull_in_flight || self.git.fetch_in_flight {
             self.set_status(

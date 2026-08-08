@@ -6,6 +6,8 @@ pub mod filesystem;
 pub mod gist;
 pub mod git;
 pub mod importer;
+#[cfg(feature = "tui")]
+pub mod keys;
 pub mod language;
 pub mod render;
 pub mod search;

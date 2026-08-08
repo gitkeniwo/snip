@@ -2,16 +2,22 @@ use crate::git::{GitAction, Unavailable};
 use crate::sort::SortMode;
 use crate::tui::app::{App, Effect};
 use crate::tui::command::{self, Command, CommandId, CommandState};
-use crate::tui::state::{SidebarItem, StatusLevel};
+use crate::tui::state::{Filter, Pane, SidebarItem, StatusLevel};
 
 use std::collections::HashSet;
 
 impl App {
     pub fn run_command(&mut self, id: CommandId) -> Vec<Effect> {
+        #[cfg(test)]
+        {
+            self.last_command = Some(id);
+        }
         let command = command::get(id);
         match (command.state)(self) {
             CommandState::Enabled => {
-                self.palette.record_recent(id);
+                if command.palette {
+                    self.palette.record_recent(id);
+                }
                 (command.run)(self)
             }
             CommandState::Disabled(reason) => {
@@ -34,14 +40,14 @@ impl App {
 
     pub fn refresh_palette(&mut self) {
         let hidden = hidden_command_ids(self, command::registry());
-        self.palette.refresh(&hidden);
+        self.palette.refresh(&hidden, &self.keymap);
     }
 }
 
 fn hidden_command_ids(app: &App, commands: &[Command]) -> HashSet<CommandId> {
     commands
         .iter()
-        .filter(|command| matches!((command.state)(app), CommandState::Hidden))
+        .filter(|command| !command.palette || matches!((command.state)(app), CommandState::Hidden))
         .map(|command| command.id)
         .collect()
 }
@@ -101,6 +107,13 @@ pub(crate) fn can_init_git(app: &App) -> CommandState {
         CommandState::Enabled
     } else {
         CommandState::Disabled("already a Git repository")
+    }
+}
+pub(crate) fn can_init_or_configure_git(app: &App) -> CommandState {
+    if matches!(app.git.unavailable, Some(Unavailable::NotARepository)) {
+        CommandState::Enabled
+    } else {
+        git_available(app)
     }
 }
 pub(crate) fn has_trash_selection(app: &App) -> CommandState {
@@ -220,8 +233,68 @@ pub(crate) fn git_init(app: &mut App) -> Vec<Effect> {
 pub(crate) fn app_quit(app: &mut App) -> Vec<Effect> {
     app.request_quit()
 }
+pub(crate) fn git_init_or_set_interval(app: &mut App) -> Vec<Effect> {
+    if matches!(app.git.unavailable, Some(Unavailable::NotARepository)) {
+        git_init(app)
+    } else {
+        git_interval(app);
+        Vec::new()
+    }
+}
+pub(crate) fn ui_dismiss(app: &mut App) -> Vec<Effect> {
+    if let Some(grab) = app.fragment_grab.take() {
+        app.preview_target = crate::tui::preview::PreviewTarget::Fragment(grab.origin);
+        app.set_status("move cancelled", StatusLevel::Info);
+    } else if app.gist.open {
+        app.gist.open = false;
+    } else if app.git.open {
+        app.git.open = false;
+    } else if app.show_help {
+        app.show_help = false;
+    } else if app.trash.open {
+        app.leave_trash();
+    } else if !app.search.query.is_empty() {
+        app.search.query.clear();
+        app.refresh_visible();
+    } else if !app.filter.is_empty() {
+        app.filter = Filter::default();
+        app.refresh_visible();
+    }
+    Vec::new()
+}
 
 effect!(snippet_new, app => app.open_new_snippet());
+effect!(palette_open, app => app.open_palette());
+effect!(nav_down, app => app.navigate_down());
+effect!(nav_up, app => app.navigate_up());
+effect!(nav_first, app => app.navigate_first());
+effect!(nav_last, app => app.navigate_last());
+effect!(nav_page_down, app => app.navigate_page_down());
+effect!(nav_page_up, app => app.navigate_page_up());
+effect!(pane_next, app => app.focus = app.focus.next());
+effect!(pane_previous, app => app.focus = app.focus.previous());
+effect!(pane_back, app => app.drill_back());
+effect!(pane_forward, app => app.drill_forward());
+effect!(sidebar_activate, app => app.apply_sidebar_filter());
+effect!(sidebar_toggle_folder, app => app.toggle_sidebar_folder());
+effect!(sidebar_rename, app => match app.sidebar.selected().map(|row| &row.item) {
+    Some(SidebarItem::Folder(_)) => app.open_rename_folder(),
+    Some(SidebarItem::Tag(_)) => app.open_rename_tag(),
+    _ => {}
+});
+effect!(sidebar_delete, app => match app.sidebar.selected().map(|row| &row.item) {
+    Some(SidebarItem::Folder(_)) => app.open_delete_folder(),
+    Some(SidebarItem::Tag(_)) => app.open_delete_tag(),
+    _ => {}
+});
+effect!(list_enter_preview, app => app.focus = Pane::Preview);
+effect!(preview_previous_item, app => app.previous_fragment());
+effect!(preview_next_item, app => app.next_fragment());
+effect!(preview_previous_paragraph, app => crate::tui::preview::jump_paragraph(app, false));
+effect!(preview_next_paragraph, app => crate::tui::preview::jump_paragraph(app, true));
+effect!(preview_expand_fragments, app => app.set_fragments_expanded(true));
+effect!(preview_collapse_fragments, app => app.set_fragments_expanded(false));
+effect!(grab_drop, app => app.drop_grabbed_fragment());
 effect!(snippet_rename, app => app.open_rename_snippet());
 effect!(snippet_move, app => app.open_move_snippet());
 effect!(snippet_tags, app => app.open_edit_tags());
@@ -250,9 +323,25 @@ effect!(view_pick_theme, app => app.open_theme_picker());
 effect!(toggle_help, app => { app.show_help = !app.show_help; app.help_scroll = 0; });
 effect!(library_search, app => app.search.active = true);
 effect!(library_rescan, app => app.rescan_now());
-effect!(library_trash, app => app.open_trash());
+effect!(library_toggle_trash, app => if app.trash.open { app.leave_trash() } else { app.open_trash() });
 effect!(library_clear_filter, app => { app.filter = Default::default(); app.search.query.clear(); app.refresh_visible(); });
-effect!(git_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.gist.open = false; app.git.open = true; app.refresh_git(); });
+pub(crate) fn git_toggle_console(app: &mut App) -> Vec<Effect> {
+    if app.git.open {
+        app.git.open = false;
+        return Vec::new();
+    }
+    if matches!(app.git.unavailable, Some(Unavailable::BinaryMissing)) {
+        app.set_status("git not found in PATH", StatusLevel::Error);
+        return Vec::new();
+    }
+    app.show_help = false;
+    app.search.active = false;
+    app.trash.open = false;
+    app.gist.open = false;
+    app.git.open = true;
+    app.refresh_git();
+    Vec::new()
+}
 effect!(git_message, app => app.open_git_message());
 effect!(git_fetch, app => app.spawn_fetch());
 effect!(git_pull, app => app.git_effect(crate::git::GitAction::Pull));
@@ -262,7 +351,7 @@ effect!(git_auto_pull, app => app.toggle_auto_pull());
 effect!(git_backup_on_quit, app => app.toggle_backup_on_quit());
 effect!(git_pause, app => app.toggle_auto_backup());
 effect!(git_interval, app => app.open_auto_commit_interval());
-effect!(gist_open, app => { app.show_help = false; app.search.active = false; app.trash.open = false; app.git.open = false; app.gist.open = true; });
+effect!(gist_toggle_panel, app => if app.gist.open { app.gist.open = false } else { app.show_help = false; app.search.active = false; app.trash.open = false; app.git.open = false; app.gist.open = true });
 effect!(gist_push, app => app.push_gist(false));
 effect!(gist_push_public, app => app.push_gist(true));
 effect!(gist_copy_url, app => app.copy_gist_url());
@@ -300,18 +389,36 @@ mod tests {
             category: "Test",
             title: "Hidden",
             keywords: &[],
-            key_hint: None,
+            palette: false,
             state: hidden,
             run: noop,
         }];
         let hidden = hidden_command_ids(&app, &commands);
         app.palette.open();
-        app.palette.refresh(&hidden);
+        app.palette.refresh(&hidden, &app.keymap);
         assert!(
             !app.palette
                 .matches
                 .iter()
                 .any(|matched| matched.id == CommandId::GitPush)
+        );
+    }
+
+    #[test]
+    fn key_only_commands_stay_out_of_palette_and_recents() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Keys.sniplib"), None).unwrap();
+        let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+        app.run_command(CommandId::NavDown);
+        assert!(app.palette.recent().is_empty());
+
+        app.open_palette();
+        assert!(
+            !app.palette
+                .matches
+                .iter()
+                .any(|matched| matched.id == CommandId::NavDown)
         );
     }
 }

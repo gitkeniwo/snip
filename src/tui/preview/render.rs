@@ -5,9 +5,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::domain::{Fragment, Snippet};
+use crate::keys::{Keymap, Mode};
+use crate::tui::command::CommandId;
 
 use super::super::app::App;
 use super::super::icons;
+use super::super::key_labels;
 use super::super::selection::{SelectionKey, text_width};
 use super::super::state::Pane;
 use super::super::theme::TuiTheme;
@@ -380,13 +383,15 @@ struct FragmentLineOptions {
 
 fn make_fragment_line(
     theme: TuiTheme,
+    keymap: &Keymap,
+    stack: &[Mode],
     target: PreviewTarget,
     snippet: &Snippet,
     options: FragmentLineOptions,
 ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
     let total = snippet.loaded_fragments.len();
     let Some(current_index) = target.fragment_index() else {
-        return make_readme_line(theme, snippet, options);
+        return make_readme_line(theme, keymap, stack, snippet, options);
     };
     let current = current_index.saturating_add(1).min(total);
     let fragment = snippet.loaded_fragments.get(current_index);
@@ -442,7 +447,7 @@ fn make_fragment_line(
         }
     }
     let hint = if options.hint && total > 0 {
-        switch_and_expand_hint(theme)
+        switch_and_expand_hint(theme, keymap, stack)
     } else {
         Vec::new()
     };
@@ -454,6 +459,8 @@ fn make_fragment_line(
 /// marker, and no language badge.
 fn make_readme_line(
     theme: TuiTheme,
+    keymap: &Keymap,
+    stack: &[Mode],
     snippet: &Snippet,
     options: FragmentLineOptions,
 ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
@@ -489,35 +496,81 @@ fn make_readme_line(
         left.push(Span::styled(" L", Style::default().fg(theme.muted)));
     }
     let hint = if options.hint {
-        switch_and_expand_hint(theme)
+        switch_and_expand_hint(theme, keymap, stack)
     } else {
         Vec::new()
     };
     (left, hint)
 }
 
-fn switch_and_expand_hint(theme: TuiTheme) -> Vec<Span<'static>> {
+fn action_hint(label: String, action: &'static str, theme: TuiTheme) -> Vec<Span<'static>> {
+    if label.is_empty() {
+        return Vec::new();
+    }
     vec![
         Span::styled(
-            "[ ]",
+            label,
             Style::default()
                 .fg(theme.warning)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" switch", Style::default().fg(theme.muted)),
-        Span::raw("  "),
-        Span::styled(
-            "=",
-            Style::default()
-                .fg(theme.warning)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" expand", Style::default().fg(theme.muted)),
+        Span::styled(format!(" {action}"), Style::default().fg(theme.muted)),
     ]
 }
 
+fn join_action_hints<const N: usize>(groups: [Vec<Span<'static>>; N]) -> Vec<Span<'static>> {
+    let mut joined = Vec::new();
+    for group in groups.into_iter().filter(|group| !group.is_empty()) {
+        if !joined.is_empty() {
+            joined.push(Span::raw("  "));
+        }
+        joined.extend(group);
+    }
+    joined
+}
+
+fn switch_and_expand_hint(theme: TuiTheme, keymap: &Keymap, stack: &[Mode]) -> Vec<Span<'static>> {
+    let switch = key_labels::display_primary_bindings(
+        keymap,
+        stack,
+        &[
+            (Mode::Global, CommandId::PreviewPreviousItem),
+            (Mode::Global, CommandId::PreviewNextItem),
+        ],
+    );
+    let expand = key_labels::display_primary_bindings(
+        keymap,
+        stack,
+        &[(Mode::Preview, CommandId::PreviewExpandFragments)],
+    );
+    join_action_hints([
+        action_hint(switch, "switch", theme),
+        action_hint(expand, "expand", theme),
+    ])
+}
+
+#[cfg(test)]
 fn fragment_line_spans(
     theme: TuiTheme,
+    target: PreviewTarget,
+    snippet: &Snippet,
+    width: u16,
+) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+    let keymap = Keymap::defaults();
+    fragment_line_spans_with_keymap(
+        theme,
+        &keymap,
+        &[Mode::Preview, Mode::Global],
+        target,
+        snippet,
+        width,
+    )
+}
+
+fn fragment_line_spans_with_keymap(
+    theme: TuiTheme,
+    keymap: &Keymap,
+    stack: &[Mode],
     target: PreviewTarget,
     snippet: &Snippet,
     width: u16,
@@ -530,18 +583,18 @@ fn fragment_line_spans(
         title_width: None,
     };
     let fits = |left: &[Span<'_>], hint: &[Span<'_>]| spans_fit_with_gap(left, hint, width);
-    let mut parts = make_fragment_line(theme, target, snippet, options);
+    let mut parts = make_fragment_line(theme, keymap, stack, target, snippet, options);
     if !fits(&parts.0, &parts.1) {
         options.hint = false;
-        parts = make_fragment_line(theme, target, snippet, options);
+        parts = make_fragment_line(theme, keymap, stack, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
         options.note = false;
-        parts = make_fragment_line(theme, target, snippet, options);
+        parts = make_fragment_line(theme, keymap, stack, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
         options.lines = false;
-        parts = make_fragment_line(theme, target, snippet, options);
+        parts = make_fragment_line(theme, keymap, stack, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
         // Measured from the label this target actually renders, not from a
@@ -556,17 +609,24 @@ fn fragment_line_spans(
         };
         let without_title = spans_width(&parts.0).saturating_sub(natural as u16);
         options.title_width = Some(usize::from(width.saturating_sub(without_title)).max(8));
-        parts = make_fragment_line(theme, target, snippet, options);
+        parts = make_fragment_line(theme, keymap, stack, target, snippet, options);
     }
     if !fits(&parts.0, &parts.1) {
         options.title = false;
-        parts = make_fragment_line(theme, target, snippet, options);
+        parts = make_fragment_line(theme, keymap, stack, target, snippet, options);
     }
     parts
 }
 
 fn draw_fragment_line(frame: &mut Frame<'_>, app: &App, snippet: &Snippet, area: Rect) {
-    let (left, hint) = fragment_line_spans(app.theme, app.preview_target, snippet, area.width);
+    let (left, hint) = fragment_line_spans_with_keymap(
+        app.theme,
+        &app.keymap,
+        &Mode::stack(app),
+        app.preview_target,
+        snippet,
+        area.width,
+    );
     frame.render_widget(Paragraph::new(Line::from(left)), area);
     if !hint.is_empty() {
         frame.render_widget(
@@ -642,63 +702,59 @@ fn draw_fragment_tree(frame: &mut Frame<'_>, app: &mut App, snippet: &Snippet, a
                 .add_modifier(Modifier::BOLD),
         ),
     ];
-    let collapse_hint = vec![
-        Span::styled(
-            "-",
-            Style::default()
-                .fg(app.theme.warning)
-                .add_modifier(Modifier::BOLD),
+    let stack = Mode::stack(app);
+    let collapse_hint = action_hint(
+        key_labels::display_primary_bindings(
+            &app.keymap,
+            &stack,
+            &[(Mode::Preview, CommandId::PreviewCollapseFragments)],
         ),
-        Span::styled(" collapse", Style::default().fg(app.theme.muted)),
-    ];
+        "collapse",
+        app.theme,
+    );
     let readme = has_readme(snippet);
     let rows = total + usize::from(readme);
     let switch_hint = if rows > 1 {
-        vec![
-            Span::styled(
-                "[ ]",
-                Style::default()
-                    .fg(app.theme.warning)
-                    .add_modifier(Modifier::BOLD),
+        action_hint(
+            key_labels::display_primary_bindings(
+                &app.keymap,
+                &stack,
+                &[
+                    (Mode::Global, CommandId::PreviewPreviousItem),
+                    (Mode::Global, CommandId::PreviewNextItem),
+                ],
             ),
-            Span::styled(" switch", Style::default().fg(app.theme.muted)),
-            Span::raw("  "),
-        ]
+            "switch",
+            app.theme,
+        )
     } else {
         Vec::new()
     };
     let (hint, fallback_hint) = if app.fragment_grab.is_some() {
-        (
-            vec![
-                Span::styled(
-                    "Enter",
-                    Style::default()
-                        .fg(app.theme.warning)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" drop  ", Style::default().fg(app.theme.muted)),
-                Span::styled(
-                    "Esc",
-                    Style::default()
-                        .fg(app.theme.warning)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" cancel", Style::default().fg(app.theme.muted)),
-            ],
-            vec![
-                Span::styled(
-                    "Esc",
-                    Style::default()
-                        .fg(app.theme.warning)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" cancel", Style::default().fg(app.theme.muted)),
-            ],
-        )
+        let drop = action_hint(
+            key_labels::display_primary_bindings(
+                &app.keymap,
+                &stack,
+                &[(Mode::FragmentGrab, CommandId::GrabDrop)],
+            ),
+            "drop",
+            app.theme,
+        );
+        let cancel = action_hint(
+            key_labels::display_primary_bindings(
+                &app.keymap,
+                &stack,
+                &[(Mode::FragmentGrab, CommandId::UiDismiss)],
+            ),
+            "cancel",
+            app.theme,
+        );
+        (join_action_hints([drop, cancel.clone()]), cancel)
     } else {
-        let mut normal = switch_hint;
-        normal.extend(collapse_hint.clone());
-        (normal, collapse_hint)
+        (
+            join_action_hints([switch_hint, collapse_hint.clone()]),
+            collapse_hint,
+        )
     };
     let header_area = Rect { height: 1, ..area };
     frame.render_widget(Paragraph::new(Line::from(header.clone())), header_area);
@@ -931,10 +987,11 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        PreviewTarget, README_LABEL, fragment_label, fragment_line_spans, fragment_tree_columns,
-        spans_fit_with_gap, spans_width,
+        PreviewTarget, README_LABEL, fragment_label, fragment_line_spans,
+        fragment_line_spans_with_keymap, fragment_tree_columns, spans_fit_with_gap, spans_width,
     };
     use crate::domain::{Fingerprint, Fragment, FragmentManifest, Snippet, SnippetManifest};
+    use crate::keys::{Keymap, Mode};
     use crate::tui::theme::TuiTheme;
 
     fn fragment(title: &str, file: &str, note: bool) -> Fragment {
@@ -1038,6 +1095,40 @@ mod tests {
         );
         assert!(!text(&without_lines).contains(" L"));
         assert!(text(&without_lines).contains("output-contract"));
+    }
+
+    #[test]
+    fn collapsed_fragment_hints_use_effective_preview_bindings() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(
+            &path,
+            r#"
+                [global]
+                "preview.previous-item" = "alt-h"
+                "preview.next-item" = "alt-l"
+
+                [preview]
+                "preview.expand-fragments" = "x"
+            "#,
+        )
+        .unwrap();
+        let (keymap, diagnostics) = Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+        let (_, hint) = fragment_line_spans_with_keymap(
+            TuiTheme::from(&crate::theme::load("dark-default").unwrap()),
+            &keymap,
+            &[Mode::Preview, Mode::Global],
+            PreviewTarget::Fragment(0),
+            &snippet(),
+            u16::MAX,
+        );
+        let hint = text(&hint);
+
+        assert!(hint.contains("Alt-h / Alt-l switch"));
+        assert!(hint.contains("x expand"));
+        assert!(!hint.contains("[ ]"));
+        assert!(!hint.contains('='));
     }
 
     #[test]
