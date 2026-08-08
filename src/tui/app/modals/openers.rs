@@ -1,5 +1,8 @@
+use crate::keys::Mode;
 use crate::service::{FragmentAddOptions, add_fragment};
 use crate::tui::app::types::App;
+use crate::tui::command::CommandId;
+use crate::tui::key_labels;
 use crate::tui::modal::{ConfirmModal, InputModal, Modal, ModalAction, PickerItem, PickerModal};
 use crate::tui::state::{Pane, SidebarItem, StatusLevel};
 
@@ -262,7 +265,19 @@ impl App {
                             snippet.loaded_fragments.len().saturating_sub(1)
                         }),
                     );
-                    self.set_status(format!("{title} added; press e to edit"), StatusLevel::Info);
+                    let edit = key_labels::display_primary_bindings(
+                        &self.keymap,
+                        &Mode::stack(self),
+                        &[(Mode::Preview, CommandId::SnippetEditContent)],
+                    );
+                    self.set_status(
+                        if edit.is_empty() {
+                            format!("{title} added")
+                        } else {
+                            format!("{title} added; press {edit} to edit")
+                        },
+                        StatusLevel::Info,
+                    );
                 }
                 Err(error) => self.set_status(error.to_string(), StatusLevel::Error),
             },
@@ -318,8 +333,48 @@ impl App {
             origin: index,
             current: index,
         });
+        let stack = Mode::stack(self);
+        let bindings = [
+            (
+                key_labels::display_primary_bindings(
+                    &self.keymap,
+                    &stack,
+                    &[
+                        (Mode::FragmentGrab, CommandId::NavDown),
+                        (Mode::FragmentGrab, CommandId::NavUp),
+                    ],
+                ),
+                "move",
+            ),
+            (
+                key_labels::display_primary_bindings(
+                    &self.keymap,
+                    &stack,
+                    &[(Mode::FragmentGrab, CommandId::GrabDrop)],
+                ),
+                "drop",
+            ),
+            (
+                key_labels::display_primary_bindings(
+                    &self.keymap,
+                    &stack,
+                    &[(Mode::FragmentGrab, CommandId::UiDismiss)],
+                ),
+                "cancel",
+            ),
+        ];
+        let instructions = bindings
+            .into_iter()
+            .filter(|(keys, _)| !keys.is_empty())
+            .map(|(keys, action)| format!("{keys} to {action}"))
+            .collect::<Vec<_>>()
+            .join(", ");
         self.set_status(
-            "moving fragment; j/k to move, Enter to drop, Esc to cancel",
+            if instructions.is_empty() {
+                "moving fragment".to_owned()
+            } else {
+                format!("moving fragment; {instructions}")
+            },
             StatusLevel::Info,
         );
     }

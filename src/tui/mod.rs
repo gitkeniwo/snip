@@ -8,6 +8,7 @@ pub mod git_panel;
 pub mod help;
 pub mod highlight;
 pub mod icons;
+pub(crate) mod key_labels;
 pub mod layout;
 pub mod modal;
 pub mod palette;

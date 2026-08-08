@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph};
 
 use super::app::App;
 use super::command::CommandId;
+use super::key_labels;
 use super::selection::text_width;
 use super::theme::TuiTheme;
 use super::widgets;
@@ -295,25 +296,59 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, app: &App) {
         rows[1],
     );
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                "wheel · j/k · Ctrl-d/u",
-                Style::default()
-                    .fg(app.theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("  scroll    ", Style::default().fg(app.theme.muted)),
-            Span::styled(
-                "Esc",
-                Style::default()
-                    .fg(app.theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("  close help", Style::default().fg(app.theme.muted)),
-        ]))
-        .alignment(Alignment::Center),
+        Paragraph::new(help_footer(app.theme, &app.keymap)).alignment(Alignment::Center),
         rows[2],
     );
+}
+
+fn help_footer(theme: TuiTheme, keymap: &Keymap) -> Line<'static> {
+    let stack = [Mode::Help];
+    let scroll = key_labels::display_primary_bindings(
+        keymap,
+        &stack,
+        &[
+            (Mode::Help, CommandId::NavDown),
+            (Mode::Help, CommandId::NavUp),
+            (Mode::Help, CommandId::NavPageDown),
+            (Mode::Help, CommandId::NavPageUp),
+        ],
+    );
+    let close = key_labels::display_primary_bindings(
+        keymap,
+        &stack,
+        &[
+            (Mode::Help, CommandId::UiDismiss),
+            (Mode::Global, CommandId::ViewToggleHelp),
+        ],
+    );
+    let scroll = if scroll.is_empty() {
+        "wheel".to_owned()
+    } else {
+        format!("wheel · {scroll}")
+    };
+    let mut spans = vec![
+        Span::styled(
+            scroll,
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("  scroll", Style::default().fg(theme.muted)),
+    ];
+    if !close.is_empty() {
+        spans.push(Span::styled("    ", Style::default().fg(theme.muted)));
+        spans.push(Span::styled(
+            close,
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled(
+            "  close help",
+            Style::default().fg(theme.muted),
+        ));
+    }
+    Line::from(spans)
 }
 
 fn help_content(columns: usize, width: usize, theme: TuiTheme, keymap: &Keymap) -> Text<'static> {
@@ -581,5 +616,42 @@ mod tests {
         let label = entry_keys(*entry, &keymap, &defaults);
         assert_eq!(label, "e *");
         assert!(label.ends_with(" *"));
+    }
+
+    #[test]
+    fn help_footer_uses_effective_help_bindings() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(
+            &path,
+            r#"
+                [global]
+                "view.toggle-help" = []
+
+                [help]
+                "nav.down" = "n"
+                "nav.up" = "p"
+                "nav.page-down" = []
+                "nav.page-up" = []
+                "ui.dismiss" = "x"
+            "#,
+        )
+        .unwrap();
+        let (keymap, diagnostics) = Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+        let footer = help_footer(
+            TuiTheme::default_for(super::super::theme::Appearance::Dark),
+            &keymap,
+        )
+        .spans
+        .into_iter()
+        .map(|span| span.content.into_owned())
+        .collect::<String>();
+
+        assert!(footer.contains("wheel · n / p"));
+        assert!(footer.contains("x  close help"));
+        for stale in ["j/k", "Ctrl-d", "Ctrl-u", "Esc"] {
+            assert!(!footer.contains(stale));
+        }
     }
 }

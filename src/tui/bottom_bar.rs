@@ -5,6 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 
 use super::app::App;
+use super::key_labels;
 use super::modal::Modal;
 use super::selection::text_width;
 use super::state::{Pane, StatusLevel};
@@ -166,8 +167,10 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         );
         return;
     }
+    let mode_stack = Mode::stack(app);
     let navigation_full = resolve_shortcuts(
         &app.keymap,
+        &mode_stack,
         &[
             shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
             shortcut!("search"; GLOBAL => LibrarySearch),
@@ -178,6 +181,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
     let navigation_medium = resolve_shortcuts(
         &app.keymap,
+        &mode_stack,
         &[
             shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
             shortcut!("search"; GLOBAL => LibrarySearch),
@@ -187,14 +191,18 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
     let navigation_compact = resolve_shortcuts(
         &app.keymap,
+        &mode_stack,
         &[
             shortcut_last!(""; GLOBAL => PaneBack, PaneForward),
             shortcut!(""; GLOBAL => LibrarySearch),
             shortcut!(""; GLOBAL => ViewToggleHelp),
         ],
     );
-    let navigation_minimal =
-        resolve_shortcuts(&app.keymap, &[shortcut!(""; GLOBAL => LibrarySearch)]);
+    let navigation_minimal = resolve_shortcuts(
+        &app.keymap,
+        &mode_stack,
+        &[shortcut!(""; GLOBAL => LibrarySearch)],
+    );
 
     let (full_specs, medium_specs, compact_specs): (
         &[ShortcutSpec],
@@ -307,9 +315,9 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
             }
         }
     };
-    let actions_full = resolve_shortcuts(&app.keymap, full_specs);
-    let actions_medium = resolve_shortcuts(&app.keymap, medium_specs);
-    let actions_compact = resolve_shortcuts(&app.keymap, compact_specs);
+    let actions_full = resolve_shortcuts(&app.keymap, &mode_stack, full_specs);
+    let actions_medium = resolve_shortcuts(&app.keymap, &mode_stack, medium_specs);
+    let actions_compact = resolve_shortcuts(&app.keymap, &mode_stack, compact_specs);
 
     let tiers = [
         (navigation_full.as_slice(), actions_full.as_slice()),
@@ -352,13 +360,22 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 }
 
-fn resolve_shortcuts(keymap: &Keymap, specs: &[ShortcutSpec]) -> Vec<Shortcut<'static>> {
+fn resolve_shortcuts(
+    keymap: &Keymap,
+    stack: &[Mode],
+    specs: &[ShortcutSpec],
+) -> Vec<Shortcut<'static>> {
     specs
         .iter()
         .filter_map(|spec| {
             let mut chords = Vec::new();
             for command in spec.commands {
-                let command_chords = keymap.chords_for(spec.modes, *command);
+                let bindings = spec
+                    .modes
+                    .iter()
+                    .map(|mode| (*mode, *command))
+                    .collect::<Vec<_>>();
+                let command_chords = key_labels::effective_chords(keymap, stack, &bindings);
                 match spec.choice {
                     ChordChoice::All => chords.extend(command_chords),
                     ChordChoice::First => chords.extend(command_chords.into_iter().next()),
@@ -370,7 +387,7 @@ fn resolve_shortcuts(keymap: &Keymap, specs: &[ShortcutSpec]) -> Vec<Shortcut<'s
                 (
                     chords
                         .into_iter()
-                        .map(compact_chord)
+                        .map(key_labels::compact_chord)
                         .collect::<Vec<_>>()
                         .join("/"),
                     spec.action,
@@ -378,21 +395,6 @@ fn resolve_shortcuts(keymap: &Keymap, specs: &[ShortcutSpec]) -> Vec<Shortcut<'s
             })
         })
         .collect()
-}
-
-fn compact_chord(chord: crate::keys::Chord) -> String {
-    use ratatui::crossterm::event::{KeyCode, KeyModifiers};
-
-    if chord.modifiers() == KeyModifiers::NONE {
-        match chord.code() {
-            KeyCode::Up => return "↑".to_owned(),
-            KeyCode::Down => return "↓".to_owned(),
-            KeyCode::Left => return "←".to_owned(),
-            KeyCode::Right => return "→".to_owned(),
-            _ => {}
-        }
-    }
-    chord.compact()
 }
 
 fn shortcut_pills_width(commands: ShortcutSet<'_>) -> usize {
@@ -467,6 +469,7 @@ mod tests {
         let keymap = Keymap::defaults();
         let shortcuts = resolve_shortcuts(
             &keymap,
+            &[Mode::List, Mode::Global],
             &[
                 shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
                 shortcut!("git"; GLOBAL => GitToggleConsole),
@@ -491,11 +494,31 @@ mod tests {
 
         let shortcuts = resolve_shortcuts(
             &keymap,
+            &[Mode::List, Mode::Global],
             &[
                 shortcut!("git"; GLOBAL => GitToggleConsole),
                 shortcut!("help"; GLOBAL => ViewToggleHelp),
             ],
         );
         assert_eq!(shortcuts, [("Alt-g".to_owned(), "git")]);
+    }
+
+    #[test]
+    fn exclusive_modes_hide_shadowed_global_shortcuts() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(&path, "[global]\n\"app.quit\" = \"x\"\n").unwrap();
+        let (keymap, diagnostics) = Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+
+        let shortcuts = resolve_shortcuts(
+            &keymap,
+            &[Mode::Trash],
+            &[
+                shortcut!("quit"; GLOBAL => AppQuit),
+                shortcut!("purge"; TRASH => TrashPurgeSelected),
+            ],
+        );
+        assert_eq!(shortcuts, [("x".to_owned(), "purge")]);
     }
 }

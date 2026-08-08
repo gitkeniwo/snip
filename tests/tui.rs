@@ -1212,8 +1212,8 @@ fn the_fragment_list_costs_one_row_collapsed_and_grows_when_expanded() {
         .unwrap();
     assert_eq!(app.layout.preview_fragments.height, 4);
     let header = row_text(terminal.backend().buffer(), app.layout.preview_fragments.y);
-    assert!(header.contains("[ ] switch"));
-    assert!(header.contains("- collapse"));
+    assert!(header.contains("[ / ] switch"));
+    assert!(!header.contains("collapse"));
     let selected_y = app
         .layout
         .fragment_rows
@@ -2989,6 +2989,7 @@ fn trash_overlay_uses_its_border_color_for_bottom_bar_shortcuts() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
     app.handle_key(key(KeyCode::Char('T')));
+    app.focus = Pane::List;
 
     let backend = TestBackend::new(100, 30);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -3684,8 +3685,17 @@ fn fragment_commands_follow_context_and_report_exact_disabled_reasons() {
 
 #[test]
 fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
-    let (_temporary, library, first_id, _second_id) = fixture();
+    let (temporary, library, first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let keymap_path = temporary.path().join("keys.toml");
+    std::fs::write(
+        &keymap_path,
+        "[preview]\n\"snippet.edit-content\" = \"i\"\n",
+    )
+    .unwrap();
+    let (keymap, diagnostics) = snip::keys::Keymap::load_from(&keymap_path).unwrap();
+    assert!(diagnostics.is_empty());
+    app.keymap = keymap;
     app.selected_id = Some(first_id);
     app.focus = Pane::Preview;
     app.fragments_expanded = true;
@@ -3698,6 +3708,11 @@ fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
     assert_eq!(snippet.loaded_fragments[1].language, "rust");
     assert!(snippet.loaded_fragments[1].content.is_empty());
     assert_eq!(app.preview_target, PreviewTarget::Fragment(1));
+    assert!(
+        app.status
+            .as_ref()
+            .is_some_and(|status| status.text.contains("press i to edit"))
+    );
 
     remove_fragment(&app.library, &first_id.to_string(), "2", None, false).unwrap();
     app.rescan().unwrap();
@@ -3815,7 +3830,7 @@ fn fragment_rename_and_delete_use_one_based_selectors_and_clamp_selection() {
 
 #[test]
 fn fragment_grab_render_moves_the_row_and_shows_cancel_hint() {
-    let (_temporary, library, first_id, _second_id) = fixture();
+    let (temporary, library, first_id, _second_id) = fixture();
     for title in ["Second", "Third"] {
         add_fragment(
             &library,
@@ -3830,18 +3845,41 @@ fn fragment_grab_render_moves_the_row_and_shows_cancel_hint() {
         .unwrap();
     }
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let keymap_path = temporary.path().join("keys.toml");
+    std::fs::write(
+        &keymap_path,
+        r#"
+            [fragment-grab]
+            "nav.down" = "n"
+            "nav.up" = "p"
+            "grab.drop" = "x"
+            "ui.dismiss" = "z"
+        "#,
+    )
+    .unwrap();
+    let (keymap, diagnostics) = snip::keys::Keymap::load_from(&keymap_path).unwrap();
+    assert!(diagnostics.is_empty());
+    app.keymap = keymap;
     app.selected_id = Some(first_id);
     app.focus = Pane::Preview;
     app.fragments_expanded = true;
     app.handle_key(key(KeyCode::Char('m')));
-    app.handle_key(key(KeyCode::Char('j')));
+    assert!(app.status.as_ref().is_some_and(|status| {
+        status
+            .text
+            .contains("n / p to move, x to drop, z to cancel")
+    }));
+    app.handle_key(key(KeyCode::Char('n')));
     let backend = TestBackend::new(100, 30);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|frame| snip::tui::ui::draw(frame, &mut app))
         .unwrap();
     let header = row_text(terminal.backend().buffer(), app.layout.preview_fragments.y);
-    assert!(header.contains("Esc cancel"));
+    assert!(header.contains("x drop"));
+    assert!(header.contains("z cancel"));
+    assert!(!header.contains("Enter"));
+    assert!(!header.contains("Esc"));
     let moved_row = row_text(
         terminal.backend().buffer(),
         app.layout.preview_fragments.y + 2,
