@@ -50,6 +50,13 @@ use crate::clipboard::ClipboardMethod;
 
 type TuiTerminal = Terminal<CrosstermBackend<Stdout>>;
 
+pub(crate) fn key_error_count(diagnostics: &[crate::keys::Diagnostic]) -> usize {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.level == crate::keys::DiagnosticLevel::Error)
+        .count()
+}
+
 pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(SnipError::usage("the TUI requires an interactive terminal"));
@@ -58,12 +65,13 @@ pub fn run(library: Library, config: &AppConfig) -> Result<()> {
     let mut guard = TerminalGuard::new()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let (keymap, key_diagnostics) = crate::keys::Keymap::load()?;
+    let key_error_count = key_error_count(&key_diagnostics);
     let mut app = App::new_with_keymap(
         library,
         config,
         persist::SessionState::load(),
         keymap,
-        key_diagnostics.len(),
+        key_error_count,
     )?;
     let (sender, receiver) = mpsc::channel();
     app.set_git_sender(sender.clone());

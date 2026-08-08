@@ -56,7 +56,7 @@ impl App {
         config: &AppConfig,
         session_state: SessionState,
         keymap: crate::keys::Keymap,
-        key_diagnostic_count: usize,
+        key_error_count: usize,
     ) -> Result<Self> {
         let SessionState {
             recent_commands,
@@ -150,14 +150,14 @@ impl App {
         if !theme_warnings.is_empty() {
             app.set_status(theme_warnings.join("; "), StatusLevel::Error);
         }
-        if key_diagnostic_count > 0 {
-            let noun = if key_diagnostic_count == 1 {
+        if key_error_count > 0 {
+            let noun = if key_error_count == 1 {
                 "binding"
             } else {
                 "bindings"
             };
             app.set_status(
-                format!("{key_diagnostic_count} key {noun} ignored; run \"snip keys check\""),
+                format!("{key_error_count} key {noun} ignored; run \"snip keys check\""),
                 StatusLevel::Error,
             );
         }
@@ -902,13 +902,14 @@ mod tests {
         )
         .unwrap();
         let (keymap, diagnostics) = crate::keys::Keymap::load_from(&path).unwrap();
+        let error_count = crate::tui::key_error_count(&diagnostics);
 
         let app = App::new_with_keymap(
             library,
             &AppConfig::default(),
             SessionState::default(),
             keymap,
-            diagnostics.len(),
+            error_count,
         )
         .unwrap();
 
@@ -928,6 +929,43 @@ mod tests {
             "1 key binding ignored; run \"snip keys check\""
         );
         assert_eq!(status.level, StatusLevel::Error);
+    }
+
+    #[test]
+    fn info_only_key_diagnostics_do_not_raise_a_startup_error() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Keys.sniplib"), None).unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(
+            &path,
+            r#"
+                [list]
+                "snippet.edit-content" = "m"
+            "#,
+        )
+        .unwrap();
+        let (keymap, diagnostics) = crate::keys::Keymap::load_from(&path).unwrap();
+        let error_count = crate::tui::key_error_count(&diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].level, crate::keys::DiagnosticLevel::Info);
+        assert_eq!(error_count, 0);
+
+        let app = App::new_with_keymap(
+            library,
+            &AppConfig::default(),
+            SessionState::default(),
+            keymap,
+            error_count,
+        )
+        .unwrap();
+
+        assert_eq!(
+            app.keymap
+                .resolve(&[crate::keys::Mode::List], "m".parse().unwrap()),
+            Some(CommandId::SnippetEditContent)
+        );
+        assert!(app.status.is_none());
     }
 
     #[test]
