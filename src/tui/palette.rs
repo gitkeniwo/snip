@@ -11,6 +11,7 @@ use super::command::{self, CommandId, CommandState};
 use super::modal::TextInput;
 use super::selection::text_width;
 use super::widgets;
+use crate::keys::Mode;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaletteMatch {
@@ -281,11 +282,19 @@ pub fn draw_palette(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
         let full_text = format!("{}: {}", command.category, command.title);
         let state = (command.state)(app);
         let (hint, disabled) = match state {
-            CommandState::Enabled => (command.key_hint.unwrap_or(""), false),
-            CommandState::Disabled(reason) => (reason, true),
+            CommandState::Enabled => (
+                app.keymap
+                    .chords_for(&Mode::CONFIGURABLE, command.id)
+                    .into_iter()
+                    .map(|chord| chord.display())
+                    .collect::<Vec<_>>()
+                    .join(" / "),
+                false,
+            ),
+            CommandState::Disabled(reason) => (reason.to_owned(), true),
             CommandState::Hidden => continue,
         };
-        let hint = widgets::truncate_end(hint, (inner.width / 2) as usize);
+        let hint = widgets::truncate_end(&hint, (inner.width / 2) as usize);
         let text_limit = inner
             .width
             .saturating_sub(text_width(&hint))

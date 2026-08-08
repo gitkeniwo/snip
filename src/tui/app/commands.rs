@@ -389,7 +389,6 @@ mod tests {
             category: "Test",
             title: "Hidden",
             keywords: &[],
-            key_hint: None,
             palette: false,
             state: hidden,
             run: noop,

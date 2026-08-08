@@ -5,150 +5,218 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph};
 
 use super::app::App;
+use super::command::CommandId;
 use super::selection::text_width;
 use super::theme::TuiTheme;
 use super::widgets;
+use crate::keys::{Keymap, Mode};
 
-type Entry = (&'static str, &'static str);
+#[derive(Clone, Copy)]
+struct BindingRef {
+    modes: &'static [Mode],
+    command: CommandId,
+}
+
+#[derive(Clone, Copy)]
+enum EntryKeys {
+    Bindings(&'static [BindingRef]),
+    Fixed(&'static str),
+}
+
+#[derive(Clone, Copy)]
+struct Entry {
+    keys: EntryKeys,
+    description: &'static str,
+}
+
+macro_rules! keys {
+    ($description:literal; $($modes:expr => $command:ident),+ $(,)?) => {
+        Entry {
+            keys: EntryKeys::Bindings(&[
+                $(BindingRef { modes: $modes, command: CommandId::$command }),+
+            ]),
+            description: $description,
+        }
+    };
+}
+
+macro_rules! fixed {
+    ($label:literal, $description:literal) => {
+        Entry {
+            keys: EntryKeys::Fixed($label),
+            description: $description,
+        }
+    };
+}
+
 const HELP_KEY_WIDTH: usize = 15;
+const GLOBAL: &[Mode] = &[Mode::Global];
+const SIDEBAR: &[Mode] = &[Mode::Sidebar];
+const LIST: &[Mode] = &[Mode::List];
+const PREVIEW: &[Mode] = &[Mode::Preview];
+const FRAGMENT: &[Mode] = &[Mode::Fragment];
+const GRAB: &[Mode] = &[Mode::FragmentGrab];
+const TRASH: &[Mode] = &[Mode::Trash];
+const GIT: &[Mode] = &[Mode::Git];
+const GIST: &[Mode] = &[Mode::Gist];
+const LIST_PREVIEW: &[Mode] = &[Mode::List, Mode::Preview];
+const NAVIGATION: &[Mode] = &[
+    Mode::Sidebar,
+    Mode::List,
+    Mode::Preview,
+    Mode::FragmentGrab,
+    Mode::Trash,
+    Mode::Help,
+];
+const CONFIGURABLE: &[Mode] = &Mode::CONFIGURABLE;
 
 const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
     (
         "MOVE — ALL PANES",
         &[
-            ("Tab / Shift-Tab", "next / previous pane"),
-            ("h / ←   l / →", "back / drill in"),
-            ("j / ↓   k / ↑", "next / previous item"),
-            ("g   G", "first / last item"),
-            ("1-9 / 0", "jump to 1st-10th item"),
-            ("Ctrl-d / Ctrl-u", "page down / up"),
-            ("[   ]", "previous / next fragment"),
-            ("{   }", "previous / next paragraph"),
+            keys!("next / previous pane"; GLOBAL => PaneNext, GLOBAL => PanePrevious),
+            keys!("back / drill in"; GLOBAL => PaneBack, GLOBAL => PaneForward),
+            keys!("next / previous item"; NAVIGATION => NavDown, NAVIGATION => NavUp),
+            keys!("first / last item"; NAVIGATION => NavFirst, NAVIGATION => NavLast),
+            fixed!("1-9 / 0", "jump to 1st-10th item"),
+            keys!("page down / up"; NAVIGATION => NavPageDown, NAVIGATION => NavPageUp),
+            keys!("previous / next fragment"; GLOBAL => PreviewPreviousItem, GLOBAL => PreviewNextItem),
+            keys!("previous / next paragraph"; GLOBAL => PreviewPreviousParagraph, GLOBAL => PreviewNextParagraph),
         ],
         HelpColor::Accent,
     ),
     (
         "SIDEBAR — WHEN THE LEFT PANE HAS FOCUS",
         &[
-            ("Space", "expand / collapse folder"),
-            ("Enter", "apply selected filter"),
-            ("n", "create folder"),
-            ("r", "rename folder or tag"),
-            ("m", "move folder"),
-            ("d", "delete folder or tag"),
+            keys!("expand / collapse folder"; SIDEBAR => SidebarToggleFolder),
+            keys!("apply selected filter"; SIDEBAR => SidebarActivate),
+            keys!("create folder"; SIDEBAR => FolderNew),
+            keys!("rename folder or tag"; SIDEBAR => SidebarRename, CONFIGURABLE => FolderRename, CONFIGURABLE => TagRename),
+            keys!("move folder"; SIDEBAR => FolderMove),
+            keys!("delete folder or tag"; SIDEBAR => SidebarDelete, CONFIGURABLE => FolderDelete, CONFIGURABLE => TagDelete),
         ],
         HelpColor::Tag,
     ),
     (
         "SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS",
         &[
-            ("Enter", "enter preview"),
-            ("n", "create snippet"),
-            ("e", "edit content"),
-            ("E", "edit note"),
-            ("R", "edit README"),
-            ("v", "open in VS Code"),
-            ("r", "rename snippet"),
-            ("m", "move snippet"),
-            ("t", "edit tags"),
-            ("f", "edit language"),
-            ("P", "toggle pin"),
-            ("L", "toggle lock"),
-            ("d", "move to trash"),
+            keys!("enter preview"; LIST => ListEnterPreview),
+            keys!("create snippet"; LIST_PREVIEW => SnippetNew),
+            keys!("edit content"; LIST_PREVIEW => SnippetEditContent),
+            keys!("edit note"; LIST_PREVIEW => SnippetEditNote),
+            keys!("edit README"; LIST_PREVIEW => SnippetEditReadme),
+            keys!("open in VS Code"; LIST_PREVIEW => SnippetOpenVsCode),
+            keys!("rename snippet"; LIST_PREVIEW => SnippetRename),
+            keys!("move snippet"; LIST_PREVIEW => SnippetMove),
+            keys!("edit tags"; LIST_PREVIEW => SnippetEditTags),
+            keys!("edit language"; LIST_PREVIEW => SnippetEditLanguage),
+            keys!("toggle pin"; LIST_PREVIEW => SnippetTogglePin),
+            keys!("toggle lock"; LIST_PREVIEW => SnippetToggleLock),
+            keys!("move to trash"; LIST_PREVIEW => SnippetMoveToTrash),
         ],
         HelpColor::Alt,
     ),
     (
         "FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS",
         &[
-            ("=   -", "expand / collapse the list"),
-            ("n", "add fragment"),
-            ("r", "rename fragment"),
-            ("m", "reorder fragment"),
-            ("d", "delete fragment"),
-            ("j / k", "move a grabbed fragment"),
-            ("Enter", "drop it"),
-            ("Esc", "cancel the move"),
+            keys!("expand / collapse the list"; PREVIEW => PreviewExpandFragments, PREVIEW => PreviewCollapseFragments),
+            keys!("add fragment"; FRAGMENT => FragmentAdd),
+            keys!("rename fragment"; FRAGMENT => FragmentRename),
+            keys!("reorder fragment"; FRAGMENT => FragmentReorder),
+            keys!("delete fragment"; FRAGMENT => FragmentRemove),
+            keys!("move a grabbed fragment"; GRAB => NavDown, GRAB => NavUp),
+            keys!("drop it"; GRAB => GrabDrop),
+            keys!("cancel the move"; GRAB => UiDismiss),
         ],
         HelpColor::Warning,
     ),
     (
         "COPY",
-        &[("y", "content"), ("Y", "snippet ID"), ("p", "managed path")],
+        &[
+            keys!("content"; GLOBAL => CopyContent),
+            keys!("snippet ID"; GLOBAL => CopySnippetId),
+            keys!("managed path"; GLOBAL => CopyManagedPath),
+        ],
         HelpColor::Success,
     ),
     (
         "VIEW & GLOBAL",
         &[
-            ("/", "search"),
-            (": / Ctrl-P", "open command palette"),
-            ("s", "cycle sort"),
-            ("N", "toggle line numbers"),
-            ("= / -", "expand / collapse fragments"),
-            ("z", "toggle list density"),
-            ("T", "open trash"),
-            ("Ctrl-g", "Git console"),
-            ("Ctrl-s", "Gist panel"),
-            ("F5 / Ctrl-r", "rescan library"),
-            ("?", "toggle help"),
-            ("Esc", "close or clear"),
-            ("q", "quit"),
-            ("Ctrl-c", "force quit"),
+            keys!("search"; GLOBAL => LibrarySearch),
+            keys!("open command palette"; GLOBAL => PaletteOpen),
+            keys!("cycle sort"; GLOBAL => ViewCycleSort),
+            keys!("sort by modified"; CONFIGURABLE => ViewSortModified),
+            keys!("sort by title"; CONFIGURABLE => ViewSortTitle),
+            keys!("sort by created"; CONFIGURABLE => ViewSortCreated),
+            keys!("toggle line numbers"; GLOBAL => ViewToggleLineNumbers),
+            keys!("toggle fragment list"; CONFIGURABLE => ViewToggleFragmentList),
+            keys!("toggle list density"; GLOBAL => ViewToggleDensity),
+            keys!("change color theme"; CONFIGURABLE => ViewPickTheme),
+            keys!("toggle trash"; GLOBAL => LibraryToggleTrash),
+            keys!("clear filter"; CONFIGURABLE => LibraryClearFilter),
+            keys!("toggle published filter"; CONFIGURABLE => LibraryTogglePublishedFilter),
+            keys!("Git console"; GLOBAL => GitToggleConsole),
+            keys!("Gist panel"; GLOBAL => GistTogglePanel),
+            keys!("rescan library"; GLOBAL => LibraryRescan),
+            keys!("toggle help"; GLOBAL => ViewToggleHelp),
+            keys!("close or clear"; GLOBAL => UiDismiss),
+            keys!("quit"; GLOBAL => AppQuit),
+            fixed!("Ctrl-c", "force quit"),
         ],
         HelpColor::Warning,
     ),
     (
         "MOUSE",
         &[
-            ("wheel", "scroll hovered pane"),
-            ("click", "select item or fragment"),
-            ("double-click", "drill into preview"),
-            ("drag", "select preview text"),
-            ("mouse up", "copy selection"),
+            fixed!("wheel", "scroll hovered pane"),
+            fixed!("click", "select item or fragment"),
+            fixed!("double-click", "drill into preview"),
+            fixed!("drag", "select preview text"),
+            fixed!("mouse up", "copy selection"),
         ],
         HelpColor::Success,
     ),
     (
         "TRASH — WHEN THE TRASH PANE HAS FOCUS",
         &[
-            ("j / k", "move"),
-            ("u", "restore"),
-            ("x", "purge permanently"),
-            ("Esc / T", "leave the trash"),
+            keys!("move"; TRASH => NavDown, TRASH => NavUp),
+            keys!("restore"; TRASH => TrashRestoreSelected),
+            keys!("purge permanently"; TRASH => TrashPurgeSelected),
+            keys!("leave the trash"; TRASH => UiDismiss),
         ],
         HelpColor::Error,
     ),
     (
         "GIT CONSOLE — WHEN OPEN",
         &[
-            ("b", "backup"),
-            ("c", "commit"),
-            ("p", "push"),
-            ("f", "fetch remote status"),
-            ("l", "pull from remote"),
-            ("C", "custom commit message"),
-            ("a", "pause this session"),
-            ("i", "initialize repository, or set automatic interval"),
-            ("u", "toggle automatic push"),
-            ("U", "toggle automatic pull on start"),
-            ("o", "toggle backup on quit"),
-            ("r", "refresh local status"),
-            ("Esc / Ctrl-g", "close console"),
+            keys!("backup"; GIT => GitBackup),
+            keys!("commit"; GIT => GitCommit),
+            keys!("push"; GIT => GitPush),
+            keys!("fetch remote status"; GIT => GitFetchRemoteStatus),
+            keys!("pull from remote"; GIT => GitPull),
+            keys!("custom commit message"; GIT => GitCommitWithMessage),
+            keys!("pause this session"; GIT => GitPauseAutoBackup),
+            keys!("initialize repository, or set automatic interval"; GIT => GitInitOrSetInterval, CONFIGURABLE => GitInitRepository, CONFIGURABLE => GitSetAutoCommitInterval),
+            keys!("toggle automatic push"; GIT => GitToggleAutoPush),
+            keys!("toggle automatic pull on start"; GIT => GitToggleAutoPull),
+            keys!("toggle backup on quit"; GIT => GitToggleBackupOnQuit),
+            keys!("refresh local status"; GIT => GitRefreshLocalStatus),
+            keys!("close console"; GIT => UiDismiss),
         ],
         HelpColor::Alt,
     ),
     (
         "GIST PANEL — WHEN OPEN",
         &[
-            ("p", "publish or update"),
-            ("P", "publish as public"),
-            ("y", "copy link"),
-            ("o", "open in browser"),
-            ("a", "link an existing gist"),
-            ("r", "check it still exists"),
-            ("d", "unlink"),
-            ("x", "delete on GitHub"),
-            ("Esc / Ctrl-s", "close panel"),
+            keys!("publish or update"; GIST => GistPush),
+            keys!("publish as public"; GIST => GistPushPublic),
+            keys!("copy link"; GIST => GistCopyUrl),
+            keys!("open in browser"; GIST => GistOpenInBrowser),
+            keys!("link an existing gist"; GIST => GistAttach),
+            keys!("check it still exists"; GIST => GistVerifyRemote),
+            keys!("unlink"; GIST => GistDetach),
+            keys!("delete on GitHub"; GIST => GistDelete),
+            keys!("close panel"; GIST => UiDismiss),
         ],
         HelpColor::Success,
     ),
@@ -175,7 +243,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, app: &App) {
     } else {
         1
     };
-    let content = help_content(columns, content_width, app.theme);
+    let content = help_content(columns, content_width, app.theme, &app.keymap);
     let desired_height = u16::try_from(content.lines.len())
         .unwrap_or(u16::MAX)
         .saturating_add(7);
@@ -210,7 +278,7 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, app: &App) {
             ))
             .centered(),
             Line::styled(
-                "keys are grouped by the pane or console that owns them",
+                "keys are grouped by context · * marks a user binding",
                 Style::default().fg(app.theme.muted),
             )
             .centered(),
@@ -248,7 +316,8 @@ pub fn draw_help(frame: &mut Frame<'_>, area: Rect, app: &App) {
     );
 }
 
-fn help_content(columns: usize, width: usize, theme: TuiTheme) -> Text<'static> {
+fn help_content(columns: usize, width: usize, theme: TuiTheme, keymap: &Keymap) -> Text<'static> {
+    let defaults = Keymap::defaults();
     let mut lines = Vec::new();
     for (label, entries, color) in GROUPS {
         if !lines.is_empty() {
@@ -261,6 +330,7 @@ fn help_content(columns: usize, width: usize, theme: TuiTheme) -> Text<'static> 
             width,
             resolve_color(*color, theme),
             theme,
+            (keymap, &defaults),
         ));
     }
     Text::from(lines)
@@ -273,7 +343,9 @@ fn help_panel(
     width: usize,
     key_color: Color,
     theme: TuiTheme,
+    keymaps: (&Keymap, &Keymap),
 ) -> Vec<Line<'static>> {
+    let (keymap, defaults) = keymaps;
     let mut lines = vec![
         Line::from(vec![
             Span::styled("── ", Style::default().fg(theme.rule)),
@@ -292,24 +364,83 @@ fn help_panel(
         let mut spans = Vec::new();
         for column in 0..columns {
             let index = row + column * rows;
-            let entry = entries.get(index).copied().unwrap_or(("", ""));
+            let entry = entries.get(index).copied();
+            let keys = entry
+                .map(|entry| entry_keys(entry, keymap, defaults))
+                .unwrap_or_default();
+            let description = entry.map(|entry| entry.description).unwrap_or_default();
             let cell_width = column_width + usize::from(column < extra_columns);
             let key_width = HELP_KEY_WIDTH.min(cell_width.saturating_sub(2));
             let description_width = cell_width.saturating_sub(key_width + 2);
             spans.push(Span::raw(" "));
             spans.push(Span::styled(
-                pad_display(entry.0, key_width),
+                pad_display(&keys, key_width),
                 Style::default().fg(key_color).add_modifier(Modifier::BOLD),
             ));
             spans.push(Span::raw(" "));
             spans.push(Span::styled(
-                pad_display(entry.1, description_width),
+                pad_display(description, description_width),
                 Style::default().fg(theme.muted),
             ));
         }
         lines.push(Line::from(spans));
     }
     lines
+}
+
+fn entry_keys(entry: Entry, keymap: &Keymap, defaults: &Keymap) -> String {
+    let EntryKeys::Bindings(bindings) = entry.keys else {
+        return match entry.keys {
+            EntryKeys::Fixed(label) => label.to_owned(),
+            EntryKeys::Bindings(_) => unreachable!(),
+        };
+    };
+
+    let mut labels = Vec::new();
+    let mut user_modified = false;
+    for binding in bindings {
+        let chords = keymap.chords_for(binding.modes, binding.command);
+        user_modified |= binding.modes.iter().any(|mode| {
+            keymap.chords_for(&[*mode], binding.command)
+                != defaults.chords_for(&[*mode], binding.command)
+        });
+        if chords.is_empty() {
+            continue;
+        }
+        let label = chords
+            .into_iter()
+            .map(help_chord)
+            .collect::<Vec<_>>()
+            .join(" / ");
+        if !labels.contains(&label) {
+            labels.push(label);
+        }
+    }
+
+    let mut label = if labels.is_empty() {
+        "—".to_owned()
+    } else {
+        labels.join(" / ")
+    };
+    if user_modified {
+        label.push_str(" *");
+    }
+    label
+}
+
+fn help_chord(chord: crate::keys::Chord) -> String {
+    use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+
+    if chord.modifiers() == KeyModifiers::NONE {
+        match chord.code() {
+            KeyCode::Up => return "↑".to_owned(),
+            KeyCode::Down => return "↓".to_owned(),
+            KeyCode::Left => return "←".to_owned(),
+            KeyCode::Right => return "→".to_owned(),
+            _ => {}
+        }
+    }
+    chord.display()
 }
 
 fn resolve_color(color: HelpColor, theme: TuiTheme) -> Color {
@@ -331,62 +462,38 @@ fn pad_display(value: &str, width: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::collections::{HashMap, HashSet};
 
     use super::*;
 
     #[test]
-    fn help_documents_every_literal_character_binding_in_input_routing() {
-        let keymap = crate::keys::Keymap::defaults();
-        let mut bound = BTreeSet::from_iter('0'..='9');
-        for mode in crate::keys::Mode::ALL {
-            for (chord, _) in keymap.bindings_for(mode) {
-                if let ratatui::crossterm::event::KeyCode::Char(character) = chord.code() {
-                    bound.insert(character);
-                }
-            }
-        }
-        let mut documented = BTreeSet::new();
-        for (group, entries, _) in GROUPS {
-            for (label, description) in *entries {
-                assert!(
-                    !group.is_empty() && !description.is_empty(),
-                    "every documented key needs an owning context and action"
-                );
-                if *label == "Space" {
-                    documented.insert(' ');
-                }
-                if *label == "/" {
-                    documented.insert('/');
-                }
-                for token in label.split_whitespace() {
-                    if token == "/" {
-                        continue;
-                    }
-                    if token == "1-9" {
-                        for character in '1'..='9' {
-                            documented.insert(character);
-                        }
-                        continue;
-                    }
-                    let mut characters = token.chars();
-                    if let (Some(character), None) = (characters.next(), characters.next())
-                        && character.is_ascii()
-                    {
-                        documented.insert(character);
-                    }
-                }
-            }
-        }
+    fn help_documents_every_default_action() {
+        let keymap = Keymap::defaults();
+        let bound = Mode::ALL
+            .into_iter()
+            .flat_map(|mode| keymap.bindings_for(mode).map(|(_, command)| command))
+            .collect::<HashSet<_>>();
+        let documented = GROUPS
+            .iter()
+            .flat_map(|(_, entries, _)| *entries)
+            .flat_map(|entry| match entry.keys {
+                EntryKeys::Bindings(bindings) => bindings,
+                EntryKeys::Fixed(_) => &[],
+            })
+            .map(|binding| binding.command)
+            .collect::<HashSet<_>>();
+
         assert_eq!(
-            documented, bound,
-            "Help and literal character routing must match as exact key tokens"
+            bound.difference(&documented).collect::<Vec<_>>(),
+            Vec::<&CommandId>::new(),
+            "every default action must have an owning help entry"
         );
     }
 
     #[test]
     fn help_cells_preserve_keys_and_explicitly_ellipsize_descriptions() {
         let theme = TuiTheme::default_for(super::super::theme::Appearance::Dark);
+        let keymap = Keymap::defaults();
         let lines = help_panel(
             GROUPS[0].0,
             GROUPS[0].1,
@@ -394,6 +501,7 @@ mod tests {
             108,
             resolve_color(GROUPS[0].2, theme),
             theme,
+            (&keymap, &keymap),
         );
         assert!(lines.iter().all(|line| line.width() <= 108));
         let rendered = lines
@@ -410,58 +518,68 @@ mod tests {
     }
 
     #[test]
-    fn help_key_hints_do_not_drift_from_registered_commands() {
-        let group = |label| {
-            GROUPS
+    fn every_palette_command_appears_in_exactly_one_help_group() {
+        let mut groups_per_command = HashMap::<CommandId, usize>::new();
+        for (_, entries, _) in GROUPS {
+            let commands = entries
                 .iter()
-                .find(|(group, _, _)| *group == label)
-                .map(|(_, entries, _)| *entries)
-                .expect("help group should exist")
-        };
-        let entries_for = |category| match category {
-            "Snippet" => group("SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS"),
-            "Fragment" => group("FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS"),
-            "Copy" => group("COPY"),
-            "Folder" | "Tag" => group("SIDEBAR — WHEN THE LEFT PANE HAS FOCUS"),
-            "View" | "Library" | "App" => group("VIEW & GLOBAL"),
-            "Trash" => group("TRASH — WHEN THE TRASH PANE HAS FOCUS"),
-            "Git" => group("GIT CONSOLE — WHEN OPEN"),
-            "Gist" => group("GIST PANEL — WHEN OPEN"),
-            _ => panic!("missing help mapping for command category {category}"),
-        };
-        let global_entries = group("VIEW & GLOBAL");
-        for command in crate::tui::command::registry() {
-            let Some(hint) = command.key_hint else {
-                continue;
-            };
-            // Console-scoped hints (Ctrl-g / Ctrl-s) keep the opening chord in the
-            // global table and their key in the console's own group, regardless of
-            // the command's category.
-            if hint == "Ctrl-g" || hint == "Ctrl-s" {
-                assert!(global_entries.iter().any(|(label, _)| *label == hint));
-            } else if let Some(key) = hint.strip_prefix("Ctrl-g ") {
-                assert!(global_entries.iter().any(|(label, _)| *label == "Ctrl-g"));
-                assert!(
-                    entries_for("Git").iter().any(|(label, _)| *label == key),
-                    "{} ({hint}) is missing from Git help",
-                    command.slug
-                );
-            } else if let Some(key) = hint.strip_prefix("Ctrl-s ") {
-                assert!(global_entries.iter().any(|(label, _)| *label == "Ctrl-s"));
-                assert!(
-                    entries_for("Gist").iter().any(|(label, _)| *label == key),
-                    "{} ({hint}) is missing from Gist help",
-                    command.slug
-                );
-            } else {
-                assert!(
-                    entries_for(command.category)
-                        .iter()
-                        .any(|(label, _)| *label == hint),
-                    "{} ({hint}) is missing from its help group",
-                    command.slug
-                );
+                .flat_map(|entry| match entry.keys {
+                    EntryKeys::Bindings(bindings) => bindings,
+                    EntryKeys::Fixed(_) => &[],
+                })
+                .map(|binding| binding.command)
+                .filter(|id| crate::tui::command::get(*id).palette)
+                .collect::<HashSet<_>>();
+            for command in commands {
+                *groups_per_command.entry(command).or_default() += 1;
             }
         }
+
+        for command in crate::tui::command::registry() {
+            if !command.palette {
+                continue;
+            }
+            assert_eq!(
+                groups_per_command.get(&command.id),
+                Some(&1),
+                "{} must appear in exactly one help group",
+                command.slug
+            );
+        }
+    }
+
+    #[test]
+    fn defaults_have_no_intra_mode_collisions() {
+        let defaults = Keymap::defaults();
+        for mode in Mode::ALL {
+            let chords = defaults
+                .bindings_for(mode)
+                .map(|(chord, _)| chord)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                chords.iter().copied().collect::<HashSet<_>>().len(),
+                chords.len(),
+                "{mode:?} contains a duplicate default chord"
+            );
+        }
+    }
+
+    #[test]
+    fn user_modified_help_entries_are_marked() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(&path, "[list]\n\"snippet.edit-content\" = []\n").unwrap();
+        let (keymap, diagnostics) = Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+        let defaults = Keymap::defaults();
+        let entry = GROUPS
+            .iter()
+            .flat_map(|(_, entries, _)| *entries)
+            .find(|entry| entry.description == "edit content")
+            .unwrap();
+
+        let label = entry_keys(*entry, &keymap, &defaults);
+        assert_eq!(label, "e *");
+        assert!(label.ends_with(" *"));
     }
 }

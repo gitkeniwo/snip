@@ -36,6 +36,19 @@ impl Mode {
         Self::Search,
     ];
 
+    pub const CONFIGURABLE: [Self; 10] = [
+        Self::Global,
+        Self::Sidebar,
+        Self::List,
+        Self::Preview,
+        Self::Fragment,
+        Self::FragmentGrab,
+        Self::Trash,
+        Self::Help,
+        Self::Git,
+        Self::Gist,
+    ];
+
     pub fn stack(app: &App) -> Vec<Self> {
         if app.git.open {
             vec![Self::Git]
@@ -239,6 +252,28 @@ impl Keymap {
             .map(|(chord, id)| (*chord, *id))
     }
 
+    pub fn chords_for(&self, modes: &[Mode], id: CommandId) -> Vec<Chord> {
+        let mut chords = modes
+            .iter()
+            .flat_map(|mode| self.bindings_for(*mode))
+            .filter_map(|(chord, bound)| (bound == id).then_some(chord))
+            .collect::<Vec<_>>();
+        chords.sort_unstable_by_key(|chord| chord_sort_key(*chord));
+        chords.dedup();
+        chords
+    }
+
+    pub fn bindings_for_action(&self, id: CommandId) -> Vec<(Mode, Chord)> {
+        Mode::ALL
+            .into_iter()
+            .flat_map(|mode| {
+                self.chords_for(&[mode], id)
+                    .into_iter()
+                    .map(move |chord| (mode, chord))
+            })
+            .collect()
+    }
+
     fn bind(&mut self, mode: Mode, id: CommandId, chords: &[&str]) {
         let bindings = self.modes.entry(mode).or_default();
         for chord in chords {
@@ -250,6 +285,17 @@ impl Keymap {
             );
         }
     }
+}
+
+fn chord_sort_key(chord: Chord) -> (u8, String) {
+    use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+
+    let rank = match (chord.modifiers() == KeyModifiers::NONE, chord.code()) {
+        (true, KeyCode::Char(_)) => 0,
+        (true, _) => 1,
+        (false, _) => 2,
+    };
+    (rank, chord.canonical())
 }
 
 impl Mode {
@@ -333,5 +379,47 @@ mod tests {
                 "{chord:?} must reach the search editor"
             );
         }
+    }
+
+    #[test]
+    fn action_binding_queries_are_stable_and_deduplicated() {
+        let keymap = Keymap::defaults();
+
+        assert_eq!(
+            keymap
+                .chords_for(&[Mode::List, Mode::Preview], CommandId::SnippetEditContent)
+                .into_iter()
+                .map(Chord::canonical)
+                .collect::<Vec<_>>(),
+            ["e"]
+        );
+        assert_eq!(
+            keymap.bindings_for_action(CommandId::SnippetEditContent),
+            [
+                (Mode::List, "e".parse().unwrap()),
+                (Mode::Preview, "e".parse().unwrap()),
+            ]
+        );
+    }
+
+    #[test]
+    fn action_chords_sort_plain_characters_before_named_and_modified_keys() {
+        let keymap = Keymap::defaults();
+        assert_eq!(
+            keymap
+                .chords_for(&[Mode::Global], CommandId::PaletteOpen)
+                .into_iter()
+                .map(Chord::canonical)
+                .collect::<Vec<_>>(),
+            [":", "ctrl-p"]
+        );
+        assert_eq!(
+            keymap
+                .chords_for(&[Mode::Global], CommandId::PaneBack)
+                .into_iter()
+                .map(Chord::canonical)
+                .collect::<Vec<_>>(),
+            ["h", "left"]
+        );
     }
 }

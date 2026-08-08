@@ -199,7 +199,6 @@ pub struct Command {
     pub category: &'static str,
     pub title: &'static str,
     pub keywords: &'static [&'static str],
-    pub key_hint: Option<&'static str>,
     pub palette: bool,
     pub state: fn(&App) -> CommandState,
     pub run: fn(&mut App) -> Vec<Effect>,
