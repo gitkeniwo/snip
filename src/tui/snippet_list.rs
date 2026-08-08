@@ -26,6 +26,7 @@ struct RowColumns {
 struct TableColumns {
     gist: bool,
     badge: bool,
+    pin_gutter: bool,
 }
 
 /// Chooses decoration by its measured display width rather than a terminal-width
@@ -63,11 +64,12 @@ fn row_columns(
     columns
 }
 
-/// Columns whose presence moves every title use one conservative decision for
-/// the whole table. Dates remain per-row because they are right-aligned.
+/// Optional gutters that shift aligned row content use one conservative
+/// decision for the whole table. Dates remain per-row because they are
+/// right-aligned.
 fn table_columns<I>(width: usize, gist_available: bool, compact: bool, rows: I) -> TableColumns
 where
-    I: IntoIterator<Item = (bool, bool)>,
+    I: IntoIterator<Item = (bool, bool, bool)>,
 {
     let rows = rows.into_iter().collect::<Vec<_>>();
     let fixed_width = |locked| {
@@ -75,13 +77,18 @@ where
     };
     let gist = compact
         && gist_available
-        && rows.iter().all(|&(date_available, locked)| {
+        && rows.iter().all(|&(date_available, locked, _)| {
             row_columns(width, date_available, true, true, fixed_width(locked)).gist
         });
-    let badge = rows.iter().all(|&(date_available, locked)| {
+    let badge = rows.iter().all(|&(date_available, locked, _)| {
         row_columns(width, date_available, gist, true, fixed_width(locked)).badge
     });
-    TableColumns { gist, badge }
+    let pin_gutter = rows.iter().any(|&(_, _, pinned)| pinned);
+    TableColumns {
+        gist,
+        badge,
+        pin_gutter,
+    }
 }
 
 /// Width of the gist marker in a row: one leading space plus the glyph, or
@@ -104,8 +111,8 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
         .visible
         .iter()
         .any(|row| app.gist_badges.contains_key(&row.snippet_id));
-    // Both left-side columns shift every title, so they are all-or-nothing
-    // table decisions. A locked row cannot make only its own badge disappear.
+    // Badge and gist columns shift every title, while the pin gutter shifts the
+    // second line. All three are table decisions so mixed state stays aligned.
     let table_columns = table_columns(
         width,
         any_badge,
@@ -115,7 +122,13 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 .snippets
                 .iter()
                 .find(|snippet| snippet.id == row.snippet_id)
-                .map(|snippet| (snippet_date_yymmdd(snippet).is_some(), snippet.locked))
+                .map(|snippet| {
+                    (
+                        snippet_date_yymmdd(snippet).is_some(),
+                        snippet.locked,
+                        snippet.pinned,
+                    )
+                })
         }),
     );
     app.visible
@@ -200,7 +213,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             // The second line is built into a narrowed width so the badge has
             // somewhere to sit, then right-aligned into the tail it left free.
             let second_width = width.saturating_sub(badge_width);
-            let indent = second_line_indent(columns.badge, snippet.pinned, second_width);
+            let indent = second_line_indent(columns.badge, table_columns.pin_gutter, second_width);
             let mut second = if let Some(excerpt) = row.excerpt.as_ref() {
                 Line::from(vec![
                     pin_gutter(app, snippet.pinned, indent),
@@ -340,9 +353,9 @@ fn compact_pin(pinned: bool, color: ratatui::style::Color) -> Span<'static> {
     }
 }
 
-fn second_line_indent(show_badge: bool, pinned: bool, width: usize) -> usize {
+fn second_line_indent(show_badge: bool, reserve_pin_gutter: bool, width: usize) -> usize {
     (usize::from(show_badge) * BADGE_COLUMN_WIDTH)
-        .max(usize::from(pinned) * COMPACT_PIN_WIDTH)
+        .max(usize::from(reserve_pin_gutter) * COMPACT_PIN_WIDTH)
         .min(width)
 }
 
@@ -535,14 +548,16 @@ mod tests {
 
     #[test]
     fn shifting_columns_are_whole_list_decisions() {
-        let comfortable = table_columns(14, false, false, [(true, true), (true, false)]);
+        let comfortable =
+            table_columns(14, false, false, [(true, true, true), (true, false, false)]);
         assert!(!comfortable.badge);
+        assert!(comfortable.pin_gutter);
 
-        let compact = table_columns(16, false, true, [(true, true), (true, false)]);
+        let compact = table_columns(16, false, true, [(true, true, true), (true, false, false)]);
         assert!(!compact.badge);
 
-        assert!(table_columns(20, true, true, [(false, false)]).gist);
-        assert!(!table_columns(20, true, true, [(false, false), (true, true)]).gist);
+        assert!(table_columns(20, true, true, [(false, false, false)]).gist);
+        assert!(!table_columns(20, true, true, [(false, false, false), (true, true, false)]).gist);
     }
 
     #[test]
@@ -586,6 +601,13 @@ mod tests {
             .map(|span| span.content.as_ref())
             .collect::<String>();
         assert!(unindented.starts_with("[Code]"));
+
+        let aligned_unpinned = metadata_line(&app, &snippet, 12, 2)
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(aligned_unpinned.starts_with("  [Code]"));
 
         snippet.manifest.pinned = true;
         let pinned = metadata_line(&app, &snippet, 12, 2)
