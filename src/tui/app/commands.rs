@@ -319,6 +319,8 @@ effect!(sort_created, app => app.set_sort(SortMode::Created));
 effect!(toggle_line_numbers, app => app.toggle_line_numbers());
 effect!(toggle_fragment_list, app => app.toggle_fragments_expanded());
 effect!(toggle_density, app => app.toggle_density());
+effect!(cycle_appearance, app => app.cycle_appearance());
+effect!(follow_system_appearance, app => app.follow_system_appearance());
 effect!(view_pick_theme, app => app.open_theme_picker());
 effect!(toggle_help, app => { app.show_help = !app.show_help; app.help_scroll = 0; });
 effect!(library_search, app => app.search.active = true);
