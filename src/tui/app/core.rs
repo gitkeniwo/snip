@@ -317,7 +317,7 @@ impl App {
         }
     }
 
-    pub(super) fn follow_system_appearance(&mut self) {
+    pub(super) fn clear_appearance_override(&mut self) {
         self.appearance_override = None;
         self.set_status("appearance override cleared", StatusLevel::Info);
         if let Err(error) = self.apply_resolved_theme() {

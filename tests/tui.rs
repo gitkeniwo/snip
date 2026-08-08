@@ -3311,7 +3311,7 @@ fn appearance_override_occupies_the_environment_precedence_slot() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
     app.theme_env = Some("light".to_owned());
-    app.run_command(CommandId::ViewFollowSystemAppearance);
+    app.run_command(CommandId::ViewClearAppearanceOverride);
     assert_eq!(app.theme.appearance, Appearance::Light);
 
     app.run_command(CommandId::ViewCycleAppearance);
@@ -3320,7 +3320,7 @@ fn appearance_override_occupies_the_environment_precedence_slot() {
     assert_eq!(app.theme.appearance, Appearance::Dark);
 
     app.theme_env = Some("dark-nord".to_owned());
-    app.run_command(CommandId::ViewFollowSystemAppearance);
+    app.run_command(CommandId::ViewClearAppearanceOverride);
     assert_eq!(app.theme_name, "dark-nord");
 
     app.run_command(CommandId::ViewCycleAppearance);
@@ -3366,15 +3366,15 @@ fn tick_theme_does_not_reprobe_during_an_appearance_override() {
 }
 
 #[test]
-fn follow_system_appearance_clears_the_override_and_reenables_ticks() {
+fn clearing_appearance_override_reenables_ticks() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
     app.theme_env = Some("light".to_owned());
-    app.run_command(CommandId::ViewFollowSystemAppearance);
+    app.run_command(CommandId::ViewClearAppearanceOverride);
     app.run_command(CommandId::ViewCycleAppearance);
     assert_eq!(app.theme.appearance, Appearance::Dark);
 
-    app.run_command(CommandId::ViewFollowSystemAppearance);
+    app.run_command(CommandId::ViewClearAppearanceOverride);
 
     assert!(app.appearance_override.is_none());
     assert_eq!(app.theme.appearance, Appearance::Light);
@@ -3404,7 +3404,7 @@ fn clearing_appearance_override_respects_an_explicit_theme_setting() {
 
     app.run_command(CommandId::ViewCycleAppearance);
     assert_eq!(app.theme.appearance, Appearance::Dark);
-    app.run_command(CommandId::ViewFollowSystemAppearance);
+    app.run_command(CommandId::ViewClearAppearanceOverride);
 
     assert!(app.appearance_override.is_none());
     assert_eq!(app.theme.appearance, Appearance::Light);

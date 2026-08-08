@@ -481,13 +481,13 @@ static COMMANDS: [Command; 92] = [
         cycle_appearance
     ),
     command!(
-        ViewFollowSystemAppearance,
-        "view.follow-system-appearance",
+        ViewClearAppearanceOverride,
+        "view.clear-appearance-override",
         "View",
         "Clear Appearance Override",
         &["clear", "override", "auto", "system", "appearance", "reset"],
         enabled,
-        follow_system_appearance
+        clear_appearance_override
     ),
     command!(
         ViewPickTheme,
