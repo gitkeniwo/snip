@@ -167,6 +167,9 @@ there is no popularity threshold for new packages.
 
 ### TUI
 
+- **Narrow-terminal layout** — the session-only `S` sidebar toggle reclaims its
+  width for reading, and snippet titles retain at least ten display cells before
+  date, gist, and language decoration give way. (`docs/plans/completed/narrow-terminal-layout.md`)
 - **User-defined key bindings** — every TUI action has a stable name and can be
   rebound per mode in `keys.toml`; all in-app hints read the effective map, and
   `snip keys` lists, looks up, exports, and validates bindings with human or JSON

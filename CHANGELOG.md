@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hideable library pane.** `S` toggles the sidebar for the current TUI
   session, giving its width to the list and preview on narrow terminals without
   changing the next session's desktop layout.
+- **Usable snippet titles on narrow terminals.** List rows now reserve ten
+  display cells for the title before hiding the date, gist, and language
+  columns in that order; pinned and locked state markers always remain visible.
 - **User-defined TUI key bindings.** Every bindable action can be overridden by
   mode in `keys.toml`, kept separate from the automatically rewritten
   `config.toml`. The command palette, help pane, bottom bar, and Git/Gist panels
