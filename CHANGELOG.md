@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hideable library pane.** `S` toggles the sidebar for the current TUI
+  session, giving its width to the list and preview on narrow terminals without
+  changing the next session's desktop layout.
+- **Usable snippet titles on narrow terminals.** List rows now reserve ten
+  display cells for the title before hiding the date, gist, and language
+  columns in that order; pinned and locked state markers always remain visible.
 - **Session appearance override.** Press `A` in the TUI to toggle light/dark
   without changing config, even when `SNIP_TUI_THEME` is set; **Clear Appearance
   Override** in the command palette restores normal theme resolution.

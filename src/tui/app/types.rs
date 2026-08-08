@@ -185,6 +185,9 @@ pub struct App {
     pub fragment_grab: Option<FragmentGrab>,
     pub preview_scroll: u16,
     pub show_line_numbers: bool,
+    /// Session-only, unlike `density` and `line_numbers`: a narrow terminal is
+    /// a fact about this connection, not a preference to carry to the next machine.
+    pub show_sidebar: bool,
     pub fragments_expanded: bool,
     pub sort: SortMode,
     pub density: TuiDensitySetting,

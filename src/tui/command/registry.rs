@@ -50,7 +50,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 92] = [
+static COMMANDS: [Command; 93] = [
     key_command!(
         PaletteOpen,
         "palette.open",
@@ -470,6 +470,17 @@ static COMMANDS: [Command; 92] = [
         &["list"],
         enabled,
         toggle_density
+    ),
+    command!(
+        ViewToggleSidebar,
+        "view.toggle-sidebar",
+        "View",
+        "Toggle Library Pane",
+        &[
+            "sidebar", "library", "pane", "hide", "show", "collapse", "width", "narrow"
+        ],
+        enabled,
+        toggle_sidebar
     ),
     command!(
         ViewCycleAppearance,

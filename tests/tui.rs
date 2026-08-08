@@ -252,6 +252,59 @@ fn rendered_contrast(foreground: Color, background: Color) -> Option<f64> {
 }
 
 #[test]
+fn sidebar_toggle_reclaims_space_without_persisting_or_rerouting_clicks() {
+    let (temporary, library, _first_id, _second_id) = fixture();
+    let config_path = temporary.path().join("config.toml");
+    let config_bytes = b"[tui]\ndensity = \"comfortable\"\n";
+    std::fs::write(&config_path, config_bytes).unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.config_path = config_path.clone();
+
+    let code_folder = app
+        .sidebar
+        .rows
+        .iter()
+        .position(|row| row.item == SidebarItem::Folder("Code".to_owned()))
+        .unwrap();
+    app.sidebar.list_state.select(Some(code_folder));
+    app.filter.folder = Some("Code".to_owned());
+    app.refresh_visible();
+
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let shown_list_width = app.layout.list.width;
+
+    app.handle_key(key(KeyCode::Char('S')));
+    assert!(!app.show_sidebar);
+    assert_eq!(app.focus, Pane::List);
+    assert_eq!(std::fs::read(&config_path).unwrap(), config_bytes);
+
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert!(app.layout.list.width > shown_list_width);
+    assert!(app.layout.sidebar.is_empty());
+
+    app.focus = Pane::Preview;
+    app.handle_key(key(KeyCode::Tab));
+    assert_eq!(app.focus, Pane::List);
+    app.handle_key(key(KeyCode::Char('h')));
+    assert_eq!(app.focus, Pane::List);
+
+    let _ = app.handle_mouse(mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        8,
+        app.layout.list.y + 1,
+    ));
+    assert_eq!(app.focus, Pane::List);
+    assert_eq!(app.filter.folder.as_deref(), Some("Code"));
+    assert!(app.selected_id.is_some());
+}
+
+#[test]
 fn command_palette_fuzzy_match_and_recent_order() {
     let (_temporary, library, _first, _second) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();

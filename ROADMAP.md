@@ -167,6 +167,9 @@ there is no popularity threshold for new packages.
 
 ### TUI
 
+- **Narrow-terminal layout** — the session-only `S` sidebar toggle reclaims its
+  width for reading, and snippet titles retain at least ten display cells before
+  date, gist, and language decoration give way. (`docs/plans/completed/narrow-terminal-layout.md`)
 - **Session appearance override** — `A` toggles light/dark for the current TUI
   session by occupying the existing environment-precedence slot, so an explicit
   keypress beats `SNIP_TUI_THEME` without adding another resolver layer;

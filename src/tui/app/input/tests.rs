@@ -153,6 +153,7 @@ fn characterization_table() -> Vec<(TestMode, Vec<(&'static str, CommandId)>)> {
             ("f5", CommandId::LibraryRescan),
             ("ctrl-r", CommandId::LibraryRescan),
             ("s", CommandId::ViewCycleSort),
+            ("S", CommandId::ViewToggleSidebar),
             ("z", CommandId::ViewToggleDensity),
             ("A", CommandId::ViewCycleAppearance),
             ("N", CommandId::ViewToggleLineNumbers),
