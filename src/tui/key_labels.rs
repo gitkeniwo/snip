@@ -11,33 +11,12 @@ pub(crate) fn effective_chords(
     let mut chords = Vec::new();
     for &binding @ (mode, command) in bindings {
         for chord in keymap.chords_for(&[mode], command) {
-            if effective_binding(keymap, stack, chord) == Some(binding) && !chords.contains(&chord)
-            {
+            if keymap.resolve_with_mode(stack, chord) == Some(binding) && !chords.contains(&chord) {
                 chords.push(chord);
             }
         }
     }
     chords
-}
-
-fn effective_binding(keymap: &Keymap, stack: &[Mode], chord: Chord) -> Option<(Mode, CommandId)> {
-    for &mode in stack {
-        if let Some(command) = binding_for_chord(keymap, mode, chord) {
-            return Some((mode, command));
-        }
-        if mode.is_exclusive() {
-            return binding_for_chord(keymap, Mode::Global, chord)
-                .filter(|command| mode.inherits().contains(command))
-                .map(|command| (Mode::Global, command));
-        }
-    }
-    None
-}
-
-fn binding_for_chord(keymap: &Keymap, mode: Mode, chord: Chord) -> Option<CommandId> {
-    keymap
-        .bindings_for(mode)
-        .find_map(|(bound_chord, command)| (bound_chord == chord).then_some(command))
 }
 
 pub(crate) fn display_primary_bindings(

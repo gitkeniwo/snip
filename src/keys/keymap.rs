@@ -224,13 +224,18 @@ impl Keymap {
     }
 
     pub fn resolve(&self, stack: &[Mode], chord: Chord) -> Option<CommandId> {
+        self.resolve_with_mode(stack, chord)
+            .map(|(_, command)| command)
+    }
+
+    pub fn resolve_with_mode(&self, stack: &[Mode], chord: Chord) -> Option<(Mode, CommandId)> {
         for &mode in stack {
             if let Some(id) = self
                 .modes
                 .get(&mode)
                 .and_then(|bindings| bindings.get(&chord))
             {
-                return Some(*id);
+                return Some((mode, *id));
             }
             if mode.is_exclusive() {
                 let inherited = self
@@ -238,7 +243,7 @@ impl Keymap {
                     .get(&Mode::Global)
                     .and_then(|bindings| bindings.get(&chord))
                     .filter(|id| mode.inherits().contains(id));
-                return inherited.copied();
+                return inherited.map(|id| (Mode::Global, *id));
             }
         }
         None
@@ -358,6 +363,20 @@ mod tests {
             Some(CommandId::GitToggleConsole)
         );
         assert_eq!(keymap.resolve(&[Mode::Git], "q".parse().unwrap()), None);
+    }
+
+    #[test]
+    fn resolution_reports_the_mode_that_supplied_the_binding() {
+        let keymap = Keymap::defaults();
+
+        assert_eq!(
+            keymap.resolve_with_mode(&[Mode::List, Mode::Global], "e".parse().unwrap()),
+            Some((Mode::List, CommandId::SnippetEditContent))
+        );
+        assert_eq!(
+            keymap.resolve_with_mode(&[Mode::Git], "ctrl-s".parse().unwrap()),
+            Some((Mode::Global, CommandId::GistTogglePanel))
+        );
     }
 
     #[test]

@@ -268,7 +268,10 @@ impl App {
                     let edit = key_labels::display_primary_bindings(
                         &self.keymap,
                         &Mode::stack(self),
-                        &[(Mode::Preview, CommandId::SnippetEditContent)],
+                        &[
+                            (Mode::List, CommandId::SnippetEditContent),
+                            (Mode::Preview, CommandId::SnippetEditContent),
+                        ],
                     );
                     self.set_status(
                         if edit.is_empty() {

@@ -3730,6 +3730,22 @@ fn fragment_add_is_immediate_inherits_language_and_skips_title_collisions() {
 }
 
 #[test]
+fn fragment_add_from_the_list_keeps_the_edit_hint() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.selected_id = Some(first_id);
+    app.focus = Pane::List;
+
+    app.run_command(CommandId::FragmentAdd);
+
+    assert!(
+        app.status
+            .as_ref()
+            .is_some_and(|status| { status.text == "Fragment 2 added; press e to edit" })
+    );
+}
+
+#[test]
 fn fragment_grab_clamps_cancels_without_writes_and_drops_once() {
     let (_temporary, library, first_id, _second_id) = fixture();
     for title in ["Second", "Third"] {
