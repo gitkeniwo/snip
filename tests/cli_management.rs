@@ -111,7 +111,12 @@ fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
         .success();
     let exported = config_home.join("snip/keys.toml");
     let contents = fs::read_to_string(&exported).unwrap();
-    assert!(!contents.contains("inherit-defaults"));
+    assert!(contents.starts_with("# Key bindings for snip."));
+    assert!(
+        !contents
+            .lines()
+            .any(|line| line == "inherit-defaults = false")
+    );
     assert!(contents.contains("[list]"));
     assert!(!contents.contains("[global]"));
     let global = keys_command(config_home, &["keys", "list", "--mode", "global"])
@@ -127,7 +132,7 @@ fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
         .assert()
         .success();
     let contents = fs::read_to_string(&exported).unwrap();
-    assert!(contents.starts_with("inherit-defaults = false"));
+    assert!(contents.contains("inherit-defaults = false"));
 }
 
 #[test]
@@ -742,7 +747,7 @@ fn cli_reports_selector_ambiguity_and_jsonl_records() {
 
 #[test]
 fn list_sort_and_open_share_the_tui_vocabulary() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Sort.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
 
@@ -793,7 +798,7 @@ fn list_sort_and_open_share_the_tui_vocabulary() {
 
 #[test]
 fn inline_content_flags_match_their_file_counterparts() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Inline.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
 
@@ -885,7 +890,7 @@ fn inline_content_flags_match_their_file_counterparts() {
 
 #[test]
 fn folder_filters_include_subfolders_unless_opted_out() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Folders.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
 
@@ -969,7 +974,7 @@ fn folder_filters_include_subfolders_unless_opted_out() {
 
 #[test]
 fn external_editing_refuses_to_run_without_a_terminal() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Editor.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
     json(&library, &["create", "--title", "Solo", "--content", "x"]);
@@ -1003,7 +1008,7 @@ fn external_editing_refuses_to_run_without_a_terminal() {
 
 #[test]
 fn search_supports_regex_context_fields_and_limits() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library = temporary.path().join("Search.sniplib");
     json(&library, &["init", library.to_str().unwrap()]);
     json(

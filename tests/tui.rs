@@ -16,6 +16,7 @@ use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, add_fragment, create_snippet, edit_snippet,
     remove_fragment,
 };
+use snip::tui::app::types::FragmentGrab;
 use snip::tui::app::{App, Effect};
 use snip::tui::command::{CommandId, registry};
 use snip::tui::editor::{EditOutcome, EditTarget, force_save};
@@ -30,7 +31,7 @@ use snip::{AppConfig, GitConfig, Library, TuiConfig, TuiDensitySetting, TuiTheme
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("Tui.sniplib");
     let library = Library::init(&root, Some("TUI fixture")).unwrap();
     let first = create_snippet(
@@ -433,7 +434,7 @@ fn command_palette_opens_over_help_and_filters_hidden_commands() {
     assert!(app.palette.open);
 
     let hidden = std::collections::HashSet::from([CommandId::GitPush]);
-    app.palette.refresh(&hidden);
+    app.palette.refresh(&hidden, &app.keymap);
     assert!(
         !app.palette
             .matches
@@ -941,7 +942,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
 
 #[test]
 fn every_builtin_theme_renders_legible_text_in_every_focus_state() {
-    let temporary = tempfile::tempdir_in(".").unwrap();
+    let temporary = tempfile::tempdir().unwrap();
     let library =
         Library::init(&temporary.path().join("Contrast.sniplib"), Some("Contrast")).unwrap();
     let first = create_snippet(
@@ -3611,6 +3612,56 @@ fn digit_keys_jump_to_items_or_fragments_in_panes() {
     // Jump back to 1st fragment
     app.handle_key(key(KeyCode::Char('1')));
     assert_eq!(app.preview_target, PreviewTarget::Fragment(0));
+}
+
+fn assert_exclusive_mode_ignores_digit_jump(app: &mut App) {
+    app.focus = Pane::List;
+    app.list_state.select(Some(0));
+    let selected_id = app.selected_id;
+
+    app.handle_key(key(KeyCode::Char('2')));
+
+    assert_eq!(app.list_state.selected(), Some(0));
+    assert_eq!(app.selected_id, selected_id);
+}
+
+#[test]
+fn exclusive_modes_do_not_move_hidden_selection_with_digit_fallback() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut git = App::new(library, &AppConfig::default()).unwrap();
+    git.git.open = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut git);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut gist = App::new(library, &AppConfig::default()).unwrap();
+    gist.gist.open = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut gist);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut help = App::new(library, &AppConfig::default()).unwrap();
+    help.show_help = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut help);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut trash = App::new(library, &AppConfig::default()).unwrap();
+    trash.trash.open = true;
+    assert_exclusive_mode_ignores_digit_jump(&mut trash);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut grab = App::new(library, &AppConfig::default()).unwrap();
+    grab.fragment_grab = Some(FragmentGrab {
+        origin: 0,
+        current: 0,
+    });
+    assert_exclusive_mode_ignores_digit_jump(&mut grab);
+
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut sidebar = App::new(library, &AppConfig::default()).unwrap();
+    sidebar.trash.open = true;
+    sidebar.focus = Pane::Sidebar;
+    sidebar.sidebar.list_state.select(Some(0));
+    sidebar.handle_key(key(KeyCode::Char('2')));
+    assert_eq!(sidebar.sidebar.list_state.selected(), Some(1));
 }
 
 fn command_state(app: &App, id: CommandId) -> snip::tui::command::CommandState {

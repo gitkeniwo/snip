@@ -313,6 +313,8 @@ merely scrolling past it does nothing.
 Bindings can be changed per mode in `keys.toml`. Run `snip keys list` to see
 the effective map, `snip keys path` to locate the file, or `snip keys export`
 to create a complete editable starting point; `snip keys check` validates it.
+An export begins with its syntax: values are one chord or a list, `[]` unbinds
+an action, and `inherit-defaults = false` makes a full export authoritative.
 
 Keys are named after the CLI commands they run, so `r` on a folder is `snip
 folder rename`. The mouse works as expected: click to focus, double-click to

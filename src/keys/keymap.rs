@@ -268,17 +268,6 @@ impl Keymap {
         chords
     }
 
-    pub fn bindings_for_action(&self, id: CommandId) -> Vec<(Mode, Chord)> {
-        Mode::ALL
-            .into_iter()
-            .flat_map(|mode| {
-                self.chords_for(&[mode], id)
-                    .into_iter()
-                    .map(move |chord| (mode, chord))
-            })
-            .collect()
-    }
-
     fn bind(&mut self, mode: Mode, id: CommandId, chords: &[&str]) {
         let bindings = self.modes.entry(mode).or_default();
         for chord in chords {
@@ -411,13 +400,6 @@ mod tests {
                 .map(Chord::canonical)
                 .collect::<Vec<_>>(),
             ["e"]
-        );
-        assert_eq!(
-            keymap.bindings_for_action(CommandId::SnippetEditContent),
-            [
-                (Mode::List, "e".parse().unwrap()),
-                (Mode::Preview, "e".parse().unwrap()),
-            ]
         );
     }
 

@@ -66,6 +66,8 @@ const PREVIEW: &[Mode] = &[Mode::Preview];
 const FRAGMENT: &[Mode] = &[Mode::Fragment];
 const GRAB: &[Mode] = &[Mode::FragmentGrab];
 const TRASH: &[Mode] = &[Mode::Trash];
+const GIT: &[Mode] = &[Mode::Git];
+const GIST: &[Mode] = &[Mode::Gist];
 
 pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_widget(
@@ -208,7 +210,49 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         &[ShortcutSpec],
         &[ShortcutSpec],
         &[ShortcutSpec],
-    ) = if app.fragment_grab.is_some() {
+    ) = if app.git.open {
+        (
+            &[
+                shortcut!("refresh"; GIT => GitRefreshLocalStatus),
+                shortcut!("backup"; GIT => GitBackup),
+                shortcut!("commit"; GIT => GitCommit),
+                shortcut!("push"; GIT => GitPush),
+                shortcut!("close"; GIT => UiDismiss),
+            ],
+            &[
+                shortcut!("backup"; GIT => GitBackup),
+                shortcut!("commit"; GIT => GitCommit),
+                shortcut!("push"; GIT => GitPush),
+                shortcut!("close"; GIT => UiDismiss),
+            ],
+            &[
+                shortcut!(""; GIT => GitBackup),
+                shortcut!(""; GIT => GitPush),
+                shortcut!(""; GIT => UiDismiss),
+            ],
+        )
+    } else if app.gist.open {
+        (
+            &[
+                shortcut!("publish"; GIST => GistPush),
+                shortcut!("copy"; GIST => GistCopyUrl),
+                shortcut!("open"; GIST => GistOpenInBrowser),
+                shortcut!("check"; GIST => GistVerifyRemote),
+                shortcut!("close"; GIST => UiDismiss),
+            ],
+            &[
+                shortcut!("publish"; GIST => GistPush),
+                shortcut!("copy"; GIST => GistCopyUrl),
+                shortcut!("open"; GIST => GistOpenInBrowser),
+                shortcut!("close"; GIST => UiDismiss),
+            ],
+            &[
+                shortcut!(""; GIST => GistPush),
+                shortcut!(""; GIST => GistCopyUrl),
+                shortcut!(""; GIST => UiDismiss),
+            ],
+        )
+    } else if app.fragment_grab.is_some() {
         (
             &[
                 shortcut_first!("move"; GRAB => NavDown, NavUp),
@@ -247,7 +291,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 shortcut!(""; FRAGMENT => FragmentRemove),
             ],
         )
-    } else if app.trash.open {
+    } else if app.trash.open && app.focus == Pane::List {
         (
             &[
                 shortcut_first!("move"; TRASH => NavDown, NavUp),
@@ -344,7 +388,12 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let right = shortcut_pills_with_primary(
         actions,
         app.theme,
-        if app.trash.open || app.fragment_grab.is_some() || app.fragment_context() {
+        if app.git.open
+            || app.gist.open
+            || app.trash.open
+            || app.fragment_grab.is_some()
+            || app.fragment_context()
+        {
             app.theme.accent_alt
         } else {
             app.theme.pill_primary
@@ -520,5 +569,50 @@ mod tests {
             ],
         );
         assert_eq!(shortcuts, [("x".to_owned(), "purge")]);
+    }
+
+    #[test]
+    fn panel_shortcuts_use_their_own_mode_bindings() {
+        let keymap = Keymap::defaults();
+
+        let git = resolve_shortcuts(
+            &keymap,
+            &[Mode::Git],
+            &[
+                shortcut!("backup"; GIT => GitBackup),
+                shortcut!("commit"; GIT => GitCommit),
+                shortcut!("push"; GIT => GitPush),
+                shortcut!("close"; GIT => UiDismiss),
+            ],
+        );
+        assert_eq!(
+            git,
+            [
+                ("b".to_owned(), "backup"),
+                ("c".to_owned(), "commit"),
+                ("p".to_owned(), "push"),
+                ("Esc".to_owned(), "close"),
+            ]
+        );
+
+        let gist = resolve_shortcuts(
+            &keymap,
+            &[Mode::Gist],
+            &[
+                shortcut!("publish"; GIST => GistPush),
+                shortcut!("copy"; GIST => GistCopyUrl),
+                shortcut!("open"; GIST => GistOpenInBrowser),
+                shortcut!("close"; GIST => UiDismiss),
+            ],
+        );
+        assert_eq!(
+            gist,
+            [
+                ("p".to_owned(), "publish"),
+                ("y".to_owned(), "copy"),
+                ("o".to_owned(), "open"),
+                ("Esc".to_owned(), "close"),
+            ]
+        );
     }
 }

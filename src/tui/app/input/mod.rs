@@ -35,6 +35,11 @@ impl App {
         if self.search.active {
             return self.handle_search(key);
         }
+        // Exclusive overlays own every otherwise-unclaimed key. In particular,
+        // number keys must not move a hidden sidebar, list, or preview selection.
+        if stack.first().is_some_and(|mode| mode.is_exclusive()) {
+            return Vec::new();
+        }
 
         match chord.code() {
             KeyCode::Char('1')

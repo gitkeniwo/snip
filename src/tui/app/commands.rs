@@ -40,7 +40,7 @@ impl App {
 
     pub fn refresh_palette(&mut self) {
         let hidden = hidden_command_ids(self, command::registry());
-        self.palette.refresh(&hidden);
+        self.palette.refresh(&hidden, &self.keymap);
     }
 }
 
@@ -395,7 +395,7 @@ mod tests {
         }];
         let hidden = hidden_command_ids(&app, &commands);
         app.palette.open();
-        app.palette.refresh(&hidden);
+        app.palette.refresh(&hidden, &app.keymap);
         assert!(
             !app.palette
                 .matches

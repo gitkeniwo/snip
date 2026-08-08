@@ -11,13 +11,14 @@ use super::command::{self, CommandId, CommandState};
 use super::modal::TextInput;
 use super::selection::text_width;
 use super::widgets;
-use crate::keys::Mode;
+use crate::keys::{Keymap, Mode};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaletteMatch {
     pub id: CommandId,
     pub score: u32,
     pub indices: Vec<u32>,
+    key_hint: String,
 }
 
 pub struct PaletteState {
@@ -70,7 +71,7 @@ impl PaletteState {
         }
         self.recent.truncate(MAX_RECENT);
     }
-    pub fn refresh(&mut self, hidden: &std::collections::HashSet<CommandId>) {
+    pub fn refresh(&mut self, hidden: &std::collections::HashSet<CommandId>, keymap: &Keymap) {
         let query = self.input.value.trim();
         if query.is_empty() {
             let mut ids = self
@@ -92,6 +93,7 @@ impl PaletteState {
                     id,
                     score: u32::MAX.saturating_sub(index as u32),
                     indices: Vec::new(),
+                    key_hint: String::new(),
                 })
                 .collect();
         } else {
@@ -124,6 +126,7 @@ impl PaletteState {
                             id: command.id,
                             score,
                             indices,
+                            key_hint: String::new(),
                         },
                     ))
                 })
@@ -131,8 +134,20 @@ impl PaletteState {
             matches.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(&right.1)));
             self.matches = matches.into_iter().map(|(_, _, matched)| matched).collect();
         }
+        self.cache_key_hints(keymap);
         self.selected = 0;
         self.scroll = 0;
+    }
+
+    fn cache_key_hints(&mut self, keymap: &Keymap) {
+        for matched in &mut self.matches {
+            matched.key_hint = keymap
+                .chords_for(&Mode::CONFIGURABLE, matched.id)
+                .into_iter()
+                .map(|chord| chord.display())
+                .collect::<Vec<_>>()
+                .join(" / ");
+        }
     }
     pub fn move_selection(&mut self, delta: isize) {
         if self.matches.is_empty() {
@@ -282,19 +297,11 @@ pub fn draw_palette(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
         let full_text = format!("{}: {}", command.category, command.title);
         let state = (command.state)(app);
         let (hint, disabled) = match state {
-            CommandState::Enabled => (
-                app.keymap
-                    .chords_for(&Mode::CONFIGURABLE, command.id)
-                    .into_iter()
-                    .map(|chord| chord.display())
-                    .collect::<Vec<_>>()
-                    .join(" / "),
-                false,
-            ),
-            CommandState::Disabled(reason) => (reason.to_owned(), true),
+            CommandState::Enabled => (matched.key_hint.as_str(), false),
+            CommandState::Disabled(reason) => (reason, true),
             CommandState::Hidden => continue,
         };
-        let hint = widgets::truncate_end(&hint, (inner.width / 2) as usize);
+        let hint = widgets::truncate_end(hint, (inner.width / 2) as usize);
         let text_limit = inner
             .width
             .saturating_sub(text_width(&hint))
@@ -339,5 +346,29 @@ pub fn draw_palette(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
                 height: 1,
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_caches_effective_key_hints() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("keys.toml");
+        std::fs::write(&path, "[list]\n\"snippet.edit-content\" = \"alt-e\"\n").unwrap();
+        let (keymap, diagnostics) = Keymap::load_from(&path).unwrap();
+        assert!(diagnostics.is_empty());
+
+        let mut palette = PaletteState::default();
+        palette.refresh(&std::collections::HashSet::new(), &keymap);
+
+        let edit_content = palette
+            .matches
+            .iter()
+            .find(|matched| matched.id == CommandId::SnippetEditContent)
+            .unwrap();
+        assert_eq!(edit_content.key_hint, "e / Alt-e");
     }
 }
