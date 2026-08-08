@@ -3279,6 +3279,166 @@ fn tick_theme_does_not_replace_an_active_preview() {
 }
 
 #[test]
+fn cycling_appearance_flips_the_rendered_appearance() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let original = app.theme.appearance;
+
+    app.run_command(CommandId::ViewCycleAppearance);
+
+    let flipped = match original {
+        Appearance::Light => Appearance::Dark,
+        Appearance::Dark => Appearance::Light,
+    };
+    assert_eq!(app.theme.appearance, flipped);
+    assert_eq!(app.appearance_override, Some(flipped));
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some(match flipped {
+            Appearance::Light => "appearance: light (this session)",
+            Appearance::Dark => "appearance: dark (this session)",
+        })
+    );
+
+    app.run_command(CommandId::ViewCycleAppearance);
+
+    assert_eq!(app.theme.appearance, original);
+    assert_eq!(app.appearance_override, Some(original));
+}
+
+#[test]
+fn appearance_override_occupies_the_environment_precedence_slot() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.theme_env = Some("light".to_owned());
+    app.run_command(CommandId::ViewClearAppearanceOverride);
+    assert_eq!(app.theme.appearance, Appearance::Light);
+
+    app.run_command(CommandId::ViewCycleAppearance);
+
+    assert_eq!(app.appearance_override, Some(Appearance::Dark));
+    assert_eq!(app.theme.appearance, Appearance::Dark);
+
+    app.theme_env = Some("dark-nord".to_owned());
+    app.run_command(CommandId::ViewClearAppearanceOverride);
+    assert_eq!(app.theme_name, "dark-nord");
+
+    app.run_command(CommandId::ViewCycleAppearance);
+
+    assert_eq!(app.theme.appearance, Appearance::Light);
+    assert_eq!(app.theme_name, "light-default");
+}
+
+#[test]
+fn cycling_appearance_never_writes_the_config() {
+    for config_exists in [false, true] {
+        let (temporary, library, _first_id, _second_id) = fixture();
+        let config_path = temporary.path().join("config.toml");
+        if config_exists {
+            std::fs::write(&config_path, "# preserve exactly\nschema_version = 1\n").unwrap();
+        }
+        let before = std::fs::read(&config_path).ok();
+        let mut app = App::new(library, &AppConfig::default()).unwrap();
+        app.config_path = config_path.clone();
+
+        app.run_command(CommandId::ViewCycleAppearance);
+
+        assert_eq!(std::fs::read(&config_path).ok(), before);
+    }
+}
+
+#[test]
+fn tick_theme_does_not_reprobe_during_an_appearance_override() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.run_command(CommandId::ViewCycleAppearance);
+    let overridden = app.theme.appearance;
+    app.theme_env = Some(match overridden {
+        Appearance::Light => "dark".to_owned(),
+        Appearance::Dark => "light".to_owned(),
+    });
+    app.theme_checked_at = Instant::now() - Duration::from_secs(10);
+
+    app.tick_theme().unwrap();
+
+    assert_eq!(app.theme.appearance, overridden);
+    assert_eq!(app.appearance_override, Some(overridden));
+}
+
+#[test]
+fn clearing_appearance_override_reenables_ticks() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.theme_env = Some("light".to_owned());
+    app.run_command(CommandId::ViewClearAppearanceOverride);
+    app.run_command(CommandId::ViewCycleAppearance);
+    assert_eq!(app.theme.appearance, Appearance::Dark);
+
+    app.run_command(CommandId::ViewClearAppearanceOverride);
+
+    assert!(app.appearance_override.is_none());
+    assert_eq!(app.theme.appearance, Appearance::Light);
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("appearance override cleared")
+    );
+
+    app.theme_env = Some("dark".to_owned());
+    app.theme_checked_at = Instant::now() - Duration::from_secs(10);
+    app.tick_theme().unwrap();
+    assert_eq!(app.theme.appearance, Appearance::Dark);
+}
+
+#[test]
+fn clearing_appearance_override_respects_an_explicit_theme_setting() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            theme: TuiThemeSetting::Light,
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    assert_eq!(app.theme.appearance, Appearance::Light);
+
+    app.run_command(CommandId::ViewCycleAppearance);
+    assert_eq!(app.theme.appearance, Appearance::Dark);
+    app.run_command(CommandId::ViewClearAppearanceOverride);
+
+    assert!(app.appearance_override.is_none());
+    assert_eq!(app.theme.appearance, Appearance::Light);
+    assert_eq!(
+        app.status.as_ref().map(|status| status.text.as_str()),
+        Some("appearance override cleared")
+    );
+}
+
+#[test]
+fn config_colors_survive_an_appearance_override() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut colors = toml::Table::new();
+    colors.insert(
+        "accent".to_owned(),
+        toml::Value::String("#010203".to_owned()),
+    );
+    let mut tui = TuiConfig::default();
+    tui.extra
+        .insert("colors".to_owned(), toml::Value::Table(colors));
+    let config = AppConfig {
+        tui: Some(tui),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    let overridden = Color::Rgb(1, 2, 3);
+    assert_eq!(app.theme.accent, overridden);
+
+    app.run_command(CommandId::ViewCycleAppearance);
+
+    assert_eq!(app.theme.accent, overridden);
+}
+
+#[test]
 fn auto_theme_tick_does_not_repin_warnings_when_the_theme_is_unchanged() {
     let (temporary, library, _first_id, _second_id) = fixture();
     let config_path = temporary.path().join("config.toml");

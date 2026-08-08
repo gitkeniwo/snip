@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Session appearance override.** Press `A` in the TUI to toggle light/dark
+  without changing config, even when `SNIP_TUI_THEME` is set; **Clear Appearance
+  Override** in the command palette restores normal theme resolution.
+
 - **User-defined TUI key bindings.** Every bindable action can be overridden by
   mode in `keys.toml`, kept separate from the automatically rewritten
   `config.toml`. The command palette, help pane, bottom bar, and Git/Gist panels

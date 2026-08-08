@@ -167,6 +167,13 @@ there is no popularity threshold for new packages.
 
 ### TUI
 
+- **Session appearance override** — `A` toggles light/dark for the current TUI
+  session by occupying the existing environment-precedence slot, so an explicit
+  keypress beats `SNIP_TUI_THEME` without adding another resolver layer;
+  **Clear Appearance Override** in the command palette restores normal theme
+  resolution.
+  (`docs/plans/completed/session-appearance-override.md`)
+
 - **User-defined key bindings** — every TUI action has a stable name and can be
   rebound per mode in `keys.toml`; all in-app hints read the effective map, and
   `snip keys` lists, looks up, exports, and validates bindings with human or JSON
