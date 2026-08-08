@@ -1,0 +1,62 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-keys 1  "snip 0.5.5" 
+.SH NAME
+snip\-keys \- Inspect, validate, and export TUI key bindings
+.SH SYNOPSIS
+\fBsnip keys\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+.SH DESCRIPTION
+Inspect, validate, and export TUI key bindings
+.SH OPTIONS
+.TP
+\fB\-\-library\fR \fI<LIBRARY>\fR
+Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TP
+\fB\-\-output\fR \fI<OUTPUT>\fR
+Structured output mode for commands that return records
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+human
+.IP \(bu 2
+json
+.IP \(bu 2
+jsonl
+.RE
+.TP
+\fB\-\-color\fR \fI<COLOR>\fR
+Color policy for terminal preview
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto
+.IP \(bu 2
+always
+.IP \(bu 2
+never
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH SUBCOMMANDS
+.TP
+snip\-keys\-list(1)
+List effective bindings, grouped by mode
+.TP
+snip\-keys\-show(1)
+Show every mode and chord bound to one action slug
+.TP
+snip\-keys\-path(1)
+Print the resolved keys.toml path
+.TP
+snip\-keys\-export(1)
+Write the built\-in bindings as an authoritative keys.toml
+.TP
+snip\-keys\-check(1)
+Validate keys.toml and report strict binding diagnostics

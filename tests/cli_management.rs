@@ -37,6 +37,179 @@ fn theme_command(config_home: &Path, arguments: &[&str]) -> Command {
     command
 }
 
+fn keys_command(config_home: &Path, arguments: &[&str]) -> Command {
+    let mut command = Command::cargo_bin("snip").unwrap();
+    command
+        .env("XDG_CONFIG_HOME", config_home)
+        .args(["--output", "json"])
+        .args(arguments);
+    command
+}
+
+#[test]
+fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+
+    let listed = keys_command(config_home, &["keys", "list"])
+        .output()
+        .unwrap();
+    assert!(listed.status.success());
+    let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let bindings = listed.as_array().unwrap();
+    assert!(bindings.iter().any(|binding| {
+        binding["mode"] == "global"
+            && binding["chord"] == "ctrl-g"
+            && binding["action"] == "git.toggle-console"
+            && binding["source"] == "default"
+    }));
+
+    let list_mode = keys_command(config_home, &["keys", "list", "--mode", "list"])
+        .output()
+        .unwrap();
+    let list_mode: Value = serde_json::from_slice(&list_mode.stdout).unwrap();
+    assert!(
+        list_mode
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|binding| binding["mode"] == "list")
+    );
+
+    let shown = keys_command(config_home, &["keys", "show", "snippet.edit-content"])
+        .output()
+        .unwrap();
+    assert!(shown.status.success());
+    let shown: Value = serde_json::from_slice(&shown.stdout).unwrap();
+    assert_eq!(shown["action"], "snippet.edit-content");
+    assert_eq!(shown["bindings"].as_array().unwrap().len(), 2);
+
+    let checked = keys_command(config_home, &["keys", "check"])
+        .output()
+        .unwrap();
+    assert!(checked.status.success());
+    let checked: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(checked["ok"], true);
+    assert!(checked["diagnostics"].as_array().unwrap().is_empty());
+
+    keys_command(config_home, &["keys", "show", "snippet.edit-contnt"])
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("did you mean"));
+
+    let path = keys_command(config_home, &["keys", "path"])
+        .output()
+        .unwrap();
+    let path: Value = serde_json::from_slice(&path.stdout).unwrap();
+    assert_eq!(
+        path["path"],
+        config_home.join("snip/keys.toml").display().to_string()
+    );
+
+    keys_command(config_home, &["keys", "export", "--mode", "list"])
+        .assert()
+        .success();
+    let exported = config_home.join("snip/keys.toml");
+    let contents = fs::read_to_string(&exported).unwrap();
+    assert!(contents.starts_with("inherit-defaults = false"));
+    assert!(contents.contains("[list]"));
+    assert!(!contents.contains("[global]"));
+    keys_command(config_home, &["keys", "export"])
+        .assert()
+        .code(5);
+    keys_command(config_home, &["keys", "export", "--force"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn cli_keys_check_reports_strict_errors_warnings_and_infos() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+    let directory = config_home.join("snip");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(
+        directory.join("keys.toml"),
+        r#"
+            [global]
+            "library.search" = "e"
+            "git.toggle-console" = []
+
+            [list]
+            "snippet.edit-content" = "m"
+
+            [git]
+            "ui.dismiss" = []
+        "#,
+    )
+    .unwrap();
+
+    let checked = keys_command(config_home, &["keys", "check"])
+        .output()
+        .unwrap();
+    assert_eq!(checked.status.code(), Some(1));
+    let checked: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(checked["ok"], false);
+    let diagnostics = checked["diagnostics"].as_array().unwrap();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "error"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("snippet.move has no key")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "warning"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("mode \"git\" has no exit binding")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "info"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("taken from snippet.move")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic["level"] == "info"
+            && diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("shadows library.search")
+    }));
+}
+
+#[test]
+fn cli_keys_check_succeeds_when_diagnostics_are_info_only() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path();
+    let directory = config_home.join("snip");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(
+        directory.join("keys.toml"),
+        "[global]\n\"view.toggle-help\" = \"f5\"\n",
+    )
+    .unwrap();
+
+    let checked = keys_command(config_home, &["keys", "check"])
+        .output()
+        .unwrap();
+    assert!(checked.status.success());
+    let checked: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(checked["ok"], true);
+    let diagnostics = checked["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0]["level"], "info");
+    assert!(
+        diagnostics[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("taken from library.rescan")
+    );
+}
+
 #[test]
 fn cli_lists_checks_uses_and_exports_themes_without_a_library() {
     let temporary = tempfile::tempdir().unwrap();

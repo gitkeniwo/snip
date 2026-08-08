@@ -44,7 +44,7 @@ struct UserBinding {
 impl Keymap {
     /// Load the user keymap, or return the built-in bindings when the file is absent.
     pub fn load() -> Result<(Self, Vec<Diagnostic>)> {
-        let path = crate::config::config_path()?.with_file_name("keys.toml");
+        let path = path()?;
         Self::load_from(&path)
     }
 
@@ -187,6 +187,10 @@ impl Keymap {
             }
         }
     }
+}
+
+pub fn path() -> Result<std::path::PathBuf> {
+    Ok(crate::config::config_path()?.with_file_name("keys.toml"))
 }
 
 fn parse_mode(

@@ -2,6 +2,8 @@ pub mod config;
 pub mod folder_tag;
 pub mod gist;
 mod install;
+#[cfg(feature = "tui")]
+pub mod keys;
 pub mod man;
 mod man_pages;
 pub mod onboard;
@@ -35,6 +37,10 @@ pub fn run(cli: &Cli) -> Result<()> {
     }
     if let Some(Command::Theme(args)) = &cli.command {
         return theme::command_theme(args, cli.output);
+    }
+    #[cfg(feature = "tui")]
+    if let Some(Command::Keys(args)) = &cli.command {
+        return keys::command_keys(args, cli.output);
     }
     let config = AppConfig::load()?;
     let output = resolve_output(cli.output, &config);
@@ -106,6 +112,8 @@ pub fn run(cli: &Cli) -> Result<()> {
         | Command::Completion(_) => {
             unreachable!()
         }
+        #[cfg(feature = "tui")]
+        Command::Keys(_) => unreachable!(),
     }
 }
 

@@ -78,6 +78,9 @@ pub enum Command {
     Tag(TagArgs),
     /// List, inspect, and switch TUI color themes.
     Theme(ThemeArgs),
+    /// Inspect, validate, and export TUI key bindings.
+    #[cfg(feature = "tui")]
+    Keys(KeysArgs),
     /// Move a snippet to the library trash.
     Delete(DeleteArgs),
     /// List deleted snippets.
@@ -698,6 +701,52 @@ pub struct ConfigArgs {
 pub struct ThemeArgs {
     #[command(subcommand)]
     pub command: ThemeCommand,
+}
+
+#[derive(Args, Debug)]
+pub struct KeysArgs {
+    #[command(subcommand)]
+    pub command: KeysCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum KeysCommand {
+    /// List effective bindings, grouped by mode.
+    List {
+        /// Restrict output to one mode.
+        #[arg(long, value_enum)]
+        mode: Option<KeyModeArg>,
+    },
+    /// Show every mode and chord bound to one action slug.
+    Show { action: String },
+    /// Print the resolved keys.toml path.
+    Path,
+    /// Write the built-in bindings as an authoritative keys.toml.
+    Export {
+        /// Export only one mode.
+        #[arg(long, value_enum)]
+        mode: Option<KeyModeArg>,
+        /// Overwrite an existing keys.toml.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Validate keys.toml and report strict binding diagnostics.
+    Check,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum KeyModeArg {
+    Global,
+    Sidebar,
+    List,
+    Preview,
+    Fragment,
+    FragmentGrab,
+    Trash,
+    Help,
+    Git,
+    Gist,
 }
 
 #[derive(Subcommand, Debug)]
