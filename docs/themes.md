@@ -47,8 +47,10 @@ is always `light` or `dark` and determines which config slot the picker saves.
 
 Colors accept `#rgb`, `#rrggbb`, `ansi:0` through `ansi:255`, or one of the 16
 ANSI names (`black`, `red`, …, `white`, and their `bright-` forms). Names and
-hex digits are case-insensitive. `terminal` is legal only for `background` and
-`foreground`, and those two roles must either both be `terminal` or both be set.
+hex digits are case-insensitive. `terminal` is legal for `background`,
+`foreground`, and `pill_secondary`; the first two roles must either both be
+`terminal` or both be set. A terminal secondary pill inherits the terminal's
+canvas colour.
 
 ## UI roles
 
@@ -77,9 +79,11 @@ Text on `pill_primary`, `pill_secondary`, `retained_bg`, and selected
 fragment-tree rows is drawn with its foreground computed at render time: the
 preferred role colour is kept when it clears 4.5:1 on that surface, otherwise
 the most legible of the theme's own colours is used, falling back to black or
-white. `theme check`'s `computed-foreground` finding flags themes whose
-surfaces would force that fallback; it is reported as a `note` rather than a
-warning because the TUI handles the fallback automatically.
+white. Secondary shortcut and sort labels prefer the neutral `bar_fg`; primary
+pills and status labels retain their accent or semantic colours. `theme check`'s
+`computed-foreground` finding flags themes whose surfaces would force a
+fallback; it is reported as a `note` rather than a warning because the TUI
+handles the fallback automatically.
 
 ## Syntax highlighting
 
@@ -117,13 +121,20 @@ The generated built-ins map base16 slots to UI roles as follows:
 | `selection_bg` | contrast-adjusted `base0D` mixed another 5% toward black or white |
 | `rule` | `base02` |
 | `retained_bg` | `base0D` mixed 90% toward `base00` |
-| `bar_bg` | `base01` |
-| `pill_primary` | `base0D` mixed 20% toward `base00` |
-| `pill_secondary` | `base01` mixed 35% toward black (dark) or white (light) |
+| `bar_bg` | `base01`, mixed away from `base00` until they contrast by at least 1.35:1 |
+| `pill_primary` | `base0D` mixed 20% toward `base00`, then adjusted to contrast 4.5:1 with `base00` |
+| `pill_secondary` | adjusted `bar_bg`, mixed another step away from `base00` until it contrasts with `bar_bg` by at least 1.5:1 |
 | `tag` | `base09` |
 | `success` | `base0B` |
 | `warning` | `base0A` |
 | `error` | `base08` |
+
+`dark-default`, `light-default`, and `light-teal` use the same surface
+derivation. Their curated source files keep the semantic Primer-style roles and
+provide an unadjusted bar source; generation computes bar and pill colours
+against an assumed terminal canvas (`#0d1117` for dark, `#ffffff` for light),
+then preserves `background = "terminal"` and `foreground = "terminal"` in the
+output.
 
 `selection_fg` is whichever of `base00`, `base05`, `base06`, or `base07` has
 the highest WCAG contrast against the adjusted `base0D` selection background.
@@ -174,10 +185,10 @@ listed contrast floor, blending toward black or white when needed:
 | `selection_bg` | contrast-adjusted `base0D` mixed another 5% toward black or white | 4.5 vs `base00` |
 | `selection_fg` | best of `base00`, `base05`, `base06`, `base07` | — |
 | `retained_bg` | `base0D` mixed 90% toward `base00` | — |
-| `pill_primary` | `base0D` mixed 20% toward `base00` | — |
-| `pill_secondary` | `base01` mixed 35% toward black (dark) or white (light) | — |
-| `bar_bg` | `base01` | — |
-| `bar_fg` | `base05` | 4.5 vs `base01` |
+| `pill_primary` | `base0D` mixed 20% toward `base00` | 4.5 vs `base00` |
+| `pill_secondary` | adjusted `bar_bg`, mixed farther toward white (dark) or black (light) | 1.5 vs adjusted `bar_bg` |
+| `bar_bg` | `base01`, mixed toward white (dark) or black (light) | 1.35 vs `base00` |
+| `bar_fg` | `base05` | 4.5 vs adjusted `bar_bg` |
 | `tag` | `base09` | 4.5 vs `base00` |
 | `rule` | `base02` | 3.0 vs `base00` |
 | `success` | `base0B` | 4.5 vs `base00` |

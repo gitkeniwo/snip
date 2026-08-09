@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use crate::error::{Result, SnipError};
 
 use super::color::{contrast, relative_luminance};
+use super::surface;
 use super::syntax;
 use super::{
     Appearance, Palette, Syntax, SyntaxDerive, THEME_SCHEMA_VERSION, Theme, ThemeColor, ThemeUi,
@@ -219,7 +220,6 @@ pub fn scheme_to_theme(
             "theme {name}: selection contrast {selection_contrast:.2} < 4.5"
         )));
     }
-    let bar_background = scheme.slot("base01");
     let appearance = scheme.variant.unwrap_or_else(|| {
         if relative_luminance(background).expect("scheme colors are RGB") < 0.5 {
             Appearance::Dark
@@ -227,10 +227,8 @@ pub fn scheme_to_theme(
             Appearance::Light
         }
     });
-    let pill_secondary_target = match appearance {
-        Appearance::Dark => ThemeColor::Rgb(0, 0, 0),
-        Appearance::Light => ThemeColor::Rgb(255, 255, 255),
-    };
+    let surfaces =
+        surface::derive_bar_pill_surfaces(scheme.slot("base01"), background, appearance)?;
     let slot = |key| scheme.slot(key);
     let ui = ThemeUi {
         background,
@@ -242,10 +240,10 @@ pub fn scheme_to_theme(
         selection_bg,
         selection_fg,
         retained_bg: mix(slot("base0D"), background, 0.9)?,
-        pill_primary: mix(slot("base0D"), background, 0.2)?,
-        pill_secondary: mix(slot("base01"), pill_secondary_target, 0.35)?,
-        bar_bg: bar_background,
-        bar_fg: ensure_contrast(slot("base05"), bar_background, 4.5)?,
+        pill_primary: ensure_contrast(mix(slot("base0D"), background, 0.2)?, background, 4.5)?,
+        pill_secondary: surfaces.pill_secondary,
+        bar_bg: surfaces.bar_bg,
+        bar_fg: ensure_contrast(slot("base05"), surfaces.bar_bg, 4.5)?,
         tag: ensure_contrast(slot("base09"), background, 4.5)?,
         rule: ensure_contrast(slot("base02"), background, 3.0)?,
         success: ensure_contrast(slot("base0B"), background, 4.5)?,
@@ -328,6 +326,19 @@ mod tests {
     fn conversion_round_trips_and_checks_validation_inputs() {
         let scheme = parse_scheme(NORD).unwrap();
         let theme = scheme_to_theme(&scheme, "nord-copy", "base16:nord", None).unwrap();
+        assert!(
+            contrast(theme.ui.bar_bg, theme.ui.background).unwrap() >= surface::BAR_CONTRAST_FLOOR
+        );
+        assert!(
+            contrast(theme.ui.pill_secondary, theme.ui.bar_bg).unwrap()
+                >= surface::PILL_CONTRAST_FLOOR
+        );
+        assert!(
+            contrast(theme.ui.pill_secondary, theme.ui.background).unwrap()
+                > contrast(theme.ui.bar_bg, theme.ui.background).unwrap()
+        );
+        assert!(contrast(theme.ui.pill_primary, theme.ui.background).unwrap() >= 4.5);
+        assert!(contrast(theme.ui.bar_fg, theme.ui.bar_bg).unwrap() >= 4.5);
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("nord-copy.toml");
         std::fs::write(&path, super::super::to_toml(&theme).unwrap()).unwrap();

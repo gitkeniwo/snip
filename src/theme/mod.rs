@@ -1,6 +1,7 @@
 pub mod base16;
 pub mod builtin;
 pub mod color;
+pub mod surface;
 pub mod syntax;
 pub mod validate;
 
@@ -861,15 +862,15 @@ mod tests {
             ..TuiConfig::default()
         };
 
-        let (theme, warnings) = resolve_with_environment(&config, Some("light-gruvbox"));
-        assert_eq!(theme.name, "light-gruvbox");
-        // Precondition: light-gruvbox still carries the `computed-foreground`
+        let (theme, warnings) = resolve_with_environment(&config, Some("light-solarized"));
+        assert_eq!(theme.name, "light-solarized");
+        // Precondition: light-solarized still carries the `computed-foreground`
         // finding as a Note, so the "not a runtime warning" assertion below
         // fails loudly (rather than silently passing) if the theme changes.
-        let note = validate::check(&load("light-gruvbox").unwrap())
+        let note = validate::check(&load("light-solarized").unwrap())
             .into_iter()
             .find(|check| check.id == "computed-foreground")
-            .expect("light-gruvbox carries the computed-foreground finding");
+            .expect("light-solarized carries the computed-foreground finding");
         assert_eq!(note.level, validate::Level::Note);
         // `computed-foreground` is an automatic black/white fallback, not a
         // runtime warning, so it is never surfaced to the user.

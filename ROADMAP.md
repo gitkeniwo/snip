@@ -196,8 +196,12 @@ there is no popularity threshold for new packages.
 - **Theme palette refresh** — `light-default` is now the blue daylight sibling
   of `dark-default`, the previous teal palette remains as `light-teal`, and
   generated Base16 themes use accent-derived selection, retained-selection,
-  and primary-pill surfaces with a quieter secondary pill.
-  (`docs/plans/completed/theme-palette-refresh.md`)
+  and primary-pill surfaces. Bars now maintain a subtle 1.35:1 step from the
+  canvas, secondary pills continue another 1.5:1 neutral step, and the three
+  terminal-surface defaults share that generator path. The four screen-corner
+  caps are flush while interior pills stay rounded.
+  (`docs/plans/completed/theme-palette-refresh.md`,
+  `docs/plans/completed/bar-pill-refinement.md`)
 - **Theme import** — `snip theme import <scheme.yaml>` brings local base16/base24
   schemes in as editable user themes; the base16 → UI-role mapping, contrast
   clamping, and selection-foreground choice moved into a shared library, adding

@@ -172,7 +172,7 @@ impl From<&Theme> for TuiTheme {
             selection_fg: color(ui.selection_fg),
             retained_bg: color(ui.retained_bg),
             pill_primary: color(ui.pill_primary),
-            pill_secondary: color(ui.pill_secondary),
+            pill_secondary: inherited_color(ui.pill_secondary),
             bar_bg: color(ui.bar_bg),
             bar_fg: color(ui.bar_fg),
             tag: color(ui.tag),
@@ -188,6 +188,13 @@ fn optional_color(value: ThemeColor) -> Option<Color> {
     match value {
         ThemeColor::Terminal => None,
         value => Some(color(value)),
+    }
+}
+
+fn inherited_color(value: ThemeColor) -> Color {
+    match value {
+        ThemeColor::Terminal => Color::Reset,
+        value => color(value),
     }
 }
 
@@ -287,6 +294,15 @@ mod tests {
         let preferred = Color::Rgb(255, 255, 255);
 
         assert_eq!(theme.legible_on(Color::Rgb(0, 0, 0), preferred), preferred);
+    }
+
+    #[test]
+    fn terminal_secondary_pills_inherit_the_terminal_background() {
+        assert_eq!(inherited_color(ThemeColor::Terminal), Color::Reset);
+        assert_eq!(
+            inherited_color(ThemeColor::Rgb(1, 2, 3)),
+            Color::Rgb(1, 2, 3)
+        );
     }
 
     #[test]

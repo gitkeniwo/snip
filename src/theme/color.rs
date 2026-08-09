@@ -35,7 +35,7 @@ pub enum ThemeColor {
 impl ThemeColor {
     pub fn parse(value: &str, role: &str) -> Result<Self> {
         if value.eq_ignore_ascii_case("terminal") {
-            if matches!(role, "background" | "foreground") {
+            if matches!(role, "background" | "foreground" | "pill_secondary") {
                 return Ok(Self::Terminal);
             }
             return Err(SnipError::validation(format!(
@@ -281,6 +281,10 @@ mod tests {
         );
         assert_eq!(
             ThemeColor::parse("TERMINAL", "foreground").unwrap(),
+            ThemeColor::Terminal
+        );
+        assert_eq!(
+            ThemeColor::parse("terminal", "pill_secondary").unwrap(),
             ThemeColor::Terminal
         );
     }

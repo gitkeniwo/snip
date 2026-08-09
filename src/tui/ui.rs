@@ -204,3 +204,35 @@ fn draw_list(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         .highlight_symbol(" ");
     frame.render_stateful_widget(list, area, &mut app.list_state);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use ratatui::style::Color;
+
+    #[test]
+    fn screen_corner_caps_are_filled_with_their_pills_instead_of_the_bar() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library =
+            crate::filesystem::Library::init(&temporary.path().join("Corner Caps.sniplib"), None)
+                .unwrap();
+        let mut app = App::new(library, &crate::config::AppConfig::default()).unwrap();
+        app.theme.background = Some(Color::Black);
+        app.theme.pill_primary = Color::Cyan;
+        app.theme.pill_secondary = Color::Blue;
+        app.theme.bar_bg = Color::Red;
+
+        let width = 80;
+        let height = 12;
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal.draw(|frame| draw(frame, &mut app)).unwrap();
+        let buffer = terminal.backend().buffer();
+
+        assert_eq!(buffer[(0, 0)].bg, app.theme.pill_primary);
+        assert_ne!(buffer[(0, 0)].bg, app.theme.bar_bg);
+        assert_eq!(buffer[(width - 1, height - 1)].bg, app.theme.pill_secondary);
+        assert_ne!(buffer[(width - 1, height - 1)].bg, app.theme.bar_bg);
+    }
+}

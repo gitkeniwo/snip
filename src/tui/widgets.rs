@@ -166,7 +166,49 @@ pub fn pill_cap(
     fill: ratatui::style::Color,
     surround: ratatui::style::Color,
 ) -> Span<'static> {
-    Span::styled(symbol, Style::default().fg(fill).bg(surround))
+    let style = if fill == ratatui::style::Color::Reset {
+        // A powerline cap uses its foreground as the visible pill fill. ANSI's
+        // default foreground is the terminal text colour, not its canvas, so a
+        // terminal-inherited fill must swap the default background into the
+        // glyph with reverse video.
+        Style::default()
+            .fg(surround)
+            .bg(fill)
+            .add_modifier(Modifier::REVERSED)
+    } else {
+        Style::default().fg(fill).bg(surround)
+    };
+    Span::styled(symbol, style)
+}
+
+fn pill_cap_fill(span: &Span<'_>) -> Option<ratatui::style::Color> {
+    if span.style.add_modifier.contains(Modifier::REVERSED) {
+        span.style.bg
+    } else {
+        span.style.fg
+    }
+}
+
+/// Replace a leading pill cap with a flush square edge in the pill's own fill.
+pub fn square_start(mut line: Line<'static>) -> Line<'static> {
+    if let Some(span) = line.spans.first_mut()
+        && span.content == PILL_OPEN
+        && let Some(fill) = pill_cap_fill(span)
+    {
+        *span = Span::styled(" ", Style::default().bg(fill));
+    }
+    line
+}
+
+/// Replace a trailing pill cap with a flush square edge in the pill's own fill.
+pub fn square_end(mut line: Line<'static>) -> Line<'static> {
+    if let Some(span) = line.spans.last_mut()
+        && span.content == PILL_CLOSE
+        && let Some(fill) = pill_cap_fill(span)
+    {
+        *span = Span::styled(" ", Style::default().bg(fill));
+    }
+    line
 }
 
 #[cfg(test)]
@@ -184,6 +226,75 @@ mod tests {
         assert_eq!(open.style.bg, Some(Color::Black));
         assert_eq!(close.style.fg, Some(Color::Cyan));
         assert_eq!(close.style.bg, Some(Color::Black));
+    }
+
+    #[test]
+    fn terminal_fill_caps_reverse_the_default_background_into_the_glyph() {
+        let cap = pill_cap(PILL_CLOSE, Color::Reset, Color::Blue);
+
+        assert_eq!(cap.style.fg, Some(Color::Blue));
+        assert_eq!(cap.style.bg, Some(Color::Reset));
+        assert!(cap.style.add_modifier.contains(Modifier::REVERSED));
+    }
+
+    #[test]
+    fn square_edges_replace_caps_with_their_fill_without_changing_width() {
+        let line = Line::from(vec![
+            pill_cap(PILL_OPEN, Color::Cyan, Color::Black),
+            Span::styled("pill", Style::default().bg(Color::Cyan)),
+            pill_cap(PILL_CLOSE, Color::Cyan, Color::Black),
+        ]);
+        let width = line.width();
+
+        let line = square_end(square_start(line));
+
+        assert_eq!(line.width(), width);
+        assert_eq!(line.spans.first().unwrap().content, " ");
+        assert_eq!(line.spans.first().unwrap().style.bg, Some(Color::Cyan));
+        assert_eq!(line.spans.last().unwrap().content, " ");
+        assert_eq!(line.spans.last().unwrap().style.bg, Some(Color::Cyan));
+    }
+
+    #[test]
+    fn square_edges_leave_empty_and_uncapped_lines_unchanged() {
+        let empty = Line::default();
+        assert_eq!(square_start(empty.clone()), empty);
+        assert_eq!(square_end(empty.clone()), empty);
+
+        let plain = Line::from("plain");
+        assert_eq!(square_start(plain.clone()), plain);
+        assert_eq!(square_end(plain.clone()), plain);
+    }
+
+    #[test]
+    fn square_edges_preserve_a_terminal_inherited_fill() {
+        let line = Line::from(vec![
+            pill_cap(PILL_OPEN, Color::Reset, Color::Blue),
+            pill_cap(PILL_CLOSE, Color::Reset, Color::Blue),
+        ]);
+
+        let line = square_end(square_start(line));
+
+        assert_eq!(line.spans.first().unwrap().style.bg, Some(Color::Reset));
+        assert_eq!(line.spans.last().unwrap().style.bg, Some(Color::Reset));
+        assert!(
+            !line
+                .spans
+                .first()
+                .unwrap()
+                .style
+                .add_modifier
+                .contains(Modifier::REVERSED)
+        );
+        assert!(
+            !line
+                .spans
+                .last()
+                .unwrap()
+                .style
+                .add_modifier
+                .contains(Modifier::REVERSED)
+        );
     }
 
     #[test]

@@ -30,7 +30,12 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let git = (area.width >= 60)
         .then(|| git_panel::badge(&app.git, app.icon_mode, app.theme))
         .flatten();
-    let right = top_position_pill(git, sort_indicator(app.sort), &counts, app.theme);
+    let right = widgets::square_end(top_position_pill(
+        git,
+        sort_indicator(app.sort),
+        &counts,
+        app.theme,
+    ));
     let right_width = right.width().min(area.width as usize) as u16;
     let regions = Layout::horizontal([
         Constraint::Min(0),
@@ -38,7 +43,11 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Constraint::Length(right_width),
     ])
     .split(area);
-    let left = top_context_pill(app, regions[0].width as usize, brand_color);
+    let left = widgets::square_start(top_context_pill(
+        app,
+        regions[0].width as usize,
+        brand_color,
+    ));
     frame.render_widget(Paragraph::new(left), regions[0]);
     frame.render_widget(
         Paragraph::new(right).alignment(Alignment::Right),
@@ -122,7 +131,7 @@ fn top_position_pill(
         spans.push(Span::styled(
             format!(" {sort} "),
             Style::default()
-                .fg(theme.legible_on(secondary, primary))
+                .fg(theme.legible_on(secondary, theme.bar_fg))
                 .bg(secondary)
                 .add_modifier(Modifier::BOLD),
         ));
@@ -203,4 +212,23 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
         spans.push(Span::styled(segment, style));
     }
     spans
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sort_label_prefers_neutral_bar_foreground() {
+        let theme = TuiTheme::default_for(crate::theme::Appearance::Light);
+        let line = top_position_pill(None, Some("↓ modified"), "#1/2", theme);
+        let sort = line
+            .spans
+            .iter()
+            .find(|span| span.content == " ↓ modified ")
+            .unwrap();
+
+        assert_eq!(sort.style.fg, Some(theme.bar_fg));
+        assert_eq!(sort.style.bg, Some(theme.pill_secondary));
+    }
 }
