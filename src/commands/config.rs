@@ -233,6 +233,12 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                 .get_or_insert_with(TuiConfig::default)
                 .line_numbers = parse_bool(value)?;
         }
+        ConfigKey::TuiSimplifiedUi => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .simplified_ui = parse_bool(value)?;
+        }
         ConfigKey::GitAutoCommitInterval => {
             config
                 .git
@@ -293,6 +299,12 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
                 .tui
                 .get_or_insert_with(TuiConfig::default)
                 .line_numbers = TuiConfig::default().line_numbers
+        }
+        ConfigKey::TuiSimplifiedUi => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .simplified_ui = TuiConfig::default().simplified_ui
         }
         ConfigKey::GitAutoCommitInterval => {
             config

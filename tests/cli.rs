@@ -274,6 +274,7 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         ("tui-theme", "dark"),
         ("tui-sort", "modified"),
         ("tui-density", "compact"),
+        ("tui-simplified-ui", "true"),
         ("git-auto-commit-interval", "15"),
         ("git-auto-pull", "true"),
         ("git-backup-on-quit", "true"),
@@ -295,7 +296,16 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .stdout(predicate::str::contains("\"auto_commit_interval\": 15"))
         .stdout(predicate::str::contains("\"auto_push\": true"))
         .stdout(predicate::str::contains("\"auto_pull\": true"))
-        .stdout(predicate::str::contains("\"backup_on_quit\": true"));
+        .stdout(predicate::str::contains("\"backup_on_quit\": true"))
+        .stdout(predicate::str::contains("\"simplified_ui\": true"));
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "unset", "tui-simplified-ui"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("simplified_ui = false"));
 
     Command::cargo_bin("snip")
         .unwrap()

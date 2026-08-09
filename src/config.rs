@@ -88,6 +88,9 @@ pub struct TuiConfig {
     // cannot lean on `Default::default()` the way its neighbours do.
     #[serde(default = "default_line_numbers")]
     pub line_numbers: bool,
+    /// Replace Powerline private-use caps with square, font-independent cells.
+    #[serde(default)]
+    pub simplified_ui: bool,
     #[serde(flatten)]
     pub extra: toml::Table,
 }
@@ -105,6 +108,7 @@ impl Default for TuiConfig {
             sort: SortMode::default(),
             density: TuiDensitySetting::default(),
             line_numbers: default_line_numbers(),
+            simplified_ui: false,
             extra: toml::Table::new(),
         }
     }
