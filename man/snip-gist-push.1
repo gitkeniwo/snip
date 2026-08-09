@@ -4,7 +4,7 @@
 .SH NAME
 snip\-gist\-push \- Create the snippet\*(Aqs gist, or update it when one already exists
 .SH SYNOPSIS
-\fBsnip gist push\fR [\fB\-\-library\fR] [\fB\-\-public\fR] [\fB\-\-desc\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-new\fR] [\fB\-\-include\-notes\fR] [\fB\-\-no\-readme\fR] [\fB\-w\fR|\fB\-\-web\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip gist push\fR [\fB\-\-library\fR] [\fB\-\-public\fR] [\fB\-\-desc\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-new\fR] [\fB\-\-include\-notes\fR] [\fB\-\-simplified\-ui\fR] [\fB\-\-no\-readme\fR] [\fB\-w\fR|\fB\-\-web\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 .SH DESCRIPTION
 Create the snippet\*(Aqs gist, or update it when one already exists
 .SH OPTIONS
@@ -53,6 +53,19 @@ Publish a new gist and replace the recorded one, leaving the old gist on GitHub
 .TP
 \fB\-\-include\-notes\fR
 Publish fragment notes as separate Markdown files
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
+.RE
 .TP
 \fB\-\-no\-readme\fR
 Leave the snippet README out of the gist

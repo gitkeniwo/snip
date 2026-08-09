@@ -150,6 +150,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
             keys!("sort by title"; CONFIGURABLE => ViewSortTitle),
             keys!("sort by created"; CONFIGURABLE => ViewSortCreated),
             keys!("toggle line numbers"; GLOBAL => ViewToggleLineNumbers),
+            keys!("toggle simplified UI"; CONFIGURABLE => ViewToggleSimplifiedUi),
             keys!("toggle fragment list"; CONFIGURABLE => ViewToggleFragmentList),
             keys!("toggle list density"; GLOBAL => ViewToggleDensity),
             keys!("toggle library pane"; GLOBAL => ViewToggleSidebar),

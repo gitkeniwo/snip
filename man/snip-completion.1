@@ -4,7 +4,7 @@
 .SH NAME
 snip\-completion \- Generate shell completion code
 .SH SYNOPSIS
-\fBsnip completion\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
+\fBsnip completion\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
 .SH DESCRIPTION
 Generate shell completion code
 .SH OPTIONS
@@ -40,6 +40,19 @@ auto
 always
 .IP \(bu 2
 never
+.RE
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
 .RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR

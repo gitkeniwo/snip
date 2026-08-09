@@ -30,11 +30,13 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let git = (area.width >= 60)
         .then(|| git_panel::badge(&app.git, app.icon_mode, app.theme))
         .flatten();
+    let caps = widgets::PillCaps::new(app.simplified_ui);
     let right = widgets::square_end(top_position_pill(
         git,
         sort_indicator(app.sort),
         &counts,
         app.theme,
+        caps,
     ));
     let right_width = right.width().min(area.width as usize) as u16;
     let regions = Layout::horizontal([
@@ -47,6 +49,7 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         app,
         regions[0].width as usize,
         brand_color,
+        caps,
     ));
     frame.render_widget(Paragraph::new(left), regions[0]);
     frame.render_widget(
@@ -55,16 +58,21 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 }
 
-fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> Line<'static> {
+fn top_context_pill(
+    app: &App,
+    width: usize,
+    primary: ratatui::style::Color,
+    caps: widgets::PillCaps,
+) -> Line<'static> {
     let primary_style = Style::default()
         .fg(app.theme.legible_on(primary, app.theme.selection_fg))
         .bg(primary)
         .add_modifier(Modifier::BOLD);
     if width < 15 {
         return Line::from(vec![
-            widgets::pill_cap(widgets::PILL_OPEN, primary, app.theme.bar_bg),
+            caps.open(primary, app.theme.bar_bg),
             Span::styled(" snip ", primary_style),
-            widgets::pill_cap(widgets::PILL_CLOSE, primary, app.theme.bar_bg),
+            caps.close(primary, app.theme.bar_bg),
         ]);
     }
 
@@ -73,9 +81,9 @@ fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> 
         .fg(app.theme.legible_on(secondary, app.theme.bar_fg))
         .bg(secondary);
     let mut spans = vec![
-        widgets::pill_cap(widgets::PILL_OPEN, primary, app.theme.bar_bg),
+        caps.open(primary, app.theme.bar_bg),
         Span::styled(" snip ", primary_style),
-        widgets::pill_cap(widgets::PILL_CLOSE, primary, secondary),
+        caps.close(primary, secondary),
         Span::styled(" ", secondary_style),
     ];
     spans.extend(breadcrumb_spans(
@@ -84,11 +92,7 @@ fn top_context_pill(app: &App, width: usize, primary: ratatui::style::Color) -> 
         secondary_style,
     ));
     spans.push(Span::styled(" ", secondary_style));
-    spans.push(widgets::pill_cap(
-        widgets::PILL_CLOSE,
-        secondary,
-        app.theme.bar_bg,
-    ));
+    spans.push(caps.close(secondary, app.theme.bar_bg));
     Line::from(spans)
 }
 
@@ -97,6 +101,7 @@ fn top_position_pill(
     sort: Option<&str>,
     counts: &str,
     theme: TuiTheme,
+    caps: widgets::PillCaps,
 ) -> Line<'static> {
     // Right-aligned cluster: each sub-pill opens with a rounded cap facing
     // its own content (`(`), meets the previous pill with a flat edge, and
@@ -105,11 +110,7 @@ fn top_position_pill(
     let secondary = theme.pill_secondary;
     let mut spans = Vec::new();
     if let Some((git, color)) = git {
-        spans.push(widgets::pill_cap(
-            widgets::PILL_OPEN,
-            secondary,
-            theme.bar_bg,
-        ));
+        spans.push(caps.open(secondary, theme.bar_bg));
         spans.push(Span::styled(
             format!(" {git} "),
             Style::default()
@@ -120,16 +121,12 @@ fn top_position_pill(
         if sort.is_some() {
             spans.push(Span::styled(" ", Style::default().bg(secondary)));
         } else {
-            spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, secondary));
+            spans.push(caps.open(primary, secondary));
         }
     }
     if let Some(sort) = sort {
         if spans.is_empty() {
-            spans.push(widgets::pill_cap(
-                widgets::PILL_OPEN,
-                secondary,
-                theme.bar_bg,
-            ));
+            spans.push(caps.open(secondary, theme.bar_bg));
         }
         spans.push(Span::styled(
             format!(" {sort} "),
@@ -138,9 +135,9 @@ fn top_position_pill(
                 .bg(secondary)
                 .add_modifier(Modifier::BOLD),
         ));
-        spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, secondary));
+        spans.push(caps.open(primary, secondary));
     } else if spans.is_empty() {
-        spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, theme.bar_bg));
+        spans.push(caps.open(primary, theme.bar_bg));
     }
     spans.push(Span::styled(
         format!(" {counts} "),
@@ -149,11 +146,7 @@ fn top_position_pill(
             .bg(primary)
             .add_modifier(Modifier::BOLD),
     ));
-    spans.push(widgets::pill_cap(
-        widgets::PILL_CLOSE,
-        primary,
-        theme.bar_bg,
-    ));
+    spans.push(caps.close(primary, theme.bar_bg));
     Line::from(spans)
 }
 
@@ -230,7 +223,13 @@ mod tests {
     #[test]
     fn sort_label_prefers_neutral_bar_foreground() {
         let theme = TuiTheme::default_for(crate::theme::Appearance::Light);
-        let line = top_position_pill(None, Some("↓ modified"), "#1/2", theme);
+        let line = top_position_pill(
+            None,
+            Some("↓ modified"),
+            "#1/2",
+            theme,
+            widgets::PillCaps::new(false),
+        );
         let sort = line
             .spans
             .iter()

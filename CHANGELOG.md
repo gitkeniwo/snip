@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Font-independent TUI bars.** `--simplified-ui` and
+  `tui.simplified_ui = true` replace the Powerline-only bar caps with square
+  cells while preserving ordinary Unicode symbols. **Toggle Simplified UI** in
+  the command palette previews and saves the preference without restarting.
 - **Hideable library pane.** `S` toggles the sidebar for the current TUI
   session, giving its width to the list and preview on narrow terminals without
   changing the next session's desktop layout.

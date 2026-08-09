@@ -50,7 +50,7 @@ pub fn registry() -> &'static [Command] {
     &COMMANDS
 }
 
-static COMMANDS: [Command; 93] = [
+static COMMANDS: [Command; 94] = [
     key_command!(
         PaletteOpen,
         "palette.open",
@@ -452,6 +452,15 @@ static COMMANDS: [Command; 93] = [
         &[],
         enabled,
         toggle_line_numbers
+    ),
+    command!(
+        ViewToggleSimplifiedUi,
+        "view.toggle-simplified-ui",
+        "View",
+        "Toggle Simplified UI",
+        &["font", "powerline", "nerd font", "square", "bars"],
+        enabled,
+        toggle_simplified_ui
     ),
     command!(
         ViewToggleFragmentList,

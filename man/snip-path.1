@@ -4,7 +4,7 @@
 .SH NAME
 snip\-path \- Print a managed filesystem path
 .SH SYNOPSIS
-\fBsnip path\fR [\fB\-\-library\fR] [\fB\-\-metadata\fR] [\fB\-\-output\fR] [\fB\-\-readme\fR] [\fB\-\-color\fR] [\fB\-\-fragment\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip path\fR [\fB\-\-library\fR] [\fB\-\-metadata\fR] [\fB\-\-output\fR] [\fB\-\-readme\fR] [\fB\-\-color\fR] [\fB\-\-fragment\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 .SH DESCRIPTION
 Print a managed filesystem path
 .SH OPTIONS
@@ -50,6 +50,19 @@ never
 .TP
 \fB\-\-fragment\fR \fI<FRAGMENT>\fR
 
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
+.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

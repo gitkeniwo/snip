@@ -4,7 +4,7 @@
 .SH NAME
 snip\-init \- Create a new filesystem snippet library
 .SH SYNOPSIS
-\fBsnip init\fR [\fB\-\-library\fR] [\fB\-\-name\fR] [\fB\-\-git\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-y\fR|\fB\-\-yes\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIPATH\fR] 
+\fBsnip init\fR [\fB\-\-library\fR] [\fB\-\-name\fR] [\fB\-\-git\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-y\fR|\fB\-\-yes\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIPATH\fR] 
 .SH DESCRIPTION
 Create a new filesystem snippet library
 .SH OPTIONS
@@ -50,6 +50,19 @@ never
 .TP
 \fB\-y\fR, \fB\-\-yes\fR
 Skip the interactive setup and use defaults
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
+.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

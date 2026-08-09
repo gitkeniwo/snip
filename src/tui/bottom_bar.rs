@@ -397,7 +397,8 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
             &actions_compact[..actions_compact.len().min(1)],
         ));
 
-    let left = widgets::square_start(shortcut_pills(navigation, app.theme));
+    let caps = widgets::PillCaps::new(app.simplified_ui);
+    let left = widgets::square_start(shortcut_pills(navigation, app.theme, caps));
     let right = widgets::square_end(shortcut_pills_with_primary(
         actions,
         app.theme,
@@ -411,6 +412,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         } else {
             app.theme.pill_primary
         },
+        caps,
     ));
     let right_width = right.width().min(area.width as usize) as u16;
     let regions =
@@ -475,14 +477,19 @@ fn shortcut_pills_width(commands: ShortcutSet<'_>) -> usize {
         + commands.len().saturating_sub(1)
 }
 
-fn shortcut_pills(commands: ShortcutSet<'_>, theme: TuiTheme) -> Line<'static> {
-    shortcut_pills_with_primary(commands, theme, theme.pill_primary)
+fn shortcut_pills(
+    commands: ShortcutSet<'_>,
+    theme: TuiTheme,
+    caps: widgets::PillCaps,
+) -> Line<'static> {
+    shortcut_pills_with_primary(commands, theme, theme.pill_primary, caps)
 }
 
 fn shortcut_pills_with_primary(
     commands: ShortcutSet<'_>,
     theme: TuiTheme,
     primary: ratatui::style::Color,
+    caps: widgets::PillCaps,
 ) -> Line<'static> {
     let secondary = theme.pill_secondary;
     let mut spans = Vec::new();
@@ -490,7 +497,7 @@ fn shortcut_pills_with_primary(
         if index > 0 {
             spans.push(Span::styled(" ", Style::default().bg(theme.bar_bg)));
         }
-        spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, theme.bar_bg));
+        spans.push(caps.open(primary, theme.bar_bg));
         spans.push(Span::styled(
             key.clone(),
             Style::default()
@@ -499,13 +506,9 @@ fn shortcut_pills_with_primary(
                 .add_modifier(Modifier::BOLD),
         ));
         if action.is_empty() {
-            spans.push(widgets::pill_cap(
-                widgets::PILL_CLOSE,
-                primary,
-                theme.bar_bg,
-            ));
+            spans.push(caps.close(primary, theme.bar_bg));
         } else {
-            spans.push(widgets::pill_cap(widgets::PILL_CLOSE, primary, secondary));
+            spans.push(caps.close(primary, secondary));
             spans.push(Span::styled(
                 format!(" {action}"),
                 Style::default()
@@ -513,11 +516,7 @@ fn shortcut_pills_with_primary(
                     .bg(secondary)
                     .add_modifier(Modifier::BOLD),
             ));
-            spans.push(widgets::pill_cap(
-                widgets::PILL_CLOSE,
-                secondary,
-                theme.bar_bg,
-            ));
+            spans.push(caps.close(secondary, theme.bar_bg));
         }
     }
     Line::from(spans)
@@ -551,7 +550,7 @@ mod tests {
     fn secondary_shortcut_labels_prefer_neutral_bar_foreground() {
         let theme = TuiTheme::default_for(crate::theme::Appearance::Light);
         let commands = [("n".to_owned(), "create")];
-        let line = shortcut_pills(&commands, theme);
+        let line = shortcut_pills(&commands, theme, widgets::PillCaps::new(false));
         let action = line
             .spans
             .iter()

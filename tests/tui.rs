@@ -357,6 +357,7 @@ fn view_preference_toggles_only_write_the_injected_config() {
         tui: Some(TuiConfig {
             density: TuiDensitySetting::Comfortable,
             line_numbers: true,
+            simplified_ui: false,
             ..TuiConfig::default()
         }),
         ..AppConfig::default()
@@ -367,6 +368,7 @@ fn view_preference_toggles_only_write_the_injected_config() {
 
     app.run_command(CommandId::ViewToggleDensity);
     app.run_command(CommandId::ViewToggleLineNumbers);
+    app.run_command(CommandId::ViewToggleSimplifiedUi);
 
     let saved = AppConfig::load_from(&config_path).unwrap();
     let tui = saved
@@ -374,6 +376,8 @@ fn view_preference_toggles_only_write_the_injected_config() {
         .expect("view preferences should persist TUI config");
     assert_eq!(tui.density, TuiDensitySetting::Compact);
     assert!(!tui.line_numbers);
+    assert!(tui.simplified_ui);
+    assert!(app.simplified_ui);
 }
 
 #[test]
@@ -1101,6 +1105,53 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         .unwrap();
     assert!(row_text(buffer, tab_y).contains("next / previous"));
     assert!(rendered.contains("Ctrl-d / Ctrl-u"));
+}
+
+#[test]
+fn simplified_ui_draws_square_caps_without_removing_standard_unicode() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            simplified_ui: true,
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    app.theme = TuiTheme::default_for(Appearance::Light);
+    let backend = TestBackend::new(100, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let rendered = buffer
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(!rendered.contains('\u{e0b4}'));
+    assert!(!rendered.contains('\u{e0b6}'));
+    assert!(rendered.contains('╭'));
+    assert!(rendered.contains('▾'));
+    assert!(rendered.contains('★'));
+
+    let bottom = row_text(buffer, 29);
+    let nav_join_x = text_column(&bottom, "j/k") + 3;
+    assert_eq!(buffer.cell((nav_join_x, 29)).unwrap().symbol(), " ");
+    assert_eq!(
+        buffer.cell((nav_join_x, 29)).unwrap().bg,
+        app.theme.pill_primary
+    );
+
+    let top = row_text(buffer, 0);
+    let brand_join_x = text_column(&top, "snip") + 5;
+    assert_eq!(buffer.cell((brand_join_x, 0)).unwrap().symbol(), " ");
+    assert_eq!(
+        buffer.cell((brand_join_x, 0)).unwrap().bg,
+        app.theme.pill_primary
+    );
 }
 
 #[test]
@@ -2983,6 +3034,24 @@ fn tui_config_controls_theme_sort_and_density() {
     assert_eq!(app.sort, SortMode::Title);
     assert_eq!(app.density, TuiDensitySetting::Compact);
     assert_eq!(app.icon_mode, IconMode::Ascii);
+    assert!(!app.simplified_ui);
+}
+
+#[test]
+fn tui_config_controls_simplified_ui() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            simplified_ui: true,
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    let app = App::new(library, &config).unwrap();
+    assert!(app.simplified_ui);
+
+    let legacy: TuiConfig = toml::from_str("theme = \"light\"\n").unwrap();
+    assert!(!legacy.simplified_ui);
 }
 
 #[test]

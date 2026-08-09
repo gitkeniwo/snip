@@ -4,7 +4,7 @@
 .SH NAME
 snip\-config\-set \- Set one supported config key
 .SH SYNOPSIS
-\fBsnip config set\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
+\fBsnip config set\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
 .SH DESCRIPTION
 Set one supported config key
 .SH OPTIONS
@@ -40,6 +40,19 @@ auto
 always
 .IP \(bu 2
 never
+.RE
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
 .RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -82,6 +95,8 @@ tui\-sort
 tui\-density
 .IP \(bu 2
 tui\-line\-numbers
+.IP \(bu 2
+tui\-simplified\-ui
 .IP \(bu 2
 git\-auto\-commit\-interval
 .IP \(bu 2

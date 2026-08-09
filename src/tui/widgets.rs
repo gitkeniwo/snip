@@ -1,6 +1,6 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_segmentation::UnicodeSegmentation;
@@ -11,8 +11,8 @@ use super::selection::{cluster_width, text_width};
 use super::theme::TuiTheme;
 use crate::domain::Snippet;
 
-pub const PILL_OPEN: &str = "\u{e0b6}";
-pub const PILL_CLOSE: &str = "\u{e0b4}";
+const PILL_OPEN: &str = "\u{e0b6}";
+const PILL_CLOSE: &str = "\u{e0b4}";
 
 pub fn fill_surface(frame: &mut Frame<'_>, area: Rect, theme: TuiTheme) {
     if let Some(style) = theme.surface_style() {
@@ -161,24 +161,45 @@ pub fn truncate_end(value: &str, width: usize) -> String {
     out
 }
 
-pub fn pill_cap(
-    symbol: &'static str,
-    fill: ratatui::style::Color,
-    surround: ratatui::style::Color,
-) -> Span<'static> {
-    let style = if fill == ratatui::style::Color::Reset {
-        // A powerline cap uses its foreground as the visible pill fill. ANSI's
-        // default foreground is the terminal text colour, not its canvas, so a
-        // terminal-inherited fill must swap the default background into the
-        // glyph with reverse video.
-        Style::default()
-            .fg(surround)
-            .bg(fill)
-            .add_modifier(Modifier::REVERSED)
-    } else {
-        Style::default().fg(fill).bg(surround)
-    };
-    Span::styled(symbol, style)
+#[derive(Clone, Copy)]
+pub struct PillCaps {
+    simplified: bool,
+}
+
+impl PillCaps {
+    pub const fn new(simplified: bool) -> Self {
+        Self { simplified }
+    }
+
+    pub fn open(self, fill: Color, surround: Color) -> Span<'static> {
+        self.cap(PILL_OPEN, fill, surround)
+    }
+
+    pub fn close(self, fill: Color, surround: Color) -> Span<'static> {
+        self.cap(PILL_CLOSE, fill, surround)
+    }
+
+    fn cap(self, symbol: &'static str, fill: Color, surround: Color) -> Span<'static> {
+        if self.simplified {
+            // Preserve the Powerline cap's one-cell layout budget while replacing
+            // its private-use glyph with a square extension of the pill fill.
+            // square_start/square_end intentionally leave this identical span alone.
+            return Span::styled(" ", Style::default().bg(fill));
+        }
+        let style = if fill == Color::Reset {
+            // A powerline cap uses its foreground as the visible pill fill. ANSI's
+            // default foreground is the terminal text colour, not its canvas, so a
+            // terminal-inherited fill must swap the default background into the
+            // glyph with reverse video.
+            Style::default()
+                .fg(surround)
+                .bg(fill)
+                .add_modifier(Modifier::REVERSED)
+        } else {
+            Style::default().fg(fill).bg(surround)
+        };
+        Span::styled(symbol, style)
+    }
 }
 
 fn pill_cap_fill(span: &Span<'_>) -> Option<ratatui::style::Color> {
@@ -218,8 +239,9 @@ mod tests {
 
     #[test]
     fn powerline_caps_keep_the_outer_pill_direction_and_colors() {
-        let open = pill_cap(PILL_OPEN, Color::Cyan, Color::Black);
-        let close = pill_cap(PILL_CLOSE, Color::Cyan, Color::Black);
+        let caps = PillCaps::new(false);
+        let open = caps.open(Color::Cyan, Color::Black);
+        let close = caps.close(Color::Cyan, Color::Black);
         assert_eq!(open.content, PILL_OPEN);
         assert_eq!(close.content, PILL_CLOSE);
         assert_eq!(open.style.fg, Some(Color::Cyan));
@@ -230,7 +252,7 @@ mod tests {
 
     #[test]
     fn terminal_fill_caps_reverse_the_default_background_into_the_glyph() {
-        let cap = pill_cap(PILL_CLOSE, Color::Reset, Color::Blue);
+        let cap = PillCaps::new(false).close(Color::Reset, Color::Blue);
 
         assert_eq!(cap.style.fg, Some(Color::Blue));
         assert_eq!(cap.style.bg, Some(Color::Reset));
@@ -239,10 +261,11 @@ mod tests {
 
     #[test]
     fn square_edges_replace_caps_with_their_fill_without_changing_width() {
+        let caps = PillCaps::new(false);
         let line = Line::from(vec![
-            pill_cap(PILL_OPEN, Color::Cyan, Color::Black),
+            caps.open(Color::Cyan, Color::Black),
             Span::styled("pill", Style::default().bg(Color::Cyan)),
-            pill_cap(PILL_CLOSE, Color::Cyan, Color::Black),
+            caps.close(Color::Cyan, Color::Black),
         ]);
         let width = line.width();
 
@@ -268,9 +291,10 @@ mod tests {
 
     #[test]
     fn square_edges_preserve_a_terminal_inherited_fill() {
+        let caps = PillCaps::new(false);
         let line = Line::from(vec![
-            pill_cap(PILL_OPEN, Color::Reset, Color::Blue),
-            pill_cap(PILL_CLOSE, Color::Reset, Color::Blue),
+            caps.open(Color::Reset, Color::Blue),
+            caps.close(Color::Reset, Color::Blue),
         ]);
 
         let line = square_end(square_start(line));
@@ -295,6 +319,42 @@ mod tests {
                 .add_modifier
                 .contains(Modifier::REVERSED)
         );
+    }
+
+    #[test]
+    fn simplified_caps_are_square_fill_cells_with_the_same_width() {
+        let powerline = PillCaps::new(false);
+        let simplified = PillCaps::new(true);
+        for (powerline, simplified, fill) in [
+            (
+                powerline.open(Color::Cyan, Color::Blue),
+                simplified.open(Color::Cyan, Color::Blue),
+                Color::Cyan,
+            ),
+            (
+                powerline.close(Color::Reset, Color::Blue),
+                simplified.close(Color::Reset, Color::Blue),
+                Color::Reset,
+            ),
+        ] {
+            assert_eq!(simplified.content, " ");
+            assert_eq!(simplified.width(), powerline.width());
+            assert_eq!(simplified.style.bg, Some(fill));
+            assert_eq!(simplified.style.fg, None);
+            assert!(!simplified.style.add_modifier.contains(Modifier::REVERSED));
+        }
+    }
+
+    #[test]
+    fn square_edges_are_no_ops_for_simplified_caps() {
+        let caps = PillCaps::new(true);
+        let line = Line::from(vec![
+            caps.open(Color::Cyan, Color::Black),
+            Span::styled("pill", Style::default().bg(Color::Cyan)),
+            caps.close(Color::Cyan, Color::Black),
+        ]);
+
+        assert_eq!(square_end(square_start(line.clone())), line);
     }
 
     #[test]

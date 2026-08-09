@@ -23,6 +23,18 @@ pub struct Cli {
     #[arg(long, global = true, value_enum)]
     pub color: Option<ColorMode>,
 
+    /// Use square TUI bars without Powerline font glyphs for this run.
+    #[cfg(feature = "tui")]
+    #[arg(
+        long,
+        global = true,
+        num_args = 0..=1,
+        default_missing_value = "true",
+        require_equals = true,
+        value_name = "BOOL"
+    )]
+    pub simplified_ui: Option<bool>,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }
@@ -853,6 +865,7 @@ pub enum ConfigKey {
     TuiSort,
     TuiDensity,
     TuiLineNumbers,
+    TuiSimplifiedUi,
     GitAutoCommitInterval,
     GitAutoPush,
     GitAutoPull,
@@ -863,9 +876,30 @@ pub enum ConfigKey {
 mod tests {
     use super::Cli;
     use clap::CommandFactory;
+    #[cfg(feature = "tui")]
+    use clap::Parser;
 
     #[test]
     fn clap_command_tree_is_valid() {
         Cli::command().debug_assert();
+    }
+
+    #[cfg(feature = "tui")]
+    #[test]
+    fn simplified_ui_is_an_optional_global_boolean_override() {
+        let enabled = Cli::try_parse_from(["snip", "--simplified-ui"]).unwrap();
+        assert_eq!(enabled.simplified_ui, Some(true));
+
+        let disabled = Cli::try_parse_from(["snip", "--simplified-ui=false"]).unwrap();
+        assert_eq!(disabled.simplified_ui, Some(false));
+
+        let after_subcommand = Cli::try_parse_from(["snip", "tui", "--simplified-ui"]).unwrap();
+        assert_eq!(after_subcommand.simplified_ui, Some(true));
+
+        let before_subcommand = Cli::try_parse_from(["snip", "--simplified-ui", "tui"]).unwrap();
+        assert_eq!(before_subcommand.simplified_ui, Some(true));
+
+        let absent = Cli::try_parse_from(["snip", "tui"]).unwrap();
+        assert_eq!(absent.simplified_ui, None);
     }
 }

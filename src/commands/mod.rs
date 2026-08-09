@@ -25,6 +25,17 @@ use output::{resolve_color, resolve_output};
 
 use crate::cli::{Cli, Command, GitArgs, GitCommand, OutputMode};
 
+#[cfg(feature = "tui")]
+fn tui_config_with_cli_override(mut config: AppConfig, simplified_ui: Option<bool>) -> AppConfig {
+    if let Some(simplified_ui) = simplified_ui {
+        config
+            .tui
+            .get_or_insert_with(snip::config::TuiConfig::default)
+            .simplified_ui = simplified_ui;
+    }
+    config
+}
+
 pub fn run(cli: &Cli) -> Result<()> {
     if let Some(Command::Completion(args)) = &cli.command {
         return config::command_completion(args);
@@ -50,7 +61,7 @@ pub fn run(cli: &Cli) -> Result<()> {
         {
             if io::stdin().is_terminal() && io::stdout().is_terminal() {
                 let library = open_library_or_onboard(cli, &config, output, color, true)?;
-                let config = AppConfig::load()?;
+                let config = tui_config_with_cli_override(AppConfig::load()?, cli.simplified_ui);
                 return snip::tui::run(library, &config);
             }
         }
@@ -82,7 +93,10 @@ pub fn run(cli: &Cli) -> Result<()> {
     let library = open_library_or_onboard(cli, &config, output, color, allow_wizard)?;
     match command {
         #[cfg(feature = "tui")]
-        Command::Tui => snip::tui::run(library, &AppConfig::load()?),
+        Command::Tui => {
+            let config = tui_config_with_cli_override(AppConfig::load()?, cli.simplified_ui);
+            snip::tui::run(library, &config)
+        }
         Command::Info => query::command_info(&library, output),
         Command::List(args) => query::command_list(&library, args, output),
         Command::Open(args) => query::command_open(&library, args, output, &config),
@@ -141,5 +155,31 @@ fn open_library_or_onboard(
             }
         }
         Err(error) => Err(error),
+    }
+}
+
+#[cfg(all(test, feature = "tui"))]
+mod tests {
+    use super::tui_config_with_cli_override;
+    use snip::config::{AppConfig, TuiConfig};
+
+    #[test]
+    fn simplified_ui_cli_override_takes_precedence_over_config() {
+        let configured = AppConfig {
+            tui: Some(TuiConfig {
+                simplified_ui: true,
+                ..TuiConfig::default()
+            }),
+            ..AppConfig::default()
+        };
+
+        let inherited = tui_config_with_cli_override(configured.clone(), None);
+        assert!(inherited.tui.unwrap().simplified_ui);
+
+        let forced_powerline = tui_config_with_cli_override(configured, Some(false));
+        assert!(!forced_powerline.tui.unwrap().simplified_ui);
+
+        let forced_simplified = tui_config_with_cli_override(AppConfig::default(), Some(true));
+        assert!(forced_simplified.tui.unwrap().simplified_ui);
     }
 }

@@ -4,7 +4,7 @@
 .SH NAME
 snip\-preview \- Render a snippet for terminal or HTML preview
 .SH SYNOPSIS
-\fBsnip preview\fR [\fB\-\-library\fR] [\fB\-\-render\fR] [\fB\-\-output\fR] [\fB\-\-pager\fR] [\fB\-\-color\fR] [\fB\-\-no\-pager\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip preview\fR [\fB\-\-library\fR] [\fB\-\-render\fR] [\fB\-\-output\fR] [\fB\-\-pager\fR] [\fB\-\-color\fR] [\fB\-\-no\-pager\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 .SH DESCRIPTION
 Render a snippet for terminal or HTML preview
 .SH OPTIONS
@@ -60,6 +60,19 @@ never
 .TP
 \fB\-\-no\-pager\fR
 Disable a pager enabled in the config file
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
+.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
