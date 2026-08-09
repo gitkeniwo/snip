@@ -1,6 +1,7 @@
 pub mod base16;
 pub mod builtin;
 pub mod color;
+pub mod surface;
 pub mod syntax;
 pub mod validate;
 

@@ -32,12 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blue palette that matches `dark-default`; the previous teal palette remains
   available as the new `light-teal` built-in.
 - **Deliberate bar and chip contrast.** Generated Base16 themes now separate the
-  top and bottom bars from the canvas by at least 1.4:1 and use the canvas colour
-  for secondary pills, including their rounded caps, giving the same separation
-  between chip and bar while preserving readable semantic colours. Primary
-  pills now clear 4.5:1 against the canvas. Future `snip theme import`
-  conversions use the refined mapping; already-imported user themes are
-  unchanged.
+  top and bottom bars from the canvas by at least 1.35:1, then move secondary
+  pills another 1.5:1 neutral step in the same direction. Secondary action and
+  sort labels use the neutral bar
+  foreground while primary pills keep their accent colour. Primary pills now
+  clear 4.5:1 against the canvas. Future `snip theme import` conversions use the
+  refined mapping; already-imported user themes are unchanged. The three
+  terminal-surface defaults now use the same surface derivation through curated
+  generator sources instead of hand-maintained output colours.
 - **Flush screen-corner caps.** Only the four pill caps touching the screen
   corners are squared off, so the bars form clean rectangular edges while
   interior pills keep their rounded shape.

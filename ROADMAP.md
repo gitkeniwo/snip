@@ -196,8 +196,9 @@ there is no popularity threshold for new packages.
 - **Theme palette refresh** — `light-default` is now the blue daylight sibling
   of `dark-default`, the previous teal palette remains as `light-teal`, and
   generated Base16 themes use accent-derived selection, retained-selection,
-  and primary-pill surfaces. Bars now maintain a visible 1.4:1 step from the
-  canvas, secondary pills reuse the canvas colour, and the four screen-corner
+  and primary-pill surfaces. Bars now maintain a subtle 1.35:1 step from the
+  canvas, secondary pills continue another 1.5:1 neutral step, and the three
+  terminal-surface defaults share that generator path. The four screen-corner
   caps are flush while interior pills stay rounded.
   (`docs/plans/completed/theme-palette-refresh.md`,
   `docs/plans/completed/bar-pill-refinement.md`)

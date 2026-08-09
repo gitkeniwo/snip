@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use crate::error::{Result, SnipError};
 
 use super::color::{contrast, relative_luminance};
+use super::surface;
 use super::syntax;
 use super::{
     Appearance, Palette, Syntax, SyntaxDerive, THEME_SCHEMA_VERSION, Theme, ThemeColor, ThemeUi,
@@ -14,9 +15,6 @@ pub const SLOTS: [&str; 16] = [
     "base00", "base01", "base02", "base03", "base04", "base05", "base06", "base07", "base08",
     "base09", "base0A", "base0B", "base0C", "base0D", "base0E", "base0F",
 ];
-
-const BAR_CONTRAST_FLOOR: f64 = 1.4;
-const BAR_MIX_STEP: f64 = 0.005;
 
 /// A parsed base16 scheme: the 16 palette slots plus the metadata the
 /// conversion needs.
@@ -173,31 +171,6 @@ fn unquote(value: &str) -> &str {
     value
 }
 
-fn bar_background(
-    color: ThemeColor,
-    background: ThemeColor,
-    appearance: Appearance,
-) -> Result<ThemeColor> {
-    if contrast(color, background).expect("scheme colors are RGB") >= BAR_CONTRAST_FLOOR {
-        return Ok(color);
-    }
-    let target = match appearance {
-        Appearance::Dark => ThemeColor::Rgb(255, 255, 255),
-        Appearance::Light => ThemeColor::Rgb(0, 0, 0),
-    };
-    for step in 1..=200 {
-        let candidate = mix(color, target, f64::from(step) * BAR_MIX_STEP)?;
-        if contrast(candidate, background).expect("scheme colors are RGB") >= BAR_CONTRAST_FLOOR {
-            return Ok(candidate);
-        }
-    }
-    Err(SnipError::validation(format!(
-        "cannot adjust {} to contrast {BAR_CONTRAST_FLOOR:.1} against {}",
-        color.as_string(),
-        background.as_string()
-    )))
-}
-
 /// Convert a scheme into a complete standalone theme.
 pub fn scheme_to_theme(
     scheme: &Scheme,
@@ -254,7 +227,8 @@ pub fn scheme_to_theme(
             Appearance::Light
         }
     });
-    let bar_background = bar_background(scheme.slot("base01"), background, appearance)?;
+    let surfaces =
+        surface::derive_bar_pill_surfaces(scheme.slot("base01"), background, appearance)?;
     let slot = |key| scheme.slot(key);
     let ui = ThemeUi {
         background,
@@ -267,9 +241,9 @@ pub fn scheme_to_theme(
         selection_fg,
         retained_bg: mix(slot("base0D"), background, 0.9)?,
         pill_primary: ensure_contrast(mix(slot("base0D"), background, 0.2)?, background, 4.5)?,
-        pill_secondary: background,
-        bar_bg: bar_background,
-        bar_fg: ensure_contrast(slot("base05"), bar_background, 4.5)?,
+        pill_secondary: surfaces.pill_secondary,
+        bar_bg: surfaces.bar_bg,
+        bar_fg: ensure_contrast(slot("base05"), surfaces.bar_bg, 4.5)?,
         tag: ensure_contrast(slot("base09"), background, 4.5)?,
         rule: ensure_contrast(slot("base02"), background, 3.0)?,
         success: ensure_contrast(slot("base0B"), background, 4.5)?,
@@ -352,8 +326,17 @@ mod tests {
     fn conversion_round_trips_and_checks_validation_inputs() {
         let scheme = parse_scheme(NORD).unwrap();
         let theme = scheme_to_theme(&scheme, "nord-copy", "base16:nord", None).unwrap();
-        assert_eq!(theme.ui.pill_secondary, theme.ui.background);
-        assert!(contrast(theme.ui.bar_bg, theme.ui.background).unwrap() >= BAR_CONTRAST_FLOOR);
+        assert!(
+            contrast(theme.ui.bar_bg, theme.ui.background).unwrap() >= surface::BAR_CONTRAST_FLOOR
+        );
+        assert!(
+            contrast(theme.ui.pill_secondary, theme.ui.bar_bg).unwrap()
+                >= surface::PILL_CONTRAST_FLOOR
+        );
+        assert!(
+            contrast(theme.ui.pill_secondary, theme.ui.background).unwrap()
+                > contrast(theme.ui.bar_bg, theme.ui.background).unwrap()
+        );
         assert!(contrast(theme.ui.pill_primary, theme.ui.background).unwrap() >= 4.5);
         assert!(contrast(theme.ui.bar_fg, theme.ui.bar_bg).unwrap() >= 4.5);
         let directory = tempfile::tempdir().unwrap();
@@ -361,25 +344,6 @@ mod tests {
         std::fs::write(&path, super::super::to_toml(&theme).unwrap()).unwrap();
         assert_eq!(super::super::parse_file(&path).unwrap(), theme);
         assert!(scheme_to_theme(&scheme, "nord-copy", "base16:nord", Some("NotATheme")).is_err());
-    }
-
-    #[test]
-    fn bar_background_moves_away_from_dark_and_light_canvases() {
-        for (color, background, appearance) in [
-            (
-                ThemeColor::Rgb(20, 20, 20),
-                ThemeColor::Rgb(10, 10, 10),
-                Appearance::Dark,
-            ),
-            (
-                ThemeColor::Rgb(245, 245, 245),
-                ThemeColor::Rgb(255, 255, 255),
-                Appearance::Light,
-            ),
-        ] {
-            let adjusted = bar_background(color, background, appearance).unwrap();
-            assert!(contrast(adjusted, background).unwrap() >= BAR_CONTRAST_FLOOR);
-        }
     }
 
     #[test]

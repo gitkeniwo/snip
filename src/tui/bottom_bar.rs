@@ -495,7 +495,7 @@ fn shortcut_pills_with_primary(
             spans.push(Span::styled(
                 format!(" {action}"),
                 Style::default()
-                    .fg(theme.legible_on(secondary, primary))
+                    .fg(theme.legible_on(secondary, theme.bar_fg))
                     .bg(secondary)
                     .add_modifier(Modifier::BOLD),
             ));
@@ -527,6 +527,21 @@ mod tests {
 
         assert_eq!(shortcuts[0], ("←/→".to_owned(), "nav"));
         assert_eq!(shortcuts[1], ("^g".to_owned(), "git"));
+    }
+
+    #[test]
+    fn secondary_shortcut_labels_prefer_neutral_bar_foreground() {
+        let theme = TuiTheme::default_for(crate::theme::Appearance::Light);
+        let commands = [("n".to_owned(), "create")];
+        let line = shortcut_pills(&commands, theme);
+        let action = line
+            .spans
+            .iter()
+            .find(|span| span.content == " create")
+            .unwrap();
+
+        assert_eq!(action.style.fg, Some(theme.bar_fg));
+        assert_eq!(action.style.bg, Some(theme.pill_secondary));
     }
 
     #[test]

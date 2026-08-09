@@ -131,7 +131,7 @@ fn top_position_pill(
         spans.push(Span::styled(
             format!(" {sort} "),
             Style::default()
-                .fg(theme.legible_on(secondary, primary))
+                .fg(theme.legible_on(secondary, theme.bar_fg))
                 .bg(secondary)
                 .add_modifier(Modifier::BOLD),
         ));
@@ -212,4 +212,23 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
         spans.push(Span::styled(segment, style));
     }
     spans
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sort_label_prefers_neutral_bar_foreground() {
+        let theme = TuiTheme::default_for(crate::theme::Appearance::Light);
+        let line = top_position_pill(None, Some("↓ modified"), "#1/2", theme);
+        let sort = line
+            .spans
+            .iter()
+            .find(|span| span.content == " ↓ modified ")
+            .unwrap();
+
+        assert_eq!(sort.style.fg, Some(theme.bar_fg));
+        assert_eq!(sort.style.bg, Some(theme.pill_secondary));
+    }
 }
