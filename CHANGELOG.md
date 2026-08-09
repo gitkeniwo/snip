@@ -31,12 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A blue default light theme.** `light-default` now uses a GitHub Primer-style
   blue palette that matches `dark-default`; the previous teal palette remains
   available as the new `light-teal` built-in.
-- **More vivid generated Base16 themes.** Selected and retained rows plus the
-  primary pill now derive from the scheme's accent, while the secondary pill
-  derives from the bar surface and is pushed away from the text direction so
-  its semantic foreground colours survive at runtime. Future `snip theme
-  import` conversions use the refreshed mapping; already-imported user themes
-  are unchanged.
+- **Deliberate bar and chip contrast.** Generated Base16 themes now separate the
+  top and bottom bars from the canvas by at least 1.4:1 and use the canvas colour
+  for secondary pills, including their rounded caps, giving the same separation
+  between chip and bar while preserving readable semantic colours. Primary
+  pills now clear 4.5:1 against the canvas. Future `snip theme import`
+  conversions use the refined mapping; already-imported user themes are
+  unchanged.
+- **Flush screen-corner caps.** Only the four pill caps touching the screen
+  corners are squared off, so the bars form clean rectangular edges while
+  interior pills keep their rounded shape.
 - **The TUI keyboard is one table.** Every key now resolves through a keymap of
   *(mode, chord) → action* instead of six hand-written dispatch functions, which
   is the groundwork for user-defined bindings. Four keys behave differently:

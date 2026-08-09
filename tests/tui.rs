@@ -872,8 +872,8 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("1│ fn alpha() {}"));
     let buffer = terminal.backend().buffer();
     let bottom = row_text(buffer, 29);
-    assert!(bottom.starts_with('\u{e0b6}'));
-    assert!(bottom.ends_with('\u{e0b4}'));
+    assert!(bottom.starts_with(' '));
+    assert!(bottom.ends_with(' '));
     assert!(bottom.find("←/→").unwrap() < 10);
     assert!(
         bottom.rfind("create").unwrap() > 60,
@@ -885,8 +885,9 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         app.theme.pill_primary
     );
     let nav_join_x = nav_key_x + 3;
-    assert_eq!(buffer.cell((0, 29)).unwrap().fg, app.theme.pill_primary);
-    assert_eq!(buffer.cell((0, 29)).unwrap().bg, app.theme.bar_bg);
+    assert_eq!(buffer.cell((0, 29)).unwrap().symbol(), " ");
+    assert_eq!(buffer.cell((0, 29)).unwrap().bg, app.theme.pill_primary);
+    assert_eq!(buffer.cell((99, 29)).unwrap().bg, app.theme.pill_secondary);
     assert_eq!(buffer.cell((nav_join_x, 29)).unwrap().symbol(), "\u{e0b4}");
     assert_eq!(
         buffer.cell((nav_join_x, 29)).unwrap().fg,
@@ -902,8 +903,8 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         app.theme.pill_secondary
     );
     let top = row_text(buffer, 0);
-    assert!(top.starts_with('\u{e0b6}'));
-    assert!(top.ends_with('\u{e0b4}'));
+    assert!(top.starts_with(' '));
+    assert!(top.ends_with(' '));
     let brand_x = text_column(&top, "snip");
     let breadcrumb_x = text_column(&top, "~");
     let counts_x = text_column_from_end(&top, "#1/2");
@@ -919,8 +920,9 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         buffer.cell((counts_x, 0)).unwrap().bg,
         app.theme.pill_primary
     );
-    assert_eq!(buffer.cell((0, 0)).unwrap().fg, app.theme.pill_primary);
-    assert_eq!(buffer.cell((0, 0)).unwrap().bg, app.theme.bar_bg);
+    assert_eq!(buffer.cell((0, 0)).unwrap().symbol(), " ");
+    assert_eq!(buffer.cell((0, 0)).unwrap().bg, app.theme.pill_primary);
+    assert_eq!(buffer.cell((99, 0)).unwrap().bg, app.theme.pill_primary);
     let brand_join_x = brand_x + 5;
     assert_eq!(buffer.cell((brand_join_x, 0)).unwrap().symbol(), "\u{e0b4}");
     assert_eq!(
@@ -931,8 +933,6 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         buffer.cell((brand_join_x, 0)).unwrap().bg,
         app.theme.pill_secondary
     );
-    assert_eq!(buffer.cell((99, 0)).unwrap().fg, app.theme.pill_primary);
-    assert_eq!(buffer.cell((99, 0)).unwrap().bg, app.theme.bar_bg);
     assert_eq!(buffer.cell((0, 1)).unwrap().symbol(), "╭");
     assert_eq!(buffer.cell((24, 1)).unwrap().symbol(), "╭");
     assert_eq!(buffer.cell((0, 1)).unwrap().fg, app.theme.accent);
@@ -3654,31 +3654,30 @@ fn auto_theme_tick_does_not_repin_warnings_when_the_theme_is_unchanged() {
 
 #[test]
 fn startup_with_a_contrast_fallback_theme_is_silent() {
-    // dark-onedark's pill_secondary label needs the automatic black/white
-    // fallback, which is not an actionable warning: it must not pop a status
-    // message over the bottom bar on every startup.
+    // A computed foreground fallback is not an actionable warning: it must not
+    // pop a status message over the bottom bar on every startup.
     let (_temporary, library, _first_id, _second_id) = fixture();
 
-    // Precondition: dark-onedark still carries the `computed-foreground`
+    // Precondition: light-solarized still carries the `computed-foreground`
     // finding, so this test fails loudly (rather than silently passing) if the
     // theme is ever adjusted and stops triggering it.
-    let finding = snip::theme::validate::check(&snip::theme::load("dark-onedark").unwrap())
+    let finding = snip::theme::validate::check(&snip::theme::load("light-solarized").unwrap())
         .into_iter()
         .find(|check| check.id == "computed-foreground")
-        .expect("dark-onedark should carry the computed-foreground finding");
+        .expect("light-solarized should carry the computed-foreground finding");
     assert_eq!(finding.level, snip::theme::validate::Level::Note);
 
     let config = AppConfig {
         tui: Some(TuiConfig {
-            theme: TuiThemeSetting::Dark,
-            dark_theme: Some("dark-onedark".to_owned()),
+            theme: TuiThemeSetting::Light,
+            light_theme: Some("light-solarized".to_owned()),
             ..TuiConfig::default()
         }),
         ..AppConfig::default()
     };
     let app = App::new(library, &config).unwrap();
 
-    assert_eq!(app.theme_name, "dark-onedark");
+    assert_eq!(app.theme_name, "light-solarized");
     assert!(
         app.status.is_none(),
         "startup must not surface contrast warnings"

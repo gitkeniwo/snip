@@ -384,8 +384,8 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
             &actions_compact[..actions_compact.len().min(1)],
         ));
 
-    let left = shortcut_pills(navigation, app.theme);
-    let right = shortcut_pills_with_primary(
+    let left = widgets::square_start(shortcut_pills(navigation, app.theme));
+    let right = widgets::square_end(shortcut_pills_with_primary(
         actions,
         app.theme,
         if app.git.open
@@ -398,7 +398,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         } else {
             app.theme.pill_primary
         },
-    );
+    ));
     let right_width = right.width().min(area.width as usize) as u16;
     let regions =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).split(area);

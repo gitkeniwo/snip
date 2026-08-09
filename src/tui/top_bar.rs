@@ -30,7 +30,12 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let git = (area.width >= 60)
         .then(|| git_panel::badge(&app.git, app.icon_mode, app.theme))
         .flatten();
-    let right = top_position_pill(git, sort_indicator(app.sort), &counts, app.theme);
+    let right = widgets::square_end(top_position_pill(
+        git,
+        sort_indicator(app.sort),
+        &counts,
+        app.theme,
+    ));
     let right_width = right.width().min(area.width as usize) as u16;
     let regions = Layout::horizontal([
         Constraint::Min(0),
@@ -38,7 +43,11 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Constraint::Length(right_width),
     ])
     .split(area);
-    let left = top_context_pill(app, regions[0].width as usize, brand_color);
+    let left = widgets::square_start(top_context_pill(
+        app,
+        regions[0].width as usize,
+        brand_color,
+    ));
     frame.render_widget(Paragraph::new(left), regions[0]);
     frame.render_widget(
         Paragraph::new(right).alignment(Alignment::Right),

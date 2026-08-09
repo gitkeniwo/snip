@@ -47,8 +47,10 @@ is always `light` or `dark` and determines which config slot the picker saves.
 
 Colors accept `#rgb`, `#rrggbb`, `ansi:0` through `ansi:255`, or one of the 16
 ANSI names (`black`, `red`, …, `white`, and their `bright-` forms). Names and
-hex digits are case-insensitive. `terminal` is legal only for `background` and
-`foreground`, and those two roles must either both be `terminal` or both be set.
+hex digits are case-insensitive. `terminal` is legal for `background`,
+`foreground`, and `pill_secondary`; the first two roles must either both be
+`terminal` or both be set. A terminal secondary pill inherits the terminal's
+canvas colour.
 
 ## UI roles
 
@@ -117,9 +119,9 @@ The generated built-ins map base16 slots to UI roles as follows:
 | `selection_bg` | contrast-adjusted `base0D` mixed another 5% toward black or white |
 | `rule` | `base02` |
 | `retained_bg` | `base0D` mixed 90% toward `base00` |
-| `bar_bg` | `base01` |
-| `pill_primary` | `base0D` mixed 20% toward `base00` |
-| `pill_secondary` | `base01` mixed 35% toward black (dark) or white (light) |
+| `bar_bg` | `base01`, mixed away from `base00` until they contrast by at least 1.4:1 |
+| `pill_primary` | `base0D` mixed 20% toward `base00`, then adjusted to contrast 4.5:1 with `base00` |
+| `pill_secondary` | `base00` |
 | `tag` | `base09` |
 | `success` | `base0B` |
 | `warning` | `base0A` |
@@ -174,10 +176,10 @@ listed contrast floor, blending toward black or white when needed:
 | `selection_bg` | contrast-adjusted `base0D` mixed another 5% toward black or white | 4.5 vs `base00` |
 | `selection_fg` | best of `base00`, `base05`, `base06`, `base07` | — |
 | `retained_bg` | `base0D` mixed 90% toward `base00` | — |
-| `pill_primary` | `base0D` mixed 20% toward `base00` | — |
-| `pill_secondary` | `base01` mixed 35% toward black (dark) or white (light) | — |
-| `bar_bg` | `base01` | — |
-| `bar_fg` | `base05` | 4.5 vs `base01` |
+| `pill_primary` | `base0D` mixed 20% toward `base00` | 4.5 vs `base00` |
+| `pill_secondary` | `base00` | — |
+| `bar_bg` | `base01`, mixed toward white (dark) or black (light) | 1.4 vs `base00` |
+| `bar_fg` | `base05` | 4.5 vs adjusted `bar_bg` |
 | `tag` | `base09` | 4.5 vs `base00` |
 | `rule` | `base02` | 3.0 vs `base00` |
 | `success` | `base0B` | 4.5 vs `base00` |
