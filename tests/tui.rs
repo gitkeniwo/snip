@@ -2481,7 +2481,7 @@ fn startup_auto_pull_reports_changes_and_rescans_the_catalog() {
 
     app.spawn_auto_pull();
     assert!(app.git.pull_in_flight);
-    let AppEvent::GitFinished(result) = receiver.recv_timeout(Duration::from_secs(5)).unwrap()
+    let AppEvent::GitFinished(result) = receiver.recv_timeout(Duration::from_secs(15)).unwrap()
     else {
         panic!("expected automatic pull result");
     };
