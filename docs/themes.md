@@ -112,19 +112,26 @@ The generated built-ins map base16 slots to UI roles as follows:
 | `foreground`, `bar_fg` | `base05` |
 | `accent` | `base0D` |
 | `accent_alt` | `base0E` |
-| `border`, `pill_secondary` | `base03` |
+| `border` | `base03` |
 | `muted` | `base04` |
-| `selection_bg`, `rule` | `base02` |
-| `retained_bg`, `bar_bg` | `base01` |
-| `pill_primary` | `base0C` |
+| `selection_bg` | contrast-adjusted `base0D` mixed another 5% toward black or white |
+| `rule` | `base02` |
+| `retained_bg` | `base0D` mixed 90% toward `base00` |
+| `bar_bg` | `base01` |
+| `pill_primary` | `base0D` mixed 20% toward `base00` |
+| `pill_secondary` | `base01` mixed 35% toward black (dark) or white (light) |
 | `tag` | `base09` |
 | `success` | `base0B` |
 | `warning` | `base0A` |
 | `error` | `base08` |
 
 `selection_fg` is whichever of `base00`, `base05`, `base06`, or `base07` has
-the highest WCAG contrast against `base02`; built-in generation stops if the
-best option is below 4.5:1. When a mapped semantic foreground (`muted`,
+the highest WCAG contrast against the adjusted `base0D` selection background.
+The current construction guarantees that `base00` clears 4.5:1: `accent` is
+first contrast-adjusted against `base00`, then `selection_bg` moves another 5%
+away from the background. The converter retains a defensive hard failure in
+case a future mapping change breaks that invariant. When a mapped semantic
+foreground (`muted`,
 `bar_fg`, `tag`, `accent`, `accent_alt`, `warning`, `error`, `success`) is
 below 4.5:1 on its background, generation moves it the minimum RGB blend
 toward black or white needed to clear that floor; `rule` clears 3.0:1 and
@@ -164,11 +171,11 @@ listed contrast floor, blending toward black or white when needed:
 | `accent_alt` | `base0E` | 4.5 vs `base00` |
 | `border` | `base03` | 2.5 vs `base00` |
 | `muted` | `base04` | 4.5 vs `base00` |
-| `selection_bg` | `base02` | — |
+| `selection_bg` | contrast-adjusted `base0D` mixed another 5% toward black or white | 4.5 vs `base00` |
 | `selection_fg` | best of `base00`, `base05`, `base06`, `base07` | — |
-| `retained_bg` | `base01` | — |
-| `pill_primary` | `base0C` | — |
-| `pill_secondary` | `base03` | — |
+| `retained_bg` | `base0D` mixed 90% toward `base00` | — |
+| `pill_primary` | `base0D` mixed 20% toward `base00` | — |
+| `pill_secondary` | `base01` mixed 35% toward black (dark) or white (light) | — |
 | `bar_bg` | `base01` | — |
 | `bar_fg` | `base05` | 4.5 vs `base01` |
 | `tag` | `base09` | 4.5 vs `base00` |

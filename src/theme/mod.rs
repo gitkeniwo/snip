@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::{TuiConfig, TuiThemeSetting, config_path};
 use crate::error::{Result, SnipError};
 
-pub use color::{NamedColor, ThemeColor, ensure_contrast};
+pub use color::{NamedColor, ThemeColor, ensure_contrast, mix};
 
 pub const THEME_SCHEMA_VERSION: u32 = 1;
 const MAX_EXTENDS_DEPTH: usize = 8;

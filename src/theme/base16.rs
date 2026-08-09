@@ -6,7 +6,7 @@ use super::color::{contrast, relative_luminance};
 use super::syntax;
 use super::{
     Appearance, Palette, Syntax, SyntaxDerive, THEME_SCHEMA_VERSION, Theme, ThemeColor, ThemeUi,
-    ensure_contrast, validate_theme_name,
+    ensure_contrast, mix, validate_theme_name,
 };
 
 /// The 16 palette slots of a base16 scheme, in order.
@@ -178,8 +178,27 @@ pub fn scheme_to_theme(
     syntax_theme: Option<&str>,
 ) -> Result<Theme> {
     validate_theme_name(name)?;
-    let selection_bg = scheme.slot("base02");
+    let background = scheme.slot("base00");
     let candidates = ["base00", "base05", "base06", "base07"];
+    let available_foreground_contrast = candidates
+        .iter()
+        .map(|candidate| {
+            contrast(scheme.slot(candidate), background).expect("scheme colors are RGB")
+        })
+        .max_by(f64::total_cmp)
+        .expect("selection candidates are not empty");
+    if available_foreground_contrast < 4.5 {
+        return Err(SnipError::validation(format!(
+            "theme {name}: foreground contrast {available_foreground_contrast:.2} < 4.5: palette has no legible candidate"
+        )));
+    }
+    let selection_target = if relative_luminance(background).expect("scheme colors are RGB") < 0.5 {
+        ThemeColor::Rgb(255, 255, 255)
+    } else {
+        ThemeColor::Rgb(0, 0, 0)
+    };
+    let accent = ensure_contrast(scheme.slot("base0D"), background, 4.5)?;
+    let selection_bg = mix(accent, selection_target, 0.05)?;
     let mut selection_fg = scheme.slot(candidates[0]);
     let mut selection_contrast =
         contrast(selection_fg, selection_bg).expect("scheme colors are RGB");
@@ -191,12 +210,15 @@ pub fn scheme_to_theme(
             selection_contrast = value;
         }
     }
+    // Defensive invariant: `selection_bg` currently starts from an accent that
+    // already clears 4.5 against `base00`, then moves another 5% away from the
+    // background. Because `base00` is a candidate above, this branch is
+    // unreachable unless a future change weakens that construction.
     if selection_contrast < 4.5 {
         return Err(SnipError::validation(format!(
             "theme {name}: selection contrast {selection_contrast:.2} < 4.5"
         )));
     }
-    let background = scheme.slot("base00");
     let bar_background = scheme.slot("base01");
     let appearance = scheme.variant.unwrap_or_else(|| {
         if relative_luminance(background).expect("scheme colors are RGB") < 0.5 {
@@ -205,19 +227,23 @@ pub fn scheme_to_theme(
             Appearance::Light
         }
     });
+    let pill_secondary_target = match appearance {
+        Appearance::Dark => ThemeColor::Rgb(0, 0, 0),
+        Appearance::Light => ThemeColor::Rgb(255, 255, 255),
+    };
     let slot = |key| scheme.slot(key);
     let ui = ThemeUi {
         background,
         foreground: slot("base05"),
-        accent: ensure_contrast(slot("base0D"), background, 4.5)?,
+        accent,
         accent_alt: ensure_contrast(slot("base0E"), background, 4.5)?,
         border: ensure_contrast(slot("base03"), background, 2.5)?,
         muted: ensure_contrast(slot("base04"), background, 4.5)?,
         selection_bg,
         selection_fg,
-        retained_bg: slot("base01"),
-        pill_primary: slot("base0C"),
-        pill_secondary: slot("base03"),
+        retained_bg: mix(slot("base0D"), background, 0.9)?,
+        pill_primary: mix(slot("base0D"), background, 0.2)?,
+        pill_secondary: mix(slot("base01"), pill_secondary_target, 0.35)?,
         bar_bg: bar_background,
         bar_fg: ensure_contrast(slot("base05"), bar_background, 4.5)?,
         tag: ensure_contrast(slot("base09"), background, 4.5)?,
@@ -310,13 +336,13 @@ mod tests {
     }
 
     #[test]
-    fn conversion_rejects_low_selection_contrast() {
+    fn conversion_rejects_palettes_without_a_legible_foreground() {
         let scheme = parse_scheme("name: Grey\npalette:\n  base00: #777777\n  base01: #777777\n  base02: #777777\n  base03: #777777\n  base04: #777777\n  base05: #777777\n  base06: #777777\n  base07: #777777\n  base08: #777777\n  base09: #777777\n  base0A: #777777\n  base0B: #777777\n  base0C: #777777\n  base0D: #777777\n  base0E: #777777\n  base0F: #777777\n").unwrap();
         assert!(
             scheme_to_theme(&scheme, "grey", "base16:grey", None)
                 .unwrap_err()
                 .to_string()
-                .contains("selection contrast")
+                .contains("foreground contrast")
         );
     }
 }

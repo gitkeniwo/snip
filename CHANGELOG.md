@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A blue default light theme.** `light-default` now uses a GitHub Primer-style
+  blue palette that matches `dark-default`; the previous teal palette remains
+  available as the new `light-teal` built-in.
+- **More vivid generated Base16 themes.** Selected and retained rows plus the
+  primary pill now derive from the scheme's accent, while the secondary pill
+  derives from the bar surface and is pushed away from the text direction so
+  its semantic foreground colours survive at runtime. Future `snip theme
+  import` conversions use the refreshed mapping; already-imported user themes
+  are unchanged.
 - **The TUI keyboard is one table.** Every key now resolves through a keymap of
   *(mode, chord) → action* instead of six hand-written dispatch functions, which
   is the groundwork for user-defined bindings. Four keys behave differently:
