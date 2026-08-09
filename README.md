@@ -20,16 +20,11 @@
 
 </p>
 
-`snip` is a snippet manager that keeps its library in plain files. Code, notes,
-and metadata are ordinary text you can grep, diff, edit in any editor, and put
-under Git. It ships as a CLI and a terminal browser.
-
-It grew out of wanting SnippetsLab's library available while coding with an AI
-agent. SnippetsLab stores everything in a database only that app can read, so
-nothing else — a script, an editor, an agent — can reach it. Files remove that
-limitation: every command speaks JSON, snippets are addressed by UUID, and
-writes are guarded by a content fingerprint so two writers can share one library
-without clobbering each other.
+`snip` is a terminal replacement for the MacOS app SnippetsLab: 
+save your snippets as plain files, version them with Git, 
+and let AI agents read and write the snippet library for you through packaged agent skills.
+Code, notes, and metadata in `snip` are ordinary text you can freely grep, diff, edit in any editor, and put
+under Git. 
 
 Runs on Linux, macOS, and Windows.
 
@@ -43,22 +38,14 @@ Runs on Linux, macOS, and Windows.
 
 ## Install
 
-The crate is `sniplab`; the binary it installs is `snip`.
-
-### macOS / Linux (Homebrew)
-
-```bash
-brew install gitkeniwo/snip/snip
-```
-
 ### Install script
 
 ```bash
 curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh | sh
 ```
 
-The script installs `snip` to `~/.local/bin` without `sudo`. Re-run it to
-upgrade, or pass `--uninstall` to remove the binary:
+The script installs `snip` to `~/.local/bin` without `sudo`. 
+Re-run it to **upgrade**, or pass `--uninstall` to **remove** the binary:
 
 ```bash
 curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh | sh -s -- --uninstall
@@ -71,7 +58,15 @@ snip man install
 snip completion bash|zsh|fish
 ```
 
+### macOS / Linux (Homebrew)
+
+```bash
+brew install gitkeniwo/snip/snip
+```
+
 ### Cargo
+
+The crate is `sniplab`; the binary it installs is `snip`.
 
 Prebuilt binary via [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), no compilation:
 
