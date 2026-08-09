@@ -24,6 +24,7 @@ Accepted by every command:
 | `--library <PATH>` | Overrides discovery. Also readable from `$SNIP_LIBRARY`. |
 | `--output human\|json\|jsonl` | `jsonl` emits one object per line — good for streaming large lists. |
 | `--color auto\|always\|never` | Only affects terminal preview rendering. |
+| `--simplified-ui[=<BOOL>]` | Use square TUI bar caps without a Powerline font; bare means `true`. |
 
 Optimistic-concurrency flags, accepted by every mutating command:
 `--if-hash <FINGERPRINT>` asserts the snippet is unchanged; `--force` skips the
@@ -250,6 +251,7 @@ on a linked snippet is a `conflict` (4); an un-publishable payload is a
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
   `editor`, `pager`, `default-language`, `default-folder`, `default-tags`,
   `tui-theme`, `tui-sort`, `tui-density`, `tui-line-numbers`,
+  `tui-simplified-ui`,
   `git-auto-commit-interval`,
   `git-auto-push`, `git-backup-on-quit`. `tui-line-numbers` is boolean and
   defaults to on. The interval is a whole number of
@@ -258,7 +260,9 @@ on a linked snippet is a `conflict` (4); an un-publishable payload is a
   warning. Unknown keys in the file are preserved across writes, so hand-added
   settings survive.
 - `snip completion bash|zsh|fish` — shell completion script.
-- `snip tui` — interactive TUI for humans. Refuses to start without a terminal.
+- `snip tui [--simplified-ui[=<BOOL>]]` — interactive TUI for humans. Refuses
+  to start without a terminal. **Toggle Simplified UI** in the command palette
+  previews and saves the same preference while the TUI is open.
 
 ## JSON payload shapes
 

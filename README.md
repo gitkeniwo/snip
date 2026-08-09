@@ -378,7 +378,13 @@ SCHEME.yaml` converts a base16 or base24 scheme into an editable local theme.
 
 Language badges are plain ASCII (`[rs]`, `[py]`, `[sh]`, `[md]`) so they render
 in any font. The rounded caps on the top and bottom bars are Powerline glyphs,
-which need a Nerd Font or another Powerline-patched terminal font.
+which need a Nerd Font or another Powerline-patched terminal font. On machines
+where those fonts cannot be installed, use `snip --simplified-ui` (or `snip tui
+--simplified-ui`) for square bars during that run. Save the fallback with `snip
+config set tui-simplified-ui true`; `snip --simplified-ui=false` temporarily
+restores Powerline bars. Simplified UI changes only the caps, so ordinary Unicode
+symbols such as borders, arrows, and stars remain. **Toggle Simplified UI** in
+the command palette switches the style immediately and saves the preference.
 
 ## Agent-friendly operations
 
@@ -505,6 +511,7 @@ snip config set tui-dark-theme dark-default
 snip config set tui-sort modified
 snip config set tui-density compact
 snip config set tui-line-numbers false
+snip config set tui-simplified-ui true
 snip config set git-auto-commit-interval 15
 snip config set git-auto-push true
 snip config set git-backup-on-quit true
@@ -533,6 +540,7 @@ dark_theme = "dark-default"
 sort = "modified"          # modified | created | title
 density = "comfortable"    # comfortable | compact
 line_numbers = true        # preview gutter; toggled with `N`
+simplified_ui = false      # square bar caps; no Powerline font required
 
 [git]
 auto_commit_interval = 0   # minutes; 0 disables automatic Git operations
