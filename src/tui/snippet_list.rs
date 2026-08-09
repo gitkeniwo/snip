@@ -2,6 +2,7 @@ use super::selection::text_width;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::ListItem;
+use regex::{Regex, RegexBuilder};
 
 use super::app::App;
 use super::icons::snippet_badge;
@@ -104,6 +105,7 @@ fn gist_marker(app: &App, snippet: &crate::domain::Snippet) -> Option<[Span<'sta
 /// hit-testing derives the row height from the same density setting.
 pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
     let width = width as usize;
+    let search_matcher = literal_search_matcher(&app.search.query);
     // Compact rows reserve the badge cell for every row so the date column stays
     // aligned, but only when some visible snippet is actually published —
     // a library with no gists gives up no width at all.
@@ -156,6 +158,7 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                     date_str.filter(|_| columns.date),
                     columns.gist,
                     columns.badge,
+                    search_matcher.as_ref(),
                 );
                 let line = if app.focus != super::state::Pane::List
                     && app.list_state.selected() == Some(index)
@@ -200,10 +203,13 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                     Span::raw(" "),
                 ]);
             }
-            first.extend([
-                Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(padding),
-            ]);
+            first.extend(search_spans(
+                app,
+                search_matcher.as_ref(),
+                &title,
+                Style::default().add_modifier(Modifier::BOLD),
+            ));
+            first.push(Span::raw(padding));
             if let Some(date) = date_str.filter(|_| columns.date) {
                 first.push(Span::styled(
                     format!(" {date}"),
@@ -219,19 +225,29 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             let second_width = width.saturating_sub(badge_width);
             let indent = second_line_indent(columns.badge, table_columns.pin_gutter, second_width);
             let mut second = if let Some(excerpt) = row.excerpt.as_ref() {
-                Line::from(vec![
-                    pin_gutter(app, snippet.pinned, indent),
-                    Span::styled(
-                        truncate_end_guarded(
-                            excerpt,
-                            second_width.saturating_sub(indent),
-                            badge.is_none(),
-                        ),
-                        Style::default().fg(app.theme.muted),
-                    ),
-                ])
+                let excerpt = truncate_search_excerpt(
+                    excerpt,
+                    second_width.saturating_sub(indent),
+                    badge.is_none(),
+                    search_matcher.as_ref(),
+                );
+                let mut spans = vec![pin_gutter(app, snippet.pinned, indent)];
+                spans.extend(search_spans(
+                    app,
+                    search_matcher.as_ref(),
+                    &excerpt,
+                    Style::default().fg(app.theme.muted),
+                ));
+                Line::from(spans)
             } else {
-                metadata_line(app, snippet, second_width, indent, badge.is_none())
+                metadata_line(
+                    app,
+                    snippet,
+                    second_width,
+                    indent,
+                    badge.is_none(),
+                    search_matcher.as_ref(),
+                )
             };
             if let Some(spans) = badge {
                 let pad =
@@ -271,6 +287,7 @@ fn compact_line(
     date: Option<String>,
     show_gist: bool,
     show_badge: bool,
+    search_matcher: Option<&Regex>,
 ) -> Line<'static> {
     let badge_width = usize::from(show_badge) * BADGE_COLUMN_WIDTH;
     let date_width = usize::from(date.is_some()) * DATE_COLUMN_WIDTH;
@@ -313,13 +330,26 @@ fn compact_line(
             Span::raw(" "),
         ]);
     }
-    spans.extend([
-        compact_pin(snippet.pinned, app.theme.warning),
-        Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
-        Span::styled(folder, Style::default().fg(app.theme.muted)),
-        Span::styled(tags, Style::default().fg(app.theme.muted)),
-        Span::raw(" ".repeat(width.saturating_sub(used))),
-    ]);
+    spans.push(compact_pin(snippet.pinned, app.theme.warning));
+    spans.extend(search_spans(
+        app,
+        search_matcher,
+        &title,
+        Style::default().add_modifier(Modifier::BOLD),
+    ));
+    spans.extend(search_spans(
+        app,
+        search_matcher,
+        &folder,
+        Style::default().fg(app.theme.muted),
+    ));
+    spans.extend(search_spans(
+        app,
+        search_matcher,
+        &tags,
+        Style::default().fg(app.theme.muted),
+    ));
+    spans.push(Span::raw(" ".repeat(width.saturating_sub(used))));
     // Ahead of the date, and padded to a constant width when any row carries a
     // badge, so the six-digit date column lines up down the whole list.
     if show_gist {
@@ -379,6 +409,92 @@ fn compact_pin(pinned: bool, color: ratatui::style::Color) -> Span<'static> {
     }
 }
 
+/// Compiles the literal, case-insensitive matcher once per rendered list.
+fn literal_search_matcher(query: &str) -> Option<Regex> {
+    if query.is_empty() {
+        return None;
+    }
+    RegexBuilder::new(&regex::escape(query))
+        .case_insensitive(true)
+        .build()
+        .ok()
+}
+
+/// Splits visible search matches into their own spans. The warning background
+/// makes matches obvious on ordinary rows; underlining survives the list's
+/// selected-row style, which intentionally owns foreground and background.
+fn search_spans(
+    app: &App,
+    matcher: Option<&Regex>,
+    value: &str,
+    base: Style,
+) -> Vec<Span<'static>> {
+    let Some(matcher) = matcher else {
+        return vec![Span::styled(value.to_owned(), base)];
+    };
+    if value.is_empty() {
+        return vec![Span::styled(value.to_owned(), base)];
+    }
+    let matches = matcher.find_iter(value).collect::<Vec<_>>();
+    if matches.is_empty() {
+        return vec![Span::styled(value.to_owned(), base)];
+    }
+
+    let matched = base
+        .fg(app
+            .theme
+            .legible_on(app.theme.warning, app.theme.selection_fg))
+        .bg(app.theme.warning)
+        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+    let mut spans = Vec::with_capacity(matches.len() * 2 + 1);
+    let mut start = 0;
+    for found in matches {
+        if start < found.start() {
+            spans.push(Span::styled(value[start..found.start()].to_owned(), base));
+        }
+        spans.push(Span::styled(
+            value[found.start()..found.end()].to_owned(),
+            matched,
+        ));
+        start = found.end();
+    }
+    if start < value.len() {
+        spans.push(Span::styled(value[start..].to_owned(), base));
+    }
+    spans
+}
+
+/// Truncates a matching line from the left when its first match would otherwise
+/// fall outside the pane. Search results should always show why they matched.
+fn truncate_search_excerpt(
+    value: &str,
+    width: usize,
+    guard_trailing_ellipsis: bool,
+    matcher: Option<&Regex>,
+) -> String {
+    if text_width(value) as usize <= width {
+        return value.to_owned();
+    }
+    let width = if guard_trailing_ellipsis {
+        width.saturating_sub(1)
+    } else {
+        width
+    };
+    let Some(found) = matcher.and_then(|matcher| matcher.find(value)) else {
+        return widgets::truncate_end(value, width);
+    };
+    if text_width(&value[..found.end()]) as usize <= width {
+        return widgets::truncate_end(value, width);
+    }
+    if width <= 1 {
+        return "…".chars().take(width).collect();
+    }
+    format!(
+        "…{}",
+        widgets::truncate_end(&value[found.start()..], width - 1)
+    )
+}
+
 /// When an ellipsis would be the last visible cell in a pane, keep one blank
 /// cell after it. Some terminal fonts draw the glyph slightly outside its cell,
 /// which otherwise makes it appear to overwrite the right border.
@@ -428,6 +544,7 @@ fn metadata_line(
     width: usize,
     indent: usize,
     guard_trailing_ellipsis: bool,
+    search_matcher: Option<&Regex>,
 ) -> Line<'static> {
     let folder_path = crate::domain::folder_label(&snippet.folder).replace('/', " > ");
     let folder = format!("[{folder_path}]");
@@ -450,10 +567,13 @@ fn metadata_line(
     // cells when a pin must survive after that column is removed.
     let indent = indent.min(width);
     let folder = widgets::truncate_end(&folder, width.saturating_sub(indent));
-    let mut spans = vec![
-        pin_gutter(app, snippet.pinned, indent),
-        Span::styled(folder.clone(), Style::default().fg(app.theme.muted)),
-    ];
+    let mut spans = vec![pin_gutter(app, snippet.pinned, indent)];
+    spans.extend(search_spans(
+        app,
+        search_matcher,
+        &folder,
+        Style::default().fg(app.theme.muted),
+    ));
     let mut used = indent + text_width(&folder) as usize;
     for tag in &snippet.tags {
         let text = if used == indent {
@@ -478,8 +598,10 @@ fn metadata_line(
                 Style::default().fg(app.theme.muted),
             ));
         }
-        spans.push(Span::styled(
-            text[separator_len..].to_owned(),
+        spans.extend(search_spans(
+            app,
+            search_matcher,
+            &text[separator_len..],
             Style::default().fg(app.theme.tag),
         ));
     }
@@ -651,7 +773,7 @@ mod tests {
         snippet.manifest.title = "A title that needs truncating".to_owned();
         snippet.folder = "A folder that needs truncating".to_owned();
 
-        let compact = compact_line(&app, &snippet, 14, None, false, false);
+        let compact = compact_line(&app, &snippet, 14, None, false, false, None);
         let compact_text = compact
             .spans
             .iter()
@@ -660,9 +782,24 @@ mod tests {
         assert_eq!(text_width(&compact_text), 14);
         assert!(compact_text.ends_with(' '));
 
-        let metadata = metadata_line(&app, &snippet, 12, 0, true);
+        let metadata = metadata_line(&app, &snippet, 12, 0, true, None);
         assert_eq!(metadata.width(), 11);
         assert!(metadata.spans.last().unwrap().content.ends_with('…'));
+    }
+
+    #[test]
+    fn search_excerpt_keeps_a_late_match_inside_the_visible_window() {
+        let matcher = literal_search_matcher("brew").unwrap();
+        let excerpt = truncate_search_excerpt(
+            "Reminders, not the older tool in homebrew-core",
+            20,
+            false,
+            Some(&matcher),
+        );
+
+        assert!(excerpt.starts_with('…'));
+        assert!(excerpt.contains("brew"));
+        assert!(text_width(&excerpt) <= 20);
     }
 
     #[test]
@@ -679,14 +816,14 @@ mod tests {
 
         let mut snippet = make_test_snippet("2026-07-26T12:00:00Z", None);
         snippet.folder = "Code".to_owned();
-        let unindented = metadata_line(&app, &snippet, 12, 0, false)
+        let unindented = metadata_line(&app, &snippet, 12, 0, false, None)
             .spans
             .iter()
             .map(|span| span.content.as_ref())
             .collect::<String>();
         assert!(unindented.starts_with("[Code]"));
 
-        let aligned_unpinned = metadata_line(&app, &snippet, 12, 2, false)
+        let aligned_unpinned = metadata_line(&app, &snippet, 12, 2, false, None)
             .spans
             .iter()
             .map(|span| span.content.as_ref())
@@ -694,7 +831,7 @@ mod tests {
         assert!(aligned_unpinned.starts_with("  [Code]"));
 
         snippet.manifest.pinned = true;
-        let pinned_line = metadata_line(&app, &snippet, 12, 2, false);
+        let pinned_line = metadata_line(&app, &snippet, 12, 2, false, None);
         let pinned = pinned_line
             .spans
             .iter()
@@ -720,7 +857,7 @@ mod tests {
         snippet.manifest.pinned = true;
         snippet.manifest.locked = true;
 
-        let line = compact_line(&app, &snippet, 14, None, false, false);
+        let line = compact_line(&app, &snippet, 14, None, false, false, None);
         let text = line
             .spans
             .iter()
