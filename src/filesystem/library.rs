@@ -166,6 +166,17 @@ impl Library {
         &self.manifest
     }
 
+    /// The name shown to people: the manifest name with a trailing `.sniplib`
+    /// stripped. The suffix is a filesystem convention; a name that carries it
+    /// (e.g. `--name Main.sniplib`, which lands verbatim in `snip.toml`) is
+    /// just a name written sloppily, not a different library.
+    pub fn display_name(&self) -> &str {
+        self.manifest
+            .name
+            .strip_suffix(".sniplib")
+            .unwrap_or(&self.manifest.name)
+    }
+
     /// Recreatable directories that were missing when this handle was opened.
     pub fn restored(&self) -> &[&'static str] {
         &self.restored

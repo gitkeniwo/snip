@@ -23,6 +23,9 @@ struct ShortcutSpec {
     commands: &'static [CommandId],
     action: &'static str,
     choice: ChordChoice,
+    /// Display this key label verbatim instead of the effective chords. The
+    /// pill still disappears when the command is unbound or shadowed.
+    fixed_key: Option<&'static str>,
 }
 
 #[derive(Clone, Copy)]
@@ -39,8 +42,21 @@ macro_rules! shortcut {
             commands: &[$(CommandId::$command),+],
             action: $action,
             choice: ChordChoice::All,
+            fixed_key: None,
         }
     };
+}
+
+/// Like [`shortcut!`], but the pill always reads `$key`, whatever the
+/// effective chords are. Used where the canonical hint matters more than the
+/// exact binding (e.g. `j/k` for navigation, since some fonts render the
+/// arrow glyphs poorly).
+macro_rules! shortcut_key {
+    ($key:literal; $action:literal; $modes:expr => $($command:ident),+ $(,)?) => {{
+        let mut spec = shortcut!($action; $modes => $($command),+);
+        spec.fixed_key = Some($key);
+        spec
+    }};
 }
 
 macro_rules! shortcut_first {
@@ -174,8 +190,9 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         &app.keymap,
         &mode_stack,
         &[
-            shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
+            shortcut_key!("j/k"; "nav"; GLOBAL => PaneBack, PaneForward),
             shortcut!("search"; GLOBAL => LibrarySearch),
+            shortcut_first!("cmd"; GLOBAL => PaletteOpen),
             shortcut!("git"; GLOBAL => GitToggleConsole),
             shortcut!("help"; GLOBAL => ViewToggleHelp),
             shortcut!("quit"; GLOBAL => AppQuit),
@@ -185,9 +202,9 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         &app.keymap,
         &mode_stack,
         &[
-            shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
+            shortcut_key!("j/k"; "nav"; GLOBAL => PaneBack, PaneForward),
             shortcut!("search"; GLOBAL => LibrarySearch),
-            shortcut!("git"; GLOBAL => GitToggleConsole),
+            shortcut_first!("cmd"; GLOBAL => PaletteOpen),
             shortcut!("help"; GLOBAL => ViewToggleHelp),
         ],
     );
@@ -195,15 +212,11 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         &app.keymap,
         &mode_stack,
         &[
-            shortcut_last!(""; GLOBAL => PaneBack, PaneForward),
+            shortcut_key!("j/k"; ""; GLOBAL => PaneBack, PaneForward),
             shortcut!(""; GLOBAL => LibrarySearch),
+            shortcut_first!(""; GLOBAL => PaletteOpen),
             shortcut!(""; GLOBAL => ViewToggleHelp),
         ],
-    );
-    let navigation_minimal = resolve_shortcuts(
-        &app.keymap,
-        &mode_stack,
-        &[shortcut!(""; GLOBAL => LibrarySearch)],
     );
 
     let (full_specs, medium_specs, compact_specs): (
@@ -369,7 +382,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
         (navigation_compact.as_slice(), actions_medium.as_slice()),
         (navigation_compact.as_slice(), actions_compact.as_slice()),
         (
-            navigation_minimal.as_slice(),
+            navigation_compact.as_slice(),
             &actions_compact[..actions_compact.len().min(1)],
         ),
     ];
@@ -380,7 +393,7 @@ pub fn draw_bottom_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 <= area.width as usize
         })
         .unwrap_or((
-            navigation_minimal.as_slice(),
+            navigation_compact.as_slice(),
             &actions_compact[..actions_compact.len().min(1)],
         ));
 
@@ -433,14 +446,15 @@ fn resolve_shortcuts(
             }
             chords.dedup();
             (!chords.is_empty()).then(|| {
-                (
-                    chords
+                let key = match spec.fixed_key {
+                    Some(label) => label.to_owned(),
+                    None => chords
                         .into_iter()
                         .map(key_labels::compact_chord)
                         .collect::<Vec<_>>()
                         .join("/"),
-                    spec.action,
-                )
+                };
+                (key, spec.action)
             })
         })
         .collect()
@@ -520,13 +534,17 @@ mod tests {
             &keymap,
             &[Mode::List, Mode::Global],
             &[
-                shortcut_last!("nav"; GLOBAL => PaneBack, PaneForward),
+                shortcut_key!("j/k"; "nav"; GLOBAL => PaneBack, PaneForward),
+                shortcut!("search"; GLOBAL => LibrarySearch),
+                shortcut_first!("cmd"; GLOBAL => PaletteOpen),
                 shortcut!("git"; GLOBAL => GitToggleConsole),
             ],
         );
 
-        assert_eq!(shortcuts[0], ("←/→".to_owned(), "nav"));
-        assert_eq!(shortcuts[1], ("^g".to_owned(), "git"));
+        assert_eq!(shortcuts[0], ("j/k".to_owned(), "nav"));
+        assert_eq!(shortcuts[1], ("/".to_owned(), "search"));
+        assert_eq!(shortcuts[2], (":".to_owned(), "cmd"));
+        assert_eq!(shortcuts[3], ("^g".to_owned(), "git"));
     }
 
     #[test]

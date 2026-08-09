@@ -573,7 +573,7 @@ fn command_palette_uses_the_rendered_viewport_on_short_terminals() {
         .unwrap();
     let buffer = terminal.backend().buffer();
     assert!(
-        row_text(buffer, 11).contains("←/→"),
+        row_text(buffer, 11).contains("j/k"),
         "palette must not clear the bottom bar"
     );
 }
@@ -860,12 +860,13 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(rendered.contains("Preview"));
     assert!(rendered.contains("Alpha Rust"));
     assert!(rendered.contains("snip"));
-    assert!(rendered.contains("~ › All snippets"));
+    assert!(rendered.contains("TUI fixture › All snippets"));
     assert!(rendered.contains("↓ modified"));
     assert!(rendered.contains("#1/2"));
     assert!(rendered.contains("fragment"));
     assert!(!rendered.contains("fragment 1/1"));
-    assert!(rendered.contains("←/→"));
+    assert!(rendered.contains("j/k"));
+    assert!(rendered.contains(" cmd"));
     assert!(rendered.contains('/'));
     assert!(rendered.contains("Alpha Rust"));
     assert!(rendered.contains("rs"));
@@ -874,12 +875,12 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     let bottom = row_text(buffer, 29);
     assert!(bottom.starts_with(' '));
     assert!(bottom.ends_with(' '));
-    assert!(bottom.find("←/→").unwrap() < 10);
+    assert!(bottom.find("j/k").unwrap() < 10);
     assert!(
         bottom.rfind("create").unwrap() > 60,
         "pane-specific actions should be grouped on the right"
     );
-    let nav_key_x = text_column(&bottom, "←/→");
+    let nav_key_x = text_column(&bottom, "j/k");
     assert_eq!(
         buffer.cell((nav_key_x, 29)).unwrap().bg,
         app.theme.pill_primary
@@ -906,7 +907,7 @@ fn three_pane_ui_draws_titles_preview_and_status() {
     assert!(top.starts_with(' '));
     assert!(top.ends_with(' '));
     let brand_x = text_column(&top, "snip");
-    let breadcrumb_x = text_column(&top, "~");
+    let breadcrumb_x = text_column(&top, "TUI fixture");
     let counts_x = text_column_from_end(&top, "#1/2");
     assert_eq!(
         buffer.cell((brand_x, 0)).unwrap().bg,

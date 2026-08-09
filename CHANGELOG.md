@@ -48,6 +48,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Flush screen-corner caps.** Only the four pill caps touching the screen
   corners are squared off, so the bars form clean rectangular edges while
   interior pills keep their rounded shape.
+- **The top-bar breadcrumb names the library.** The `~` root of the breadcrumb
+  is now the library's display name from `snip.toml` (a stray `.sniplib`
+  suffix is dropped), so switching libraries is visible at a glance.
+- **Bottom-bar hints read better at a glance.** The left pill now shows
+  `j/k nav` instead of arrow glyphs, which some fonts render poorly, and a
+  `: cmd` pill for the command palette sits next to `/ search`. Git and `q
+  quit` are the first pills to drop as the terminal narrows; the most compact
+  layout keeps `j/k / : ?`.
+- **Top-bar position pill caps open inward.** In the right-hand cluster each
+  sub-pill now opens with a rounded cap facing its own content —
+  `(git main ok  ↓ modified ( #1/2]` — instead of the closing cap whose
+  rounded edge pointed back into the previous pill; the cluster still ends
+  flush at the screen corner.
 - **The TUI keyboard is one table.** Every key now resolves through a keymap of
   *(mode, chord) → action* instead of six hand-written dispatch functions, which
   is the groundwork for user-defined bindings. Four keys behave differently:

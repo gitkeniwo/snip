@@ -81,6 +81,23 @@ fn complete_library_has_no_restored_directories() {
 }
 
 #[test]
+fn display_name_strips_a_trailing_sniplib_suffix() {
+    let temporary = tempfile::tempdir().unwrap();
+    // `--name Main.sniplib` lands verbatim in snip.toml; display strips it.
+    let library =
+        Library::init(&temporary.path().join("Main.sniplib"), Some("Main.sniplib")).unwrap();
+    assert_eq!(library.display_name(), "Main");
+
+    // A plain name is shown whole.
+    let named = Library::init(&temporary.path().join("Archive.sniplib"), Some("Archive")).unwrap();
+    assert_eq!(named.display_name(), "Archive");
+
+    // The inferred default comes from the directory stem and has no suffix.
+    let inferred = Library::init(&temporary.path().join("Inferred.sniplib"), None).unwrap();
+    assert_eq!(inferred.display_name(), "Inferred");
+}
+
+#[test]
 fn invalid_manifest_does_not_create_library_directories() {
     for manifest in ["", "not valid toml = ["] {
         let temporary = tempfile::tempdir().unwrap();

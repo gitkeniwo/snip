@@ -98,6 +98,9 @@ fn top_position_pill(
     counts: &str,
     theme: TuiTheme,
 ) -> Line<'static> {
+    // Right-aligned cluster: each sub-pill opens with a rounded cap facing
+    // its own content (`(`), meets the previous pill with a flat edge, and
+    // the outer right edge is squared flush against the screen corner.
     let primary = theme.pill_primary;
     let secondary = theme.pill_secondary;
     let mut spans = Vec::new();
@@ -117,7 +120,7 @@ fn top_position_pill(
         if sort.is_some() {
             spans.push(Span::styled(" ", Style::default().bg(secondary)));
         } else {
-            spans.push(widgets::pill_cap(widgets::PILL_CLOSE, secondary, primary));
+            spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, secondary));
         }
     }
     if let Some(sort) = sort {
@@ -135,7 +138,7 @@ fn top_position_pill(
                 .bg(secondary)
                 .add_modifier(Modifier::BOLD),
         ));
-        spans.push(widgets::pill_cap(widgets::PILL_CLOSE, secondary, primary));
+        spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, secondary));
     } else if spans.is_empty() {
         spans.push(widgets::pill_cap(widgets::PILL_OPEN, primary, theme.bar_bg));
     }
@@ -167,24 +170,30 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
     if !app.search.query.is_empty() {
         segments.push(format!("/{}", app.search.query));
     }
-    let full_width = 1 + segments
-        .iter()
-        .map(|value| 3 + value.chars().count())
-        .sum::<usize>();
+    let root = app.library.display_name();
+    let root_len = root.chars().count();
+    let full_width = root_len
+        + segments
+            .iter()
+            .map(|value| 3 + value.chars().count())
+            .sum::<usize>();
     if full_width > width {
         let last = segments.pop().unwrap_or_default();
         if segments.is_empty() {
-            segments = vec![widgets::truncate_end(&last, width.saturating_sub(4))];
+            segments = vec![widgets::truncate_end(
+                &last,
+                width.saturating_sub(root_len + 3),
+            )];
         } else {
             segments = vec![
                 "…".to_owned(),
-                widgets::truncate_end(&last, width.saturating_sub(8)),
+                widgets::truncate_end(&last, width.saturating_sub(root_len + 8)),
             ];
         }
     }
     let secondary = app.theme.pill_secondary;
     let mut spans = vec![Span::styled(
-        "~",
+        root.to_owned(),
         base.fg(app.theme.legible_on(secondary, app.theme.muted)),
     )];
     let last = segments.len().saturating_sub(1);
