@@ -4,7 +4,7 @@
 .SH NAME
 snip\-search \- Search titles, tags, notes, and fragment content
 .SH SYNOPSIS
-\fBsnip search\fR [\fB\-\-library\fR] [\fB\-\-regex\fR] [\fB\-\-folder\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-tag\fR] [\fB\-\-field\fR] [\fB\-C\fR|\fB\-\-context\fR] [\fB\-m\fR|\fB\-\-limit\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIQUERY\fR> 
+\fBsnip search\fR [\fB\-\-library\fR] [\fB\-\-regex\fR] [\fB\-\-folder\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-simplified\-ui\fR] [\fB\-\-tag\fR] [\fB\-\-field\fR] [\fB\-C\fR|\fB\-\-context\fR] [\fB\-m\fR|\fB\-\-limit\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIQUERY\fR> 
 .SH DESCRIPTION
 Search titles, tags, notes, and fragment content
 .SH OPTIONS
@@ -50,6 +50,19 @@ never
 .TP
 \fB\-\-no\-subfolders\fR
 Restrict \-\-folder to that folder alone, excluding its subfolders
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
+.RE
 .TP
 \fB\-\-tag\fR \fI<TAG>\fR
 

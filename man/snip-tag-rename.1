@@ -4,7 +4,7 @@
 .SH NAME
 snip\-tag\-rename
 .SH SYNOPSIS
-\fBsnip tag rename\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITAG\fR> <\fINEW_NAME\fR> 
+\fBsnip tag rename\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITAG\fR> <\fINEW_NAME\fR> 
 .SH DESCRIPTION
 .SH OPTIONS
 .TP
@@ -39,6 +39,19 @@ auto
 always
 .IP \(bu 2
 never
+.RE
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
 .RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR

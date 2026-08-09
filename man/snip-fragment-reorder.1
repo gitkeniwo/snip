@@ -4,7 +4,7 @@
 .SH NAME
 snip\-fragment\-reorder
 .SH SYNOPSIS
-\fBsnip fragment reorder\fR [\fB\-\-library\fR] <\fB\-\-position\fR> [\fB\-\-if\-hash\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
+\fBsnip fragment reorder\fR [\fB\-\-library\fR] <\fB\-\-position\fR> [\fB\-\-if\-hash\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-force\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
 .SH DESCRIPTION
 .SH OPTIONS
 .TP
@@ -49,6 +49,19 @@ never
 .TP
 \fB\-\-force\fR
 
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
+.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

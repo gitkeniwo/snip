@@ -4,7 +4,7 @@
 .SH NAME
 snip\-gist\-url \- Print the URL of the snippet\*(Aqs gist
 .SH SYNOPSIS
-\fBsnip gist url\fR [\fB\-\-copy\fR] [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip gist url\fR [\fB\-\-copy\fR] [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 .SH DESCRIPTION
 Print the URL of the snippet\*(Aqs gist
 .SH OPTIONS
@@ -43,6 +43,19 @@ auto
 always
 .IP \(bu 2
 never
+.RE
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
 .RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR

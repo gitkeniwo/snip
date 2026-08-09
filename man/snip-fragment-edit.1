@@ -4,7 +4,7 @@
 .SH NAME
 snip\-fragment\-edit
 .SH SYNOPSIS
-\fBsnip fragment edit\fR [\fB\-\-library\fR] [\fB\-\-title\fR] [\fB\-\-language\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
+\fBsnip fragment edit\fR [\fB\-\-library\fR] [\fB\-\-title\fR] [\fB\-\-language\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-simplified\-ui\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
 .SH DESCRIPTION
 .SH OPTIONS
 .TP
@@ -52,6 +52,19 @@ Replacement fragment content, given inline
 .TP
 \fB\-\-content\-file\fR \fI<CONTENT_FILE>\fR
 
+.TP
+\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
+Use square TUI bars without Powerline font glyphs for this run
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+true
+.IP \(bu 2
+false
+.RE
 .TP
 \fB\-\-note\fR \fI<NOTE>\fR
 Replacement fragment note (Markdown), given inline
