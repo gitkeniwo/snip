@@ -89,7 +89,7 @@ const GROUPS: &[(&str, &[Entry], HelpColor)] = &[
     (
         "SIDEBAR — WHEN THE LEFT PANE HAS FOCUS",
         &[
-            keys!("expand / collapse folder"; SIDEBAR => SidebarToggleFolder),
+            keys!("expand / collapse selected folder"; SIDEBAR => SidebarToggleFolder),
             keys!("apply selected filter"; SIDEBAR => SidebarActivate),
             keys!("create folder"; SIDEBAR => FolderNew),
             keys!("rename folder or tag"; SIDEBAR => SidebarRename, CONFIGURABLE => FolderRename, CONFIGURABLE => TagRename),

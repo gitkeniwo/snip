@@ -183,7 +183,11 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
             let left_width = usize::from(columns.badge) * BADGE_COLUMN_WIDTH;
             let date_width = usize::from(columns.date) * DATE_COLUMN_WIDTH;
             let title_width = width.saturating_sub(left_width + date_width + marker_width);
-            let title = widgets::truncate_end(&snippet.title, title_width);
+            let title = truncate_end_guarded(
+                &snippet.title,
+                title_width,
+                date_width == 0 && marker_width == 0,
+            );
             let used = left_width + text_width(&title) as usize + date_width + marker_width;
             let padding = " ".repeat(width.saturating_sub(used));
             let mut first = Vec::new();
@@ -218,12 +222,16 @@ pub fn items(app: &App, width: u16) -> Vec<ListItem<'static>> {
                 Line::from(vec![
                     pin_gutter(app, snippet.pinned, indent),
                     Span::styled(
-                        widgets::truncate_end(excerpt, second_width.saturating_sub(indent)),
+                        truncate_end_guarded(
+                            excerpt,
+                            second_width.saturating_sub(indent),
+                            badge.is_none(),
+                        ),
                         Style::default().fg(app.theme.muted),
                     ),
                 ])
             } else {
-                metadata_line(app, snippet, second_width, indent)
+                metadata_line(app, snippet, second_width, indent, badge.is_none())
             };
             if let Some(spans) = badge {
                 let pad =
@@ -279,7 +287,13 @@ fn compact_line(
         .iter()
         .map(|tag| format!(" #{tag}"))
         .collect::<String>();
-    let (title, folder, tags) = compact_fields(&snippet.title, &folder, &tags, available);
+    let (title, folder, tags) = compact_fields(
+        &snippet.title,
+        &folder,
+        &tags,
+        available,
+        date.is_none() && !show_gist && !snippet.locked,
+    );
     let used = badge_width
         + COMPACT_PIN_WIDTH
         + text_width(&title) as usize
@@ -334,9 +348,18 @@ fn compact_fields(
     folder: &str,
     tags: &str,
     available: usize,
+    guard_trailing_ellipsis: bool,
 ) -> (String, String, String) {
     // Compact mode spends width in semantic priority order. A long title may
     // intentionally consume the row before folder and tag metadata.
+    let available = if guard_trailing_ellipsis
+        && text_width(title) as usize + text_width(folder) as usize + text_width(tags) as usize
+            > available
+    {
+        available.saturating_sub(1)
+    } else {
+        available
+    };
     let title = widgets::truncate_end(title, available);
     let remaining = available.saturating_sub(text_width(&title) as usize);
     let folder = widgets::truncate_end(folder, remaining);
@@ -347,10 +370,26 @@ fn compact_fields(
 
 fn compact_pin(pinned: bool, color: ratatui::style::Color) -> Span<'static> {
     if pinned {
-        Span::styled("★ ", Style::default().fg(color))
+        Span::styled(
+            "★ ",
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        )
     } else {
         Span::raw("  ")
     }
+}
+
+/// When an ellipsis would be the last visible cell in a pane, keep one blank
+/// cell after it. Some terminal fonts draw the glyph slightly outside its cell,
+/// which otherwise makes it appear to overwrite the right border.
+fn truncate_end_guarded(value: &str, width: usize, guard_trailing_ellipsis: bool) -> String {
+    let truncated = text_width(value) as usize > width;
+    let width = if truncated && guard_trailing_ellipsis {
+        width.saturating_sub(1)
+    } else {
+        width
+    };
+    widgets::truncate_end(value, width)
 }
 
 fn second_line_indent(show_badge: bool, reserve_pin_gutter: bool, width: usize) -> usize {
@@ -388,9 +427,25 @@ fn metadata_line(
     snippet: &crate::domain::Snippet,
     width: usize,
     indent: usize,
+    guard_trailing_ellipsis: bool,
 ) -> Line<'static> {
     let folder_path = crate::domain::folder_label(&snippet.folder).replace('/', " > ");
     let folder = format!("[{folder_path}]");
+    let natural_width = indent
+        + text_width(&folder) as usize
+        + snippet
+            .tags
+            .iter()
+            .enumerate()
+            .map(|(index, tag)| {
+                text_width(&format!("{}#{tag}", if index == 0 { " · " } else { " " })) as usize
+            })
+            .sum::<usize>();
+    let width = if guard_trailing_ellipsis && natural_width > width {
+        width.saturating_sub(1)
+    } else {
+        width
+    };
     // `items` matches this to the table-wide badge column, while reserving two
     // cells when a pin must survive after that column is removed.
     let indent = indent.min(width);
@@ -432,14 +487,14 @@ fn metadata_line(
 }
 
 fn pin_gutter(app: &App, pinned: bool, width: usize) -> Span<'static> {
+    let pin_style = Style::default()
+        .fg(app.theme.warning)
+        .add_modifier(Modifier::BOLD);
     match (pinned, width) {
         (_, 0) => Span::raw(""),
-        (true, 1) => Span::styled("★", Style::default().fg(app.theme.warning)),
-        (true, 2) => Span::styled("★ ", Style::default().fg(app.theme.warning)),
-        (true, _) => Span::styled(
-            format!(" ★ {}", " ".repeat(width - 3)),
-            Style::default().fg(app.theme.warning),
-        ),
+        (true, 1) => Span::styled("★", pin_style),
+        (true, 2) => Span::styled("★ ", pin_style),
+        (true, _) => Span::styled(format!(" ★ {}", " ".repeat(width - 3)), pin_style),
         (false, _) => Span::raw(" ".repeat(width)),
     }
 }
@@ -563,12 +618,12 @@ mod tests {
     #[test]
     fn compact_fields_spend_width_on_title_before_metadata() {
         let (title, folder, tags) =
-            compact_fields("Compress Video", " [Video CLI]", " #ffmpeg", 14);
+            compact_fields("Compress Video", " [Video CLI]", " #ffmpeg", 14, false);
         assert_eq!(title, "Compress Video");
         assert!(folder.is_empty());
         assert!(tags.is_empty());
 
-        let (title, folder, tags) = compact_fields("Alpha", " [AI]", " #rust", 14);
+        let (title, folder, tags) = compact_fields("Alpha", " [AI]", " #rust", 14, false);
         assert_eq!(title, "Alpha");
         assert_eq!(folder, " [AI]");
         assert_eq!(tags, " #r…");
@@ -577,8 +632,37 @@ mod tests {
     #[test]
     fn compact_pin_uses_a_fixed_visible_gutter() {
         let color = ratatui::style::Color::Yellow;
-        assert_eq!(compact_pin(true, color).content.as_ref(), "★ ");
+        let pin = compact_pin(true, color);
+        assert_eq!(pin.content.as_ref(), "★ ");
+        assert!(pin.style.add_modifier.contains(Modifier::BOLD));
         assert_eq!(compact_pin(false, color).content.as_ref(), "  ");
+    }
+
+    #[test]
+    fn trailing_ellipsis_keeps_one_cell_clear_of_the_border() {
+        assert_eq!(truncate_end_guarded("Alpha", 4, false), "Alp…");
+        assert_eq!(truncate_end_guarded("Alpha", 4, true), "Al…");
+
+        let temporary = tempfile::tempdir().unwrap();
+        let library =
+            crate::filesystem::Library::init(&temporary.path().join("Test.sniplib"), None).unwrap();
+        let app = App::new(library, &crate::config::AppConfig::default()).unwrap();
+        let mut snippet = make_test_snippet("2026-07-26T12:00:00Z", None);
+        snippet.manifest.title = "A title that needs truncating".to_owned();
+        snippet.folder = "A folder that needs truncating".to_owned();
+
+        let compact = compact_line(&app, &snippet, 14, None, false, false);
+        let compact_text = compact
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert_eq!(text_width(&compact_text), 14);
+        assert!(compact_text.ends_with(' '));
+
+        let metadata = metadata_line(&app, &snippet, 12, 0, true);
+        assert_eq!(metadata.width(), 11);
+        assert!(metadata.spans.last().unwrap().content.ends_with('…'));
     }
 
     #[test]
@@ -595,14 +679,14 @@ mod tests {
 
         let mut snippet = make_test_snippet("2026-07-26T12:00:00Z", None);
         snippet.folder = "Code".to_owned();
-        let unindented = metadata_line(&app, &snippet, 12, 0)
+        let unindented = metadata_line(&app, &snippet, 12, 0, false)
             .spans
             .iter()
             .map(|span| span.content.as_ref())
             .collect::<String>();
         assert!(unindented.starts_with("[Code]"));
 
-        let aligned_unpinned = metadata_line(&app, &snippet, 12, 2)
+        let aligned_unpinned = metadata_line(&app, &snippet, 12, 2, false)
             .spans
             .iter()
             .map(|span| span.content.as_ref())
@@ -610,12 +694,19 @@ mod tests {
         assert!(aligned_unpinned.starts_with("  [Code]"));
 
         snippet.manifest.pinned = true;
-        let pinned = metadata_line(&app, &snippet, 12, 2)
+        let pinned_line = metadata_line(&app, &snippet, 12, 2, false);
+        let pinned = pinned_line
             .spans
             .iter()
             .map(|span| span.content.as_ref())
             .collect::<String>();
         assert!(pinned.starts_with("★ [Code]"));
+        assert!(
+            pinned_line.spans[0]
+                .style
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
     }
 
     #[test]
