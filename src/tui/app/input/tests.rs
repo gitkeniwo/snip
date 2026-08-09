@@ -59,7 +59,8 @@ impl TestMode {
 fn app() -> (tempfile::TempDir, App) {
     let temporary = tempfile::tempdir().unwrap();
     let library = Library::init(&temporary.path().join("Keys.sniplib"), None).unwrap();
-    let app = App::new(library, &AppConfig::default()).unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.config_path = temporary.path().join("config.toml");
     (temporary, app)
 }
 

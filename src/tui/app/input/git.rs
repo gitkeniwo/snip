@@ -234,7 +234,7 @@ impl App {
         auto_pull: Option<bool>,
         backup_on_quit: Option<bool>,
     ) -> crate::error::Result<()> {
-        let mut config = crate::config::AppConfig::load()?;
+        let mut config = crate::config::AppConfig::load_from(&self.config_path)?;
         let git = config
             .git
             .get_or_insert_with(crate::config::GitConfig::default);
@@ -250,7 +250,7 @@ impl App {
         if let Some(backup_on_quit) = backup_on_quit {
             git.backup_on_quit = backup_on_quit;
         }
-        config.save()?;
+        config.save_to(&self.config_path)?;
         if let Some(interval) = interval {
             self.git.auto_commit_interval = interval;
         }

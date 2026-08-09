@@ -306,8 +306,9 @@ fn sidebar_toggle_reclaims_space_without_persisting_or_rerouting_clicks() {
 
 #[test]
 fn command_palette_fuzzy_match_and_recent_order() {
-    let (_temporary, library, _first, _second) = fixture();
+    let (temporary, library, _first, _second) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.config_path = temporary.path().join("config.toml");
     app.palette.open();
     app.refresh_palette();
     app.palette.input.value = "gp".to_owned();
@@ -346,6 +347,57 @@ fn command_palette_fuzzy_match_and_recent_order() {
     app.refresh_palette();
     assert_eq!(app.palette.matches[0].id, CommandId::ViewToggleDensity);
     assert_eq!(app.palette.matches[1].id, CommandId::ViewCycleSort);
+}
+
+#[test]
+fn view_preference_toggles_only_write_the_injected_config() {
+    let (temporary, library, _first, _second) = fixture();
+    let config_path = temporary.path().join("config.toml");
+    let config = AppConfig {
+        tui: Some(TuiConfig {
+            density: TuiDensitySetting::Comfortable,
+            line_numbers: true,
+            ..TuiConfig::default()
+        }),
+        ..AppConfig::default()
+    };
+    config.save_to(&config_path).unwrap();
+    let mut app = App::new(library, &config).unwrap();
+    app.config_path = config_path.clone();
+
+    app.run_command(CommandId::ViewToggleDensity);
+    app.run_command(CommandId::ViewToggleLineNumbers);
+
+    let saved = AppConfig::load_from(&config_path).unwrap();
+    let tui = saved
+        .tui
+        .expect("view preferences should persist TUI config");
+    assert_eq!(tui.density, TuiDensitySetting::Compact);
+    assert!(!tui.line_numbers);
+}
+
+#[test]
+fn git_setting_toggles_only_write_the_injected_config() {
+    let (temporary, library, _first, _second) = fixture();
+    snip::git::init(library.root()).unwrap();
+    let config_path = temporary.path().join("config.toml");
+    let config = AppConfig {
+        git: Some(GitConfig::default()),
+        ..AppConfig::default()
+    };
+    config.save_to(&config_path).unwrap();
+    let mut app = App::new(library, &config).unwrap();
+    app.config_path = config_path.clone();
+
+    app.run_command(CommandId::GitToggleAutoPull);
+
+    let saved = AppConfig::load_from(&config_path).unwrap();
+    assert!(
+        saved
+            .git
+            .expect("Git settings should persist through the injected config")
+            .auto_pull
+    );
 }
 
 #[test]
@@ -729,8 +781,9 @@ fn edit_effect_captures_hash_and_conflict_can_force_save() {
 
 #[test]
 fn three_pane_ui_draws_titles_preview_and_status() {
-    let (_temporary, library, _first_id, _second_id) = fixture();
+    let (temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.config_path = temporary.path().join("config.toml");
     app.theme = TuiTheme::default_for(Appearance::Light);
     app.theme_source = snip::theme::load("light-default").unwrap();
     app.highlighter = Highlighter::new(&app.theme_source).unwrap();

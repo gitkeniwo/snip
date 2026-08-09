@@ -171,7 +171,7 @@ impl App {
         } else {
             "line numbers off"
         };
-        let mut config = match crate::config::AppConfig::load() {
+        let mut config = match crate::config::AppConfig::load_from(&self.config_path) {
             Ok(config) => config,
             Err(error) => {
                 self.set_status(
@@ -185,7 +185,7 @@ impl App {
             .tui
             .get_or_insert_with(crate::config::TuiConfig::default)
             .line_numbers = self.show_line_numbers;
-        match config.save() {
+        match config.save_to(&self.config_path) {
             Ok(()) => self.set_status(label, StatusLevel::Info),
             Err(error) => self.set_status(
                 format!("{label} for this session: {error}"),
@@ -196,7 +196,7 @@ impl App {
 
     pub(in super::super) fn toggle_density(&mut self) {
         self.density = self.density.next();
-        let mut config = match crate::config::AppConfig::load() {
+        let mut config = match crate::config::AppConfig::load_from(&self.config_path) {
             Ok(config) => config,
             Err(error) => {
                 self.set_status(
@@ -210,7 +210,7 @@ impl App {
             .tui
             .get_or_insert_with(crate::config::TuiConfig::default)
             .density = self.density;
-        match config.save() {
+        match config.save_to(&self.config_path) {
             Ok(()) => self.set_status(
                 format!("list density: {}", self.density.label()),
                 StatusLevel::Info,
