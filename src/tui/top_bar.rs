@@ -22,7 +22,7 @@ pub fn draw_top_bar(frame: &mut Frame<'_>, app: &App, area: Rect) {
     };
     let brand_color = if app.modal.is_some() {
         app.theme.accent_alt
-    } else if app.search.active {
+    } else if !app.search.query.is_empty() {
         app.theme.warning
     } else {
         app.theme.pill_primary
@@ -155,6 +155,9 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
     } else {
         vec!["All snippets".to_owned()]
     };
+    if !app.search.query.is_empty() {
+        segments.push(format!("/{}", app.search.query));
+    }
     let full_width = 1 + segments
         .iter()
         .map(|value| 3 + value.chars().count())
@@ -182,7 +185,10 @@ fn breadcrumb_spans(app: &App, width: usize, base: Style) -> Vec<Span<'static>> 
             base.fg(app.theme.legible_on(secondary, app.theme.rule)),
         ));
         let style = if index == last {
-            if segment.starts_with('#') {
+            if segment.starts_with('/') {
+                base.fg(app.theme.legible_on(secondary, app.theme.warning))
+                    .add_modifier(Modifier::BOLD)
+            } else if segment.starts_with('#') {
                 base.fg(app.theme.legible_on(secondary, app.theme.tag))
                     .add_modifier(Modifier::BOLD)
             } else if segment == "All snippets" {

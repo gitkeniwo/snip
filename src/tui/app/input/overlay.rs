@@ -62,6 +62,9 @@ impl App {
             KeyCode::Esc => {
                 self.search.active = false;
             }
+            // Search is an editor, not a live list-navigation mode. Keep the
+            // query field open until it is explicitly accepted or dismissed.
+            KeyCode::Up | KeyCode::Down => {}
             KeyCode::Backspace => {
                 self.search.query.pop();
                 self.refresh_visible();
