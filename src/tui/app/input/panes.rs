@@ -194,6 +194,36 @@ impl App {
         }
     }
 
+    pub(in super::super) fn toggle_simplified_ui(&mut self) {
+        self.simplified_ui = !self.simplified_ui;
+        let label = if self.simplified_ui {
+            "simplified UI on"
+        } else {
+            "simplified UI off"
+        };
+        let mut config = match crate::config::AppConfig::load_from(&self.config_path) {
+            Ok(config) => config,
+            Err(error) => {
+                self.set_status(
+                    format!("{label} for this session: {error}"),
+                    StatusLevel::Error,
+                );
+                return;
+            }
+        };
+        config
+            .tui
+            .get_or_insert_with(crate::config::TuiConfig::default)
+            .simplified_ui = self.simplified_ui;
+        match config.save_to(&self.config_path) {
+            Ok(()) => self.set_status(label, StatusLevel::Info),
+            Err(error) => self.set_status(
+                format!("{label} for this session: {error}"),
+                StatusLevel::Error,
+            ),
+        }
+    }
+
     pub(in super::super) fn toggle_density(&mut self) {
         self.density = self.density.next();
         let mut config = match crate::config::AppConfig::load_from(&self.config_path) {
