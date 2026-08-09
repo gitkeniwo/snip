@@ -9,7 +9,7 @@ use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier};
 use snip::git::GitAction;
 use snip::git::{Branch, RepoState, Status, Unavailable};
 use snip::service::{
@@ -699,6 +699,62 @@ fn navigation_recursive_filter_and_search_work_headlessly() {
     );
     app.handle_key(key(KeyCode::Enter));
     assert_eq!(app.focus, Pane::List);
+}
+
+#[test]
+fn search_stays_in_the_editor_until_accepted_then_remains_visible_and_highlighted() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let late_match = create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Late match".to_owned(),
+            language: "text".to_owned(),
+            content:
+                "This prefix is deliberately too long for the results pane before homebrew-core\n"
+                    .to_owned(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+
+    app.handle_key(key(KeyCode::Char('/')));
+    for ch in "BREW".chars() {
+        app.handle_key(key(KeyCode::Char(ch)));
+    }
+    app.handle_key(key(KeyCode::Down));
+    app.handle_key(key(KeyCode::Up));
+
+    assert!(app.search.active);
+    assert_eq!(app.search.query, "BREW");
+    assert_eq!(app.visible.len(), 1);
+    assert_eq!(app.visible[0].snippet_id, late_match.id);
+
+    let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    assert!(row_text(terminal.backend().buffer(), 29).contains("BREW"));
+
+    app.handle_key(key(KeyCode::Enter));
+    assert!(!app.search.active);
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    assert!(row_text(buffer, 0).contains("/BREW"));
+    assert!(!row_text(buffer, 29).contains("BREW"));
+    let (match_x, match_y) = (app.layout.list.y..app.layout.list.bottom())
+        .find_map(|y| text_x(buffer, y, "brew").map(|x| (x, y)))
+        .expect("the matching excerpt should be visible in the results list");
+    assert!(
+        buffer
+            .cell((match_x, match_y))
+            .unwrap()
+            .modifier
+            .contains(Modifier::UNDERLINED)
+    );
 }
 
 #[test]
