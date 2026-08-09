@@ -129,6 +129,15 @@ The generated built-ins map base16 slots to UI roles as follows:
 | `warning` | `base0A` |
 | `error` | `base08` |
 
+Generated built-ins may transpose palette slots before applying this mapping
+when a Base16 port follows syntax roles instead of the palette's documented UI
+identity. `light-github` swaps `base09` with `base0D` and `base0B` with
+`base0C`, preserving GitHub blue as the general accent, darker green as success,
+and purple as the tag colour; its primary pill is separately set to Primer's
+`#1f883d` primary-action green. `dark-nord` swaps `base0C` with `base0D`, promoting Nord's
+documented nord8 primary accent instead of its keyword colour. The vendored
+scheme files remain unchanged.
+
 `dark-default`, `light-default`, and `light-teal` use the same surface
 derivation. Their curated source files keep the semantic Primer-style roles and
 provide an unadjusted bar source; generation computes bar and pill colours

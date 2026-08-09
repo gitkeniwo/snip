@@ -8,6 +8,13 @@ Upstream commit: `9bd28ed313560db3c5b605c63bc4e309e78e3fc8` (2026-07-27).
 `everforest-light-medium.yaml`, because the upstream directory has no file
 named `everforest-light.yaml`.
 
+The vendored `github.yaml` and `nord.yaml` files are also kept unmodified.
+Built-in generation transposes selected palette slots before conversion so the
+resulting UI follows each palette's documented identity: GitHub uses blue for
+its general accent, Primer green for primary-action pills, darker green for
+success, and purple for tags; Nord uses nord8 as its primary accent. Raw-source
+audits continue to inspect the untransposed files.
+
 ## License
 
 Copyright (c) 2022 Tinted Theming (https://github.com/tinted-theming)

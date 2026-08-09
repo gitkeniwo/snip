@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **GitHub and Nord expose their intended accents.** Built-in generation now
+  transposes syntax-oriented Base16 slots before UI conversion: GitHub uses its
+  blue general accent, Primer-green primary actions, darker green success, and
+  purple tag colours, while Nord uses its documented nord8 primary accent. The
+  vendored YAML remains unchanged.
 - **A blue default light theme.** `light-default` now uses a GitHub Primer-style
   blue palette that matches `dark-default`; the previous teal palette remains
   available as the new `light-teal` built-in.

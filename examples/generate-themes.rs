@@ -13,6 +13,11 @@ struct ThemeSpec {
     input: &'static str,
     source: &'static str,
     syntax: Option<&'static str>,
+    /// Palette slot pairs to transpose before conversion, for schemes whose
+    /// slots follow syntax roles rather than the theme's own UI identity.
+    swaps: &'static [(&'static str, &'static str)],
+    /// Optional generated-theme override for a palette's primary action colour.
+    pill_primary: Option<&'static str>,
 }
 
 const SPECS: &[ThemeSpec] = &[
@@ -21,156 +26,208 @@ const SPECS: &[ThemeSpec] = &[
         input: "dracula",
         source: "dracula",
         syntax: Some("Dracula"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-gruvbox",
         input: "gruvbox-dark-medium",
         source: "gruvbox-dark-medium",
         syntax: Some("GruvboxDark"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-gruvbox",
         input: "gruvbox-light-medium",
         source: "gruvbox-light-medium",
         syntax: Some("GruvboxLight"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-nord",
         input: "nord",
         source: "nord",
         syntax: Some("Nord"),
+        swaps: &[("base0C", "base0D")],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-everforest",
         input: "everforest",
         source: "everforest",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-everforest",
         input: "everforest-light",
         source: "everforest-light-medium",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-ayu",
         input: "ayu-dark",
         source: "ayu-dark",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-ayu",
         input: "ayu-light",
         source: "ayu-light",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-catppuccin",
         input: "catppuccin-mocha",
         source: "catppuccin-mocha",
         syntax: Some("CatppuccinMocha"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-catppuccin",
         input: "catppuccin-latte",
         source: "catppuccin-latte",
         syntax: Some("CatppuccinLatte"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-solarized",
         input: "solarized-dark",
         source: "solarized-dark",
         syntax: Some("SolarizedDark"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-solarized",
         input: "solarized-light",
         source: "solarized-light",
         syntax: Some("SolarizedLight"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-onedark",
         input: "onedark",
         source: "onedark",
         syntax: Some("TwoDark"),
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-github",
         input: "github",
         source: "github",
         syntax: Some("Github"),
+        swaps: &[("base09", "base0D"), ("base0B", "base0C")],
+        pill_primary: Some("#1f883d"),
     },
     ThemeSpec {
         output: "dark-tokyonight",
         input: "tokyo-night-dark",
         source: "tokyo-night-dark",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-kanagawa",
         input: "kanagawa",
         source: "kanagawa",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-edge",
         input: "edge-dark",
         source: "edge-dark",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-edge",
         input: "edge-light",
         source: "edge-light",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-horizon",
         input: "horizon-dark",
         source: "horizon-dark",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-horizon",
         input: "horizon-light",
         source: "horizon-light",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-primer",
         input: "primer-dark",
         source: "primer-dark",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-primer",
         input: "primer-light",
         source: "primer-light",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-selenized",
         input: "selenized-dark",
         source: "selenized-dark",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-selenized",
         input: "selenized-light",
         source: "selenized-light",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "dark-tokyonight-storm",
         input: "tokyo-night-storm",
         source: "tokyo-night-storm",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
     ThemeSpec {
         output: "light-tokyonight",
         input: "tokyo-night-light",
         source: "tokyo-night-light",
         syntax: None,
+        swaps: &[],
+        pill_primary: None,
     },
 ];
 
@@ -219,13 +276,7 @@ fn run() -> Result<(), String> {
             .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
         let scheme = base16::parse_scheme(&text)
             .map_err(|error| format!("cannot parse {}: {error}", path.display()))?;
-        let theme = base16::scheme_to_theme(
-            &scheme,
-            spec.output,
-            &format!("base16:{}", spec.source),
-            spec.syntax,
-        )
-        .map_err(|error| error.to_string())?;
+        let theme = generated_theme_from_scheme(scheme, spec)?;
         generated.insert(
             root.join(format!("assets/themes/{}.toml", spec.output)),
             format!(
@@ -275,6 +326,34 @@ fn run() -> Result<(), String> {
     } else {
         Err(format!("generated theme drift:\n{}", drift.join("\n")))
     }
+}
+
+fn transpose_scheme(scheme: &mut base16::Scheme, swaps: &[(&str, &str)]) {
+    for &(left, right) in swaps {
+        let left_value = scheme.palette[left];
+        let right_value = scheme.palette[right];
+        scheme.palette.insert(left.to_owned(), right_value);
+        scheme.palette.insert(right.to_owned(), left_value);
+    }
+}
+
+fn generated_theme_from_scheme(
+    mut scheme: base16::Scheme,
+    spec: &ThemeSpec,
+) -> Result<theme::Theme, String> {
+    transpose_scheme(&mut scheme, spec.swaps);
+    let mut theme = base16::scheme_to_theme(
+        &scheme,
+        spec.output,
+        &format!("base16:{}", spec.source),
+        spec.syntax,
+    )
+    .map_err(|error| error.to_string())?;
+    if let Some(value) = spec.pill_primary {
+        theme.ui.pill_primary = ThemeColor::parse(value, "pill_primary")
+            .map_err(|error| format!("cannot override {} pill_primary: {error}", spec.output))?;
+    }
+    Ok(theme)
 }
 
 fn curated_theme(root: &Path, spec: &CuratedSpec) -> Result<theme::Theme, String> {
@@ -390,6 +469,37 @@ fn sanitized_name(stem: &str) -> Option<String> {
 mod tests {
     use super::*;
     use snip::theme::color::contrast;
+
+    fn generated_theme(output: &str) -> theme::Theme {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let spec = SPECS
+            .iter()
+            .find(|spec| spec.output == output)
+            .expect("generated theme spec exists");
+        let text =
+            fs::read_to_string(root.join(format!("assets/base16/{}.yaml", spec.input))).unwrap();
+        let scheme = base16::parse_scheme(&text).unwrap();
+        generated_theme_from_scheme(scheme, spec).unwrap()
+    }
+
+    #[test]
+    fn only_github_and_nord_transpose_slots_for_ui_identity() {
+        let transposed = SPECS
+            .iter()
+            .filter(|spec| !spec.swaps.is_empty())
+            .map(|spec| spec.output)
+            .collect::<Vec<_>>();
+        assert_eq!(transposed, ["dark-nord", "light-github"]);
+
+        let github = generated_theme("light-github");
+        assert_eq!(github.ui.accent, ThemeColor::Rgb(5, 80, 174));
+        assert_eq!(github.ui.pill_primary, ThemeColor::Rgb(31, 136, 61));
+        assert_eq!(github.ui.success, ThemeColor::Rgb(17, 99, 41));
+        assert_eq!(github.ui.tag, ThemeColor::Rgb(130, 80, 223));
+
+        let nord = generated_theme("dark-nord");
+        assert_eq!(nord.ui.accent, ThemeColor::Rgb(136, 192, 208));
+    }
 
     #[test]
     fn curated_sources_generate_terminal_themes_with_the_shared_surface_floors() {
