@@ -174,6 +174,35 @@ pub fn contrast(left: ThemeColor, right: ThemeColor) -> Option<f64> {
     Some((left.max(right) + 0.05) / (left.min(right) + 0.05))
 }
 
+/// Blend `from` toward `to`. `ratio` is 0.0 (all `from`) to 1.0 (all `to`).
+pub fn mix(from: ThemeColor, to: ThemeColor, ratio: f64) -> Result<ThemeColor> {
+    let (
+        ThemeColor::Rgb(from_red, from_green, from_blue),
+        ThemeColor::Rgb(to_red, to_green, to_blue),
+    ) = (from, to)
+    else {
+        return Err(SnipError::validation(format!(
+            "cannot blend {} toward {}: both colors must be #rrggbb",
+            from.as_string(),
+            to.as_string()
+        )));
+    };
+    if !(0.0..=1.0).contains(&ratio) {
+        return Err(SnipError::validation(format!(
+            "cannot blend colors with ratio {ratio}: expected 0.0 through 1.0"
+        )));
+    }
+    let step = (ratio * 255.0).round() as u16;
+    let blend = |from: u8, to: u8| {
+        ((u16::from(from) * (255 - step) + u16::from(to) * step + 127) / 255) as u8
+    };
+    Ok(ThemeColor::Rgb(
+        blend(from_red, to_red),
+        blend(from_green, to_green),
+        blend(from_blue, to_blue),
+    ))
+}
+
 /// Blend `color` toward white or black — whichever suits `background` — until
 /// it clears `floor`. Returns `color` unchanged when it already does.
 pub fn ensure_contrast(
@@ -307,5 +336,15 @@ mod tests {
         .unwrap();
         assert!(contrast(darkened, ThemeColor::Rgb(240, 240, 240)).unwrap() >= 4.5);
         assert!(ensure_contrast(ThemeColor::Named(NamedColor::White), black, 4.5).is_err());
+    }
+
+    #[test]
+    fn mix_preserves_endpoints_and_rounds_the_midpoint() {
+        let from = ThemeColor::Rgb(10, 20, 30);
+        let to = ThemeColor::Rgb(110, 220, 130);
+
+        assert_eq!(mix(from, to, 0.0).unwrap(), from);
+        assert_eq!(mix(from, to, 1.0).unwrap(), to);
+        assert_eq!(mix(from, to, 0.5).unwrap(), ThemeColor::Rgb(60, 120, 80));
     }
 }

@@ -29,5 +29,6 @@ pub static THEMES: &[(&str, &str)] = &[
     ("light-primer", include_str!("../../assets/themes/light-primer.toml")),
     ("light-selenized", include_str!("../../assets/themes/light-selenized.toml")),
     ("light-solarized", include_str!("../../assets/themes/light-solarized.toml")),
+    ("light-teal", include_str!("../../assets/themes/light-teal.toml")),
     ("light-tokyonight", include_str!("../../assets/themes/light-tokyonight.toml")),
 ];

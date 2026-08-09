@@ -193,10 +193,15 @@ there is no popularity threshold for new packages.
   and `border`) and the built-ins regenerated; `theme check` rewritten to the
   real render pairs, with regression tests that no built-in fails.
   (`docs/plans/completed/theme-contrast.md`)
+- **Theme palette refresh** — `light-default` is now the blue daylight sibling
+  of `dark-default`, the previous teal palette remains as `light-teal`, and
+  generated Base16 themes use accent-derived selection, retained-selection,
+  and primary-pill surfaces with a quieter secondary pill.
+  (`docs/plans/completed/theme-palette-refresh.md`)
 - **Theme import** — `snip theme import <scheme.yaml>` brings local base16/base24
   schemes in as editable user themes; the base16 → UI-role mapping, contrast
   clamping, and selection-foreground choice moved into a shared library, adding
-  no runtime dependency. 28 curated built-ins, twelve of them light, with
+  no runtime dependency. 29 curated built-ins, thirteen of them light, with
   hand-verifiable provenance. (`docs/plans/completed/theme-import.md`)
 - **README as a preview item** — `PreviewTarget { Fragment(usize), Readme }`
   replaces `App.fragment_index` so the compiler forces an answer for every

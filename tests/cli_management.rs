@@ -348,9 +348,17 @@ fn cli_lists_checks_uses_and_exports_themes_without_a_library() {
     .assert()
     .failure();
 
-    let broken = fs::read_to_string(&exported)
-        .unwrap()
-        .replace("selection_fg = \"#eceff4\"", "selection_fg = \"#434c5e\"");
+    let exported_theme = fs::read_to_string(&exported).unwrap();
+    let selection_bg = exported_theme
+        .lines()
+        .find_map(|line| line.strip_prefix("selection_bg = "))
+        .unwrap();
+    let selection_fg = exported_theme
+        .lines()
+        .find(|line| line.starts_with("selection_fg = "))
+        .unwrap();
+    let broken =
+        exported_theme.replacen(selection_fg, &format!("selection_fg = {selection_bg}"), 1);
     fs::write(&exported, broken).unwrap();
     theme_command(config_home, &["theme", "check", "mine"])
         .assert()
