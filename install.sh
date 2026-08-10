@@ -172,6 +172,14 @@ fi
 os="$(uname -s)"
 arch="$(uname -m)"
 
+# Under Rosetta 2, `uname -m` reports x86_64 on Apple Silicon. Prefer the
+# native arm64 build so we do not silently install the slower Intel binary.
+if [ "$os" = Darwin ] && [ "$arch" = x86_64 ]; then
+  if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" = 1 ]; then
+    arch=arm64
+  fi
+fi
+
 case "$os" in
   MINGW*|MSYS*|CYGWIN*)
     die 'this script installs the Linux binary and cannot be used from Git Bash, MSYS, or Cygwin; install with scoop: scoop install snip'
