@@ -70,6 +70,7 @@ fn prepare(app: &mut App, mode: TestMode) {
     app.fragment_grab = None;
     app.trash.open = false;
     app.show_help = false;
+    app.help.close();
     app.git.open = false;
     app.git.operation_queued = false;
     app.gist.open = false;
@@ -282,6 +283,11 @@ fn characterization_table() -> Vec<(TestMode, Vec<(&'static str, CommandId)>)> {
             ("up", CommandId::NavUp),
             ("ctrl-d", CommandId::NavPageDown),
             ("ctrl-u", CommandId::NavPageUp),
+            ("}", CommandId::NavPageDown),
+            ("{", CommandId::NavPageUp),
+            ("/", CommandId::HelpFilter),
+            ("a", CommandId::HelpToggleScope),
+            ("s", CommandId::HelpCycleSort),
         ],
     ));
     table.push((

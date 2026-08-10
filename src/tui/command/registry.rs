@@ -2,12 +2,13 @@ use super::{Command, CommandId};
 use crate::tui::app::commands::*;
 
 macro_rules! command {
-    ($id:ident, $slug:literal, $category:literal, $title:literal, $keywords:expr, $state:ident, $run:ident) => {
+    ($id:ident, $slug:literal, $category:literal, $title:literal, $description:literal, $keywords:expr, $state:ident, $run:ident) => {
         Command {
             id: CommandId::$id,
             slug: $slug,
             category: $category,
             title: $title,
+            description: $description,
             keywords: $keywords,
             palette: true,
             state: $state,
@@ -17,12 +18,13 @@ macro_rules! command {
 }
 
 macro_rules! key_command {
-    ($id:ident, $slug:literal, $category:literal, $title:literal, $run:ident) => {
+    ($id:ident, $slug:literal, $category:literal, $title:literal, $description:literal, $run:ident) => {
         Command {
             id: CommandId::$id,
             slug: $slug,
             category: $category,
             title: $title,
+            description: $description,
             keywords: &[],
             palette: false,
             state: enabled,
@@ -32,12 +34,13 @@ macro_rules! key_command {
 }
 
 macro_rules! key_command_state {
-    ($id:ident, $slug:literal, $category:literal, $title:literal, $state:ident, $run:ident) => {
+    ($id:ident, $slug:literal, $category:literal, $title:literal, $description:literal, $state:ident, $run:ident) => {
         Command {
             id: CommandId::$id,
             slug: $slug,
             category: $category,
             title: $title,
+            description: $description,
             keywords: &[],
             palette: false,
             state: $state,
@@ -47,32 +50,56 @@ macro_rules! key_command_state {
 }
 
 pub fn registry() -> &'static [Command] {
-    &COMMANDS
+    COMMANDS
 }
 
-static COMMANDS: [Command; 94] = [
+static COMMANDS: &[Command] = &[
     key_command!(
         PaletteOpen,
         "palette.open",
         "UI",
         "Open Palette",
+        "Open the command palette",
         palette_open
     ),
-    key_command!(NavDown, "nav.down", "Navigation", "Move Down", nav_down),
-    key_command!(NavUp, "nav.up", "Navigation", "Move Up", nav_up),
+    key_command!(
+        NavDown,
+        "nav.down",
+        "Navigation",
+        "Move Down",
+        "Move to the next item",
+        nav_down
+    ),
+    key_command!(
+        NavUp,
+        "nav.up",
+        "Navigation",
+        "Move Up",
+        "Move to the previous item",
+        nav_up
+    ),
     key_command!(
         NavFirst,
         "nav.first",
         "Navigation",
         "Move to First",
+        "Move to the first item",
         nav_first
     ),
-    key_command!(NavLast, "nav.last", "Navigation", "Move to Last", nav_last),
+    key_command!(
+        NavLast,
+        "nav.last",
+        "Navigation",
+        "Move to Last",
+        "Move to the last item",
+        nav_last
+    ),
     key_command!(
         NavPageDown,
         "nav.page-down",
         "Navigation",
         "Page Down",
+        "Move down by half a page",
         nav_page_down
     ),
     key_command!(
@@ -80,22 +107,39 @@ static COMMANDS: [Command; 94] = [
         "nav.page-up",
         "Navigation",
         "Page Up",
+        "Move up by half a page",
         nav_page_up
     ),
-    key_command!(PaneNext, "pane.next", "Pane", "Next Pane", pane_next),
+    key_command!(
+        PaneNext,
+        "pane.next",
+        "Pane",
+        "Next Pane",
+        "Focus the next pane",
+        pane_next
+    ),
     key_command!(
         PanePrevious,
         "pane.previous",
         "Pane",
         "Previous Pane",
+        "Focus the previous pane",
         pane_previous
     ),
-    key_command!(PaneBack, "pane.back", "Pane", "Go Back", pane_back),
+    key_command!(
+        PaneBack,
+        "pane.back",
+        "Pane",
+        "Go Back",
+        "Go back to the previous pane",
+        pane_back
+    ),
     key_command!(
         PaneForward,
         "pane.forward",
         "Pane",
         "Go Forward",
+        "Drill into the next pane",
         pane_forward
     ),
     key_command!(
@@ -103,6 +147,7 @@ static COMMANDS: [Command; 94] = [
         "sidebar.activate",
         "Sidebar",
         "Activate",
+        "Apply the selected library filter",
         sidebar_activate
     ),
     key_command!(
@@ -110,6 +155,7 @@ static COMMANDS: [Command; 94] = [
         "sidebar.toggle-folder",
         "Sidebar",
         "Toggle Folder",
+        "Expand or collapse the selected folder",
         sidebar_toggle_folder
     ),
     key_command!(
@@ -117,6 +163,7 @@ static COMMANDS: [Command; 94] = [
         "sidebar.rename",
         "Sidebar",
         "Rename",
+        "Rename the selected folder or tag",
         sidebar_rename
     ),
     key_command!(
@@ -124,6 +171,7 @@ static COMMANDS: [Command; 94] = [
         "sidebar.delete",
         "Sidebar",
         "Delete",
+        "Delete the selected folder or tag",
         sidebar_delete
     ),
     key_command!(
@@ -131,6 +179,7 @@ static COMMANDS: [Command; 94] = [
         "list.enter-preview",
         "List",
         "Enter Preview",
+        "Focus the snippet preview",
         list_enter_preview
     ),
     key_command!(
@@ -138,6 +187,7 @@ static COMMANDS: [Command; 94] = [
         "preview.previous-item",
         "Preview",
         "Previous Item",
+        "Select the previous preview item",
         preview_previous_item
     ),
     key_command!(
@@ -145,6 +195,7 @@ static COMMANDS: [Command; 94] = [
         "preview.next-item",
         "Preview",
         "Next Item",
+        "Select the next preview item",
         preview_next_item
     ),
     key_command!(
@@ -152,6 +203,7 @@ static COMMANDS: [Command; 94] = [
         "preview.previous-paragraph",
         "Preview",
         "Previous Paragraph",
+        "Jump to the previous paragraph",
         preview_previous_paragraph
     ),
     key_command!(
@@ -159,6 +211,7 @@ static COMMANDS: [Command; 94] = [
         "preview.next-paragraph",
         "Preview",
         "Next Paragraph",
+        "Jump to the next paragraph",
         preview_next_paragraph
     ),
     key_command!(
@@ -166,6 +219,7 @@ static COMMANDS: [Command; 94] = [
         "preview.expand-fragments",
         "Preview",
         "Expand Fragments",
+        "Expand the fragment list",
         preview_expand_fragments
     ),
     key_command!(
@@ -173,6 +227,7 @@ static COMMANDS: [Command; 94] = [
         "preview.collapse-fragments",
         "Preview",
         "Collapse Fragments",
+        "Collapse the fragment list",
         preview_collapse_fragments
     ),
     key_command!(
@@ -180,14 +235,23 @@ static COMMANDS: [Command; 94] = [
         "grab.drop",
         "Fragment",
         "Drop Fragment",
+        "Drop the grabbed fragment",
         grab_drop
     ),
-    key_command!(UiDismiss, "ui.dismiss", "UI", "Dismiss", ui_dismiss),
+    key_command!(
+        UiDismiss,
+        "ui.dismiss",
+        "UI",
+        "Dismiss",
+        "Close the active panel or clear the active filter",
+        ui_dismiss
+    ),
     command!(
         SnippetNew,
         "snippet.new",
         "Snippet",
         "New Snippet",
+        "Create a snippet",
         &["create"],
         enabled,
         snippet_new
@@ -197,6 +261,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.edit-content",
         "Snippet",
         "Edit Content",
+        "Edit the selected fragment content",
         &["edit"],
         has_snippet,
         snippet_edit_content
@@ -206,6 +271,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.edit-note",
         "Snippet",
         "Edit Note",
+        "Edit the selected fragment note",
         &["note"],
         has_snippet,
         snippet_edit_note
@@ -215,6 +281,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.edit-readme",
         "Snippet",
         "Edit README",
+        "Edit the selected snippet README",
         &["readme"],
         has_snippet,
         snippet_edit_readme
@@ -224,6 +291,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.open-vscode",
         "Snippet",
         "Open in VS Code",
+        "Open the selected fragment in VS Code",
         &["code", "editor"],
         has_snippet,
         snippet_open_vscode
@@ -233,6 +301,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.rename",
         "Snippet",
         "Rename",
+        "Rename the selected snippet",
         &["title"],
         has_snippet,
         snippet_rename
@@ -242,6 +311,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.move",
         "Snippet",
         "Move",
+        "Move the selected snippet to another folder",
         &["folder"],
         has_snippet,
         snippet_move
@@ -251,6 +321,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.edit-tags",
         "Snippet",
         "Edit Tags",
+        "Edit the selected snippet tags",
         &["labels"],
         has_snippet,
         snippet_tags
@@ -260,6 +331,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.edit-language",
         "Snippet",
         "Edit Language",
+        "Change the selected fragment language",
         &["syntax"],
         has_snippet,
         snippet_language
@@ -269,6 +341,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.toggle-pin",
         "Snippet",
         "Toggle Pin",
+        "Pin or unpin the selected snippet",
         &["pinned"],
         has_snippet,
         snippet_pin
@@ -278,6 +351,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.toggle-lock",
         "Snippet",
         "Toggle Lock",
+        "Lock or unlock the selected snippet",
         &["locked"],
         has_snippet,
         snippet_lock
@@ -287,6 +361,7 @@ static COMMANDS: [Command; 94] = [
         "snippet.move-to-trash",
         "Snippet",
         "Move to Trash",
+        "Move the selected snippet to trash",
         &["delete"],
         has_snippet,
         snippet_trash
@@ -296,6 +371,7 @@ static COMMANDS: [Command; 94] = [
         "fragment.add",
         "Fragment",
         "Add Fragment",
+        "Add a fragment to the selected snippet",
         &["new", "create"],
         can_add_fragment,
         fragment_add
@@ -305,6 +381,7 @@ static COMMANDS: [Command; 94] = [
         "fragment.rename",
         "Fragment",
         "Rename Fragment",
+        "Rename the selected fragment",
         &["title"],
         can_edit_fragment,
         fragment_rename
@@ -314,6 +391,7 @@ static COMMANDS: [Command; 94] = [
         "fragment.reorder",
         "Fragment",
         "Move Fragment",
+        "Move the selected fragment",
         &["reorder", "order", "position"],
         can_reorder_fragment,
         fragment_reorder
@@ -323,6 +401,7 @@ static COMMANDS: [Command; 94] = [
         "fragment.remove",
         "Fragment",
         "Delete Fragment",
+        "Delete the selected fragment",
         &["delete", "remove"],
         can_remove_fragment,
         fragment_remove
@@ -332,6 +411,7 @@ static COMMANDS: [Command; 94] = [
         "copy.content",
         "Copy",
         "Content",
+        "Copy the selected fragment content",
         &["clipboard"],
         has_snippet,
         copy_content
@@ -341,6 +421,7 @@ static COMMANDS: [Command; 94] = [
         "copy.snippet-id",
         "Copy",
         "Snippet ID",
+        "Copy the selected snippet ID",
         &["clipboard", "id"],
         has_snippet,
         copy_id
@@ -350,6 +431,7 @@ static COMMANDS: [Command; 94] = [
         "copy.managed-path",
         "Copy",
         "Managed Path",
+        "Copy the selected managed file path",
         &["clipboard", "path"],
         has_snippet,
         copy_path
@@ -359,6 +441,7 @@ static COMMANDS: [Command; 94] = [
         "folder.new",
         "Folder",
         "New Folder",
+        "Create a folder",
         &["create"],
         enabled,
         folder_new
@@ -368,6 +451,7 @@ static COMMANDS: [Command; 94] = [
         "folder.rename",
         "Folder",
         "Rename",
+        "Rename the selected folder",
         &[],
         has_folder,
         folder_rename
@@ -377,6 +461,7 @@ static COMMANDS: [Command; 94] = [
         "folder.move",
         "Folder",
         "Move",
+        "Move the selected folder",
         &[],
         has_folder,
         folder_move
@@ -386,6 +471,7 @@ static COMMANDS: [Command; 94] = [
         "folder.delete",
         "Folder",
         "Delete",
+        "Delete the selected folder",
         &["remove"],
         has_folder,
         folder_delete
@@ -395,6 +481,7 @@ static COMMANDS: [Command; 94] = [
         "tag.rename",
         "Tag",
         "Rename",
+        "Rename the selected tag",
         &[],
         has_tag,
         tag_rename
@@ -404,6 +491,7 @@ static COMMANDS: [Command; 94] = [
         "tag.delete",
         "Tag",
         "Delete",
+        "Delete the selected tag",
         &["remove"],
         has_tag,
         tag_delete
@@ -413,6 +501,7 @@ static COMMANDS: [Command; 94] = [
         "view.cycle-sort",
         "View",
         "Cycle Sort",
+        "Cycle the snippet sort order",
         &[],
         enabled,
         cycle_sort
@@ -422,6 +511,7 @@ static COMMANDS: [Command; 94] = [
         "view.sort-modified",
         "View",
         "Sort by Modified",
+        "Sort snippets by modification time",
         &["date"],
         enabled,
         sort_modified
@@ -431,6 +521,7 @@ static COMMANDS: [Command; 94] = [
         "view.sort-title",
         "View",
         "Sort by Title",
+        "Sort snippets by title",
         &["name"],
         enabled,
         sort_title
@@ -440,6 +531,7 @@ static COMMANDS: [Command; 94] = [
         "view.sort-created",
         "View",
         "Sort by Created",
+        "Sort snippets by creation time",
         &["date"],
         enabled,
         sort_created
@@ -449,6 +541,7 @@ static COMMANDS: [Command; 94] = [
         "view.toggle-line-numbers",
         "View",
         "Toggle Line Numbers",
+        "Show or hide preview line numbers",
         &[],
         enabled,
         toggle_line_numbers
@@ -458,6 +551,7 @@ static COMMANDS: [Command; 94] = [
         "view.toggle-simplified-ui",
         "View",
         "Toggle Simplified UI",
+        "Toggle the simplified terminal UI",
         &["font", "powerline", "nerd font", "square", "bars"],
         enabled,
         toggle_simplified_ui
@@ -467,6 +561,7 @@ static COMMANDS: [Command; 94] = [
         "view.toggle-fragment-list",
         "View",
         "Toggle Fragment List",
+        "Show or hide the fragment list",
         &["fragment", "fragments", "tree", "expand", "collapse"],
         enabled,
         toggle_fragment_list
@@ -476,6 +571,7 @@ static COMMANDS: [Command; 94] = [
         "view.toggle-density",
         "View",
         "Toggle Density",
+        "Toggle compact snippet list spacing",
         &["list"],
         enabled,
         toggle_density
@@ -485,6 +581,7 @@ static COMMANDS: [Command; 94] = [
         "view.toggle-sidebar",
         "View",
         "Toggle Library Pane",
+        "Show or hide the library pane",
         &[
             "sidebar", "library", "pane", "hide", "show", "collapse", "width", "narrow"
         ],
@@ -496,6 +593,7 @@ static COMMANDS: [Command; 94] = [
         "view.cycle-appearance",
         "View",
         "Toggle Light / Dark",
+        "Switch between light and dark appearance",
         &["light", "dark", "appearance", "mode", "force", "theme"],
         enabled,
         cycle_appearance
@@ -505,6 +603,7 @@ static COMMANDS: [Command; 94] = [
         "view.clear-appearance-override",
         "View",
         "Clear Appearance Override",
+        "Return appearance selection to automatic",
         &["clear", "override", "auto", "system", "appearance", "reset"],
         enabled,
         clear_appearance_override
@@ -514,6 +613,7 @@ static COMMANDS: [Command; 94] = [
         "view.pick-theme",
         "View",
         "Change Color Theme",
+        "Choose a color theme",
         &["theme", "color", "colour", "scheme", "appearance"],
         enabled,
         view_pick_theme
@@ -523,15 +623,41 @@ static COMMANDS: [Command; 94] = [
         "view.toggle-help",
         "View",
         "Toggle Help",
+        "Open or close the help panel",
         &[],
         enabled,
         toggle_help
+    ),
+    key_command!(
+        HelpFilter,
+        "help.filter",
+        "Help",
+        "Filter Help",
+        "Filter the help cheatsheet",
+        help_filter
+    ),
+    key_command!(
+        HelpToggleScope,
+        "help.toggle-scope",
+        "Help",
+        "Toggle Help Scope",
+        "Show this context or all modes",
+        help_toggle_scope
+    ),
+    key_command!(
+        HelpCycleSort,
+        "help.cycle-sort",
+        "Help",
+        "Cycle Help Sort",
+        "Sort help rows by key or action",
+        help_cycle_sort
     ),
     command!(
         LibrarySearch,
         "library.search",
         "Library",
         "Search",
+        "Search the snippet library",
         &["find"],
         enabled,
         library_search
@@ -541,6 +667,7 @@ static COMMANDS: [Command; 94] = [
         "library.rescan",
         "Library",
         "Rescan",
+        "Rescan the snippet library",
         &["refresh"],
         enabled,
         library_rescan
@@ -550,6 +677,7 @@ static COMMANDS: [Command; 94] = [
         "library.toggle-trash",
         "Library",
         "Toggle Trash",
+        "Open or close the trash",
         &["deleted"],
         enabled,
         library_toggle_trash
@@ -559,6 +687,7 @@ static COMMANDS: [Command; 94] = [
         "library.clear-filter",
         "Library",
         "Clear Filter",
+        "Clear the active library filter",
         &["reset"],
         enabled,
         library_clear_filter
@@ -568,6 +697,7 @@ static COMMANDS: [Command; 94] = [
         "library.toggle-published",
         "Library",
         "Toggle Published Filter",
+        "Show or hide published snippets",
         &["gist"],
         enabled,
         library_toggle_published
@@ -577,6 +707,7 @@ static COMMANDS: [Command; 94] = [
         "git.toggle-console",
         "Git",
         "Toggle Console",
+        "Open or close the Git console",
         &["source control"],
         enabled,
         git_toggle_console
@@ -586,6 +717,7 @@ static COMMANDS: [Command; 94] = [
         "git.backup",
         "Git",
         "Backup",
+        "Commit changes and push them to the remote",
         &["commit", "push"],
         git_available,
         git_backup
@@ -595,6 +727,7 @@ static COMMANDS: [Command; 94] = [
         "git.commit",
         "Git",
         "Commit",
+        "Commit library changes",
         &["save"],
         git_available,
         git_commit
@@ -604,6 +737,7 @@ static COMMANDS: [Command; 94] = [
         "git.commit-message",
         "Git",
         "Commit with Message…",
+        "Commit library changes with a custom message",
         &["custom"],
         git_available,
         git_message
@@ -613,6 +747,7 @@ static COMMANDS: [Command; 94] = [
         "git.push",
         "Git",
         "Push to Remote",
+        "Push local commits to the remote",
         &["upload", "remote"],
         git_available,
         git_push
@@ -622,6 +757,7 @@ static COMMANDS: [Command; 94] = [
         "git.fetch",
         "Git",
         "Fetch Remote Status",
+        "Fetch the latest remote status",
         &["remote"],
         git_available,
         git_fetch
@@ -631,6 +767,7 @@ static COMMANDS: [Command; 94] = [
         "git.pull",
         "Git",
         "Pull From Remote",
+        "Pull changes from the remote",
         &["remote", "sync"],
         git_available,
         git_pull
@@ -640,6 +777,7 @@ static COMMANDS: [Command; 94] = [
         "git.toggle-auto-pull",
         "Git",
         "Toggle Auto Pull",
+        "Toggle automatic pull on startup",
         &["automatic"],
         git_available,
         git_auto_pull
@@ -649,6 +787,7 @@ static COMMANDS: [Command; 94] = [
         "git.refresh",
         "Git",
         "Refresh Local Status",
+        "Refresh local repository status",
         &["status"],
         git_available,
         git_refresh
@@ -658,6 +797,7 @@ static COMMANDS: [Command; 94] = [
         "git.init",
         "Git",
         "Init Repository",
+        "Initialize a Git repository",
         &["initialize"],
         can_init_git,
         git_init
@@ -667,6 +807,7 @@ static COMMANDS: [Command; 94] = [
         "git.init-or-set-interval",
         "Git",
         "Init or Set Interval",
+        "Initialize Git or set the automatic commit interval",
         can_init_or_configure_git,
         git_init_or_set_interval
     ),
@@ -675,6 +816,7 @@ static COMMANDS: [Command; 94] = [
         "git.toggle-auto-push",
         "Git",
         "Toggle Auto Push",
+        "Toggle automatic push after commits",
         &["automatic"],
         git_available,
         git_auto_push
@@ -684,6 +826,7 @@ static COMMANDS: [Command; 94] = [
         "git.toggle-backup-on-quit",
         "Git",
         "Toggle Backup on Quit",
+        "Toggle automatic backup on quit",
         &["automatic"],
         git_available,
         git_backup_on_quit
@@ -693,6 +836,7 @@ static COMMANDS: [Command; 94] = [
         "git.pause-auto-backup",
         "Git",
         "Pause Auto Backup",
+        "Pause automatic backup for this session",
         &["automatic"],
         git_available,
         git_pause
@@ -702,6 +846,7 @@ static COMMANDS: [Command; 94] = [
         "git.set-auto-commit-interval",
         "Git",
         "Set Auto Commit Interval…",
+        "Set the automatic commit interval",
         &["automatic"],
         git_available,
         git_interval
@@ -711,6 +856,7 @@ static COMMANDS: [Command; 94] = [
         "gist.toggle-panel",
         "Gist",
         "Toggle Panel",
+        "Open or close the Gist panel",
         &["gist"],
         enabled,
         gist_toggle_panel
@@ -720,6 +866,7 @@ static COMMANDS: [Command; 94] = [
         "gist.push",
         "Gist",
         "Publish or Update",
+        "Publish or update the selected snippet as a gist",
         &["share", "gist"],
         has_snippet,
         gist_push
@@ -729,6 +876,7 @@ static COMMANDS: [Command; 94] = [
         "gist.push-public",
         "Gist",
         "Publish as Public Gist",
+        "Publish the selected snippet as a public gist",
         &["public"],
         has_snippet,
         gist_push_public
@@ -738,6 +886,7 @@ static COMMANDS: [Command; 94] = [
         "gist.copy-url",
         "Gist",
         "Copy URL",
+        "Copy the selected snippet gist URL",
         &["link", "url"],
         has_gist,
         gist_copy_url
@@ -747,6 +896,7 @@ static COMMANDS: [Command; 94] = [
         "gist.open-browser",
         "Gist",
         "Open in Browser",
+        "Open the selected snippet gist in a browser",
         &["gist"],
         has_gist,
         gist_open_browser
@@ -756,6 +906,7 @@ static COMMANDS: [Command; 94] = [
         "gist.attach",
         "Gist",
         "Attach Existing Gist…",
+        "Attach an existing gist to the selected snippet",
         &["adopt", "link"],
         has_snippet,
         gist_attach
@@ -765,6 +916,7 @@ static COMMANDS: [Command; 94] = [
         "gist.detach",
         "Gist",
         "Detach Gist",
+        "Detach the gist from the selected snippet",
         &["gist"],
         has_gist,
         gist_detach
@@ -774,6 +926,7 @@ static COMMANDS: [Command; 94] = [
         "gist.delete",
         "Gist",
         "Delete Gist…",
+        "Delete the selected snippet gist from GitHub",
         &["gist"],
         has_gist,
         gist_delete
@@ -783,6 +936,7 @@ static COMMANDS: [Command; 94] = [
         "gist.verify",
         "Gist",
         "Verify Remote",
+        "Check that the selected snippet gist still exists",
         &["gist"],
         has_gist,
         gist_verify
@@ -792,6 +946,7 @@ static COMMANDS: [Command; 94] = [
         "trash.restore-selected",
         "Trash",
         "Restore Selected",
+        "Restore the selected snippet from trash",
         &["undelete"],
         has_trash_selection,
         trash_restore
@@ -801,6 +956,7 @@ static COMMANDS: [Command; 94] = [
         "trash.purge-selected",
         "Trash",
         "Purge Selected",
+        "Permanently delete the selected trashed snippet",
         &["delete", "permanent"],
         has_trash_selection,
         trash_purge
@@ -810,6 +966,7 @@ static COMMANDS: [Command; 94] = [
         "app.quit",
         "App",
         "Quit",
+        "Quit snip",
         &["exit"],
         enabled,
         app_quit
@@ -834,5 +991,34 @@ mod tests {
         assert_eq!(declared_ids.len(), CommandId::ALL.len());
         assert_eq!(registered_ids, declared_ids);
         assert_eq!(slugs.len(), registry().len());
+    }
+
+    #[test]
+    fn registry_descriptions_are_present_and_well_formed() {
+        for command in registry() {
+            let description = command.description;
+            assert!(!description.trim().is_empty(), "{}", command.slug);
+            assert!(description.chars().count() <= 90, "{}", command.slug);
+            assert!(!description.ends_with('.'), "{}", command.slug);
+            assert!(
+                description
+                    .chars()
+                    .next()
+                    .is_some_and(|character| character.is_uppercase()),
+                "{}",
+                command.slug
+            );
+        }
+    }
+
+    #[test]
+    fn command_macros_require_inline_description_literals() {
+        let source = include_str!("registry.rs");
+        let parameter = ["$description", ":literal"].concat();
+        let field = ["description: ", "$description"].concat();
+        let distant_function = ["const fn ", "description("].concat();
+        assert_eq!(source.matches(&parameter).count(), 3);
+        assert_eq!(source.matches(&field).count(), 3);
+        assert!(!source.contains(&distant_function));
     }
 }

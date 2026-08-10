@@ -4,4 +4,4 @@ mod keymap;
 
 pub use chord::{Chord, ParseChordError};
 pub use config::{Diagnostic, DiagnosticLevel, path};
-pub use keymap::{Keymap, Mode};
+pub use keymap::{Keymap, Mode, chord_sort_key};

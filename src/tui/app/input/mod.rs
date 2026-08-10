@@ -26,6 +26,9 @@ impl App {
         if self.palette.open {
             return self.handle_palette_key(key);
         }
+        if self.show_help && self.help.filtering {
+            return self.handle_help_filter_key(key);
+        }
         let stack = Mode::stack(self);
         if let Some(id) = self.keymap.resolve(&stack, chord) {
             return self.run_command(id);
@@ -88,8 +91,8 @@ impl App {
         }
         if self.show_help {
             match event.kind {
-                MouseEventKind::ScrollUp => self.help_scroll = self.help_scroll.saturating_sub(3),
-                MouseEventKind::ScrollDown => self.help_scroll = self.help_scroll.saturating_add(3),
+                MouseEventKind::ScrollUp => self.help.move_selection(-3),
+                MouseEventKind::ScrollDown => self.help.move_selection(3),
                 _ => {}
             }
             return Vec::new();

@@ -4,6 +4,53 @@ use super::super::super::state::Pane;
 use super::super::types::{App, Effect};
 
 impl App {
+    pub(super) fn handle_help_filter_key(&mut self, key: KeyEvent) -> Vec<Effect> {
+        use KeyCode::*;
+        match key.code {
+            Esc => self.help.leave_filtering(true),
+            Enter => self.help.leave_filtering(false),
+            Up => self.help.move_selection(-1),
+            Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.help.move_selection(-1)
+            }
+            Down => self.help.move_selection(1),
+            Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.help.move_selection(1)
+            }
+            Left => self.help.filter.cursor = self.help.filter.cursor.saturating_sub(1),
+            Right => {
+                self.help.filter.cursor =
+                    (self.help.filter.cursor + 1).min(self.help.filter.value.chars().count())
+            }
+            Home => self.help.filter.cursor = 0,
+            Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.help.filter.cursor = 0
+            }
+            End => self.help.filter.cursor = self.help.filter.value.chars().count(),
+            Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.help.filter.cursor = self.help.filter.value.chars().count()
+            }
+            Backspace => {
+                self.help.filter.backspace();
+                self.help.refresh_filter();
+            }
+            Delete => {
+                self.help.filter.delete();
+                self.help.refresh_filter();
+            }
+            Char(character)
+                if !key
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+            {
+                self.help.filter.insert(character);
+                self.help.refresh_filter();
+            }
+            _ => {}
+        }
+        Vec::new()
+    }
+
     pub(super) fn handle_palette_key(&mut self, key: KeyEvent) -> Vec<Effect> {
         use KeyCode::*;
         match key.code {

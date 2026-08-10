@@ -251,6 +251,7 @@ pub(crate) fn ui_dismiss(app: &mut App) -> Vec<Effect> {
         app.git.open = false;
     } else if app.show_help {
         app.show_help = false;
+        app.help.close();
     } else if app.trash.open {
         app.leave_trash();
     } else if !app.search.query.is_empty() {
@@ -324,7 +325,35 @@ effect!(toggle_sidebar, app => app.toggle_sidebar());
 effect!(cycle_appearance, app => app.cycle_appearance());
 effect!(clear_appearance_override, app => app.clear_appearance_override());
 effect!(view_pick_theme, app => app.open_theme_picker());
-effect!(toggle_help, app => { app.show_help = !app.show_help; app.help_scroll = 0; });
+pub(crate) fn toggle_help(app: &mut App) -> Vec<Effect> {
+    if app.show_help {
+        app.show_help = false;
+        app.help.close();
+    } else {
+        let stack = crate::keys::Mode::stack(app);
+        app.help.open(stack, &app.keymap);
+        app.show_help = true;
+    }
+    Vec::new()
+}
+pub(crate) fn help_filter(app: &mut App) -> Vec<Effect> {
+    if app.show_help {
+        app.help.start_filtering();
+    }
+    Vec::new()
+}
+pub(crate) fn help_toggle_scope(app: &mut App) -> Vec<Effect> {
+    if app.show_help {
+        app.help.toggle_scope(&app.keymap);
+    }
+    Vec::new()
+}
+pub(crate) fn help_cycle_sort(app: &mut App) -> Vec<Effect> {
+    if app.show_help {
+        app.help.cycle_sort();
+    }
+    Vec::new()
+}
 effect!(library_search, app => app.search.active = true);
 effect!(library_rescan, app => app.rescan_now());
 effect!(library_toggle_trash, app => if app.trash.open { app.leave_trash() } else { app.open_trash() });
@@ -339,6 +368,7 @@ pub(crate) fn git_toggle_console(app: &mut App) -> Vec<Effect> {
         return Vec::new();
     }
     app.show_help = false;
+    app.help.close();
     app.search.active = false;
     app.trash.open = false;
     app.gist.open = false;
@@ -355,7 +385,7 @@ effect!(git_auto_pull, app => app.toggle_auto_pull());
 effect!(git_backup_on_quit, app => app.toggle_backup_on_quit());
 effect!(git_pause, app => app.toggle_auto_backup());
 effect!(git_interval, app => app.open_auto_commit_interval());
-effect!(gist_toggle_panel, app => if app.gist.open { app.gist.open = false } else { app.show_help = false; app.search.active = false; app.trash.open = false; app.git.open = false; app.gist.open = true });
+effect!(gist_toggle_panel, app => if app.gist.open { app.gist.open = false } else { app.show_help = false; app.help.close(); app.search.active = false; app.trash.open = false; app.git.open = false; app.gist.open = true });
 effect!(gist_push, app => app.push_gist(false));
 effect!(gist_push_public, app => app.push_gist(true));
 effect!(gist_copy_url, app => app.copy_gist_url());
@@ -392,6 +422,7 @@ mod tests {
             slug: "test.hidden",
             category: "Test",
             title: "Hidden",
+            description: "Hide this test command",
             keywords: &[],
             palette: false,
             state: hidden,
@@ -424,5 +455,20 @@ mod tests {
                 .iter()
                 .any(|matched| matched.id == CommandId::NavDown)
         );
+    }
+
+    #[test]
+    fn help_commands_are_noops_while_the_panel_is_closed() {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Closed Help.sniplib"), None).unwrap();
+        let mut app = App::new(library, &AppConfig::default()).unwrap();
+        let scope = app.help.scope;
+        let sort = app.help.sort;
+        help_filter(&mut app);
+        help_toggle_scope(&mut app);
+        help_cycle_sort(&mut app);
+        assert!(!app.help.filtering);
+        assert_eq!(app.help.scope, scope);
+        assert_eq!(app.help.sort, sort);
     }
 }
