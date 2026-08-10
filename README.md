@@ -15,7 +15,7 @@
 <p align="center">
 
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-lightgrey)](https://github.com/gitkeniwo/homebrew-snip)
-[![Copr](https://img.shields.io/badge/copr-fedora-lightgrey)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/)
+[![Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/)
 [![AUR](https://img.shields.io/aur/version/sniplab-bin?color=lightgrey&label=aur)](https://aur.archlinux.org/packages/sniplab-bin)
 [![Scoop](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgitkeniwo%2Fscoop-snip%2Fmain%2Fbucket%2Fsnip.json&query=%24.version&label=scoop&prefix=v&color=lightgrey)](https://github.com/gitkeniwo/scoop-snip)
 [![Nix](https://img.shields.io/badge/nix-flake-lightgrey)](https://app.cachix.org/cache/snip)
