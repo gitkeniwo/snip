@@ -4,19 +4,22 @@
 
 <p align="center">
 
-[![Crates.io](https://img.shields.io/crates/v/sniplab?color=blue)](https://crates.io/crates/sniplab)
-[![Release](https://img.shields.io/github/v/release/gitkeniwo/snip?color=blue)](https://github.com/gitkeniwo/snip/releases/latest)
-[![AUR](https://img.shields.io/aur/version/sniplab-bin?color=blue)](https://aur.archlinux.org/packages/sniplab-bin)
-[![Downloads](https://img.shields.io/crates/d/sniplab?color=green)](https://crates.io/crates/sniplab)
-[![Release downloads](https://img.shields.io/github/downloads/gitkeniwo/snip/total?color=green&label=release%20downloads)](https://github.com/gitkeniwo/snip/releases)
-[![Docs.rs](https://img.shields.io/docsrs/sniplab?color=blueviolet)](https://docs.rs/sniplab)
-[![MSRV](https://img.shields.io/crates/msrv/sniplab?color=blueviolet)](https://github.com/gitkeniwo/snip/blob/main/Cargo.toml)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/gitkeniwo/snip#install)
+[![Crates.io](https://img.shields.io/crates/v/sniplab?color=blue&label=crates.io)](https://crates.io/crates/sniplab)
+[![Downloads](https://img.shields.io/crates/d/sniplab?color=blue&label=downloads)](https://crates.io/crates/sniplab)
+[![License](https://img.shields.io/crates/l/sniplab?color=blue)](LICENSE)
+[![MSRV](https://img.shields.io/crates/msrv/sniplab?color=blue)](https://github.com/gitkeniwo/snip/blob/main/Cargo.toml)
+[![CI](https://img.shields.io/github/actions/workflow/status/gitkeniwo/snip/ci.yml?branch=main&label=CI)](https://github.com/gitkeniwo/snip/actions)
+
+</p>
+
+<p align="center">
+
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-lightgrey)](https://github.com/gitkeniwo/homebrew-snip)
-[![Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/)
-[![Scoop](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgitkeniwo%2Fscoop-snip%2Fmain%2Fbucket%2Fsnip.json&query=%24.version&label=scoop&prefix=v&color=blue)](https://github.com/gitkeniwo/scoop-snip)
-[![Cachix](https://img.shields.io/badge/cachix-snip-lightgrey)](https://app.cachix.org/cache/snip)
-[![CI](https://img.shields.io/github/actions/workflow/status/gitkeniwo/snip/ci.yml?branch=main)](https://github.com/gitkeniwo/snip/actions)
+[![Copr](https://img.shields.io/badge/copr-fedora-lightgrey)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/)
+[![AUR](https://img.shields.io/aur/version/sniplab-bin?color=lightgrey&label=aur)](https://aur.archlinux.org/packages/sniplab-bin)
+[![Scoop](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgitkeniwo%2Fscoop-snip%2Fmain%2Fbucket%2Fsnip.json&query=%24.version&label=scoop&prefix=v&color=lightgrey)](https://github.com/gitkeniwo/scoop-snip)
+[![Nix](https://img.shields.io/badge/nix-flake-lightgrey)](https://app.cachix.org/cache/snip)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/gitkeniwo/snip#install)
 
 </p>
 
