@@ -26,6 +26,10 @@ path = "src/lib.rs"
 name = "snip"
 path = "src/main.rs"
 
+[[example]]
+name = "generate-keys-doc"
+required-features = ["tui"]
+
 # `cargo binstall sniplab` looks up the prebuilt archives published by the
 # release workflow.  The crate is named `sniplab`, but the user-facing binary
 # and archive prefix are `snip`, so the default artifact-name discovery would

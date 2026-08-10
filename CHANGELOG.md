@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Context-first TUI help.** `?` now opens a compact, selectable cheatsheet
+  derived from the command registry and effective keymap. `/` filters visible
+  and hidden command metadata, `a` switches between the opening context and all
+  modes, and `s` changes key/action sorting; wrapped rows and mouse or half-page
+  navigation keep every key, action slug, and description visible. The complete
+  generated reference is available in `docs/keys.md`.
 - **Font-independent TUI bars.** `--simplified-ui` and
   `tui.simplified_ui = true` replace the Powerline-only bar caps with square
   cells while preserving ordinary Unicode symbols. **Toggle Simplified UI** in
