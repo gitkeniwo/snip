@@ -397,8 +397,8 @@ first when a library behaves strangely.
   shapes for list, show, search, mutations, and trash. Read it when you need a
   flag this page did not mention or need to know a field name before parsing.
   It also covers the commands this page leaves out because they are rarely
-  yours to run: `import` (SnippetsLab migration), `config`, `preview`, `open`,
-  and `completion`.
+  yours to run: `import` (SnippetsLab migration), `config`, `keys` (TUI key
+  map), `preview`, `open`, and `completion`.
 - `references/data-model.md` — the on-disk layout, what a fingerprint covers,
   and the rules for touching files directly instead of going through the CLI.
   Read it when the user wants bulk/scripted changes, is migrating data, or asks

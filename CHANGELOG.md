@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-08-10
 
 ### Added
 
@@ -28,7 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session appearance override.** Press `A` in the TUI to toggle light/dark
   without changing config, even when `SNIP_TUI_THEME` is set; **Clear Appearance
   Override** in the command palette restores normal theme resolution.
-
+- **Visible search matches.** While a query is active, the matching text is
+  highlighted in every list row — title and excerpt alike — and stays legible on
+  the selected row. The active query also appears as the last breadcrumb
+  segment (`~ / Scripts / /kubectl`) and tints the top-bar brand, so a filtered
+  list can no longer be mistaken for the whole library.
 - **User-defined TUI key bindings.** Every bindable action can be overridden by
   mode in `keys.toml`, kept separate from the automatically rewritten
   `config.toml`. The command palette, help pane, bottom bar, and Git/Gist panels
@@ -38,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The search field stays open until you leave it.** `Up` and `Down` no longer
+  close the query editor and move the list selection; type, then `Enter` to
+  accept or `Esc` to dismiss.
 - **GitHub and Nord expose their intended accents.** Built-in generation now
   transposes syntax-oriented Base16 slots before UI conversion: GitHub uses its
   blue general accent, Primer-green primary actions, darker green success, and
@@ -445,6 +452,8 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.6.0]: https://github.com/gitkeniwo/snip/compare/v0.5.5...v0.6.0
+[0.5.5]: https://github.com/gitkeniwo/snip/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/gitkeniwo/snip/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/gitkeniwo/snip/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/gitkeniwo/snip/compare/v0.5.1...v0.5.2

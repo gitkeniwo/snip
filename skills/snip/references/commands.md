@@ -12,7 +12,7 @@ file is for looking up a specific flag or field name.
 - [Trash](#trash) — `delete`, `trash`, `restore`, `purge`
 - [Maintenance](#maintenance) — `doctor`, `organize`, `init`, `import`, `git`
 - [Publishing](#publishing) — `gist`
-- [Other](#other) — `open`, `config`, `completion`, `tui`
+- [Other](#other) — `open`, `config`, `keys`, `completion`, `tui`
 - [JSON payload shapes](#json-payload-shapes)
 
 ## Global options
@@ -259,6 +259,12 @@ on a linked snippet is a `conflict` (4); an un-publishable payload is a
   settings are boolean. Enabling auto-push while the interval is `0` prints a
   warning. Unknown keys in the file are preserved across writes, so hand-added
   settings survive.
+- `snip keys list|show <ACTION>|path|export|check` — inspect the TUI key map.
+  Bindings live in `keys.toml` beside `config.toml` and are never rewritten by
+  `snip config set`. `list` and `show` support `--output json|jsonl`; `export`
+  writes an authoritative default file and `check` reports conflicts and
+  lockouts. These only describe the interactive TUI, so they are useful for
+  answering a user's "what key does X" question, not for doing work.
 - `snip completion bash|zsh|fish` — shell completion script.
 - `snip tui [--simplified-ui[=<BOOL>]]` — interactive TUI for humans. Refuses
   to start without a terminal. **Toggle Simplified UI** in the command palette

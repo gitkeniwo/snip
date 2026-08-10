@@ -287,14 +287,16 @@ right. Press `S` to hide the library pane for a narrow terminal; it is a
 session-only adjustment, so the pane returns the next time you open the TUI. A
 file watcher picks up changes made outside the browser.
 
-The left pane groups its rows: the scopes you can be in (`All snippets`,
-`Uncategorized`, `Trash`), then `Filters`, then the folder and tag trees.
-Moving the cursor onto a scope applies it, `Trash` included — it opens in the
-snippet pane rather than a popup, so the sidebar stays usable and the preview
-shows the deleted snippet before you restore it with `u` or purge it with `x`.
-`Published`, under `Filters`, is a toggle rather than a place: it narrows
-whatever you are already looking at, and waits for `Enter` or a click so that
-merely scrolling past it does nothing.
+The left pane holds the scopes you can be in (`All snippets`, `Uncategorized`,
+`Trash`), then `Filters`, then the folder and tag trees. Moving the cursor onto
+a scope applies it, `Trash` included — deleted snippets open in the snippet pane
+and preview normally, so you can read one before restoring it with `u` or
+purging it with `x`. `Published`, under `Filters`, is a toggle that narrows
+whatever you are already looking at; press `Enter` or click to apply it.
+
+`/` filters the list as you type, and matches are highlighted in the rows. The
+active query shows as the last breadcrumb segment, so a filtered list is never
+mistaken for the whole library. `Enter` keeps the query, `Esc` clears it.
 
 | Key | |
 |---|---|
@@ -350,10 +352,9 @@ resolution; it may use `tui.theme`, `SNIP_TUI_THEME`, or system detection.
 Neither command writes to `config.toml`.
 
 Any other `SNIP_TUI_THEME` value selects a theme by name for that run — see
-[Themes](#themes). Pressing `A` deliberately overrides either form of
-`SNIP_TUI_THEME`. If the variable pins a theme name such as `dark-nord`, the
-first press drops that single-theme pin and loads the configured `light_theme`
-or `dark_theme` for the requested appearance.
+[Themes](#themes). `A` overrides either form: if the variable pins a name such
+as `dark-nord`, the first press drops the pin and loads your configured
+`light_theme` or `dark_theme`.
 
 ### Themes
 
@@ -377,14 +378,17 @@ format, inheritance, validation, and base16 role mapping; `snip theme import
 SCHEME.yaml` converts a base16 or base24 scheme into an editable local theme.
 
 Language badges are plain ASCII (`[rs]`, `[py]`, `[sh]`, `[md]`) so they render
-in any font. The rounded caps on the top and bottom bars are Powerline glyphs,
-which need a Nerd Font or another Powerline-patched terminal font. On machines
-where those fonts cannot be installed, use `snip --simplified-ui` (or `snip tui
---simplified-ui`) for square bars during that run. Save the fallback with `snip
-config set tui-simplified-ui true`; `snip --simplified-ui=false` temporarily
-restores Powerline bars. Simplified UI changes only the caps, so ordinary Unicode
-symbols such as borders, arrows, and stars remain. **Toggle Simplified UI** in
-the command palette switches the style immediately and saves the preference.
+in any font. The rounded caps on the top and bottom bars need a Nerd Font or
+another Powerline-patched font. Without one, use square bars instead:
+
+```bash
+snip --simplified-ui                          # this run only
+snip config set tui-simplified-ui true        # save it
+snip --simplified-ui=false                    # Powerline bars for one run
+```
+
+**Toggle Simplified UI** in the command palette switches and saves it while the
+TUI is open. Only the bar caps change; borders, arrows, and stars stay.
 
 ## Agent-friendly operations
 
@@ -636,12 +640,8 @@ The importer preserves snippet and fragment UUIDs, hierarchy, tags, flags,
 timestamps, content, notes, and original lexer names. Attachments are reported
 but their private SnippetsLab relationships are not imported in format v1.
 
-A committed 2.6-format fixture under `src/importer/snippetslab/fixtures/` is
-imported by a regression test. The fixture mirrors the object graph of a real
-2.6 library (verified against one), so a decoder regression fails CI instead of
-surfacing as a broken user report. It is regenerated from the test builder, not
-captured verbatim from an export, so it cannot detect changes SnippetsLab makes
-to its own format.
+A committed 2.6-format library fixture is imported by a regression test on every
+CI run, so decoder regressions are caught before a release.
 
 ## Git backup and deletion
 
