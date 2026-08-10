@@ -311,3 +311,4 @@ Live while a search query is being typed. Takes over the keyboard.
 | double-click | Drill into the snippet preview (available in list) |
 | drag | Select text in the preview (available in preview, fragment) |
 | mouse up | Copy the selected preview text (available in preview, fragment) |
+
