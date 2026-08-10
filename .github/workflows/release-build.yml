@@ -505,6 +505,145 @@ jobs:
           git commit -m "snip $VERSION"
           git push
 
+  gentoo:
+    name: Update Gentoo overlay
+    needs: [version, publish]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check for an overlay token
+        id: guard
+        env:
+          OVERLAY_TOKEN: ${{ secrets.GENTOO_OVERLAY_TOKEN }}
+        run: |
+          if [ -z "$OVERLAY_TOKEN" ]; then
+            echo "GENTOO_OVERLAY_TOKEN is not set; skipping the Gentoo overlay update." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.guard.outputs.ready == 'true'
+
+      - uses: actions/download-artifact@v6
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          name: snip-x86_64-unknown-linux-musl
+          path: artifacts
+
+      - uses: actions/download-artifact@v6
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          name: snip-aarch64-unknown-linux-musl
+          path: artifacts
+
+      - uses: actions/checkout@v6
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          repository: gitkeniwo/gentoo-snip-overlay
+          token: ${{ secrets.GENTOO_OVERLAY_TOKEN }}
+          path: overlay-repo
+
+      - name: Render ebuild, metadata, and Manifest
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import re
+          import subprocess
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          if not re.fullmatch(r"\d+(?:\.\d+)*", version):
+              sys.exit(
+                  f"{version!r} is not a supported Gentoo PV; "
+                  "expected a dot-separated numeric release version"
+              )
+
+          root = Path("overlay-repo")
+          pkg = root / "app-misc" / "sniplab-bin"
+          pkg.mkdir(parents=True, exist_ok=True)
+
+          archives = {
+              f"snip-{version}-amd64.tar.gz": Path(
+                  "artifacts/snip-x86_64-unknown-linux-musl.tar.gz"
+              ),
+              f"snip-{version}-arm64.tar.gz": Path(
+                  "artifacts/snip-aarch64-unknown-linux-musl.tar.gz"
+              ),
+          }
+          for name, path in archives.items():
+              if not path.is_file():
+                  sys.exit(f"{path} was not downloaded")
+
+          # Overlay baseline files (idempotent; safe on every release).
+          (root / "metadata").mkdir(parents=True, exist_ok=True)
+          (root / "profiles").mkdir(parents=True, exist_ok=True)
+          (root / "metadata" / "layout.conf").write_text(
+              Path("packaging/gentoo/layout.conf.in").read_text()
+          )
+          (root / "profiles" / "repo_name").write_text("snip\n")
+          (root / "profiles" / "eapi").write_text("8\n")
+
+          ebuild = Path("packaging/gentoo/ebuild-bin.in").read_text()
+          # No @VERSION@ placeholders in the ebuild; PV comes from the filename.
+          ebuild_path = pkg / f"sniplab-bin-{version}.ebuild"
+          ebuild_path.write_text(ebuild)
+          subprocess.run(["bash", "-n", ebuild_path], check=True)
+
+          metadata = Path("packaging/gentoo/metadata.xml.in").read_text()
+          ET.fromstring(metadata)
+          (pkg / "metadata.xml").write_text(metadata)
+
+          # Thin Manifest: keep DIST lines for other versions, replace this one.
+          manifest_path = pkg / "Manifest"
+          kept = []
+          if manifest_path.is_file():
+              drop = set(archives)
+              for line in manifest_path.read_text().splitlines():
+                  parts = line.split()
+                  if len(parts) >= 2 and parts[0] == "DIST" and parts[1] in drop:
+                      continue
+                  if line.strip():
+                      kept.append(line.rstrip())
+
+          def dist_line(name: str, path: Path) -> str:
+              data = path.read_bytes()
+              blake = hashlib.blake2b(data, digest_size=64).hexdigest()
+              sha = hashlib.sha512(data).hexdigest()
+              return f"DIST {name} {len(data)} BLAKE2B {blake} SHA512 {sha}"
+
+          new_lines = [dist_line(name, path) for name, path in archives.items()]
+          lines = sorted(kept + new_lines)
+          manifest_path.write_text("\n".join(lines) + "\n")
+          print(f"rendered app-misc/sniplab-bin for {version}")
+          for line in new_lines:
+              print(line.split()[0], line.split()[1], line.split()[2])
+          PY
+
+      - name: Commit and push
+        if: steps.guard.outputs.ready == 'true'
+        working-directory: overlay-repo
+        run: |
+          git add metadata profiles app-misc/sniplab-bin
+          if git diff --cached --quiet; then
+            echo "Gentoo overlay was already up to date." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "snip release bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "app-misc/sniplab-bin: add $VERSION"
+          git push
+
   aur:
     name: Update AUR package (${{ matrix.package }})
     needs: [version, publish]

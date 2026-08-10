@@ -18,6 +18,7 @@
 [![Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/)
 [![AUR](https://img.shields.io/aur/version/sniplab-bin?color=lightgrey&label=aur)](https://aur.archlinux.org/packages/sniplab-bin)
 [![Scoop](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgitkeniwo%2Fscoop-snip%2Fmain%2Fbucket%2Fsnip.json&query=%24.version&label=scoop&prefix=v&color=lightgrey)](https://github.com/gitkeniwo/scoop-snip)
+[![Gentoo](https://img.shields.io/badge/gentoo-overlay-lightgrey)](https://github.com/gitkeniwo/gentoo-snip-overlay)
 [![Nix](https://img.shields.io/badge/nix-flake-lightgrey)](https://github.com/gitkeniwo/snip#nix)
 [![Cachix](https://img.shields.io/badge/cachix-snip-lightgrey)](https://app.cachix.org/cache/snip)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/gitkeniwo/snip#install)
@@ -135,6 +136,24 @@ yay -S sniplab
 Or clone `https://aur.archlinux.org/sniplab.git` and run
 `makepkg -si`. Both packages provide `snip`, so they conflict with each
 other.
+
+### Gentoo
+
+From the standalone [snip overlay](https://github.com/gitkeniwo/gentoo-snip-overlay).
+The prebuilt `app-misc/sniplab-bin` package installs the static musl release
+binary without compiling:
+
+```bash
+sudo eselect repository add snip git https://github.com/gitkeniwo/gentoo-snip-overlay.git
+sudo emaint sync -r snip
+sudo emerge --ask app-misc/sniplab-bin
+```
+
+Needs `app-eselect/eselect-repository` (or add the overlay path by hand under
+`/etc/portage/repos.conf`). The package starts with testing keywords, so a
+stable profile must first accept `app-misc/sniplab-bin ~amd64` or
+`app-misc/sniplab-bin ~arm64` under `/etc/portage/package.accept_keywords`.
+Those are the only supported architectures for now.
 
 ### Nix
 
@@ -812,9 +831,9 @@ snippets carry no marker.
 
 ## Manual pages
 
-Homebrew, deb, rpm, and AUR packages install them, so `man snip` works right
-away. For `cargo install` or a downloaded archive, install the pages embedded
-in the binary:
+Homebrew, deb, rpm, AUR, and Gentoo packages install them, so `man snip` works
+right away. For `cargo install` or a downloaded archive, install the pages
+embedded in the binary:
 
 ```bash
 snip man path                                # where they will go
@@ -908,6 +927,7 @@ skipped when that secret is absent:
 | [homebrew-snip](https://github.com/gitkeniwo/homebrew-snip) | `HOMEBREW_TAP_TOKEN` |
 | AUR (`sniplab`) | `AUR_SSH_PRIVATE_KEY` |
 | [scoop-snip](https://github.com/gitkeniwo/scoop-snip) | `SCOOP_BUCKET_TOKEN` |
+| [gentoo-snip-overlay](https://github.com/gitkeniwo/gentoo-snip-overlay) (`sniplab-bin`) | `GENTOO_OVERLAY_TOKEN` |
 | [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/) (`sniplab`) | `COPR_API_CONFIG` |
 
 Copr builds run in mock without network access, so the release job vendors the

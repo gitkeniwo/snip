@@ -1,0 +1,7 @@
+# Rendered by the release workflow into metadata/layout.conf.
+masters = gentoo
+repo-name = snip
+thin-manifests = true
+sign-manifests = false
+use-manifests = strict
+manifest-hashes = BLAKE2B SHA512

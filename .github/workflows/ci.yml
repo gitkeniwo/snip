@@ -26,6 +26,45 @@ jobs:
       - run: sh -n install.sh
       - run: sh install.sh --help
 
+  packaging:
+    name: packaging templates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check Gentoo templates
+        run: |
+          bash -n packaging/gentoo/ebuild-bin.in
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          ebuild = Path("packaging/gentoo/ebuild-bin.in").read_text().splitlines()
+          if not ebuild[0].startswith("# Copyright "):
+              raise SystemExit("Gentoo ebuild must start with its copyright header")
+          if not ebuild[1].startswith("# Distributed under the terms of "):
+              raise SystemExit("Gentoo ebuild must keep its license header second")
+
+          ET.parse("packaging/gentoo/metadata.xml.in")
+
+          layout = {}
+          for line in Path("packaging/gentoo/layout.conf.in").read_text().splitlines():
+              line = line.strip()
+              if line and not line.startswith("#"):
+                  key, value = line.split("=", 1)
+                  layout[key.strip()] = value.strip()
+
+          expected = {
+              "masters": "gentoo",
+              "repo-name": "snip",
+              "thin-manifests": "true",
+              "sign-manifests": "false",
+              "use-manifests": "strict",
+              "manifest-hashes": "BLAKE2B SHA512",
+          }
+          if layout != expected:
+              raise SystemExit(f"unexpected Gentoo layout.conf: {layout!r}")
+          PY
+
   quality:
     name: quality (stable)
     runs-on: ubuntu-24.04

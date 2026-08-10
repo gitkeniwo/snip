@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<!-- Rendered by the release workflow into app-misc/sniplab-bin/metadata.xml. -->
+<pkgmetadata>
+	<maintainer type="person">
+		<email>gitkeniwo@gmail.com</email>
+		<name>gitkeniwo</name>
+	</maintainer>
+	<upstream>
+		<remote-id type="github">gitkeniwo/snip</remote-id>
+	</upstream>
+</pkgmetadata>
