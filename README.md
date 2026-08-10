@@ -10,11 +10,11 @@
 [![Downloads](https://img.shields.io/crates/d/sniplab?color=green)](https://crates.io/crates/sniplab)
 [![Release downloads](https://img.shields.io/github/downloads/gitkeniwo/snip/total?color=green&label=release%20downloads)](https://github.com/gitkeniwo/snip/releases)
 [![Docs.rs](https://img.shields.io/docsrs/sniplab?color=blueviolet)](https://docs.rs/sniplab)
-[![MSRV](https://img.shields.io/badge/MSRV-1.89%2B-blueviolet)](https://github.com/gitkeniwo/snip/blob/main/Cargo.toml)
+[![MSRV](https://img.shields.io/crates/msrv/sniplab?color=blueviolet)](https://github.com/gitkeniwo/snip/blob/main/Cargo.toml)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/gitkeniwo/snip#install)
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-lightgrey)](https://github.com/gitkeniwo/homebrew-snip)
 [![Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/)
-[![Scoop](https://img.shields.io/badge/scoop-bucket-lightgrey)](https://github.com/gitkeniwo/scoop-snip)
+[![Scoop](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgitkeniwo%2Fscoop-snip%2Fmain%2Fbucket%2Fsnip.json&query=%24.version&label=scoop&prefix=v&color=blue)](https://github.com/gitkeniwo/scoop-snip)
 [![Cachix](https://img.shields.io/badge/cachix-snip-lightgrey)](https://app.cachix.org/cache/snip)
 [![CI](https://img.shields.io/github/actions/workflow/status/gitkeniwo/snip/ci.yml?branch=main)](https://github.com/gitkeniwo/snip/actions)
 
