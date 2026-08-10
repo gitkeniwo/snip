@@ -196,6 +196,11 @@ impl Keymap {
         keymap.bind(Help, NavUp, &["k", "up"]);
         keymap.bind(Help, NavPageDown, &["ctrl-d"]);
         keymap.bind(Help, NavPageUp, &["ctrl-u"]);
+        keymap.bind(Help, NavPageDown, &["}"]);
+        keymap.bind(Help, NavPageUp, &["{"]);
+        keymap.bind(Help, HelpFilter, &["/"]);
+        keymap.bind(Help, HelpToggleScope, &["a"]);
+        keymap.bind(Help, HelpCycleSort, &["s"]);
         keymap.bind(Help, UiDismiss, &["esc", "q"]);
 
         keymap.bind(Git, GitRefreshLocalStatus, &["r"]);
@@ -283,7 +288,7 @@ impl Keymap {
     }
 }
 
-fn chord_sort_key(chord: Chord) -> (u8, String) {
+pub fn chord_sort_key(chord: Chord) -> (u8, String) {
     use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
     let rank = match (chord.modifiers() == KeyModifiers::NONE, chord.code()) {

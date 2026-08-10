@@ -79,6 +79,9 @@ jobs:
       - name: Check generated themes
         if: matrix.name == 'linux-msrv-full'
         run: cargo run --locked --all-features --example generate-themes -- --check
+      - name: Check generated key reference
+        if: matrix.name == 'linux-msrv-full'
+        run: cargo run --locked --all-features --example generate-keys-doc -- --check
       - name: Lint man pages
         if: matrix.name == 'macos-arm64-full'
         # clap_mangen emits constructs that mandoc flags as style warnings.

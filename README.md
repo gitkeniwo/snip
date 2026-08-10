@@ -315,6 +315,11 @@ to create a complete editable starting point; `snip keys check` validates it.
 An export begins with its syntax: values are one chord or a list, `[]` unbinds
 an action, and `inherit-defaults = false` makes a full export authoritative.
 
+`?` opens a cheatsheet for the context that was active when help opened. Use
+`/` to filter it, `a` to switch between that context and all modes, and `s` to
+sort by key or action. The generated [key reference](docs/keys.md) lists every
+mode, inherited binding, and fixed input.
+
 Keys are named after the CLI commands they run, so `r` on a folder is `snip
 folder rename`. The mouse works as expected: click to focus, double-click to
 drill in, scroll the pane under the cursor, drag across the preview to copy.

@@ -197,6 +197,16 @@ fn text_column_from_end(value: &str, needle: &str) -> u16 {
     value[..byte_index].chars().count() as u16
 }
 
+fn right_count_column(value: &str) -> Option<u16> {
+    let characters = value.chars().collect::<Vec<_>>();
+    let slash = characters.iter().rposition(|character| *character == '/')?;
+    let start = characters[..slash]
+        .iter()
+        .rposition(|character| !character.is_ascii_digit())
+        .map_or(0, |index| index + 1);
+    Some(start as u16)
+}
+
 fn replace_modal_input(app: &mut App, value: &str) {
     let Some(Modal::Input(input)) = app.modal.as_mut() else {
         panic!("expected input modal");
@@ -1065,46 +1075,9 @@ fn three_pane_ui_draws_titles_preview_and_status() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(rendered.contains("MOVE — ALL PANES"));
-    assert!(rendered.contains("SIDEBAR — WHEN THE LEFT PANE HAS FOCUS"));
-    assert!(rendered.contains("SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS"));
-    assert!(rendered.contains("FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS"));
-    assert!(rendered.contains("GIT CONSOLE — WHEN OPEN"));
-    for label in [
-        "Help",
-        "snip TUI",
-        "MOVE — ALL PANES",
-        "SIDEBAR — WHEN THE LEFT PANE HAS FOCUS",
-        "SNIPPETS — WHEN LIST OR PREVIEW HAS FOCUS",
-        "FRAGMENTS — WHEN THE LIST IS EXPANDED AND PREVIEW HAS FOCUS",
-        "VIEW & GLOBAL",
-        "GIT CONSOLE — WHEN OPEN",
-    ] {
-        let (y, x) = (0..buffer.area.height)
-            .find_map(|y| text_x(buffer, y, label).map(|x| (y, x)))
-            .unwrap_or_else(|| panic!("missing centered help label: {label}"));
-        let center = x + label.chars().count() as u16 / 2;
-        assert!(
-            center.abs_diff(buffer.area.width / 2) <= 1,
-            "{label} is not centered on row {y}"
-        );
-    }
-    let rows = (0..buffer.area.height)
-        .map(|y| row_text(buffer, y))
-        .collect::<Vec<_>>();
-    assert!(rows.iter().all(|row| !row.contains("g / G")));
-    assert!(rows.iter().all(|row| !row.contains("r / m / t")));
-    assert!(rows.iter().all(|row| !row.contains("e / E / R")));
-    assert!(rendered.contains("first / last item"));
-    assert!(rendered.contains("last item"));
-    assert!(rendered.contains("rename snippet"));
-    assert!(rendered.contains("move snippet"));
-    assert!(rendered.contains("edit tags"));
-    let tab_y = (0..buffer.area.height)
-        .find(|&y| text_x(buffer, y, "Tab / Shift-Tab").is_some())
-        .unwrap();
-    assert!(row_text(buffer, tab_y).contains("next / previous"));
-    assert!(rendered.contains("Ctrl-d / Ctrl-u"));
+    assert!(rendered.contains("GLOBAL ("));
+    assert!(rendered.contains("Help › Snippet list"));
+    assert!(rendered.contains("· Sort: Key ↑"));
 }
 
 #[test]
@@ -1660,12 +1633,121 @@ fn preview_drag_selection_copies_text_without_line_number_gutter() {
 fn help_overlay_accepts_mouse_wheel_scrolling() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
-    app.show_help = true;
+    app.handle_key(key(KeyCode::Char('?')));
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
 
     let _ = app.handle_mouse(mouse(MouseEventKind::ScrollDown, 40, 12));
-    assert_eq!(app.help_scroll, 3);
+    assert_eq!(app.help.selected, 3);
     let _ = app.handle_mouse(mouse(MouseEventKind::ScrollUp, 40, 12));
-    assert_eq!(app.help_scroll, 0);
+    assert_eq!(app.help.selected, 0);
+}
+
+#[test]
+fn help_panel_renders_at_compact_standard_and_wide_sizes() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char('?')));
+
+    for (width, height) in [(80, 24), (120, 40), (200, 60)] {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+            .unwrap();
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(
+            rendered.contains("Help ›"),
+            "missing help title at {width}x{height}"
+        );
+        assert!(
+            rendered.contains("Sort: Key ↑"),
+            "missing sort label at {width}x{height}"
+        );
+    }
+}
+
+#[test]
+fn help_chrome_tracks_scope_and_sort_without_overlapping_at_eighty_columns() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.focus = Pane::Preview;
+    app.handle_key(key(KeyCode::Char('?')));
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let rows = (0..buffer.area.height)
+        .map(|y| row_text(buffer, y))
+        .collect::<Vec<_>>();
+    assert!(
+        rows.iter()
+            .any(|row| row.contains("Help › Preview · Sort: Key ↑"))
+    );
+    let footer = rows
+        .iter()
+        .find(|row| row.contains("[a] All modes"))
+        .expect("context help footer");
+    assert!(footer.contains("[s] Sort by action"));
+    assert!(footer.contains("[/] Filter"));
+    let filter_end = text_column(footer, "Filter") + "Filter".chars().count() as u16;
+    let count_start =
+        right_count_column(footer).unwrap_or_else(|| panic!("missing count in footer: {footer}"));
+    assert!(filter_end < count_start, "{footer}");
+
+    app.handle_key(key(KeyCode::Char('a')));
+    app.handle_key(key(KeyCode::Char('s')));
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let rows = (0..buffer.area.height)
+        .map(|y| row_text(buffer, y))
+        .collect::<Vec<_>>();
+    assert!(
+        rows.iter()
+            .any(|row| row.contains("Help › All modes · Sort: Action ↑"))
+    );
+    let footer = rows
+        .iter()
+        .find(|row| row.contains("[a] Preview only"))
+        .expect("all-modes help footer");
+    assert!(footer.contains("[s] Sort by key"));
+    assert!(footer.contains("[/] Filter"));
+    let filter_end = text_column(footer, "Filter") + "Filter".chars().count() as u16;
+    let count_start =
+        right_count_column(footer).unwrap_or_else(|| panic!("missing count in footer: {footer}"));
+    assert!(filter_end < count_start, "{footer}");
+}
+
+#[test]
+fn help_filter_consumes_input_until_it_is_left() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    app.handle_key(key(KeyCode::Char('?')));
+    app.handle_key(key(KeyCode::Char('/')));
+    app.handle_key(key(KeyCode::Char('q')));
+    assert!(app.show_help);
+    assert!(app.help.filtering);
+    assert_eq!(app.help.filter.value, "q");
+
+    app.handle_key(key(KeyCode::Esc));
+    assert!(app.show_help);
+    assert!(!app.help.filtering);
+    assert!(app.help.filter.value.is_empty());
+    app.handle_key(key(KeyCode::Char('q')));
+    assert!(!app.show_help);
 }
 
 #[test]

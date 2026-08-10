@@ -18,6 +18,7 @@ use crate::tui::command::CommandId;
 use super::super::editor::EditRequest;
 use super::super::event::AppEvent;
 use super::super::gist_panel::GistBadge;
+use super::super::help::HelpState;
 use super::super::highlight::Highlighter;
 use super::super::icons::IconMode;
 use super::super::layout::LayoutRects;
@@ -226,7 +227,7 @@ pub struct App {
     pub editor_cmd: Option<String>,
     pub vscode_cmd: Option<String>,
     pub show_help: bool,
-    pub help_scroll: u16,
+    pub help: HelpState,
     pub default_language: String,
     pub default_folder: Option<String>,
     pub default_tags: Vec<String>,

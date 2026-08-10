@@ -16,7 +16,7 @@ impl App {
                 .saturating_add(1)
                 .min(fragment_count.saturating_sub(1));
         } else if self.show_help {
-            self.help_scroll = self.help_scroll.saturating_add(1);
+            self.help.move_selection(1);
         } else if self.trash.open && self.focus == Pane::List {
             self.trash.move_selection(1);
             self.sync_trash_preview();
@@ -33,7 +33,7 @@ impl App {
         if let Some(grab) = self.fragment_grab.as_mut() {
             grab.current = grab.current.saturating_sub(1);
         } else if self.show_help {
-            self.help_scroll = self.help_scroll.saturating_sub(1);
+            self.help.move_selection(-1);
         } else if self.trash.open && self.focus == Pane::List {
             self.trash.move_selection(-1);
             self.sync_trash_preview();
@@ -74,7 +74,7 @@ impl App {
 
     pub(in super::super) fn navigate_page_down(&mut self) {
         if self.show_help {
-            self.help_scroll = self.help_scroll.saturating_add(10);
+            self.help.move_half_page(1);
         } else if self.trash.open && self.focus == Pane::List {
             self.trash.move_selection(10);
             self.sync_trash_preview();
@@ -89,7 +89,7 @@ impl App {
 
     pub(in super::super) fn navigate_page_up(&mut self) {
         if self.show_help {
-            self.help_scroll = self.help_scroll.saturating_sub(10);
+            self.help.move_half_page(-1);
         } else if self.trash.open && self.focus == Pane::List {
             self.trash.move_selection(-10);
             self.sync_trash_preview();
