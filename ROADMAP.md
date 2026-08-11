@@ -109,20 +109,21 @@ stays the single source of truth.
 ## Packaging
 
 Existing channels: Homebrew, Nix (flake + Cachix), Copr, AUR (`sniplab` and
-`sniplab-bin`), Scoop, standalone `.deb` / `.rpm` / archives, and `install.sh`.
+`sniplab-bin`), Scoop, Gentoo, standalone `.deb` / `.rpm` / archives, and
+`install.sh`.
 
 ### Gentoo overlay
 
-Gentoo users currently have `install.sh` and nothing native. The plan is a
-self-hosted overlay rather than a GURU submission, at least to start.
+Gentoo users have a self-hosted overlay rather than a GURU submission, at least
+to start.
 
-- [ ] Add `packaging/gentoo/sniplab.ebuild.in`, rendered by the release workflow
+- [x] Add `packaging/gentoo/ebuild-bin.in`, rendered by the release workflow
   the same way the Copr spec and the Scoop manifest are. Install the prebuilt
   release archive instead of compiling: building from crates.io requires either
   every dependency enumerated in `CRATES` (generated with `pycargoebuild`) or a
   vendored tarball, and neither earns its keep in an overlay. Install the binary,
   the shell completions, and `man/*.1`, mirroring the Copr spec's `%install`.
-- [ ] Publish it from a separate overlay repository (`metadata/layout.conf` plus
+- [x] Publish it from a separate overlay repository (`metadata/layout.conf` plus
   `profiles/repo_name`), so users add it with `eselect repository add`.
 - [ ] Register the overlay in `gentoo/api-gentoo-org`'s `repositories.xml` so it
   appears in `eselect repository list` without a manual URL.

@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   concurrent writers. On Windows, use an absolute editor executable path for
   libraries from untrusted sources because bare-name lookup can include the
   selected child working directory.
+- **Gentoo overlay.** `app-misc/sniplab-bin` installs the static musl release
+  binary, manual pages, and shell completions from a standalone Portage overlay;
+  tagged releases update its ebuild and thin Manifest automatically.
 
 ## [0.6.0] - 2026-08-10
 
