@@ -98,17 +98,29 @@ On arm64, swap `x86_64` for `aarch64`.
 
 ### Fedora / Enterprise Linux
 
-From [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/). Builds
-from source on Fedora's infrastructure, and `dnf upgrade` picks up new releases:
+From [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/). Fedora's
+build machines compile each release and publish a binary package, so `dnf`
+installs a prebuilt `snip` without a Rust toolchain on your machine, and
+`dnf upgrade` picks up new releases:
 
 ```bash
 sudo dnf copr enable gitkeniwo/snip
 sudo dnf install sniplab
 ```
 
-Or grab the standalone `.rpm` from a release. This works on Fedora 36+ and the
-Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux 10.0+, AlmaLinux 10.0+,
-Oracle Linux 10+, CentOS Stream 10+ — which ship glibc 2.35 or newer:
+This covers the currently supported Fedora releases and the Enterprise Linux 9
+and 10 families — RHEL, Rocky Linux, AlmaLinux, Oracle Linux, and CentOS Stream
+— on both x86_64 and arm64. On Enterprise Linux, `dnf copr enable` ships in
+`dnf-plugins-core`, so install that first if the subcommand is missing:
+
+```bash
+sudo dnf install dnf-plugins-core
+```
+
+Or grab the standalone `.rpm` from a release. It needs glibc 2.35 or newer, so
+it suits Fedora and the Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux
+10.0+, AlmaLinux 10.0+, Oracle Linux 10+, CentOS Stream 10+ — but not
+Enterprise Linux 9, which ships glibc 2.34. Use Copr there:
 
 ```bash
 curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.rpm
@@ -235,8 +247,9 @@ For a smaller binary without the terminal browser, add `--no-default-features`.
 
 GNU Linux archives and the `.deb` / `.rpm` packages are built on Ubuntu 22.04
 and need glibc 2.35 or newer. The static musl archives have no glibc version
-floor; the install script uses them on Linux. Copr builds from source on
-Fedora's infrastructure, so it is not affected by either binary requirement.
+floor; the install script uses them on Linux. Copr compiles against each Fedora
+and Enterprise Linux release it targets, so its packages are not affected by
+either binary requirement.
 Upgrading a downloaded `.deb` / `.rpm` means downloading the newer file again.
 
 Release history is in [CHANGELOG.md](CHANGELOG.md).
