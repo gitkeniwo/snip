@@ -1,0 +1,21 @@
+Source: sniplab
+Section: utils
+Priority: optional
+Maintainer: snip release bot <41898282+github-actions[bot]@users.noreply.github.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ cargo (>= 1.89),
+ rustc (>= 1.89),
+ gcc,
+ git
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/gitkeniwo/snip
+
+Package: sniplab
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: filesystem-native snippet library and agent-friendly CLI
+ snip keeps snippets as ordinary files that can be searched, diffed, edited,
+ and versioned with Git. It provides a JSON-speaking command-line interface
+ and a three-pane terminal browser. The installed command is named snip.
