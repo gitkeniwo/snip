@@ -5,6 +5,11 @@ export CARGO_NET_OFFLINE = true
 %:
 	dh $@
 
+override_dh_clean:
+	# Cargo verifies files such as vendor/*/Cargo.toml.orig against .cargo-checksum.json.
+	# The default dh_clean removes *.orig recursively, so preserve the offline vendor tree.
+	dh_clean -Xvendor/
+
 override_dh_auto_build:
 	cargo build --locked --release --all-features --offline
 
