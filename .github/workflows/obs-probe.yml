@@ -38,6 +38,9 @@ jobs:
 
       - name: Prepare offline RPM sources
         run: |
+          # Container jobs see the checkout with the host runner's ownership.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
           version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
           test -n "$version"
           echo "VERSION=$version" >> "$GITHUB_ENV"
@@ -125,6 +128,9 @@ jobs:
 
       - name: Prepare the Debian source tree and offline dependencies
         run: |
+          # Container jobs see the checkout with the host runner's ownership.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
           version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
           test -n "$version"
           echo "VERSION=$version" >> "$GITHUB_ENV"
