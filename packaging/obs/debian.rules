@@ -10,6 +10,14 @@ override_dh_clean:
 	# The default dh_clean removes *.orig recursively, so preserve the offline vendor tree.
 	dh_clean -Xvendor/
 
+override_dh_update_autotools_config:
+	# debhelper must not rewrite config.guess/config.sub inside checksummed crates.
+	:
+
+override_dh_autoreconf:
+	# Cargo runs any crate-specific native configuration during the actual build.
+	:
+
 override_dh_auto_build:
 	cargo build --locked --release --all-features --offline
 
