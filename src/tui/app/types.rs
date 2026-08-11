@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::{GitConfig, TuiConfig, TuiDensitySetting, TuiThemeSetting};
+use crate::config::{EditorCwdSetting, GitConfig, TuiConfig, TuiDensitySetting, TuiThemeSetting};
 use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
 use crate::git;
@@ -41,10 +41,18 @@ pub struct ThemePreviewState {
 
 #[derive(Clone, Debug)]
 pub enum Effect {
-    SpawnEditor(EditRequest),
+    SpawnEditor {
+        request: EditRequest,
+        cwd: Option<PathBuf>,
+    },
     ForceSave(EditRequest),
-    CopyToClipboard { text: String, label: String },
-    OpenInVsCode { path: PathBuf },
+    CopyToClipboard {
+        text: String,
+        label: String,
+    },
+    OpenInVsCode {
+        path: PathBuf,
+    },
     RunGit(git::GitAction),
 }
 
@@ -225,6 +233,7 @@ pub struct App {
     pub should_quit: bool,
     pub pending_quit: bool,
     pub editor_cmd: Option<String>,
+    pub editor_cwd: EditorCwdSetting,
     pub vscode_cmd: Option<String>,
     pub show_help: bool,
     pub help: HelpState,

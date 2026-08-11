@@ -1,12 +1,12 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use tempfile::Builder;
 use uuid::Uuid;
 
 use crate::domain::Fingerprint;
 use crate::error::{ErrorKind, Result, SnipError};
+use crate::external_editor::launch_editor;
 use crate::filesystem::Library;
 use crate::service::{EditOptions, edit_snippet};
 
@@ -37,6 +37,7 @@ pub enum EditOutcome {
 pub fn run_external_edit(
     library: &Library,
     mut request: EditRequest,
+    cwd: Option<&Path>,
     configured_editor: Option<&str>,
 ) -> Result<EditOutcome> {
     let suffix = if request.suffix.starts_with('.') {
@@ -49,7 +50,7 @@ pub fn run_external_edit(
         .tempfile()
         .map_err(|error| SnipError::io(format!("cannot create temporary editor file: {error}")))?;
     std::io::Write::write_all(&mut temp, request.original.as_bytes())?;
-    launch_editor(temp.path(), configured_editor)?;
+    launch_editor(temp.path(), cwd, configured_editor)?;
     let edited = fs::read_to_string(temp.path()).map_err(|error| {
         SnipError::io(format!(
             "cannot read editor result {}: {error}",
@@ -94,25 +95,4 @@ fn save(library: &Library, request: &EditRequest, force: bool) -> Result<()> {
     }
     edit_snippet(library, &request.snippet_id.to_string(), &options)?;
     Ok(())
-}
-
-fn launch_editor(path: &Path, configured_editor: Option<&str>) -> Result<()> {
-    let editor = configured_editor.map(ToOwned::to_owned).unwrap_or_else(|| {
-        std::env::var("VISUAL")
-            .or_else(|_| std::env::var("EDITOR"))
-            .unwrap_or_else(|_| "vi".to_owned())
-    });
-    let parts = shlex::split(&editor)
-        .filter(|parts| !parts.is_empty())
-        .ok_or_else(|| SnipError::usage(format!("invalid editor command: {editor:?}")))?;
-    let status = Command::new(&parts[0])
-        .args(&parts[1..])
-        .arg(path)
-        .status()
-        .map_err(|error| SnipError::io(format!("cannot start editor: {error}")))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(SnipError::io(format!("editor exited with status {status}")))
-    }
 }

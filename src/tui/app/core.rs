@@ -131,6 +131,7 @@ impl App {
             should_quit: false,
             pending_quit: false,
             editor_cmd: config.editor.clone(),
+            editor_cwd: config.editor_cwd.unwrap_or_default(),
             vscode_cmd: config.vscode_cmd.clone(),
             show_help: false,
             help: Default::default(),
