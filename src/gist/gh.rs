@@ -7,8 +7,8 @@ use serde_json::{Value, json};
 
 use crate::error::{Result, SnipError};
 
-/// Why the `gh` CLI could not do its job. The classification mirrors the error
-/// table in the plan: a missing binary, a missing login, or a failed request.
+/// Why the `gh` CLI could not do its job. Three causes: the `gh` binary is
+/// missing, the user is not authenticated, or the request failed.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum Unavailable {
@@ -111,8 +111,9 @@ pub fn delete(id: &str) -> Result<()> {
 
 /// Open the gist in the default browser via `gh gist view --web`. This is the
 /// one sanctioned use of a `gh gist` subcommand: it only launches a browser and
-/// performs no data operations, so §0.1's ban on `gh gist` does not apply. It
-/// is also the only cross-platform way to open a browser without hand-rolling
+/// performs no data operations, so the ban on `gh gist` subcommands does not
+/// apply. It is also the only cross-platform way to open a browser without
+/// hand-rolling
 /// `open`/`xdg-open`/`start`.
 pub fn open_web(id: &str) -> Result<()> {
     run_empty(&["gist", "view", id, "--web"]).map_err(classify)
