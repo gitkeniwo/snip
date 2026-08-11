@@ -855,6 +855,7 @@ pub enum ConfigKey {
     PreviewRender,
     PreviewPager,
     Editor,
+    EditorCwd,
     Pager,
     DefaultLanguage,
     DefaultFolder,

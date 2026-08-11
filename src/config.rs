@@ -34,6 +34,34 @@ pub enum PreviewRenderSetting {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+pub enum EditorCwdSetting {
+    #[default]
+    Inherit,
+    Library,
+    Folder,
+    Snippet,
+    Fragment,
+}
+
+pub const EDITOR_CWD_VALUES: &str = "inherit, library, folder, snippet, or fragment";
+
+impl std::str::FromStr for EditorCwdSetting {
+    type Err = ();
+
+    fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "inherit" => Ok(Self::Inherit),
+            "library" => Ok(Self::Library),
+            "folder" => Ok(Self::Folder),
+            "snippet" => Ok(Self::Snippet),
+            "fragment" => Ok(Self::Fragment),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TuiThemeSetting {
     #[default]
     Auto,
@@ -144,6 +172,8 @@ pub struct AppConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editor: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor_cwd: Option<EditorCwdSetting>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vscode_cmd: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pager: Option<String>,
@@ -171,6 +201,7 @@ impl Default for AppConfig {
             preview_render: None,
             preview_pager: None,
             editor: None,
+            editor_cwd: None,
             vscode_cmd: None,
             pager: None,
             default_language: None,

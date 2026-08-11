@@ -2,8 +2,8 @@ use clap::CommandFactory;
 use serde_json::json;
 use snip::Library;
 use snip::config::{
-    AppConfig, ColorSetting, GitConfig, OutputSetting, PreviewRenderSetting, TuiConfig,
-    TuiDensitySetting, TuiThemeSetting, config_path,
+    AppConfig, ColorSetting, EDITOR_CWD_VALUES, EditorCwdSetting, GitConfig, OutputSetting,
+    PreviewRenderSetting, TuiConfig, TuiDensitySetting, TuiThemeSetting, config_path,
 };
 use snip::error::{Result, SnipError};
 use snip::sort::SortMode;
@@ -174,6 +174,11 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
         }
         ConfigKey::PreviewPager => config.preview_pager = Some(parse_bool(value)?),
         ConfigKey::Editor => config.editor = Some(nonempty_value("editor", value)?),
+        ConfigKey::EditorCwd => {
+            config.editor_cwd = Some(value.parse::<EditorCwdSetting>().map_err(|()| {
+                SnipError::usage(format!("editor-cwd must be {EDITOR_CWD_VALUES}"))
+            })?);
+        }
         ConfigKey::Pager => config.pager = Some(nonempty_value("pager", value)?),
         ConfigKey::DefaultLanguage => {
             config.default_language = Some(nonempty_value("default-language", value)?)
@@ -271,6 +276,7 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         ConfigKey::PreviewRender => config.preview_render = None,
         ConfigKey::PreviewPager => config.preview_pager = None,
         ConfigKey::Editor => config.editor = None,
+        ConfigKey::EditorCwd => config.editor_cwd = None,
         ConfigKey::Pager => config.pager = None,
         ConfigKey::DefaultLanguage => config.default_language = None,
         ConfigKey::DefaultFolder => config.default_folder = None,
