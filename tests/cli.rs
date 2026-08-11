@@ -275,6 +275,7 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         ("tui-sort", "modified"),
         ("tui-density", "compact"),
         ("tui-simplified-ui", "true"),
+        ("editor-cwd", "folder"),
         ("git-auto-commit-interval", "15"),
         ("git-auto-pull", "true"),
         ("git-backup-on-quit", "true"),
@@ -297,7 +298,26 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .stdout(predicate::str::contains("\"auto_push\": true"))
         .stdout(predicate::str::contains("\"auto_pull\": true"))
         .stdout(predicate::str::contains("\"backup_on_quit\": true"))
-        .stdout(predicate::str::contains("\"simplified_ui\": true"));
+        .stdout(predicate::str::contains("\"simplified_ui\": true"))
+        .stdout(predicate::str::contains("\"editor_cwd\": \"folder\""));
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "set", "editor-cwd", "somewhere"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "editor-cwd must be inherit, library, folder, snippet, or fragment",
+        ));
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "unset", "editor-cwd"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("editor_cwd").not());
 
     Command::cargo_bin("snip")
         .unwrap()

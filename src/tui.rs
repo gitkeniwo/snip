@@ -175,10 +175,14 @@ fn execute_effect(
     guard: &mut TerminalGuard,
 ) -> Result<()> {
     match effect {
-        Effect::SpawnEditor(request) => {
+        Effect::SpawnEditor { request, cwd } => {
             guard.suspend()?;
-            let outcome =
-                editor::run_external_edit(&app.library, request, app.editor_cmd.as_deref());
+            let outcome = editor::run_external_edit(
+                &app.library,
+                request,
+                cwd.as_deref(),
+                app.editor_cmd.as_deref(),
+            );
             guard.resume()?;
             *terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
             match outcome {

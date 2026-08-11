@@ -1,4 +1,5 @@
 use crate::error::{Result, SnipError};
+use crate::external_editor::{EditorTargetKind, editor_dir_for_target, resolve_editor_cwd};
 use crate::git::GitAction;
 use crate::service::{
     CreateOptions, EditOptions, FragmentEditOptions, create_folder, create_snippet, delete_folder,
@@ -239,6 +240,18 @@ impl App {
                     edited: None,
                     suffix,
                 };
+                let leaf_dir = editor_dir_for_target(
+                    &created.package_path,
+                    Some(&fragment.absolute_path),
+                    fragment.note.as_deref(),
+                    EditorTargetKind::Content,
+                );
+                let cwd = resolve_editor_cwd(
+                    self.library.root(),
+                    &created.package_path,
+                    leaf_dir.as_deref(),
+                    self.editor_cwd,
+                );
                 self.rescan()?;
                 self.selected_id = Some(created.id);
                 if let Some(index) = self
@@ -250,7 +263,7 @@ impl App {
                 }
                 self.focus = Pane::List;
                 return Ok((
-                    vec![Effect::SpawnEditor(request)],
+                    vec![Effect::SpawnEditor { request, cwd }],
                     "snippet created".to_owned(),
                 ));
             }

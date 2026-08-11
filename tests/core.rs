@@ -5,8 +5,8 @@ use snip::service::{
     doctor, edit_snippet, restore_snippet, trash_entries,
 };
 use snip::{
-    AppConfig, ErrorKind, Fingerprint, Library, OutputSetting, SortMode, TuiDensitySetting,
-    TuiThemeSetting,
+    AppConfig, EditorCwdSetting, ErrorKind, Fingerprint, Library, OutputSetting, SortMode,
+    TuiDensitySetting, TuiThemeSetting,
 };
 use std::fs;
 use tempfile::TempDir;
@@ -333,6 +333,7 @@ fn config_round_trip_preserves_unknown_fields_and_normalizes_tags() {
         &path,
         r##"schema_version = 1
 output = "json"
+editor_cwd = "snippet"
 default_tags = [" demo ", "DEMO", "Rust"]
 future_gui_layout = "wide"
 
@@ -356,6 +357,7 @@ future_remote_policy = "manual"
 
     let config = AppConfig::load_from(&path).unwrap();
     assert_eq!(config.output, Some(OutputSetting::Json));
+    assert_eq!(config.editor_cwd, Some(EditorCwdSetting::Snippet));
     assert_eq!(config.default_tags, vec!["demo", "Rust"]);
     let tui = config.tui.as_ref().unwrap();
     assert_eq!(tui.theme, TuiThemeSetting::Light);

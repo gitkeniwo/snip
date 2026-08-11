@@ -2,6 +2,7 @@ pub mod clipboard;
 pub mod config;
 pub mod domain;
 pub mod error;
+pub mod external_editor;
 pub mod filesystem;
 pub mod gist;
 pub mod git;
@@ -18,8 +19,8 @@ pub mod theme;
 pub mod tui;
 
 pub use config::{
-    AppConfig, ColorSetting, GitConfig, OutputSetting, PreviewRenderSetting, TuiConfig,
-    TuiDensitySetting, TuiThemeSetting, config_path,
+    AppConfig, ColorSetting, EditorCwdSetting, GitConfig, OutputSetting, PreviewRenderSetting,
+    TuiConfig, TuiDensitySetting, TuiThemeSetting, config_path,
 };
 pub use domain::{
     CatalogSnapshot, ChangeSet, Fingerprint, Fragment, FragmentManifest, LibraryManifest,

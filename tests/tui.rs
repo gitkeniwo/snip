@@ -27,7 +27,9 @@ use snip::tui::modal::{InputModal, Modal, ModalAction};
 use snip::tui::preview::PreviewTarget;
 use snip::tui::state::{Pane, SidebarItem, SortMode};
 use snip::tui::theme::{Appearance, TuiTheme};
-use snip::{AppConfig, GitConfig, Library, TuiConfig, TuiDensitySetting, TuiThemeSetting};
+use snip::{
+    AppConfig, EditorCwdSetting, GitConfig, Library, TuiConfig, TuiDensitySetting, TuiThemeSetting,
+};
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Library, uuid::Uuid, uuid::Uuid) {
@@ -816,9 +818,10 @@ fn edit_effect_captures_hash_and_conflict_can_force_save() {
     app.focus = Pane::List;
     let original_hash = app.selected_snippet().unwrap().fingerprint.clone();
     let effects = app.handle_key(key(KeyCode::Char('e')));
-    let Effect::SpawnEditor(mut request) = effects.into_iter().next().unwrap() else {
+    let Effect::SpawnEditor { mut request, cwd } = effects.into_iter().next().unwrap() else {
         panic!("expected editor effect");
     };
+    assert_eq!(cwd, None);
     assert_eq!(request.expected, original_hash);
     request.edited = Some("fn forced() {}\n".to_owned());
 
@@ -2886,6 +2889,7 @@ fn create_wizard_uses_defaults_and_opens_the_new_fragment_editor() {
         default_language: Some("python".to_owned()),
         default_folder: Some("Code/Rust".to_owned()),
         default_tags: vec!["generated".to_owned()],
+        editor_cwd: Some(EditorCwdSetting::Snippet),
         ..AppConfig::default()
     };
     let mut app = App::new(library, &config).unwrap();
@@ -2905,16 +2909,113 @@ fn create_wizard_uses_defaults_and_opens_the_new_fragment_editor() {
     assert_eq!(language.selected_value().as_deref(), Some("python"));
     assert!(language.allow_custom);
     let effects = app.handle_key(key(KeyCode::Enter));
-    let Effect::SpawnEditor(request) = effects.into_iter().next().unwrap() else {
+    let Effect::SpawnEditor { request, cwd } = effects.into_iter().next().unwrap() else {
         panic!("expected editor for newly created snippet");
     };
     assert!(matches!(request.target, EditTarget::Content { .. }));
     assert_eq!(request.original, "");
     assert_eq!(request.suffix, "py");
     let created = app.selected_snippet().unwrap();
+    assert_eq!(cwd.as_deref(), Some(created.package_path.as_path()));
     assert_eq!(created.title, "Generated helper");
     assert_eq!(created.folder, "Code/Rust");
     assert_eq!(created.tags, ["generated"]);
+}
+
+#[test]
+fn fragment_editor_cwd_resolves_content_note_and_readme_directories() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let config = AppConfig {
+        editor_cwd: Some(EditorCwdSetting::Fragment),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    app.focus = Pane::List;
+    app.selected_id = Some(first_id);
+    app.list_state.select(
+        app.visible
+            .iter()
+            .position(|row| row.snippet_id == first_id),
+    );
+    let snippet = app.selected_snippet().unwrap();
+    let package = snippet.package_path.clone();
+    let fragments = snippet.loaded_fragments[0]
+        .absolute_path
+        .parent()
+        .unwrap()
+        .to_path_buf();
+
+    let Effect::SpawnEditor { cwd, .. } = app
+        .handle_key(key(KeyCode::Char('e')))
+        .into_iter()
+        .next()
+        .unwrap()
+    else {
+        panic!("expected content editor");
+    };
+    assert_eq!(cwd.as_deref(), Some(fragments.as_path()));
+
+    let Effect::SpawnEditor { cwd, .. } = app
+        .handle_key(key(KeyCode::Char('E')))
+        .into_iter()
+        .next()
+        .unwrap()
+    else {
+        panic!("expected note editor");
+    };
+    assert_eq!(cwd.as_deref(), Some(package.join("notes").as_path()));
+
+    let Effect::SpawnEditor { cwd, .. } = app
+        .handle_key(key(KeyCode::Char('R')))
+        .into_iter()
+        .next()
+        .unwrap()
+    else {
+        panic!("expected README editor");
+    };
+    assert_eq!(cwd.as_deref(), Some(package.as_path()));
+}
+
+#[test]
+fn fragment_editor_cwd_for_a_missing_note_falls_back_when_notes_directory_is_missing() {
+    let (_temporary, library, _first_id, second_id) = fixture();
+    let config = AppConfig {
+        editor_cwd: Some(EditorCwdSetting::Fragment),
+        ..AppConfig::default()
+    };
+    let mut app = App::new(library, &config).unwrap();
+    app.focus = Pane::List;
+    app.selected_id = Some(second_id);
+    app.list_state.select(
+        app.visible
+            .iter()
+            .position(|row| row.snippet_id == second_id),
+    );
+    let snippet = app.selected_snippet().unwrap();
+    assert!(snippet.loaded_fragments[0].note.is_none());
+    let package = snippet.package_path.clone();
+    let notes = package.join("notes");
+
+    let Effect::SpawnEditor { cwd, .. } = app
+        .handle_key(key(KeyCode::Char('E')))
+        .into_iter()
+        .next()
+        .unwrap()
+    else {
+        panic!("expected note editor");
+    };
+    assert_eq!(cwd.as_deref(), Some(notes.as_path()));
+
+    std::fs::remove_dir(&notes).unwrap();
+    let Effect::SpawnEditor { cwd, .. } = app
+        .handle_key(key(KeyCode::Char('E')))
+        .into_iter()
+        .next()
+        .unwrap()
+    else {
+        panic!("expected note editor");
+    };
+    assert_eq!(cwd.as_deref(), Some(package.as_path()));
 }
 
 #[test]
@@ -3205,7 +3306,11 @@ fn note_and_readme_editor_targets_save_markdown() {
     ));
 
     let effects = app.handle_key(key(KeyCode::Char('E')));
-    let Effect::SpawnEditor(mut note) = effects.into_iter().next().unwrap() else {
+    let Effect::SpawnEditor {
+        request: mut note,
+        cwd: _,
+    } = effects.into_iter().next().unwrap()
+    else {
         panic!("expected note editor");
     };
     assert!(matches!(note.target, EditTarget::Note { .. }));
@@ -3221,7 +3326,11 @@ fn note_and_readme_editor_targets_save_markdown() {
     );
 
     let effects = app.handle_key(key(KeyCode::Char('R')));
-    let Effect::SpawnEditor(mut readme) = effects.into_iter().next().unwrap() else {
+    let Effect::SpawnEditor {
+        request: mut readme,
+        cwd: _,
+    } = effects.into_iter().next().unwrap()
+    else {
         panic!("expected readme editor");
     };
     assert_eq!(readme.target, EditTarget::Readme);
@@ -3343,6 +3452,7 @@ fn external_editor_command_saves_through_optimistic_service() {
     let outcome = snip::tui::editor::run_external_edit(
         &library,
         request,
+        None,
         Some("sh -c 'printf \"fn editor_saved() {}\\n\" > \"$1\"' sh"),
     )
     .unwrap();

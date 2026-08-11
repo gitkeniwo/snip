@@ -1,8 +1,11 @@
 use serde_json::json;
 use snip::Library;
-use snip::config::AppConfig;
+use snip::config::{AppConfig, EditorCwdSetting};
 use snip::domain::Fingerprint;
 use snip::error::{Result, SnipError};
+use snip::external_editor::{
+    EditorTargetKind, editor_dir_for_target, launch_editor, resolve_editor_cwd,
+};
 use snip::service::{
     CreateOptions, EditOptions, FragmentAddOptions, FragmentEditOptions, add_fragment,
     create_snippet, delete_snippet, edit_fragment, edit_snippet, remove_fragment, reorder_fragment,
@@ -10,8 +13,7 @@ use snip::service::{
 };
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
-use std::path::Path;
-use std::process::Command as ProcessCommand;
+use std::path::{Path, PathBuf};
 use tempfile::Builder;
 
 use super::output::{print_mutation, print_record};
@@ -63,7 +65,13 @@ pub fn command_edit(
     config: &AppConfig,
 ) -> Result<()> {
     if !edit_has_structured_changes(args) {
-        return edit_external(library, args, output, config.editor.as_deref());
+        return edit_external(
+            library,
+            args,
+            output,
+            config.editor.as_deref(),
+            config.editor_cwd.unwrap_or_default(),
+        );
     }
     let options = EditOptions {
         title: args.title.clone(),
@@ -180,6 +188,7 @@ fn edit_external(
     args: &EditArgs,
     output: OutputMode,
     configured_editor: Option<&str>,
+    editor_cwd: EditorCwdSetting,
 ) -> Result<()> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(SnipError::usage(
@@ -196,17 +205,21 @@ fn edit_external(
             original.fingerprint
         )));
     }
-    let (initial, suffix, target) = if args.metadata_editor {
+    let (initial, suffix, target, fragment_path, note_relative_path) = if args.metadata_editor {
         (
             fs::read_to_string(original.package_path.join("snippet.toml"))?,
             ".toml".to_owned(),
             ExternalTarget::Metadata,
+            None,
+            None,
         )
     } else if args.readme_editor {
         (
             original.readme.clone().unwrap_or_default(),
             ".md".to_owned(),
             ExternalTarget::Readme,
+            None,
+            None,
         )
     } else {
         let fragment = library.resolve_fragment(&original, args.fragment.as_deref())?;
@@ -215,6 +228,8 @@ fn edit_external(
                 fragment.note_content.clone().unwrap_or_default(),
                 ".md".to_owned(),
                 ExternalTarget::Note(fragment.id.to_string()),
+                None,
+                fragment.note.clone(),
             )
         } else {
             let suffix = Path::new(&fragment.file)
@@ -226,16 +241,30 @@ fn edit_external(
                 fragment.content.clone(),
                 suffix,
                 ExternalTarget::Content(fragment.id.to_string()),
+                Some(fragment.absolute_path.clone()),
+                None,
             )
         }
     };
+    let leaf_dir = external_target_dir(
+        &original.package_path,
+        fragment_path.as_deref(),
+        note_relative_path.as_deref(),
+        &target,
+    );
+    let cwd = resolve_editor_cwd(
+        library.root(),
+        &original.package_path,
+        leaf_dir.as_deref(),
+        editor_cwd,
+    );
     let mut temp = Builder::new()
         .prefix("snip-edit-")
         .suffix(&suffix)
         .tempfile()?;
     temp.write_all(initial.as_bytes())?;
     temp.as_file().sync_all()?;
-    launch_editor(temp.path(), configured_editor)?;
+    launch_editor(temp.path(), cwd.as_deref(), configured_editor)?;
     let edited = fs::read_to_string(temp.path())?;
     if edited == initial {
         if output == OutputMode::Human {
@@ -304,24 +333,27 @@ enum ExternalTarget {
     Note(String),
 }
 
-fn launch_editor(path: &Path, configured_editor: Option<&str>) -> Result<()> {
-    let editor = configured_editor.map(ToOwned::to_owned).unwrap_or_else(|| {
-        std::env::var("VISUAL")
-            .or_else(|_| std::env::var("EDITOR"))
-            .unwrap_or_else(|_| "vi".to_owned())
-    });
-    let parts = shlex::split(&editor)
-        .filter(|parts| !parts.is_empty())
-        .ok_or_else(|| SnipError::usage(format!("invalid editor command: {editor:?}")))?;
-    let status = ProcessCommand::new(&parts[0])
-        .args(&parts[1..])
-        .arg(path)
-        .status()
-        .map_err(|error| SnipError::io(format!("cannot start editor: {error}")))?;
-    if !status.success() {
-        return Err(SnipError::io(format!("editor exited with status {status}")));
+fn external_target_dir(
+    package_path: &Path,
+    fragment_path: Option<&Path>,
+    note_relative_path: Option<&str>,
+    target: &ExternalTarget,
+) -> Option<PathBuf> {
+    editor_dir_for_target(
+        package_path,
+        fragment_path,
+        note_relative_path,
+        external_target_kind(target),
+    )
+}
+
+fn external_target_kind(target: &ExternalTarget) -> EditorTargetKind {
+    match target {
+        ExternalTarget::Metadata => EditorTargetKind::Metadata,
+        ExternalTarget::Readme => EditorTargetKind::Readme,
+        ExternalTarget::Content(_) => EditorTargetKind::Content,
+        ExternalTarget::Note(_) => EditorTargetKind::Note,
     }
-    Ok(())
 }
 
 fn read_optional_text(inline: Option<&str>, path: Option<&str>) -> Result<Option<String>> {
@@ -368,4 +400,29 @@ fn edit_has_structured_changes(args: &EditArgs) -> bool {
 
 fn fingerprint(value: Option<&str>) -> Option<Fingerprint> {
     value.map(|value| Fingerprint(value.to_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EditorTargetKind, ExternalTarget, external_target_kind};
+
+    #[test]
+    fn external_edit_targets_map_to_shared_target_kinds() {
+        assert_eq!(
+            external_target_kind(&ExternalTarget::Metadata),
+            EditorTargetKind::Metadata
+        );
+        assert_eq!(
+            external_target_kind(&ExternalTarget::Readme),
+            EditorTargetKind::Readme
+        );
+        assert_eq!(
+            external_target_kind(&ExternalTarget::Content(String::new())),
+            EditorTargetKind::Content
+        );
+        assert_eq!(
+            external_target_kind(&ExternalTarget::Note(String::new())),
+            EditorTargetKind::Note
+        );
+    }
 }

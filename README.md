@@ -509,6 +509,7 @@ snip config set color auto
 snip config set preview-render ansi
 snip config set preview-pager false
 snip config set editor 'nvim -f'
+snip config set editor-cwd snippet
 snip config set pager 'less -R'
 snip config set default-language rust
 snip config set default-folder Agents/Generated
@@ -536,6 +537,8 @@ color = "auto"               # auto | always | never
 preview_render = "ansi"      # ansi | plain | html
 preview_pager = false
 editor = "nvim -f"
+editor_cwd = "inherit"       # inherit | library | folder | snippet | fragment
+vscode_cmd = "code"
 pager = "less -R"
 default_language = "text"
 default_folder = ""
@@ -562,6 +565,26 @@ precedence over `SNIP_TUI_THEME` and lasts only for the current TUI session.
 Config values are defaults only; explicit CLI options override them. Unknown
 TOML fields are preserved when `snip config set` or `unset` rewrites the file,
 so future settings can coexist.
+
+`editor_cwd` controls the working directory of terminal editors opened by both
+the CLI and TUI:
+
+| Value | Editor working directory |
+| --- | --- |
+| `inherit` | The directory from which snip was started (default) |
+| `library` | The `.sniplib` root |
+| `folder` | The folder containing the snippet package |
+| `snippet` | The snippet package containing `snippet.toml` |
+| `fragment` | The fragment or note directory; README and metadata use the snippet package |
+
+Snippet packages are replaced by renaming their whole directory when changes
+are saved. If another process may write concurrently while the editor is open,
+prefer the more stable `folder` or `library` values over `snippet` and
+`fragment`. On Windows, the child working directory can participate in lookup
+of a bare editor executable name; use an absolute `editor` path when opening
+libraries from untrusted sources. Editor commands containing a relative path
+such as `./tools/editor` are resolved before the child working directory is
+changed.
 
 ## Files are the database
 

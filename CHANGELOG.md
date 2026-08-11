@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Configurable terminal-editor working directory.** `editor_cwd` can keep the
+  inherited directory or launch TUI and CLI external edits from the library,
+  containing folder, snippet package, or fragment/note directory. The default
+  remains `inherit` for backward compatibility. Package-level directories may
+  move during a concurrent save, so `folder` or `library` is recommended for
+  concurrent writers. On Windows, use an absolute editor executable path for
+  libraries from untrusted sources because bare-name lookup can include the
+  selected child working directory.
+
 ## [0.6.0] - 2026-08-10
 
 ### Added

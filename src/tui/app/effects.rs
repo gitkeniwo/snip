@@ -3,6 +3,7 @@ use super::super::modal::{ConfirmModal, Modal, ModalAction};
 use super::super::preview::PreviewTarget;
 use super::super::state::StatusLevel;
 use super::types::{App, Effect};
+use crate::external_editor::{EditorTargetKind, editor_dir_for_target, resolve_editor_cwd};
 
 impl App {
     pub fn handle_editor_outcome(&mut self, outcome: EditOutcome) {
@@ -54,16 +55,31 @@ impl App {
             .and_then(|value| value.to_str())
             .unwrap_or("txt")
             .to_owned();
-        vec![Effect::SpawnEditor(EditRequest {
-            snippet_id: snippet.id,
-            target: EditTarget::Content {
-                fragment_id: fragment.id,
+        let leaf_dir = editor_dir_for_target(
+            &snippet.package_path,
+            Some(&fragment.absolute_path),
+            fragment.note.as_deref(),
+            EditorTargetKind::Content,
+        );
+        let cwd = resolve_editor_cwd(
+            self.library.root(),
+            &snippet.package_path,
+            leaf_dir.as_deref(),
+            self.editor_cwd,
+        );
+        vec![Effect::SpawnEditor {
+            request: EditRequest {
+                snippet_id: snippet.id,
+                target: EditTarget::Content {
+                    fragment_id: fragment.id,
+                },
+                expected: snippet.fingerprint.clone(),
+                original: fragment.content.clone(),
+                edited: None,
+                suffix,
             },
-            expected: snippet.fingerprint.clone(),
-            original: fragment.content.clone(),
-            edited: None,
-            suffix,
-        })]
+            cwd,
+        }]
     }
 
     pub(super) fn edit_note_effect(&mut self) -> Vec<Effect> {
@@ -78,30 +94,56 @@ impl App {
         let Some(fragment) = snippet.loaded_fragments.get(index) else {
             return Vec::new();
         };
-        vec![Effect::SpawnEditor(EditRequest {
-            snippet_id: snippet.id,
-            target: EditTarget::Note {
-                fragment_id: fragment.id,
+        let leaf_dir = editor_dir_for_target(
+            &snippet.package_path,
+            Some(&fragment.absolute_path),
+            fragment.note.as_deref(),
+            EditorTargetKind::Note,
+        );
+        let cwd = resolve_editor_cwd(
+            self.library.root(),
+            &snippet.package_path,
+            leaf_dir.as_deref(),
+            self.editor_cwd,
+        );
+        vec![Effect::SpawnEditor {
+            request: EditRequest {
+                snippet_id: snippet.id,
+                target: EditTarget::Note {
+                    fragment_id: fragment.id,
+                },
+                expected: snippet.fingerprint.clone(),
+                original: fragment.note_content.clone().unwrap_or_default(),
+                edited: None,
+                suffix: "md".to_owned(),
             },
-            expected: snippet.fingerprint.clone(),
-            original: fragment.note_content.clone().unwrap_or_default(),
-            edited: None,
-            suffix: "md".to_owned(),
-        })]
+            cwd,
+        }]
     }
 
     pub(super) fn edit_readme_effect(&mut self) -> Vec<Effect> {
         let Some(snippet) = self.mutable_selected() else {
             return Vec::new();
         };
-        vec![Effect::SpawnEditor(EditRequest {
-            snippet_id: snippet.id,
-            target: EditTarget::Readme,
-            expected: snippet.fingerprint.clone(),
-            original: snippet.readme.clone().unwrap_or_default(),
-            edited: None,
-            suffix: "md".to_owned(),
-        })]
+        let leaf_dir =
+            editor_dir_for_target(&snippet.package_path, None, None, EditorTargetKind::Readme);
+        let cwd = resolve_editor_cwd(
+            self.library.root(),
+            &snippet.package_path,
+            leaf_dir.as_deref(),
+            self.editor_cwd,
+        );
+        vec![Effect::SpawnEditor {
+            request: EditRequest {
+                snippet_id: snippet.id,
+                target: EditTarget::Readme,
+                expected: snippet.fingerprint.clone(),
+                original: snippet.readme.clone().unwrap_or_default(),
+                edited: None,
+                suffix: "md".to_owned(),
+            },
+            cwd,
+        }]
     }
 
     pub(super) fn copy_content_effect(&self) -> Vec<Effect> {

@@ -249,16 +249,22 @@ on a linked snippet is a `conflict` (4); an un-publishable payload is a
   program, so only run it when the user asked to open something.
 - `snip config path|show|init|set <KEY> <VALUE>|unset <KEY>` — keys:
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
-  `editor`, `pager`, `default-language`, `default-folder`, `default-tags`,
+  `editor`, `editor-cwd`, `pager`, `default-language`, `default-folder`, `default-tags`,
   `tui-theme`, `tui-sort`, `tui-density`, `tui-line-numbers`,
   `tui-simplified-ui`,
   `git-auto-commit-interval`,
   `git-auto-push`, `git-backup-on-quit`. `tui-line-numbers` is boolean and
   defaults to on. The interval is a whole number of
   minutes, with `0` meaning all automatic Git work is off; both remaining Git
-  settings are boolean. Enabling auto-push while the interval is `0` prints a
-  warning. Unknown keys in the file are preserved across writes, so hand-added
-  settings survive.
+  settings are boolean. `editor-cwd` accepts `inherit` (the default), `library`,
+  `folder`, `snippet`, or `fragment`: these select the caller's directory, the
+  library root, the containing folder, the snippet package, or the
+  fragment/note directory respectively (README and metadata stay at snippet
+  level). Prefer `folder` or `library` when other writers may replace a snippet
+  package while an editor is open. On Windows, configure an absolute `editor`
+  executable path for untrusted libraries. Enabling auto-push while the
+  interval is `0` prints a warning. Unknown keys in the file are preserved
+  across writes, so hand-added settings survive.
 - `snip keys list|show <ACTION>|path|export|check` — inspect the TUI key map.
   Bindings live in `keys.toml` beside `config.toml` and are never rewritten by
   `snip config set`. `list` and `show` support `--output json|jsonl`; `export`
