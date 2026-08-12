@@ -30,7 +30,7 @@ jobs:
         run: |
           zypper --non-interactive refresh
           zypper --non-interactive install --no-recommends \
-            cargo gcc git-core gzip rpm-build rpmlint rust tar
+            build cargo gcc git-core gzip rpm-build rpmlint rust tar
           rustc --version
           cargo --version
 
@@ -53,7 +53,7 @@ jobs:
 
           vendor_root="$RUNNER_TEMP/cargo-vendor"
           install -d "$vendor_root"
-          cargo vendor --locked "$vendor_root/vendor" > /dev/null
+          cargo vendor --quiet --locked "$vendor_root/vendor" > /dev/null
           tar -C "$vendor_root" -czf \
             "$topdir/SOURCES/sniplab-$version-vendor.tar.gz" vendor
 
@@ -62,6 +62,21 @@ jobs:
             -e "s/@VERSION@/$version/g" \
             -e "s/@DATE@/$changelog_date/g" \
             packaging/copr/sniplab.spec.in > "$topdir/SPECS/sniplab.spec"
+
+      - name: Validate the OBS Debian source transform
+        run: |
+          sources="$RUNNER_TEMP/obs-sources"
+          transformed="$RUNNER_TEMP/debtransform"
+          install -d "$transformed"
+          packaging/obs/prepare-sources.sh "$sources"
+
+          /usr/lib/build/debtransform \
+            "$sources" "$sources/sniplab.dsc" "$transformed"
+          test -s "$transformed/sniplab_${VERSION}.orig.tar.gz"
+          test -s "$transformed/sniplab_${VERSION}-1.debian.tar.gz"
+          test -s "$transformed/sniplab_${VERSION}-1.dsc"
+          tar -tzf "$transformed/sniplab_${VERSION}-1.debian.tar.gz" \
+            | grep -q '^debian/source/format$'
 
       - name: Build the RPM with the native toolchain
         run: |
@@ -196,7 +211,7 @@ jobs:
 
           (
             cd "$source_dir"
-            "$CARGO_BIN" vendor --locked vendor > .cargo-config.toml
+            "$CARGO_BIN" vendor --quiet --locked vendor > .cargo-config.toml
             install -d .cargo
             mv .cargo-config.toml .cargo/config.toml
           )

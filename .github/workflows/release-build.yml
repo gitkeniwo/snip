@@ -836,3 +836,87 @@ jobs:
           copr-cli build "$COPR_PROJECT" "$srpm"
           echo "Submitted $(basename "$srpm") to $COPR_PROJECT" \
             >> "$GITHUB_STEP_SUMMARY"
+
+  obs:
+    name: Submit to Open Build Service
+    needs: [version, publish]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      OBS_API: https://api.opensuse.org
+      OBS_PROJECT: home:gitkeniwo
+      OBS_PACKAGE: sniplab
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check for an osc configuration
+        id: guard
+        env:
+          OSC_CONFIG: ${{ secrets.OSC_CONFIG }}
+        run: |
+          if [ -z "$OSC_CONFIG" ]; then
+            echo "OSC_CONFIG is not set; skipping the OBS submission." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install OBS tooling
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends osc
+
+      - uses: actions/checkout@v6
+        if: steps.guard.outputs.ready == 'true'
+
+      - name: Prepare offline OBS sources
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          output_dir="$RUNNER_TEMP/obs-sources"
+          packaging/obs/prepare-sources.sh "$output_dir"
+          test -s "$output_dir/sniplab-$VERSION.tar.gz"
+          test -s "$output_dir/sniplab-$VERSION-vendor.tar.gz"
+          test -s "$output_dir/sniplab-$VERSION-obs.tar.gz"
+
+      - name: Configure osc
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          OSC_CONFIG: ${{ secrets.OSC_CONFIG }}
+        run: |
+          config="$RUNNER_TEMP/oscrc"
+          printf '%s\n' "$OSC_CONFIG" > "$config"
+          chmod 600 "$config"
+          echo "OSC_CONFIG_FILE=$config" >> "$GITHUB_ENV"
+
+      - name: Submit source recipes to OBS
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          checkout_root="$RUNNER_TEMP/osc-checkout"
+          install -d "$checkout_root"
+          (
+            cd "$checkout_root"
+            osc --config "$OSC_CONFIG_FILE" -A "$OBS_API" \
+              checkout "$OBS_PROJECT" "$OBS_PACKAGE"
+          )
+
+          package_dir="$checkout_root/$OBS_PROJECT/$OBS_PACKAGE"
+          test -d "$package_dir/.osc"
+          find "$package_dir" -mindepth 1 -maxdepth 1 ! -name .osc \
+            -exec rm -rf -- {} +
+          cp -a "$RUNNER_TEMP/obs-sources/." "$package_dir/"
+
+          (
+            cd "$package_dir"
+            osc --config "$OSC_CONFIG_FILE" addremove
+            if [ -z "$(osc --config "$OSC_CONFIG_FILE" status)" ]; then
+              echo "OBS package was already up to date." >> "$GITHUB_STEP_SUMMARY"
+            else
+              osc --config "$OSC_CONFIG_FILE" commit \
+                -m "sniplab $VERSION"
+              echo "Submitted sniplab $VERSION to $OBS_PROJECT/$OBS_PACKAGE." \
+                >> "$GITHUB_STEP_SUMMARY"
+            fi
+          )
