@@ -21,10 +21,20 @@ defaults:
 
 jobs:
   opensuse-rpm:
-    name: openSUSE Tumbleweed RPM
+    name: ${{ matrix.label }} RPM
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    container: opensuse/tumbleweed:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: tumbleweed
+            label: openSUSE Tumbleweed
+            image: opensuse/tumbleweed:latest
+          - id: leap-16.0
+            label: openSUSE Leap 16.0
+            image: opensuse/leap:16.0
+    container: ${{ matrix.image }}
     steps:
       - name: Install native build tooling
         run: |
@@ -93,7 +103,7 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: opensuse-tumbleweed-rpm
+          name: opensuse-${{ matrix.id }}-rpm
           path: ${{ runner.temp }}/rpmbuild/RPMS/**/*.rpm
           if-no-files-found: error
           retention-days: 7
