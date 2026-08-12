@@ -85,16 +85,52 @@ Or build from crates.io (Rust 1.89 or newer):
 cargo install sniplab
 ```
 
-### Debian / Ubuntu
+### Debian / Ubuntu / Mint / Kali
 
-For Ubuntu 22.04+, Debian 12+, and derivatives with glibc 2.35 or newer:
+From the [Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab)
+(OBS). Each release is compiled on the target distribution, so `apt` installs a
+prebuilt `snip` without a Rust toolchain on your machine, and `apt upgrade`
+picks up new releases.
+
+Pick the repository matching your distribution — derivatives use their Debian
+or Ubuntu base:
+
+| Distribution | `REPO` |
+|---|---|
+| Ubuntu 26.04 LTS | `xUbuntu_26.04` |
+| Ubuntu 24.04 LTS, Linux Mint 22.x, Pop!_OS 24.04, Zorin OS 18, elementary OS 8 | `xUbuntu_24.04` |
+| Ubuntu 22.04 LTS, Linux Mint 21.x, Pop!_OS 22.04, Zorin OS 17 | `xUbuntu_22.04` |
+| Debian 13 (trixie), LMDE 7 | `Debian_13` |
+| Debian testing (forky), Kali Linux | `Debian_Testing` |
+| Debian unstable (sid) | `Debian_Unstable` |
+
+```bash
+REPO=xUbuntu_24.04    # from the table above
+BASE=https://download.opensuse.org/repositories/home:/gitkeniwo/$REPO
+
+sudo install -d /etc/apt/keyrings
+curl -fsSL "$BASE/Release.key" |
+  sudo gpg --dearmor -o /etc/apt/keyrings/home_gitkeniwo.gpg
+echo "deb [signed-by=/etc/apt/keyrings/home_gitkeniwo.gpg] $BASE/ /" |
+  sudo tee /etc/apt/sources.list.d/home_gitkeniwo.list
+sudo apt update
+sudo apt install sniplab
+```
+
+The package is `sniplab`; the command it installs is `snip`. OBS repositories
+are amd64 only.
+
+On arm64, or on a release without an OBS repository, grab the standalone `.deb`
+from a release instead — it needs glibc 2.35 or newer, so Ubuntu 22.04+ and
+Debian 12+:
 
 ```bash
 curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb
 sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
 ```
 
-On arm64, swap `x86_64` for `aarch64`.
+On arm64, swap `x86_64` for `aarch64`. Upgrading a downloaded `.deb` means
+downloading the newer file again.
 
 ### Fedora / Enterprise Linux
 
@@ -128,6 +164,30 @@ sudo dnf install ./snip-x86_64-unknown-linux-gnu.rpm
 ```
 
 On arm64, swap `x86_64` for `aarch64`.
+
+### openSUSE
+
+From the [Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab),
+compiled natively for each release, so `zypper` installs a prebuilt `snip` and
+`zypper up` picks up new releases.
+
+Tumbleweed (and Slowroll):
+
+```bash
+sudo zypper addrepo https://download.opensuse.org/repositories/home:gitkeniwo/openSUSE_Tumbleweed/home:gitkeniwo.repo
+sudo zypper --gpg-auto-import-keys refresh
+sudo zypper install sniplab
+```
+
+Leap 16.0:
+
+```bash
+sudo zypper addrepo https://download.opensuse.org/repositories/home:gitkeniwo/16.0/home:gitkeniwo.repo
+sudo zypper --gpg-auto-import-keys refresh
+sudo zypper install sniplab
+```
+
+The package is `sniplab`; the command it installs is `snip`. x86_64 only.
 
 ### Arch Linux
 
@@ -245,12 +305,15 @@ For a smaller binary without the terminal browser, add `--no-default-features`.
 
 ### Notes
 
-GNU Linux archives and the `.deb` / `.rpm` packages are built on Ubuntu 22.04
-and need glibc 2.35 or newer. The static musl archives have no glibc version
-floor; the install script uses them on Linux. Copr compiles against each Fedora
-and Enterprise Linux release it targets, so its packages are not affected by
-either binary requirement.
+GNU Linux archives and the release `.deb` / `.rpm` packages are built on Ubuntu
+22.04 and need glibc 2.35 or newer. The static musl archives have no glibc
+version floor; the install script uses them on Linux.
 Upgrading a downloaded `.deb` / `.rpm` means downloading the newer file again.
+
+The distribution repositories are not affected by either binary requirement:
+Copr, the Open Build Service, and the AUR source package all compile against
+the release you install on. Copr covers x86_64 and arm64; OBS is x86_64 only
+for now.
 
 Release history is in [CHANGELOG.md](CHANGELOG.md).
 
