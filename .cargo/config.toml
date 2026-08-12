@@ -1,0 +1,5 @@
+# Repository builds and GitHub release artifacts use the static MSVC CRT.
+# Cargo does not include this configuration in the crate published to crates.io,
+# so it does not change how `cargo install sniplab` links the Windows binary.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
