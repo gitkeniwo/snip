@@ -40,7 +40,8 @@ jobs:
         run: |
           zypper --non-interactive refresh
           zypper --non-interactive install --no-recommends \
-            build cargo gcc git-core gzip rpm-build rpmlint rust tar
+            build cargo gcc git-core gzip python313-packaging rpm-build \
+            rpmlint rust tar
           rustc --version
           cargo --version
 
