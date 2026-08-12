@@ -76,7 +76,11 @@ cargo test --locked --release
 %doc README.md CHANGELOG.md FORMAT.md
 %{_bindir}/snip
 %{_datadir}/bash-completion/completions/snip
+%dir %{_datadir}/fish
+%dir %{_datadir}/fish/vendor_completions.d
 %{_datadir}/fish/vendor_completions.d/snip.fish
+%dir %{_datadir}/zsh
+%dir %{_datadir}/zsh/site-functions
 %{_datadir}/zsh/site-functions/_snip
 %{_mandir}/man1/snip*.1*
 

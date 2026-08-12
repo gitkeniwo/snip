@@ -27,10 +27,21 @@ git -C "$repo_root" archive --format=tar \
   | tar -C "$work_dir" -xf -
 
 install -d "$source_root/.cargo"
+vendor_config="$work_dir/cargo-vendor-config.toml"
 (
   cd "$source_root"
-  "$cargo_bin" vendor --quiet --locked vendor > .cargo/config.toml
+  "$cargo_bin" vendor --quiet --locked vendor
 )
+cat > "$vendor_config" <<'EOF'
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"
+EOF
+grep -Fq 'replace-with = "vendored-sources"' "$vendor_config"
+grep -Fq 'directory = "vendor"' "$vendor_config"
+install -m 0644 "$vendor_config" "$source_root/.cargo/config.toml"
 
 # RPM builds keep the upstream source and vendor archives separate. The Debian
 # transform uses one combined archive so its offline build has the same inputs.
