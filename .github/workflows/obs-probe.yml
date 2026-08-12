@@ -83,50 +83,93 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  debian-deb:
-    name: Debian 12 DEB recipe
+  deb-family-deb:
+    name: ${{ matrix.label }} DEB recipe
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    container: debian:12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ubuntu-22.04
+            label: Ubuntu 22.04
+            image: ubuntu:22.04
+          - id: ubuntu-24.04
+            label: Ubuntu 24.04
+            image: ubuntu:24.04
+          - id: ubuntu-26.04
+            label: Ubuntu 26.04
+            image: ubuntu:26.04
+          - id: debian-13-backports
+            label: Debian 13 + backports
+            image: debian:13
+          - id: debian-testing
+            label: Debian Testing
+            image: debian:testing
+          - id: debian-unstable
+            label: Debian Unstable
+            image: debian:unstable
+    container: ${{ matrix.image }}
     steps:
-      - name: Install Debian packaging tools
+      - name: Install native packaging and Rust tools
         run: |
+          if [ "${{ matrix.id }}" = debian-13-backports ]; then
+            printf '%s\n' \
+              'deb http://deb.debian.org/debian trixie-backports main' \
+              > /etc/apt/sources.list.d/trixie-backports.list
+          fi
+
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
-            build-essential ca-certificates cargo curl debhelper git gzip rustc xz-utils
+            build-essential ca-certificates debhelper git gzip xz-utils
+
+          case "${{ matrix.id }}" in
+            ubuntu-22.04|ubuntu-24.04)
+              DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+                cargo-1.89 rustc-1.89
+              ;;
+            debian-13-backports)
+              DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+                --target-release trixie-backports cargo rustc
+              ;;
+            *)
+              DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+                cargo rustc
+              ;;
+          esac
 
       - uses: actions/checkout@v6
 
-      - name: Report the native Rust compatibility
+      - name: Select and report the native Rust toolchain
         run: |
+          cargo_bin=cargo
+          if command -v cargo-1.89 > /dev/null; then
+            cargo_bin=cargo-1.89
+            test -x /usr/lib/rust-1.89/bin/rustc
+            echo /usr/lib/rust-1.89/bin >> "$GITHUB_PATH"
+            export PATH="/usr/lib/rust-1.89/bin:$PATH"
+          fi
+          echo "CARGO_BIN=$cargo_bin" >> "$GITHUB_ENV"
+
           required="$(sed -n 's/^rust-version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
           native="$(rustc --version | awk '{print $2}')"
           test -n "$required"
           test -n "$native"
+          "$cargo_bin" --version
+          rustc --version
 
           {
-            echo "### Debian 12 native Rust probe"
+            echo "### ${{ matrix.label }} native Rust probe"
             echo
             echo "- Project MSRV: \`$required\`"
-            echo "- Debian rustc: \`$native\`"
+            echo "- Native rustc: \`$native\`"
+            echo "- Cargo command: \`$cargo_bin\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if dpkg --compare-versions "$native" ge "$required"; then
-            echo "- Native source build is viable." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Native source build is blocked by the distro Rust version." \
-              >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Debian 12 rustc $native is older than sniplab's MSRV $required; the recipe test will use upstream stable Rust."
-          fi
+          dpkg --compare-versions "$native" ge "$required"
+          echo "- Native source build is viable." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install upstream Rust for the recipe probe
-        run: |
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
-            https://sh.rustup.rs \
-            | sh -s -- -y --profile minimal --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-      - name: Prepare the Debian source tree and offline dependencies
+      - name: Prepare the source tree and offline dependencies
         run: |
           # Container jobs see the checkout with the host runner's ownership.
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -143,8 +186,7 @@ jobs:
           install -m 0644 packaging/obs/debian.control "$source_dir/debian/control"
           install -m 0755 packaging/obs/debian.rules "$source_dir/debian/rules"
           install -m 0644 packaging/obs/debian.copyright "$source_dir/debian/copyright"
-          install -m 0644 packaging/obs/debian.source.format \
-            "$source_dir/debian/source/format"
+          printf '%s\n' '3.0 (quilt)' > "$source_dir/debian/source/format"
 
           changelog_date="$(LC_ALL=C date -Ru)"
           sed \
@@ -154,7 +196,7 @@ jobs:
 
           (
             cd "$source_dir"
-            cargo vendor --locked vendor > .cargo-config.toml
+            "$CARGO_BIN" vendor --locked vendor > .cargo-config.toml
             install -d .cargo
             mv .cargo-config.toml .cargo/config.toml
           )
@@ -162,9 +204,8 @@ jobs:
       - name: Build the DEB recipe offline
         working-directory: ${{ runner.temp }}/debbuild/sniplab-${{ env.VERSION }}
         run: |
-          # -d bypasses Debian 12's old cargo Build-Depends after the explicit
-          # compatibility probe above; the package build itself stays offline.
-          dpkg-buildpackage --build=binary --no-sign -d
+          dpkg-checkbuilddeps
+          dpkg-buildpackage --build=binary --no-sign
 
       - name: Verify the DEB contents
         run: |
@@ -180,7 +221,7 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: debian-12-deb
+          name: ${{ matrix.id }}-deb
           path: ${{ runner.temp }}/debbuild/*.deb
           if-no-files-found: error
           retention-days: 7

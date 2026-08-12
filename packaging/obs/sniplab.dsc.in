@@ -1,0 +1,11 @@
+Format: 3.0 (quilt)
+Source: sniplab
+Binary: sniplab
+Architecture: any
+Version: @VERSION@-1
+Maintainer: snip release bot <41898282+github-actions[bot]@users.noreply.github.com>
+Homepage: https://github.com/gitkeniwo/snip
+Standards-Version: 4.6.2
+Build-Depends: debhelper-compat (= 13), cargo (>= 1.89) | cargo-1.89, rustc (>= 1.89) | rustc-1.89, gcc, git
+DEBTRANSFORM-TAR: sniplab-@VERSION@-obs.tar.gz
+DEBTRANSFORM-RELEASE: 1

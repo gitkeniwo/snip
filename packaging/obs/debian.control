@@ -4,8 +4,8 @@ Priority: optional
 Maintainer: snip release bot <41898282+github-actions[bot]@users.noreply.github.com>
 Build-Depends:
  debhelper-compat (= 13),
- cargo (>= 1.89),
- rustc (>= 1.89),
+ cargo (>= 1.89) | cargo-1.89,
+ rustc (>= 1.89) | rustc-1.89,
  gcc,
  git
 Standards-Version: 4.6.2

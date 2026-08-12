@@ -2,6 +2,16 @@
 
 export CARGO_NET_OFFLINE = true
 
+# Ubuntu 22.04 and 24.04 ship the MSRV toolchain as versioned packages.
+# rustc lives in a private bindir while cargo keeps its versioned command name.
+RUST_1_89_BINDIR := /usr/lib/rust-1.89/bin
+ifneq ($(wildcard $(RUST_1_89_BINDIR)/rustc),)
+export PATH := $(RUST_1_89_BINDIR):$(PATH)
+CARGO := cargo-1.89
+else
+CARGO := cargo
+endif
+
 %:
 	dh $@
 
@@ -19,10 +29,10 @@ override_dh_autoreconf:
 	:
 
 override_dh_auto_build:
-	cargo build --locked --release --all-features --offline
+	$(CARGO) build --locked --release --all-features --offline
 
 override_dh_auto_test:
-	cargo test --locked --release --offline
+	$(CARGO) test --locked --release --offline
 
 override_dh_auto_install:
 	install -Dpm 0755 target/release/snip debian/sniplab/usr/bin/snip
