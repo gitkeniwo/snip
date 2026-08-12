@@ -86,6 +86,17 @@ jobs:
           test -s "$transformed/sniplab_${VERSION}.orig.tar.gz"
           test -s "$transformed/sniplab_${VERSION}-1.debian.tar.gz"
           test -s "$transformed/sniplab_${VERSION}-1.dsc"
+          tar -xOzf "$transformed/sniplab_${VERSION}.orig.tar.gz" \
+            "sniplab-$VERSION-obs/.cargo/config.toml" \
+            > "$RUNNER_TEMP/cargo-vendor-config.toml"
+          grep -Fq 'replace-with = "vendored-sources"' \
+            "$RUNNER_TEMP/cargo-vendor-config.toml"
+          grep -Fq 'directory = "vendor"' \
+            "$RUNNER_TEMP/cargo-vendor-config.toml"
+          tar -tzf "$transformed/sniplab_${VERSION}.orig.tar.gz" \
+            > "$RUNNER_TEMP/obs-orig.list"
+          grep -qx "sniplab-$VERSION-obs/vendor/blake3/Cargo.toml" \
+            "$RUNNER_TEMP/obs-orig.list"
           tar -tzf "$transformed/sniplab_${VERSION}-1.debian.tar.gz" \
             | grep -q '^debian/source/format$'
 
@@ -100,7 +111,12 @@ jobs:
           rpm="$(find "$RUNNER_TEMP/rpmbuild/RPMS" -type f -name 'sniplab-*.rpm' -print -quit)"
           test -n "$rpm"
           rpmlint "$RUNNER_TEMP/rpmbuild/SPECS/sniplab.spec" "$rpm"
-          rpm -qpl "$rpm"
+          rpm -qpl "$rpm" > "$RUNNER_TEMP/rpm.list"
+          grep -qx '/usr/share/fish' "$RUNNER_TEMP/rpm.list"
+          grep -qx '/usr/share/fish/vendor_completions.d' "$RUNNER_TEMP/rpm.list"
+          grep -qx '/usr/share/zsh' "$RUNNER_TEMP/rpm.list"
+          grep -qx '/usr/share/zsh/site-functions' "$RUNNER_TEMP/rpm.list"
+          cat "$RUNNER_TEMP/rpm.list"
 
       - uses: actions/upload-artifact@v6
         with:
@@ -222,14 +238,26 @@ jobs:
 
           (
             cd "$source_dir"
-            "$CARGO_BIN" vendor --quiet --locked vendor > .cargo-config.toml
+            "$CARGO_BIN" vendor --quiet --locked vendor
+            cat > .cargo-config.toml <<'EOF'
+          [source.crates-io]
+          replace-with = "vendored-sources"
+
+          [source.vendored-sources]
+          directory = "vendor"
+          EOF
+            grep -Fq 'replace-with = "vendored-sources"' .cargo-config.toml
+            grep -Fq 'directory = "vendor"' .cargo-config.toml
             install -d .cargo
             mv .cargo-config.toml .cargo/config.toml
           )
 
       - name: Build the DEB recipe offline
         working-directory: ${{ runner.temp }}/debbuild/sniplab-${{ env.VERSION }}
+        env:
+          CARGO_HOME: ${{ runner.temp }}/empty-cargo-home
         run: |
+          install -d "$CARGO_HOME"
           dpkg-checkbuilddeps
           dpkg-buildpackage --build=binary --no-sign
 
