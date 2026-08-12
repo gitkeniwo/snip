@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      obs_only:
+        description: Submit the current version to OBS without publishing a release
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -19,8 +25,11 @@ env:
 
 jobs:
   version:
-    name: Check tag matches Cargo.toml
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: Resolve release version
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' &&
+      inputs.obs_only && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     outputs:
       crate: ${{ steps.check.outputs.crate }}
@@ -29,23 +38,29 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - id: check
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           metadata="$(cargo metadata --no-deps --format-version 1)"
           crate="$(echo "$metadata" | jq -r '.packages[0].name')"
           version="$(echo "$metadata" | jq -r '.packages[0].version')"
-          tag="${TAG#v}"
-          if [ "$version" != "$tag" ]; then
-            echo "::error::tag v$tag does not match Cargo.toml version $version"
-            exit 1
+
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$version" != "$tag" ]; then
+              echo "::error::tag v$tag does not match Cargo.toml version $version"
+              exit 1
+            fi
+            echo "Publishing $crate $version" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Submitting current $crate $version sources to OBS only." \
+              >> "$GITHUB_STEP_SUMMARY"
           fi
+
           echo "crate=$crate" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Publishing $crate $version" >> "$GITHUB_STEP_SUMMARY"
 
   build:
     name: build (${{ matrix.asset }})
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -840,7 +855,12 @@ jobs:
   obs:
     name: Submit to Open Build Service
     needs: [version, publish]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      always() && needs.version.result == 'success' &&
+      ((startsWith(github.ref, 'refs/tags/v') &&
+      needs.publish.result == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.obs_only &&
+      github.ref == 'refs/heads/main' && needs.publish.result == 'skipped'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
