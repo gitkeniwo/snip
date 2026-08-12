@@ -1,0 +1,51 @@
+#!/usr/bin/make -f
+
+export CARGO_NET_OFFLINE = true
+
+# Ubuntu 22.04 and 24.04 ship the MSRV toolchain as versioned packages.
+# rustc lives in a private bindir while cargo keeps its versioned command name.
+RUST_1_89_BINDIR := /usr/lib/rust-1.89/bin
+ifneq ($(wildcard $(RUST_1_89_BINDIR)/rustc),)
+export PATH := $(RUST_1_89_BINDIR):$(PATH)
+CARGO := cargo-1.89
+else
+CARGO := cargo
+endif
+
+%:
+	dh $@
+
+override_dh_clean:
+	# Cargo verifies files such as vendor/*/Cargo.toml.orig against .cargo-checksum.json.
+	# The default dh_clean removes *.orig recursively, so preserve the offline vendor tree.
+	dh_clean -Xvendor/
+
+override_dh_update_autotools_config:
+	# debhelper must not rewrite config.guess/config.sub inside checksummed crates.
+	:
+
+override_dh_autoreconf:
+	# Cargo runs any crate-specific native configuration during the actual build.
+	:
+
+override_dh_auto_build:
+	$(CARGO) build --locked --release --all-features --offline
+
+override_dh_auto_test:
+	$(CARGO) test --locked --release --offline
+
+override_dh_auto_install:
+	install -Dpm 0755 target/release/snip debian/sniplab/usr/bin/snip
+	install -d debian/sniplab/usr/share/bash-completion/completions
+	install -d debian/sniplab/usr/share/fish/vendor_completions.d
+	install -d debian/sniplab/usr/share/zsh/site-functions
+	./target/release/snip completion bash \
+		> debian/sniplab/usr/share/bash-completion/completions/snip
+	./target/release/snip completion fish \
+		> debian/sniplab/usr/share/fish/vendor_completions.d/snip.fish
+	./target/release/snip completion zsh \
+		> debian/sniplab/usr/share/zsh/site-functions/_snip
+	install -Dpm 0644 README.md debian/sniplab/usr/share/doc/sniplab/README.md
+	install -Dpm 0644 CHANGELOG.md debian/sniplab/usr/share/doc/sniplab/CHANGELOG.md
+	install -d debian/sniplab/usr/share/man/man1
+	install -pm 0644 man/*.1 debian/sniplab/usr/share/man/man1/

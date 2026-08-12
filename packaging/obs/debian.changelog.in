@@ -1,0 +1,5 @@
+sniplab (@VERSION@-1) unstable; urgency=medium
+
+  * Build sniplab @VERSION@ for OBS Debian and Ubuntu repositories.
+
+ -- snip release bot <41898282+github-actions[bot]@users.noreply.github.com>  @DATE@

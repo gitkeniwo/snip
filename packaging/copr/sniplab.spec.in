@@ -2,7 +2,7 @@
 # the crate version before the SRPM is built and submitted to Copr.
 #
 # Copr builds run in mock with no network access, so the crate dependencies are
-# vendored into Source1 by the workflow and cargo is pointed at them in %prep.
+# vendored into Source1 by the workflow and cargo is pointed at them in %%prep.
 
 # The release binary is built by cargo, which does not produce the separate
 # debuginfo layout rpm's debuginfo extraction expects.

@@ -1,0 +1,253 @@
+name: OBS packaging probe
+
+on:
+  push:
+    branches: [ci/opensuse-probe]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: obs-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  opensuse-rpm:
+    name: ${{ matrix.label }} RPM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: tumbleweed
+            label: openSUSE Tumbleweed
+            image: opensuse/tumbleweed:latest
+          - id: leap-16.0
+            label: openSUSE Leap 16.0
+            image: opensuse/leap:16.0
+    container: ${{ matrix.image }}
+    steps:
+      - name: Install native build tooling
+        run: |
+          zypper --non-interactive refresh
+          zypper --non-interactive install --no-recommends \
+            build cargo gcc git-core gzip python313-packaging rpm-build \
+            rpmlint rust tar
+          rustc --version
+          cargo --version
+
+      - uses: actions/checkout@v6
+
+      - name: Prepare offline RPM sources
+        run: |
+          # Container jobs see the checkout with the host runner's ownership.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          test -n "$version"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+          topdir="$RUNNER_TEMP/rpmbuild"
+          install -d "$topdir"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+
+          git archive --format=tar --prefix="snip-$version/" HEAD \
+            | gzip -n > "$topdir/SOURCES/sniplab-$version.tar.gz"
+
+          vendor_root="$RUNNER_TEMP/cargo-vendor"
+          install -d "$vendor_root"
+          cargo vendor --quiet --locked "$vendor_root/vendor" > /dev/null
+          tar -C "$vendor_root" -czf \
+            "$topdir/SOURCES/sniplab-$version-vendor.tar.gz" vendor
+
+          changelog_date="$(LC_ALL=C date -u '+%a %b %d %Y')"
+          sed \
+            -e "s/@VERSION@/$version/g" \
+            -e "s/@DATE@/$changelog_date/g" \
+            packaging/copr/sniplab.spec.in > "$topdir/SPECS/sniplab.spec"
+
+      - name: Validate the OBS Debian source transform
+        run: |
+          sources="$RUNNER_TEMP/obs-sources"
+          transformed="$RUNNER_TEMP/debtransform"
+          install -d "$transformed"
+          packaging/obs/prepare-sources.sh "$sources"
+
+          /usr/lib/build/debtransform \
+            "$sources" "$sources/sniplab.dsc" "$transformed"
+          test -s "$transformed/sniplab_${VERSION}.orig.tar.gz"
+          test -s "$transformed/sniplab_${VERSION}-1.debian.tar.gz"
+          test -s "$transformed/sniplab_${VERSION}-1.dsc"
+          tar -tzf "$transformed/sniplab_${VERSION}-1.debian.tar.gz" \
+            | grep -q '^debian/source/format$'
+
+      - name: Build the RPM with the native toolchain
+        run: |
+          rpmbuild -bb \
+            --define "_topdir $RUNNER_TEMP/rpmbuild" \
+            "$RUNNER_TEMP/rpmbuild/SPECS/sniplab.spec"
+
+      - name: Run openSUSE package lint
+        run: |
+          rpm="$(find "$RUNNER_TEMP/rpmbuild/RPMS" -type f -name 'sniplab-*.rpm' -print -quit)"
+          test -n "$rpm"
+          rpmlint "$RUNNER_TEMP/rpmbuild/SPECS/sniplab.spec" "$rpm"
+          rpm -qpl "$rpm"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: opensuse-${{ matrix.id }}-rpm
+          path: ${{ runner.temp }}/rpmbuild/RPMS/**/*.rpm
+          if-no-files-found: error
+          retention-days: 7
+
+  deb-family-deb:
+    name: ${{ matrix.label }} DEB recipe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ubuntu-22.04
+            label: Ubuntu 22.04
+            image: ubuntu:22.04
+          - id: ubuntu-24.04
+            label: Ubuntu 24.04
+            image: ubuntu:24.04
+          - id: ubuntu-26.04
+            label: Ubuntu 26.04
+            image: ubuntu:26.04
+          - id: debian-13-backports
+            label: Debian 13 + backports
+            image: debian:13
+          - id: debian-testing
+            label: Debian Testing
+            image: debian:testing
+          - id: debian-unstable
+            label: Debian Unstable
+            image: debian:unstable
+    container: ${{ matrix.image }}
+    steps:
+      - name: Install native packaging and Rust tools
+        run: |
+          if [ "${{ matrix.id }}" = debian-13-backports ]; then
+            printf '%s\n' \
+              'deb http://deb.debian.org/debian trixie-backports main' \
+              > /etc/apt/sources.list.d/trixie-backports.list
+          fi
+
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+            build-essential ca-certificates debhelper git gzip xz-utils
+
+          case "${{ matrix.id }}" in
+            ubuntu-22.04|ubuntu-24.04)
+              DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+                cargo-1.89 rustc-1.89
+              ;;
+            debian-13-backports)
+              DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+                --target-release trixie-backports cargo rustc
+              ;;
+            *)
+              DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+                cargo rustc
+              ;;
+          esac
+
+      - uses: actions/checkout@v6
+
+      - name: Select and report the native Rust toolchain
+        run: |
+          cargo_bin=cargo
+          if command -v cargo-1.89 > /dev/null; then
+            cargo_bin=cargo-1.89
+            test -x /usr/lib/rust-1.89/bin/rustc
+            echo /usr/lib/rust-1.89/bin >> "$GITHUB_PATH"
+            export PATH="/usr/lib/rust-1.89/bin:$PATH"
+          fi
+          echo "CARGO_BIN=$cargo_bin" >> "$GITHUB_ENV"
+
+          required="$(sed -n 's/^rust-version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          native="$(rustc --version | awk '{print $2}')"
+          test -n "$required"
+          test -n "$native"
+          "$cargo_bin" --version
+          rustc --version
+
+          {
+            echo "### ${{ matrix.label }} native Rust probe"
+            echo
+            echo "- Project MSRV: \`$required\`"
+            echo "- Native rustc: \`$native\`"
+            echo "- Cargo command: \`$cargo_bin\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          dpkg --compare-versions "$native" ge "$required"
+          echo "- Native source build is viable." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare the source tree and offline dependencies
+        run: |
+          # Container jobs see the checkout with the host runner's ownership.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          test -n "$version"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+          build_root="$RUNNER_TEMP/debbuild"
+          source_dir="$build_root/sniplab-$version"
+          install -d "$source_dir/debian/source"
+          git archive --format=tar HEAD | tar -C "$source_dir" -xf -
+
+          install -m 0644 packaging/obs/debian.control "$source_dir/debian/control"
+          install -m 0755 packaging/obs/debian.rules "$source_dir/debian/rules"
+          install -m 0644 packaging/obs/debian.copyright "$source_dir/debian/copyright"
+          printf '%s\n' '3.0 (quilt)' > "$source_dir/debian/source/format"
+
+          changelog_date="$(LC_ALL=C date -Ru)"
+          sed \
+            -e "s/@VERSION@/$version/g" \
+            -e "s/@DATE@/$changelog_date/g" \
+            packaging/obs/debian.changelog.in > "$source_dir/debian/changelog"
+
+          (
+            cd "$source_dir"
+            "$CARGO_BIN" vendor --quiet --locked vendor > .cargo-config.toml
+            install -d .cargo
+            mv .cargo-config.toml .cargo/config.toml
+          )
+
+      - name: Build the DEB recipe offline
+        working-directory: ${{ runner.temp }}/debbuild/sniplab-${{ env.VERSION }}
+        run: |
+          dpkg-checkbuilddeps
+          dpkg-buildpackage --build=binary --no-sign
+
+      - name: Verify the DEB contents
+        run: |
+          deb="$(find "$RUNNER_TEMP/debbuild" -maxdepth 1 -type f -name 'sniplab_*.deb' -print -quit)"
+          test -n "$deb"
+          dpkg-deb --contents "$deb" > "$RUNNER_TEMP/deb.list"
+          grep -q ' ./usr/bin/snip$' "$RUNNER_TEMP/deb.list"
+          grep -q ' ./usr/share/bash-completion/completions/snip$' "$RUNNER_TEMP/deb.list"
+          grep -q ' ./usr/share/fish/vendor_completions.d/snip.fish$' "$RUNNER_TEMP/deb.list"
+          grep -q ' ./usr/share/zsh/site-functions/_snip$' "$RUNNER_TEMP/deb.list"
+          grep -q ' ./usr/share/man/man1/snip.1.gz$' "$RUNNER_TEMP/deb.list"
+          cat "$RUNNER_TEMP/deb.list"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.id }}-deb
+          path: ${{ runner.temp }}/debbuild/*.deb
+          if-no-files-found: error
+          retention-days: 7
