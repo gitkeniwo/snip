@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use snip::error::{Result, SnipError};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -16,6 +16,7 @@ pub struct InstallFile<'a> {
 pub struct InstallReport {
     pub files: Vec<PathBuf>,
     pub changed: usize,
+    pub pruned: Vec<PathBuf>,
     pub manifest_path: PathBuf,
 }
 
@@ -85,8 +86,50 @@ pub fn install(
         }
     }
 
-    let mut changed = 0;
     let mut manifest_files = BTreeMap::new();
+    let new_paths = files
+        .iter()
+        .map(|file| path_key(&file.relative_path))
+        .collect::<Result<BTreeSet<_>>>()?;
+    let mut pruned = Vec::new();
+    if let Some(previous) = &previous {
+        for (relative, expected_hash) in &previous.files {
+            if new_paths.contains(relative) {
+                continue;
+            }
+            let target = root.join(relative);
+            match fs::read(&target) {
+                Ok(contents) if content_hash(&contents) == *expected_hash => {
+                    fs::remove_file(&target).map_err(|error| {
+                        io_error(
+                            "remove obsolete installed file",
+                            &target,
+                            error,
+                            permission_hint,
+                        )
+                    })?;
+                    remove_empty_parents(target.parent(), root, permission_hint)?;
+                    pruned.push(target);
+                }
+                Ok(_) => {
+                    manifest_files.insert(relative.clone(), expected_hash.clone());
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    remove_empty_parents(target.parent(), root, permission_hint)?;
+                }
+                Err(error) => {
+                    return Err(io_error(
+                        "read obsolete installed file",
+                        &target,
+                        error,
+                        permission_hint,
+                    ));
+                }
+            }
+        }
+    }
+
+    let mut changed = 0;
     let mut installed = Vec::with_capacity(files.len());
     for file in files {
         let relative = path_key(&file.relative_path)?;
@@ -133,6 +176,7 @@ pub fn install(
     Ok(InstallReport {
         files: installed,
         changed,
+        pruned,
         manifest_path,
     })
 }

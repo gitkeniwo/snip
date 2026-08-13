@@ -124,7 +124,7 @@ fn man_install_is_idempotent_and_uninstall_preserves_modified_pages() {
         .args(["man", "install"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("(0 updated)"));
+        .stdout(predicate::str::contains("(0 updated,"));
     assert_eq!(fs::read(&manifest_path).unwrap(), first_manifest);
 
     fs::write(&root_page, "locally modified\n").unwrap();
@@ -147,6 +147,59 @@ fn man_install_is_idempotent_and_uninstall_preserves_modified_pages() {
     let files = remaining["files"].as_object().unwrap();
     assert_eq!(files.len(), 1);
     assert!(files.contains_key("man/man1/snip.1"));
+}
+
+#[cfg(not(windows))]
+#[test]
+fn man_install_prunes_unmodified_obsolete_pages_and_tracks_modified_ones() {
+    let temporary = tempfile::tempdir().unwrap();
+    let data_home = temporary.path().join("data");
+    let man_dir = data_home.join("man/man1");
+    let manifest_path = data_home.join("snip/man-install.json");
+    let pristine = man_dir.join("snip-obsolete.1");
+    let modified = man_dir.join("snip-modified.1");
+    fs::create_dir_all(&man_dir).unwrap();
+    fs::create_dir_all(manifest_path.parent().unwrap()).unwrap();
+    fs::write(&pristine, "obsolete\n").unwrap();
+    fs::write(&modified, "locally changed\n").unwrap();
+    let obsolete_hash = format!("blake3:{}", blake3::hash(b"obsolete\n").to_hex());
+    let original_hash = format!("blake3:{}", blake3::hash(b"original\n").to_hex());
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 1,
+            "snip_version": "0.6.0",
+            "installed_at": "2026-01-01T00:00:00Z",
+            "files": {
+                "man/man1/snip-obsolete.1": obsolete_hash,
+                "man/man1/snip-modified.1": original_hash,
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let output = command(temporary.path())
+        .args(["--output", "json", "man", "install"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["pruned"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        report["pruned"][0].as_str().unwrap(),
+        pristine.to_str().unwrap()
+    );
+    assert!(!pristine.exists());
+    assert_eq!(fs::read_to_string(&modified).unwrap(), "locally changed\n");
+
+    let files = manifest(&manifest_path);
+    let files = files["files"].as_object().unwrap();
+    assert!(!files.contains_key("man/man1/snip-obsolete.1"));
+    assert_eq!(
+        files["man/man1/snip-modified.1"].as_str().unwrap(),
+        original_hash
+    );
 }
 
 #[cfg(not(windows))]

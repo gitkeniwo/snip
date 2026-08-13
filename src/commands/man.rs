@@ -78,10 +78,11 @@ fn command_install(prefix: Option<&Path>, force: bool, output: OutputMode) -> Re
     let directory = layout.root.join(&layout.pages_relative);
     if output == OutputMode::Human {
         println!(
-            "installed {} man pages in {} ({} updated)",
+            "installed {} man pages in {} ({} updated, {} obsolete removed)",
             report.files.len(),
             directory.display(),
-            report.changed
+            report.changed,
+            report.pruned.len()
         );
         println!("manifest: {}", report.manifest_path.display());
     } else {
@@ -91,6 +92,7 @@ fn command_install(prefix: Option<&Path>, force: bool, output: OutputMode) -> Re
                 "manifest": report.manifest_path,
                 "files": report.files,
                 "updated": report.changed,
+                "pruned": report.pruned,
             }),
             output,
         )?;
