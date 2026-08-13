@@ -913,16 +913,18 @@ embedded in the binary:
 
 ```bash
 snip man path                                # where they will go
-snip man install                             # default ~/.local/share/man/man1
+snip man install                             # default ~/.local/share/man
 sudo snip man install --prefix /usr/local    # system-wide, never implicit
 snip man uninstall
 ```
 
 `snip man install` warns when the destination is missing from your `MANPATH`
 and prints the line to add. Uninstalling keeps any page you edited yourself.
-`snip man show snip-create` reads a page without installing anything, and
-`snip man generate DIR` exports all of them. Windows has no `man`; use
-`snip --help`.
+`snip man show snip-create` reads a page without installing anything. Section 5
+and 7 pages can be selected by stem or explicitly, for example `snip man show
+sniplib` and `snip man show config.5`. `snip man generate DIR` exports the pages
+below `DIR/man1`, `DIR/man5`, and `DIR/man7`. Windows has no `man`; use `snip
+--help`.
 
 ## Shell completion
 
@@ -1009,8 +1011,8 @@ skipped when that secret is absent:
 Copr builds run in mock without network access, so the release job vendors the
 crate dependencies into the SRPM before submitting it.
 
-The workflow rewrites only URLs and checksums, so the tap's own
-`man1.install Dir["man/*.1"]` line is maintained in `gitkeniwo/homebrew-snip`.
+The workflow rewrites only URLs and checksums, so the tap's own `man1`, `man5`,
+and `man7` install declarations are maintained in `gitkeniwo/homebrew-snip`.
 
 Re-running a release is safe: the crates.io step skips a version already on the
 registry, and the package updates are no-ops when nothing changed.

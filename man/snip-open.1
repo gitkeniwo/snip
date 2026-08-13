@@ -1,74 +1,12 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-open 1  "snip 0.6.0" 
-.SH NAME
-snip\-open \- Open a managed path in an external application
-.SH SYNOPSIS
-\fBsnip open\fR [\fB\-\-library\fR] [\fB\-\-metadata\fR] [\fB\-\-output\fR] [\fB\-\-readme\fR] [\fB\-\-color\fR] [\fB\-\-fragment\fR] [\fB\-\-app\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
-.SH DESCRIPTION
-Open a managed path in an external application
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-metadata\fR
-
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-readme\fR
-
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-fragment\fR \fI<FRAGMENT>\fR
-
-.TP
-\fB\-\-app\fR \fI<APP>\fR
-Command to launch. Defaults to the `vscode_cmd` config key, then `code`
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
-.TP
-\fB\-h\fR, \fB\-\-help\fR
-Print help
-.TP
-<\fISELECTOR\fR>
-
+.TH snip-open 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-open \- open a managed path in an external application
+.SH "DESCRIPTION"
+.PP
+This command is documented in
+.BR snip\-query (1).
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-query (1)

@@ -1,75 +1,144 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-keys 1  "snip 0.6.0" 
-.SH NAME
-snip\-keys \- Inspect, validate, and export TUI key bindings
-.SH SYNOPSIS
-\fBsnip keys\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
-.SH DESCRIPTION
+.TH snip-keys 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-keys \- inspect and manage TUI key bindings
+.SH "SYNOPSIS"
+\fBsnip keys\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip keys list\fR [\fB\-\-mode\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip keys show\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIACTION\fR> 
+\fBsnip keys path\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip keys export\fR [\fB\-\-mode\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip keys check\fR [\fB\-h\fR|\fB\-\-help\fR] 
+.SH "DESCRIPTION"
+.PP
+Inspect, export, and validate the effective TUI key map. list groups bindings by mode, show finds every binding for an action slug, path prints the keys.toml location, export writes an authoritative default file, and check reports conflicts and lockouts.
+.PP
+Key bindings are separate from config.toml and are never rewritten by snip config set. The file format, modes, chords, and required escape bindings are documented in snip\-keys(5).
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip keys"
+.PP
 Inspect, validate, and export TUI key bindings
-.SH OPTIONS
 .TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip keys list"
+.PP
+List effective bindings, grouped by mode
 .TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
+\fB\-\-mode\fR \fI<MODE>\fR
+Restrict output to one mode
 .br
 
 .br
 \fIPossible values:\fR
 .RS 14
 .IP \(bu 2
-human
+global
 .IP \(bu 2
-json
+sidebar
 .IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
+list
 .IP \(bu 2
-auto
+preview
 .IP \(bu 2
-always
+fragment
 .IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
+fragment\-grab
 .IP \(bu 2
-true
+trash
 .IP \(bu 2
-false
+help
+.IP \(bu 2
+git
+.IP \(bu 2
+gist
 .RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.SH SUBCOMMANDS
-.TP
-snip\-keys\-list(1)
-List effective bindings, grouped by mode
-.TP
-snip\-keys\-show(1)
+.SS "snip keys show"
+.PP
 Show every mode and chord bound to one action slug
 .TP
-snip\-keys\-path(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIACTION\fR>
+Action slug to inspect
+.SS "snip keys path"
+.PP
 Print the resolved keys.toml path
 .TP
-snip\-keys\-export(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip keys export"
+.PP
 Write the built\-in bindings as an authoritative keys.toml
 .TP
-snip\-keys\-check(1)
+\fB\-\-mode\fR \fI<MODE>\fR
+Export only one mode
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+global
+.IP \(bu 2
+sidebar
+.IP \(bu 2
+list
+.IP \(bu 2
+preview
+.IP \(bu 2
+fragment
+.IP \(bu 2
+fragment\-grab
+.IP \(bu 2
+trash
+.IP \(bu 2
+help
+.IP \(bu 2
+git
+.IP \(bu 2
+gist
+.RE
+.TP
+\fB\-\-force\fR
+Overwrite an existing keys.toml
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip keys check"
+.PP
 Validate keys.toml and report strict binding diagnostics
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH "EXAMPLES"
+.PP
+List effective preview\-mode bindings and inspect one action:
+.RS 4
+.nf
+snip keys list \-\-mode preview
+snip keys show copy\-content
+.fi
+.RE
+.PP
+Create an editable key map and validate it:
+.RS 4
+.nf
+snip keys export
+snip keys check
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-tui (1),
+.BR snip\-config (1),
+.BR snip\-keys (5)
+.SH "VERSION"
+v0.6.0

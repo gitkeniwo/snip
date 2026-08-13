@@ -1,81 +1,153 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-theme 1  "snip 0.6.0" 
-.SH NAME
-snip\-theme \- List, inspect, and switch TUI color themes
-.SH SYNOPSIS
-\fBsnip theme\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
-.SH DESCRIPTION
+.TH snip-theme 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-theme \- inspect and manage TUI color themes
+.SH "SYNOPSIS"
+\fBsnip theme\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip theme list\fR [\fB\-\-appearance\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip theme show\fR [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBsnip theme check\fR [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBsnip theme path\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip theme export\fR [\fB\-\-as\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBsnip theme import\fR [\fB\-\-as\fR] [\fB\-\-syntax\fR] [\fB\-\-force\fR] [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIPATH\fR> 
+\fBsnip theme use\fR [\fB\-\-appearance\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+.SH "DESCRIPTION"
+.PP
+List, inspect, validate, export, import, and select TUI color themes. Built\-in and user themes share the same validation rules. Appearance slots allow separate light and dark choices.
+.PP
+export copies a theme into the user theme directory for editing. import converts a base16 or base24 scheme. check reports contrast and role\-distinctness problems before a theme is selected.
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip theme"
+.PP
 List, inspect, and switch TUI color themes
-.SH OPTIONS
 .TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip theme list"
+.PP
+List available themes
 .TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
+\fB\-\-appearance\fR \fI<APPEARANCE>\fR
+Restrict to one appearance
 .br
 
 .br
 \fIPossible values:\fR
 .RS 14
 .IP \(bu 2
-human
+light
 .IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
+dark
 .RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.SH SUBCOMMANDS
+.SS "snip theme show"
+.PP
+Print one theme's resolved colors
 .TP
-snip\-theme\-list(1)
-List available themes
+\fB\-h\fR, \fB\-\-help\fR
+Print help
 .TP
-snip\-theme\-show(1)
-Print one theme\*(Aqs resolved colors
+<\fINAME\fR>
+Theme name
+.SS "snip theme check"
+.PP
+Validate a theme's contrast and role distinctness
 .TP
-snip\-theme\-check(1)
-Validate a theme\*(Aqs contrast and role distinctness
+\fB\-h\fR, \fB\-\-help\fR
+Print help
 .TP
-snip\-theme\-path(1)
+<\fINAME\fR>
+Theme name
+.SS "snip theme path"
+.PP
 Print the directory user themes are read from
 .TP
-snip\-theme\-export(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip theme export"
+.PP
 Write a theme to the user theme directory so it can be edited
 .TP
-snip\-theme\-import(1)
+\fB\-\-as\fR \fI<AS>\fR
+Name to save it under. Defaults to "<name>\-custom"
+.TP
+\fB\-\-force\fR
+Overwrite an existing exported theme
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fINAME\fR>
+Theme name to export
+.SS "snip theme import"
+.PP
 Convert a base16 scheme file into a user theme
 .TP
-snip\-theme\-use(1)
+\fB\-\-as\fR \fI<AS>\fR
+Name to save it under. Defaults to the file stem
+.TP
+\fB\-\-syntax\fR \fI<SYNTAX>\fR
+Use an embedded syntax theme instead of deriving one from the palette
+.TP
+\fB\-\-force\fR
+Overwrite an existing theme file
+.TP
+\fB\-\-dry\-run\fR
+Convert and print the theme without writing anything
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIPATH\fR>
+Path to a base16 or base24 scheme file, or "\-" to read stdin
+.SS "snip theme use"
+.PP
 Select a theme for its appearance slot and save it to the config
+.TP
+\fB\-\-appearance\fR \fI<APPEARANCE>\fR
+Write to this slot instead of the theme\*(Aqs own appearance
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+light
+.IP \(bu 2
+dark
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fINAME\fR>
+Theme name to select
+.SH "EXAMPLES"
+.PP
+List dark themes and inspect one as JSON:
+.RS 4
+.nf
+snip theme list \-\-appearance dark
+snip \-\-output json theme show dracula
+.fi
+.RE
+.PP
+Export a theme for editing and validate the result:
+.RS 4
+.nf
+snip theme export dracula \-\-as dracula\-custom
+snip theme check dracula\-custom
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-tui (1),
+.BR snip\-config (1),
+.BR snip\-theme (5)
+.SH "VERSION"
+v0.6.0

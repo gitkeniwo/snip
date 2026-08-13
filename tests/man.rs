@@ -22,7 +22,12 @@ fn page_count() -> usize {
     fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("man"))
         .unwrap()
         .filter_map(Result::ok)
-        .filter(|entry| entry.path().extension().is_some_and(|value| value == "1"))
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|value| matches!(value.to_str(), Some("1" | "5" | "7")))
+        })
         .count()
 }
 
@@ -37,13 +42,7 @@ fn man_path_respects_xdg_data_home_and_json_output() {
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(
         value["path"],
-        temporary
-            .path()
-            .join("data")
-            .join("man")
-            .join("man1")
-            .to_str()
-            .unwrap()
+        temporary.path().join("data").join("man").to_str().unwrap()
     );
 }
 
@@ -66,10 +65,7 @@ fn man_path_resolves_explicit_prefix_without_loading_config_for_json_output() {
         .unwrap();
     assert!(output.status.success());
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(
-        value["path"],
-        prefix.join("share/man/man1").to_str().unwrap()
-    );
+    assert_eq!(value["path"], prefix.join("share/man").to_str().unwrap());
 }
 
 #[cfg(not(windows))]
@@ -106,8 +102,12 @@ fn man_install_is_idempotent_and_uninstall_preserves_modified_pages() {
 
     let root_page = man_dir.join("snip.1");
     let create_page = man_dir.join("snip-create.1");
+    let format_page = data_home.join("man/man5/sniplib.5");
+    let agents_page = data_home.join("man/man7/snip-agents.7");
     assert!(root_page.is_file());
     assert!(create_page.is_file());
+    assert!(format_page.is_file());
+    assert!(agents_page.is_file());
     let first_manifest = fs::read(&manifest_path).unwrap();
     let value = manifest(&manifest_path);
     assert_eq!(value["version"], 1);
@@ -143,6 +143,8 @@ fn man_install_is_idempotent_and_uninstall_preserves_modified_pages() {
         "locally modified\n"
     );
     assert!(!create_page.exists());
+    assert!(!format_page.exists());
+    assert!(!agents_page.exists());
     let remaining = manifest(&manifest_path);
     let files = remaining["files"].as_object().unwrap();
     assert_eq!(files.len(), 1);
@@ -307,8 +309,10 @@ fn man_generate_exports_embedded_pages() {
         .stdout(predicate::str::contains(format!(
             "generated {pages} man pages"
         )));
-    assert!(destination.join("snip.1").is_file());
-    assert!(destination.join("snip-man-install.1").is_file());
+    assert!(destination.join("man1/snip.1").is_file());
+    assert!(destination.join("man1/snip-man.1").is_file());
+    assert!(destination.join("man5/sniplib.5").is_file());
+    assert!(destination.join("man7/snip-agents.7").is_file());
 }
 
 #[cfg(not(windows))]

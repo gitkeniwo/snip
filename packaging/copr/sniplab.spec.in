@@ -66,6 +66,10 @@ install -d %{buildroot}%{_datadir}/zsh/site-functions
 # `snip man install`.
 install -d %{buildroot}%{_mandir}/man1
 install -pm 0644 man/*.1 %{buildroot}%{_mandir}/man1/
+install -d %{buildroot}%{_mandir}/man5
+install -pm 0644 man/*.5 %{buildroot}%{_mandir}/man5/
+install -d %{buildroot}%{_mandir}/man7
+install -pm 0644 man/*.7 %{buildroot}%{_mandir}/man7/
 
 %check
 export CARGO_NET_OFFLINE=true
@@ -83,6 +87,8 @@ cargo test --locked --release
 %dir %{_datadir}/zsh/site-functions
 %{_datadir}/zsh/site-functions/_snip
 %{_mandir}/man1/snip*.1*
+%{_mandir}/man5/snip*.5*
+%{_mandir}/man7/snip*.7*
 
 %changelog
 * @DATE@ snip release bot <41898282+github-actions[bot]@users.noreply.github.com> - @VERSION@-1

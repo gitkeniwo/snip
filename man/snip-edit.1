@@ -1,116 +1,96 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-edit 1  "snip 0.6.0" 
-.SH NAME
-snip\-edit \- Modify a snippet or launch an external editor
-.SH SYNOPSIS
-\fBsnip edit\fR [\fB\-\-library\fR] [\fB\-\-title\fR] [\fB\-\-folder\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-tag\fR] [\fB\-\-clear\-tags\fR] [\fB\-\-simplified\-ui\fR] [\fB\-\-pin\fR] [\fB\-\-unpin\fR] [\fB\-\-lock\fR] [\fB\-\-unlock\fR] [\fB\-\-fragment\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-clear\-readme\fR] [\fB\-\-metadata\-editor\fR] [\fB\-\-readme\-editor\fR] [\fB\-\-note\-editor\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
-.SH DESCRIPTION
+.TH snip-edit 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-edit \- modify and organize snippets
+.SH "SYNOPSIS"
+\fBsnip edit\fR [\fB\-\-title\fR] [\fB\-\-folder\fR] [\fB\-\-tag\fR] [\fB\-\-clear\-tags\fR] [\fB\-\-pin\fR] [\fB\-\-unpin\fR] [\fB\-\-lock\fR] [\fB\-\-unlock\fR] [\fB\-\-fragment\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-clear\-readme\fR] [\fB\-\-metadata\-editor\fR] [\fB\-\-readme\-editor\fR] [\fB\-\-note\-editor\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip fragment\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip fragment add\fR <\fB\-\-title\fR> [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip fragment edit\fR [\fB\-\-title\fR] [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
+\fBsnip fragment remove\fR [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
+\fBsnip fragment reorder\fR <\fB\-\-position\fR> [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
+\fBsnip folder\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip folder list\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip folder create\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIFOLDER\fR> 
+\fBsnip folder rename\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIFOLDER\fR> <\fINEW_NAME\fR> 
+\fBsnip folder move\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIFOLDER\fR> <\fITARGET\fR> 
+\fBsnip folder delete\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIFOLDER\fR> 
+\fBsnip tag\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip tag list\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip tag rename\fR [\fB\-h\fR|\fB\-\-help\fR] <\fITAG\fR> <\fINEW_NAME\fR> 
+\fBsnip tag delete\fR [\fB\-h\fR|\fB\-\-help\fR] <\fITAG\fR> 
+\fBsnip organize\fR [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH "DESCRIPTION"
+.PP
+Modify snippet metadata and content, manage fragments, organize physical folders and tags, and normalize package directory names. Mutations use staged filesystem transactions and advisory locking.
+.PP
+Every read reports a BLAKE3 fingerprint computed from the snippet manifest, README, fragments, and notes. For a safe read\-modify\-write, read the current fingerprint and pass it back with \-\-if\-hash. If another writer changed the snippet, snip exits with conflict instead of overwriting it. Carry new_fingerprint from a successful mutation into the next write.
+.PP
+Use \-\-force only when overwriting concurrent changes or bypassing a lock is intentional. Folder rename changes one path component; folder move accepts a full destination path. Fragment positions are 1\-based.
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip edit"
+.PP
 Modify a snippet or launch an external editor
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
 .TP
 \fB\-\-title\fR \fI<TITLE>\fR
-
+Replace the snippet title
 .TP
 \fB\-\-folder\fR \fI<FOLDER>\fR
-
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
+Move the snippet to this folder. Pass "" for Uncategorized
 .TP
 \fB\-\-tag\fR \fI<TAGS>\fR
-
+Replace tags with this tag set. Repeatable
 .TP
 \fB\-\-clear\-tags\fR
-
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
+Remove every tag from the snippet
 .TP
 \fB\-\-pin\fR
-
+Pin the snippet
 .TP
 \fB\-\-unpin\fR
-
+Unpin the snippet
 .TP
 \fB\-\-lock\fR
-
+Lock the snippet against mutation
 .TP
 \fB\-\-unlock\fR
-
+Unlock the snippet
 .TP
 \fB\-\-fragment\fR \fI<FRAGMENT>\fR
 Target fragment for structured changes or external editing
 .TP
 \fB\-\-fragment\-title\fR \fI<FRAGMENT_TITLE>\fR
-
+Replace the selected fragment title
 .TP
 \fB\-\-language\fR \fI<LANGUAGE>\fR
-
+Replace the selected fragment syntax language
 .TP
 \fB\-\-content\fR \fI<CONTENT>\fR
 Replacement fragment content, given inline
 .TP
 \fB\-\-content\-file\fR \fI<CONTENT_FILE>\fR
-
+Read replacement fragment content from a UTF\-8 file; use \- for stdin
 .TP
 \fB\-\-note\fR \fI<NOTE>\fR
 Replacement fragment note (Markdown), given inline
 .TP
 \fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
-
+Read the replacement fragment note from a UTF\-8 file; use \- for stdin
 .TP
 \fB\-\-clear\-note\fR
-
+Remove the selected fragment note
 .TP
 \fB\-\-readme\fR \fI<README>\fR
 Replacement snippet README (Markdown), given inline
 .TP
 \fB\-\-readme\-file\fR \fI<README_FILE>\fR
-
+Read the replacement snippet README from a UTF\-8 file; use \- for stdin
 .TP
 \fB\-\-clear\-readme\fR
-
+Remove the snippet README
 .TP
 \fB\-\-metadata\-editor\fR
 Edit snippet.toml in the external editor when no structured change is given
@@ -122,13 +102,258 @@ Edit README.md in the external editor when no structured change is given
 Edit the selected fragment note instead of its content
 .TP
 \fB\-\-if\-hash\fR \fI<IF_HASH>\fR
-
+Refuse the write unless the snippet still has this fingerprint
 .TP
 \fB\-\-force\fR
-
+Bypass fingerprint checks and locked\-snippet protection
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
 <\fISELECTOR\fR>
-
+Snippet title, UUID prefix, or package path
+.SS "snip fragment"
+.PP
+Manage snippet fragments
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip fragment add"
+.PP
+Add a fragment to a snippet
+.TP
+\fB\-\-title\fR \fI<TITLE>\fR
+Fragment title
+.TP
+\fB\-\-language\fR \fI<LANGUAGE>\fR
+Syntax language for the fragment
+.TP
+\fB\-\-content\fR \fI<CONTENT>\fR
+Fragment content, given inline
+.TP
+\fB\-\-content\-file\fR \fI<CONTENT_FILE>\fR
+Read fragment content from a UTF\-8 file; use \- for stdin
+.TP
+\fB\-\-note\fR \fI<NOTE>\fR
+Fragment note (Markdown), given inline
+.TP
+\fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
+Read the fragment note from a UTF\-8 file; use \- for stdin
+.TP
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+Refuse the write unless the snippet still has this fingerprint
+.TP
+\fB\-\-force\fR
+Bypass fingerprint checks and locked\-snippet protection
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip fragment edit"
+.PP
+Modify a fragment
+.TP
+\fB\-\-title\fR \fI<TITLE>\fR
+Replace the fragment title
+.TP
+\fB\-\-language\fR \fI<LANGUAGE>\fR
+Replace the fragment syntax language
+.TP
+\fB\-\-content\fR \fI<CONTENT>\fR
+Replacement fragment content, given inline
+.TP
+\fB\-\-content\-file\fR \fI<CONTENT_FILE>\fR
+Read replacement fragment content from a UTF\-8 file; use \- for stdin
+.TP
+\fB\-\-note\fR \fI<NOTE>\fR
+Replacement fragment note (Markdown), given inline
+.TP
+\fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
+Read the replacement note from a UTF\-8 file; use \- for stdin
+.TP
+\fB\-\-clear\-note\fR
+Remove the fragment note
+.TP
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+Refuse the write unless the snippet still has this fingerprint
+.TP
+\fB\-\-force\fR
+Bypass fingerprint checks and locked\-snippet protection
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.TP
+<\fIFRAGMENT\fR>
+Fragment 1\-based index or UUID prefix
+.SS "snip fragment remove"
+.PP
+Remove a fragment
+.TP
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+Refuse the write unless the snippet still has this fingerprint
+.TP
+\fB\-\-force\fR
+Bypass fingerprint checks and locked\-snippet protection
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.TP
+<\fIFRAGMENT\fR>
+Fragment 1\-based index or UUID prefix
+.SS "snip fragment reorder"
+.PP
+Move a fragment to a new 1\-based position
+.TP
+\fB\-\-position\fR \fI<POSITION>\fR
+New 1\-based position
+.TP
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+Refuse the write unless the snippet still has this fingerprint
+.TP
+\fB\-\-force\fR
+Bypass fingerprint checks and locked\-snippet protection
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.TP
+<\fIFRAGMENT\fR>
+Fragment 1\-based index or UUID prefix
+.SS "snip folder"
+.PP
+Manage physical folder paths
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip folder list"
+.PP
+List physical snippet folders
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip folder create"
+.PP
+Create a folder path
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIFOLDER\fR>
+Folder path to create
+.SS "snip folder rename"
+.PP
+Rename the final component of a folder path
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIFOLDER\fR>
+Existing folder path
+.TP
+<\fINEW_NAME\fR>
+New final path component
+.SS "snip folder move"
+.PP
+Move a folder and its snippets
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIFOLDER\fR>
+Existing folder path
+.TP
+<\fITARGET\fR>
+Full destination folder path
+.SS "snip folder delete"
+.PP
+Delete an empty folder
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIFOLDER\fR>
+Empty folder path to delete
+.SS "snip tag"
+.PP
+Rename or remove tags across snippets
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip tag list"
+.PP
+List all known tags
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip tag rename"
+.PP
+Rename a tag across the library
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fITAG\fR>
+Existing tag name
+.TP
+<\fINEW_NAME\fR>
+Replacement tag name
+.SS "snip tag delete"
+.PP
+Delete a tag from the registry and every snippet
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fITAG\fR>
+Tag name to delete
+.SS "snip organize"
+.PP
+Normalize snippet package directory names
+.TP
+\fB\-\-dry\-run\fR
+Report package\-directory renames without applying them
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH "EXAMPLES"
+.PP
+Rename a snippet with optimistic concurrency:
+.RS 4
+.nf
+hash=$(snip \-\-output json show Greeter | jq \-r .fingerprint)
+snip edit Greeter \-\-title "Friendly greeter" \-\-if\-hash "$hash"
+.fi
+.RE
+.PP
+Add a second fragment from a file:
+.RS 4
+.nf
+snip fragment add Greeter \-\-title "Python variant" \-\-language python \-\-content\-file greeter.py \-\-if\-hash "$hash"
+.fi
+.RE
+.PP
+Move a folder to a new parent:
+.RS 4
+.nf
+snip folder move Scripts/Shell Archive/Shell
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-create (1),
+.BR snip\-query (1),
+.BR snip\-trash (1),
+.BR sniplib (5),
+.BR snip\-agents (7)
+.SH "VERSION"
+v0.6.0

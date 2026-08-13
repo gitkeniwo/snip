@@ -34,6 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unreferenced files, failed writes no longer leave incomplete transactions,
   every gist mutation holds the library lock through its local write, and
   `doctor --repair` holds the lock and removes safe staging debris.
+- **Task-oriented manual.** The generated manual is consolidated into 15
+  substantive command pages with 16 compatibility stubs, plus four file-format
+  pages in section 5 and `snip-agents(7)`. Generated command skeletons are
+  enriched with checked prose, examples, cross-references, and command-tree
+  coverage validation so a new visible clap command cannot silently lose
+  documentation.
+- **Section-aware manual management.** `snip man path` now prints the man
+  hierarchy root, `snip man generate DIR` writes `man1`, `man5`, and `man7`
+  subdirectories, and install, uninstall, packages, and release archives manage
+  all three sections. `snip man show` accepts either a short stem or an explicit
+  section such as `config.5`.
 
 ## [0.6.0] - 2026-08-10
 

@@ -45,7 +45,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
         --fish <($out/bin/snip completion fish)
     ''
     + ''
-      installManPage man/*.1
+      installManPage man/*.[157]
       install -Dm644 README.md LICENSE -t $out/share/doc/sniplab
     '';
 

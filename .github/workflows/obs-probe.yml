@@ -271,6 +271,8 @@ jobs:
           grep -q ' ./usr/share/fish/vendor_completions.d/snip.fish$' "$RUNNER_TEMP/deb.list"
           grep -q ' ./usr/share/zsh/site-functions/_snip$' "$RUNNER_TEMP/deb.list"
           grep -q ' ./usr/share/man/man1/snip.1.gz$' "$RUNNER_TEMP/deb.list"
+          grep -q ' ./usr/share/man/man5/sniplib.5.gz$' "$RUNNER_TEMP/deb.list"
+          grep -q ' ./usr/share/man/man7/snip-agents.7.gz$' "$RUNNER_TEMP/deb.list"
           cat "$RUNNER_TEMP/deb.list"
 
       - uses: actions/upload-artifact@v6

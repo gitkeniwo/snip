@@ -1,0 +1,228 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-query 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-query \- query and inspect snippets without modifying them
+.SH "SYNOPSIS"
+\fBsnip list\fR [\fB\-\-folder\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-tag\fR] [\fB\-\-sort\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip search\fR [\fB\-\-regex\fR] [\fB\-\-folder\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-tag\fR] [\fB\-\-field\fR] [\fB\-C\fR|\fB\-\-context\fR] [\fB\-m\fR|\fB\-\-limit\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIQUERY\fR> 
+\fBsnip show\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip cat\fR [\fB\-\-fragment\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip preview\fR [\fB\-\-render\fR] [\fB\-\-pager\fR] [\fB\-\-no\-pager\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip path\fR [\fB\-\-metadata\fR] [\fB\-\-readme\fR] [\fB\-\-fragment\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip open\fR [\fB\-\-metadata\fR] [\fB\-\-readme\fR] [\fB\-\-fragment\fR] [\fB\-\-app\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip info\fR [\fB\-h\fR|\fB\-\-help\fR] 
+.SH "DESCRIPTION"
+.PP
+Read and inspect snippets without modifying them. list returns summaries, search returns scored matching lines, show returns one complete snippet, cat prints raw fragment bytes, preview renders human\-facing output, path resolves managed files, open launches an application, and info reports library counts.
+.PP
+A snippet selector is resolved as a package path relative to snippets, a UUID prefix of at least eight hexadecimal digits, or an exact case\-sensitive title. Ambiguous titles are conflicts. Fragment selectors are a 1\-based index or a fragment UUID prefix.
+.PP
+For list and search, \-\-folder includes the named folder and all descendants. Add \-\-no\-subfolders for only the direct folder, and pass \-\-folder "" for Uncategorized. Folder matching is case\-insensitive on complete path components. \-\-tag restricts results to one tag.
+.PP
+Use show for structured content and fingerprints, cat for pipelines, and preview for people. JSON and JSONL output contracts are documented in snip\-agents(7).
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip list"
+.PP
+List snippets without their full content
+.TP
+\fB\-\-folder\fR \fI<FOLDER>\fR
+Restrict to a folder and its subfolders. Pass "" for Uncategorized
+.TP
+\fB\-\-no\-subfolders\fR
+Restrict \-\-folder to that folder alone, excluding its subfolders
+.TP
+\fB\-\-tag\fR \fI<TAG>\fR
+Restrict results to snippets carrying this tag
+.TP
+\fB\-\-sort\fR \fI<SORT>\fR [default: modified]
+Order of the listing. Pinned snippets always come first
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+modified: Most recently modified first. Legacy `manual` config values migrate here
+.IP \(bu 2
+title: Case\-insensitive title, ascending
+.IP \(bu 2
+created: Most recently created first
+.RE
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.SS "snip search"
+.PP
+Search titles, tags, notes, and fragment content
+.TP
+\fB\-\-regex\fR
+Treat QUERY as a regular expression. Case\-insensitive; use (?\-i) to opt out
+.TP
+\fB\-\-folder\fR \fI<FOLDER>\fR
+Restrict to a folder and its subfolders. Pass "" for Uncategorized
+.TP
+\fB\-\-no\-subfolders\fR
+Restrict \-\-folder to that folder alone, excluding its subfolders
+.TP
+\fB\-\-tag\fR \fI<TAG>\fR
+Restrict results to snippets carrying this tag
+.TP
+\fB\-\-field\fR \fI<FIELDS>\fR
+Only search these parts of a snippet. Repeatable; defaults to all
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+title
+.IP \(bu 2
+tag
+.IP \(bu 2
+readme
+.IP \(bu 2
+content
+.IP \(bu 2
+note
+.RE
+.TP
+\fB\-C\fR, \fB\-\-context\fR \fI<N>\fR [default: 0]
+Lines of surrounding context to include with each match
+.TP
+\fB\-m\fR, \fB\-\-limit\fR \fI<N>\fR
+Keep only the top N results after scoring
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIQUERY\fR>
+Text or regular expression to find
+.SS "snip show"
+.PP
+Show a complete snippet
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip cat"
+.PP
+Print one fragment with no decorations
+.TP
+\fB\-\-fragment\fR \fI<FRAGMENT>\fR
+1\-based index or fragment UUID prefix
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip preview"
+.PP
+Render a snippet for terminal or HTML preview
+.TP
+\fB\-\-render\fR \fI<RENDER>\fR
+Rendering format. Defaults to the configured preview format
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+ansi
+.IP \(bu 2
+plain
+.IP \(bu 2
+html
+.RE
+.TP
+\fB\-\-pager\fR
+Send output through the configured pager or $PAGER
+.TP
+\fB\-\-no\-pager\fR
+Disable a pager enabled in the config file
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip path"
+.PP
+Print a managed filesystem path
+.TP
+\fB\-\-metadata\fR
+Print the path to snippet.toml
+.TP
+\fB\-\-readme\fR
+Print the path to README.md
+.TP
+\fB\-\-fragment\fR \fI<FRAGMENT>\fR
+Print the path to a fragment selected by 1\-based index or UUID prefix
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip open"
+.PP
+Open a managed path in an external application
+.TP
+\fB\-\-metadata\fR
+Open snippet.toml
+.TP
+\fB\-\-readme\fR
+Open README.md
+.TP
+\fB\-\-fragment\fR \fI<FRAGMENT>\fR
+Open a fragment selected by 1\-based index or UUID prefix
+.TP
+\fB\-\-app\fR \fI<APP>\fR
+Command to launch. Defaults to the `vscode_cmd` config key, then `code`
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip info"
+.PP
+Show library metadata and counts
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH "EXAMPLES"
+.PP
+List every snippet below the Code folder carrying the rust tag:
+.RS 4
+.nf
+snip list \-\-folder Code \-\-tag rust
+.fi
+.RE
+.PP
+Search content and notes with two lines of context, keeping ten matches:
+.RS 4
+.nf
+snip \-\-output json search deploy \-\-field content \-\-field note \-\-context 2 \-\-limit 10
+.fi
+.RE
+.PP
+Print the second fragment exactly as stored:
+.RS 4
+.nf
+snip cat 79d92dea \-\-fragment 2
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-create (1),
+.BR snip\-edit (1),
+.BR snip\-agents (7),
+.BR sniplib (5)
+.SH "VERSION"
+v0.6.0

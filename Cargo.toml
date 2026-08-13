@@ -49,6 +49,8 @@ pkg-fmt = "zip"
 assets = [
     ["target/release/snip", "usr/bin/", "755"],
     ["man/*.1", "usr/share/man/man1/", "644"],
+    ["man/*.5", "usr/share/man/man5/", "644"],
+    ["man/*.7", "usr/share/man/man7/", "644"],
     ["README.md", "usr/share/doc/sniplab/README.md", "644"],
 ]
 
@@ -62,6 +64,18 @@ mode = "0755"
 [[package.metadata.generate-rpm.assets]]
 source = "man/*.1"
 dest = "/usr/share/man/man1/"
+mode = "0644"
+doc = true
+
+[[package.metadata.generate-rpm.assets]]
+source = "man/*.5"
+dest = "/usr/share/man/man5/"
+mode = "0644"
+doc = true
+
+[[package.metadata.generate-rpm.assets]]
+source = "man/*.7"
+dest = "/usr/share/man/man7/"
 mode = "0644"
 doc = true
 

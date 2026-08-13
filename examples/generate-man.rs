@@ -4,7 +4,7 @@ mod cli;
 
 use clap::CommandFactory;
 use cli::Cli;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::error::Error;
 use std::ffi::OsStr;
@@ -14,6 +14,305 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
+type CommandPath = &'static [&'static str];
+
+const SOURCE: &str = concat!("snip ", env!("CARGO_PKG_VERSION"));
+const MANUAL: &str = "Snip Manual";
+const GLOBAL_ARGS: &[&str] = &["library", "output", "color", "simplified_ui"];
+const MANAGED_SECTIONS: &[&str] = &["1", "5", "7"];
+
+struct PageSpec {
+    name: &'static str,
+    section: u8,
+    title: &'static str,
+    commands: &'static [CommandPath],
+    parts: Option<&'static str>,
+}
+
+struct AliasSpec {
+    name: &'static str,
+    title: &'static str,
+    target: &'static str,
+}
+
+const PAGES: &[PageSpec] = &[
+    page(
+        "snip",
+        "filesystem-native snippet library",
+        &[&[]],
+        "parts/snip.md",
+    ),
+    page(
+        "snip-tui",
+        "open the interactive terminal browser",
+        &[&["tui"]],
+        "parts/snip-tui.md",
+    ),
+    page(
+        "snip-query",
+        "query and inspect snippets without modifying them",
+        &[
+            &["list"],
+            &["search"],
+            &["show"],
+            &["cat"],
+            &["preview"],
+            &["path"],
+            &["open"],
+            &["info"],
+        ],
+        "parts/snip-query.md",
+    ),
+    page(
+        "snip-create",
+        "create a snippet",
+        &[&["create"]],
+        "parts/snip-create.md",
+    ),
+    page(
+        "snip-edit",
+        "modify and organize snippets",
+        &[
+            &["edit"],
+            &["fragment"],
+            &["fragment", "add"],
+            &["fragment", "edit"],
+            &["fragment", "remove"],
+            &["fragment", "reorder"],
+            &["folder"],
+            &["folder", "list"],
+            &["folder", "create"],
+            &["folder", "rename"],
+            &["folder", "move"],
+            &["folder", "delete"],
+            &["tag"],
+            &["tag", "list"],
+            &["tag", "rename"],
+            &["tag", "delete"],
+            &["organize"],
+        ],
+        "parts/snip-edit.md",
+    ),
+    page(
+        "snip-config",
+        "inspect and modify snip configuration",
+        &[
+            &["config"],
+            &["config", "path"],
+            &["config", "show"],
+            &["config", "init"],
+            &["config", "set"],
+            &["config", "unset"],
+        ],
+        "parts/snip-config.md",
+    ),
+    page(
+        "snip-theme",
+        "inspect and manage TUI color themes",
+        &[
+            &["theme"],
+            &["theme", "list"],
+            &["theme", "show"],
+            &["theme", "check"],
+            &["theme", "path"],
+            &["theme", "export"],
+            &["theme", "import"],
+            &["theme", "use"],
+        ],
+        "parts/snip-theme.md",
+    ),
+    page(
+        "snip-keys",
+        "inspect and manage TUI key bindings",
+        &[
+            &["keys"],
+            &["keys", "list"],
+            &["keys", "show"],
+            &["keys", "path"],
+            &["keys", "export"],
+            &["keys", "check"],
+        ],
+        "parts/snip-keys.md",
+    ),
+    page(
+        "snip-trash",
+        "manage the soft-deletion lifecycle",
+        &[&["delete"], &["trash"], &["restore"], &["purge"]],
+        "parts/snip-trash.md",
+    ),
+    page(
+        "snip-init",
+        "create and import snippet libraries",
+        &[&["init"], &["import"], &["import", "snippetslab"]],
+        "parts/snip-init.md",
+    ),
+    page(
+        "snip-doctor",
+        "validate and repair a library",
+        &[&["doctor"]],
+        "parts/snip-doctor.md",
+    ),
+    page(
+        "snip-git",
+        "run Git operations scoped to a library",
+        &[
+            &["git"],
+            &["git", "clone"],
+            &["git", "status"],
+            &["git", "init"],
+            &["git", "commit"],
+            &["git", "backup"],
+            &["git", "push"],
+            &["git", "fetch"],
+            &["git", "pull"],
+        ],
+        "parts/snip-git.md",
+    ),
+    page(
+        "snip-gist",
+        "publish snippets through GitHub Gists",
+        &[
+            &["gist"],
+            &["gist", "push"],
+            &["gist", "url"],
+            &["gist", "status"],
+            &["gist", "attach"],
+            &["gist", "detach"],
+            &["gist", "delete"],
+            &["gist", "open"],
+        ],
+        "parts/snip-gist.md",
+    ),
+    page(
+        "snip-man",
+        "install, inspect, and export manual pages",
+        &[
+            &["man"],
+            &["man", "path"],
+            &["man", "install"],
+            &["man", "uninstall"],
+            &["man", "show"],
+            &["man", "generate"],
+        ],
+        "parts/snip-man.md",
+    ),
+    page(
+        "snip-completion",
+        "generate shell completion code",
+        &[&["completion"]],
+        "parts/snip-completion.md",
+    ),
+    prose_page("sniplib", 5, "snip library file format", "parts/sniplib.md"),
+    prose_page(
+        "snip-config",
+        5,
+        "snip user configuration format",
+        "parts/snip-config.5.md",
+    ),
+    prose_page(
+        "snip-keys",
+        5,
+        "snip TUI key binding format",
+        "parts/snip-keys.5.md",
+    ),
+    prose_page(
+        "snip-theme",
+        5,
+        "snip TUI theme format",
+        "parts/snip-theme.5.md",
+    ),
+    prose_page(
+        "snip-agents",
+        7,
+        "using snip from scripts and agents",
+        "parts/snip-agents.md",
+    ),
+];
+
+const ALIASES: &[AliasSpec] = &[
+    alias(
+        "snip-list",
+        "list snippets without their full content",
+        "snip-query",
+    ),
+    alias(
+        "snip-search",
+        "search snippet metadata and content",
+        "snip-query",
+    ),
+    alias("snip-show", "show a complete snippet", "snip-query"),
+    alias(
+        "snip-cat",
+        "print one fragment without decorations",
+        "snip-query",
+    ),
+    alias("snip-preview", "render a snippet for preview", "snip-query"),
+    alias("snip-path", "print a managed filesystem path", "snip-query"),
+    alias(
+        "snip-open",
+        "open a managed path in an external application",
+        "snip-query",
+    ),
+    alias(
+        "snip-info",
+        "show library metadata and counts",
+        "snip-query",
+    ),
+    alias("snip-fragment", "manage snippet fragments", "snip-edit"),
+    alias("snip-folder", "manage physical folder paths", "snip-edit"),
+    alias("snip-tag", "manage tags across snippets", "snip-edit"),
+    alias(
+        "snip-organize",
+        "normalize snippet package directory names",
+        "snip-edit",
+    ),
+    alias("snip-delete", "move a snippet to the trash", "snip-trash"),
+    alias("snip-restore", "restore a deleted snippet", "snip-trash"),
+    alias(
+        "snip-purge",
+        "permanently remove a trash entry",
+        "snip-trash",
+    ),
+    alias("snip-import", "import another snippet format", "snip-init"),
+];
+
+const fn page(
+    name: &'static str,
+    title: &'static str,
+    commands: &'static [CommandPath],
+    parts: &'static str,
+) -> PageSpec {
+    PageSpec {
+        name,
+        section: 1,
+        title,
+        commands,
+        parts: Some(parts),
+    }
+}
+
+const fn prose_page(
+    name: &'static str,
+    section: u8,
+    title: &'static str,
+    parts: &'static str,
+) -> PageSpec {
+    PageSpec {
+        name,
+        section,
+        title,
+        commands: &[],
+        parts: Some(parts),
+    }
+}
+
+const fn alias(name: &'static str, title: &'static str, target: &'static str) -> AliasSpec {
+    AliasSpec {
+        name,
+        title,
+        target,
+    }
+}
 
 enum Mode {
     Generate,
@@ -46,6 +345,17 @@ impl Changes {
     }
 }
 
+#[derive(Default)]
+struct Parts {
+    sections: BTreeMap<String, Vec<Block>>,
+    order: Vec<String>,
+}
+
+enum Block {
+    Paragraph(String),
+    Literal(Vec<String>),
+}
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("generate-man: error: {error}");
@@ -62,20 +372,18 @@ fn run() -> Result<()> {
         .into());
     }
 
-    let generated = tempfile::tempdir()?;
-    generate_pages(Cli::command(), generated.path())?;
-    let expected = read_pages(generated.path())?;
+    let mut root = Cli::command().disable_help_subcommand(true);
+    root.build();
+    validate_manifest(&root)?;
+    let expected = render_pages(&root)?;
     if expected.is_empty() {
-        return Err(io::Error::other(
-            "clap_mangen produced no section 1 pages; refusing to continue",
-        )
-        .into());
+        return Err(io::Error::other("page manifest produced no manual pages").into());
     }
 
     match mode {
         Mode::Generate => sync_artifacts(&expected),
         Mode::Check => check_artifacts(&expected),
-        Mode::Preview(page) => preview_page(generated.path(), &expected, &page),
+        Mode::Preview(page) => preview_page(&expected, &page),
     }
 }
 
@@ -92,7 +400,6 @@ fn parse_mode() -> Result<Mode> {
             .into());
         }
     };
-
     if let Some(argument) = args.next() {
         return Err(io::Error::other(format!("unexpected argument `{argument}`")).into());
     }
@@ -103,29 +410,513 @@ fn man_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("man")
 }
 
-fn generate_pages(mut command: clap::Command, directory: &Path) -> Result<()> {
-    fn generate(command: clap::Command, directory: &Path, source: &str) -> Result<()> {
-        for subcommand in command
-            .get_subcommands()
-            .filter(|subcommand| !subcommand.is_hide_set())
-            .cloned()
-        {
-            generate(subcommand, directory, source)?;
-        }
-        clap_mangen::Man::new(command)
-            .source(source)
-            .generate_to(directory)?;
-        Ok(())
-    }
-
-    command = command.disable_help_subcommand(true);
-    command.build();
-    let source = format!("snip {}", env!("CARGO_PKG_VERSION"));
-    generate(command, directory, &source)
-}
-
 fn index_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/commands/man_pages.rs")
+}
+
+fn validate_manifest(root: &clap::Command) -> Result<()> {
+    let mut actual = BTreeSet::new();
+    collect_command_paths(root, &mut Vec::new(), &mut actual);
+    let mut covered = BTreeSet::new();
+
+    for page in PAGES {
+        if page.commands.is_empty() && page.section == 1 {
+            return Err(io::Error::other(format!(
+                "section 1 page `{}` does not cover a clap command",
+                page.name
+            ))
+            .into());
+        }
+        if let Some(parts) = page.parts {
+            let path = man_dir().join(parts);
+            if !path.is_file() {
+                return Err(io::Error::other(format!(
+                    "missing prose parts for `{}`: {}",
+                    page.name,
+                    path.display()
+                ))
+                .into());
+            }
+            let parsed = parse_parts(&fs::read_to_string(&path)?)?;
+            if page.section == 1 {
+                let examples = parsed
+                    .sections
+                    .get("EXAMPLES")
+                    .into_iter()
+                    .flatten()
+                    .filter(|block| matches!(block, Block::Literal(_)))
+                    .count();
+                if examples < 2 {
+                    return Err(io::Error::other(format!(
+                        "section 1 page `{}` needs at least two literal examples",
+                        page.name
+                    ))
+                    .into());
+                }
+                if parsed
+                    .sections
+                    .get("SEE ALSO")
+                    .is_none_or(|blocks| blocks.is_empty())
+                {
+                    return Err(io::Error::other(format!(
+                        "section 1 page `{}` needs a non-empty SEE ALSO section",
+                        page.name
+                    ))
+                    .into());
+                }
+            }
+        }
+        for path in page.commands {
+            if find_command(root, path).is_none() {
+                return Err(io::Error::other(format!(
+                    "page `{}` references unknown command: `{}`",
+                    page.name,
+                    display_command_path(path)
+                ))
+                .into());
+            }
+            covered.insert(path.iter().map(|part| (*part).to_owned()).collect());
+        }
+    }
+
+    if let Some(path) = actual.difference(&covered).next() {
+        return Err(io::Error::other(format!(
+            "undocumented command: `{}` is not covered by any page in PAGES",
+            display_owned_command_path(path)
+        ))
+        .into());
+    }
+    let section_one_pages = PAGES
+        .iter()
+        .filter(|page| page.section == 1)
+        .map(|page| page.name)
+        .collect::<BTreeSet<_>>();
+    for alias in ALIASES {
+        if !section_one_pages.contains(alias.target) {
+            return Err(io::Error::other(format!(
+                "alias `{}` references unknown section 1 page `{}`",
+                alias.name, alias.target
+            ))
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn collect_command_paths(
+    command: &clap::Command,
+    path: &mut Vec<String>,
+    paths: &mut BTreeSet<Vec<String>>,
+) {
+    paths.insert(path.clone());
+    for child in command
+        .get_subcommands()
+        .filter(|child| !child.is_hide_set())
+    {
+        path.push(child.get_name().to_owned());
+        collect_command_paths(child, path, paths);
+        path.pop();
+    }
+}
+
+fn find_command<'a>(root: &'a clap::Command, path: &[&str]) -> Option<&'a clap::Command> {
+    let mut command = root;
+    for name in path {
+        command = command
+            .get_subcommands()
+            .find(|child| !child.is_hide_set() && child.get_name() == *name)?;
+    }
+    Some(command)
+}
+
+fn display_command_path(path: &[&str]) -> String {
+    if path.is_empty() {
+        "snip".to_owned()
+    } else {
+        format!("snip {}", path.join(" "))
+    }
+}
+
+fn display_owned_command_path(path: &[String]) -> String {
+    if path.is_empty() {
+        "snip".to_owned()
+    } else {
+        format!("snip {}", path.join(" "))
+    }
+}
+
+fn render_pages(root: &clap::Command) -> Result<BTreeMap<String, Vec<u8>>> {
+    let mut pages = BTreeMap::new();
+    for spec in PAGES {
+        let filename = format!("{}.{}", spec.name, spec.section);
+        if pages
+            .insert(filename.clone(), render_page(root, spec)?)
+            .is_some()
+        {
+            return Err(io::Error::other(format!("duplicate manual page `{filename}`")).into());
+        }
+    }
+    for alias in ALIASES {
+        let filename = format!("{}.1", alias.name);
+        if pages
+            .insert(filename.clone(), render_alias(alias)?)
+            .is_some()
+        {
+            return Err(io::Error::other(format!("duplicate manual page `{filename}`")).into());
+        }
+    }
+    Ok(pages)
+}
+
+fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
+    let commands = spec
+        .commands
+        .iter()
+        .map(|path| {
+            find_command(root, path)
+                .cloned()
+                .ok_or_else(|| io::Error::other("page manifest was not validated"))
+                .map(|command| (path, command))
+        })
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let parts = match spec.parts {
+        Some(path) => parse_parts(&fs::read_to_string(man_dir().join(path))?)?,
+        None => Parts::default(),
+    };
+    let mut output = Vec::new();
+    let title_command = clap::Command::new(spec.name)
+        .version(env!("CARGO_PKG_VERSION"))
+        .about(spec.title);
+    clap_mangen::Man::new(title_command)
+        .section(spec.section.to_string())
+        .source(SOURCE)
+        .manual(MANUAL)
+        .render_title(&mut output)?;
+
+    push_section_heading(&mut output, "NAME");
+    push_text_line(&mut output, &format!("{} - {}", spec.name, spec.title));
+
+    if !commands.is_empty() {
+        push_section_heading(&mut output, "SYNOPSIS");
+        for (path, command) in &commands {
+            let command = command_for_page(command.clone(), path.is_empty());
+            append_rendered_body(
+                &mut output,
+                |buffer| clap_mangen::Man::new(command).render_synopsis_section(buffer),
+                "SYNOPSIS",
+            )?;
+        }
+    }
+
+    push_section_heading(&mut output, "DESCRIPTION");
+    if !render_part_section(&mut output, &parts, "DESCRIPTION") {
+        push_paragraph(&mut output, spec.title);
+    }
+    if spec.section == 1 && spec.name != "snip" {
+        push_paragraph(&mut output, "Global options are described in snip(1).");
+    }
+
+    if commands.len() == 1 {
+        let (path, command) = &commands[0];
+        let command = command_for_page(command.clone(), path.is_empty());
+        push_section_heading(&mut output, "OPTIONS");
+        append_rendered_body(
+            &mut output,
+            |buffer| clap_mangen::Man::new(command).render_options_section(buffer),
+            "OPTIONS",
+        )?;
+        if path.is_empty() {
+            push_section_heading(&mut output, "COMMANDS");
+            append_rendered_body(
+                &mut output,
+                |buffer| clap_mangen::Man::new(root.clone()).render_subcommands_section(buffer),
+                "SUBCOMMANDS",
+            )?;
+        }
+    } else if !commands.is_empty() {
+        push_section_heading(&mut output, "COMMANDS");
+        for (path, command) in &commands {
+            push_subsection_heading(&mut output, &display_command_path(path));
+            if let Some(about) = command.get_long_about().or_else(|| command.get_about()) {
+                push_paragraph(&mut output, &about.to_string());
+            }
+            let command = command_for_page(command.clone(), false);
+            append_rendered_body(
+                &mut output,
+                |buffer| clap_mangen::Man::new(command).render_options_section(buffer),
+                "OPTIONS",
+            )?;
+        }
+    }
+
+    if spec.section == 1 {
+        for section in [
+            "EXIT STATUS",
+            "ENVIRONMENT",
+            "FILES",
+            "EXAMPLES",
+            "SEE ALSO",
+        ] {
+            if parts.sections.contains_key(section) {
+                push_section_heading(&mut output, section);
+                render_part_section(&mut output, &parts, section);
+            }
+        }
+    } else {
+        for section in &parts.order {
+            if section != "DESCRIPTION" {
+                push_section_heading(&mut output, section);
+                render_part_section(&mut output, &parts, section);
+            }
+        }
+    }
+
+    push_section_heading(&mut output, "VERSION");
+    append_rendered_body(
+        &mut output,
+        |buffer| clap_mangen::Man::new(root.clone()).render_version_section(buffer),
+        "VERSION",
+    )?;
+    Ok(output)
+}
+
+fn command_for_page(mut command: clap::Command, is_root: bool) -> clap::Command {
+    if !is_root {
+        for id in GLOBAL_ARGS {
+            if command
+                .get_arguments()
+                .any(|argument| argument.get_id().as_str() == *id)
+            {
+                command = command.mut_arg(*id, |argument| argument.hide(true));
+            }
+        }
+    }
+    command
+}
+
+fn append_rendered_body(
+    output: &mut Vec<u8>,
+    render: impl FnOnce(&mut Vec<u8>) -> io::Result<()>,
+    section: &str,
+) -> Result<()> {
+    let mut rendered = Vec::new();
+    render(&mut rendered)?;
+    let rendered = String::from_utf8(rendered)?;
+    let heading = format!(".SH {section}\n");
+    if let Some(body) = rendered
+        .find(&heading)
+        .map(|offset| &rendered[offset + heading.len()..])
+    {
+        output.extend_from_slice(body.as_bytes());
+    }
+    Ok(())
+}
+
+fn render_alias(alias: &AliasSpec) -> Result<Vec<u8>> {
+    let mut output = Vec::new();
+    let title_command = clap::Command::new(alias.name)
+        .version(env!("CARGO_PKG_VERSION"))
+        .about(alias.title);
+    clap_mangen::Man::new(title_command)
+        .section("1")
+        .source(SOURCE)
+        .manual(MANUAL)
+        .render_title(&mut output)?;
+    push_section_heading(&mut output, "NAME");
+    push_text_line(&mut output, &format!("{} - {}", alias.name, alias.title));
+    push_section_heading(&mut output, "DESCRIPTION");
+    push_paragraph(&mut output, "This command is documented in");
+    push_man_reference(&mut output, alias.target, "1", ".");
+    push_section_heading(&mut output, "SEE ALSO");
+    push_man_reference(&mut output, "snip", "1", ",");
+    push_man_reference(&mut output, alias.target, "1", "");
+    Ok(output)
+}
+
+fn parse_parts(contents: &str) -> Result<Parts> {
+    let mut parts = Parts::default();
+    let mut section: Option<String> = None;
+    let mut lines = Vec::new();
+    for line in contents.lines().chain(std::iter::once("%%__END__")) {
+        if let Some(name) = line.strip_prefix("%%") {
+            if let Some(previous) = section.take() {
+                parts.order.push(previous.clone());
+                parts.sections.insert(previous, parse_blocks(&lines));
+                lines.clear();
+            }
+            if name != "__END__" {
+                let name = name.trim().to_uppercase();
+                if name.is_empty()
+                    || !name.bytes().all(|byte| {
+                        byte.is_ascii_uppercase()
+                            || byte.is_ascii_digit()
+                            || matches!(byte, b' ' | b'-')
+                    })
+                {
+                    return Err(io::Error::other(format!(
+                        "invalid prose section marker `%%{name}`"
+                    ))
+                    .into());
+                }
+                if parts.sections.contains_key(&name) {
+                    return Err(io::Error::other(format!(
+                        "duplicate prose section marker `%%{name}`"
+                    ))
+                    .into());
+                }
+                section = Some(name);
+            }
+        } else if section.is_some() {
+            lines.push(line.to_owned());
+        } else if !line.trim().is_empty() {
+            return Err(
+                io::Error::other("prose content appears before the first %%SECTION").into(),
+            );
+        }
+    }
+    Ok(parts)
+}
+
+fn parse_blocks(lines: &[String]) -> Vec<Block> {
+    let mut blocks = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        if lines[index].trim().is_empty() {
+            index += 1;
+            continue;
+        }
+        if let Some(first) = lines[index].strip_prefix("    ") {
+            let mut literal = vec![first.to_owned()];
+            index += 1;
+            while index < lines.len() {
+                if let Some(line) = lines[index].strip_prefix("    ") {
+                    literal.push(line.to_owned());
+                    index += 1;
+                } else {
+                    break;
+                }
+            }
+            blocks.push(Block::Literal(literal));
+        } else {
+            let mut paragraph = Vec::new();
+            while index < lines.len()
+                && !lines[index].trim().is_empty()
+                && !lines[index].starts_with("    ")
+            {
+                paragraph.extend(lines[index].split_whitespace().map(str::to_owned));
+                index += 1;
+            }
+            blocks.push(Block::Paragraph(paragraph.join(" ")));
+        }
+    }
+    blocks
+}
+
+fn render_part_section(output: &mut Vec<u8>, parts: &Parts, section: &str) -> bool {
+    let Some(blocks) = parts.sections.get(section) else {
+        return false;
+    };
+    if section == "SEE ALSO" && render_see_also(output, blocks) {
+        return true;
+    }
+    for block in blocks {
+        match block {
+            Block::Paragraph(text) => push_paragraph(output, text),
+            Block::Literal(lines) => {
+                output.extend_from_slice(b".RS 4\n.nf\n");
+                for line in lines {
+                    push_text_line(output, line);
+                }
+                output.extend_from_slice(b".fi\n.RE\n");
+            }
+        }
+    }
+    !blocks.is_empty()
+}
+
+fn render_see_also(output: &mut Vec<u8>, blocks: &[Block]) -> bool {
+    let mut references = Vec::new();
+    for block in blocks {
+        let Block::Paragraph(text) = block else {
+            return false;
+        };
+        for reference in text.split(',').map(str::trim) {
+            let Some(reference) = parse_man_reference(reference) else {
+                return false;
+            };
+            references.push(reference);
+        }
+    }
+    if references.is_empty() {
+        return false;
+    }
+    for (index, (name, section)) in references.iter().enumerate() {
+        let punctuation = if index + 1 == references.len() {
+            ""
+        } else {
+            ","
+        };
+        push_man_reference(output, name, section, punctuation);
+    }
+    true
+}
+
+fn parse_man_reference(reference: &str) -> Option<(&str, &str)> {
+    let (name, section) = reference.rsplit_once('(')?;
+    let section = section.strip_suffix(')')?;
+    if name.is_empty()
+        || name.bytes().any(|byte| byte.is_ascii_whitespace())
+        || section.is_empty()
+        || !section.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    Some((name, section))
+}
+
+fn push_man_reference(output: &mut Vec<u8>, name: &str, section: &str, punctuation: &str) {
+    output.extend_from_slice(
+        format!(
+            ".BR {} ({}){}\n",
+            roff_escape(name),
+            roff_escape(section),
+            punctuation
+        )
+        .as_bytes(),
+    );
+}
+
+fn push_section_heading(output: &mut Vec<u8>, section: &str) {
+    output.extend_from_slice(format!(".SH \"{section}\"\n").as_bytes());
+}
+
+fn push_subsection_heading(output: &mut Vec<u8>, title: &str) {
+    output.extend_from_slice(format!(".SS \"{}\"\n", roff_escape(title)).as_bytes());
+}
+
+fn push_paragraph(output: &mut Vec<u8>, text: &str) {
+    output.extend_from_slice(b".PP\n");
+    push_text_line(output, text);
+}
+
+fn push_text_line(output: &mut Vec<u8>, text: &str) {
+    output.extend_from_slice(roff_escape(text).as_bytes());
+    output.push(b'\n');
+}
+
+fn roff_escape(text: &str) -> String {
+    let mut escaped = String::new();
+    if matches!(text.as_bytes().first(), Some(b'.' | b'\'')) {
+        escaped.push_str("\\&");
+    }
+    for character in text.chars() {
+        match character {
+            '\\' => escaped.push_str("\\e"),
+            '-' => escaped.push_str("\\-"),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
 }
 
 fn read_pages(directory: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
@@ -133,11 +924,14 @@ fn read_pages(directory: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
     if !directory.exists() {
         return Ok(pages);
     }
-
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension() != Some(OsStr::new("1")) {
+        if !path
+            .extension()
+            .and_then(OsStr::to_str)
+            .is_some_and(|section| MANAGED_SECTIONS.contains(&section))
+        {
             continue;
         }
         if !entry.file_type()?.is_file() {
@@ -162,7 +956,7 @@ fn changes(expected: &BTreeMap<String, Vec<u8>>, actual: &BTreeMap<String, Vec<u
         match actual.get(name) {
             None => changes.missing.push(name.clone()),
             Some(actual_contents) if actual_contents != contents => {
-                changes.changed.push(name.clone());
+                changes.changed.push(name.clone())
             }
             Some(_) => {}
         }
@@ -195,7 +989,6 @@ fn sync_artifacts(expected: &BTreeMap<String, Vec<u8>>) -> Result<()> {
     fs::create_dir_all(&directory)?;
     let actual = read_pages(&directory)?;
     let changes = changes(expected, &actual);
-
     for name in changes.missing.iter().chain(&changes.changed) {
         fs::write(directory.join(name), &expected[name])?;
     }
@@ -251,7 +1044,6 @@ fn check_artifacts(expected: &BTreeMap<String, Vec<u8>>) -> Result<()> {
         )
         .into());
     }
-
     if changes.is_empty() && !index_missing && !index_changed {
         println!(
             "man pages and embedded index are up to date ({} pages)",
@@ -259,7 +1051,6 @@ fn check_artifacts(expected: &BTreeMap<String, Vec<u8>>) -> Result<()> {
         );
         return Ok(());
     }
-
     changes.print();
     if index_missing {
         eprintln!("missing: {}", index.display());
@@ -272,24 +1063,37 @@ fn check_artifacts(expected: &BTreeMap<String, Vec<u8>>) -> Result<()> {
     )
 }
 
-fn preview_page(generated_dir: &Path, pages: &BTreeMap<String, Vec<u8>>, page: &str) -> Result<()> {
+fn preview_page(pages: &BTreeMap<String, Vec<u8>>, page: &str) -> Result<()> {
     if page.is_empty()
         || !page
             .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.'))
     {
         return Err(io::Error::other(format!("invalid page name `{page}`")).into());
     }
-
-    let filename = format!("{page}.1");
-    if !pages.contains_key(&filename) {
-        return Err(io::Error::other(format!(
-            "unknown page `{page}`; choose a generated page stem such as `snip` or `snip-create`"
+    let candidates = if page
+        .rsplit_once('.')
+        .is_some_and(|(_, section)| MANAGED_SECTIONS.contains(&section))
+    {
+        vec![page.to_owned()]
+    } else {
+        MANAGED_SECTIONS
+            .iter()
+            .map(|section| format!("{page}.{section}"))
+            .collect()
+    };
+    let (filename, contents) = candidates
+        .iter()
+        .find_map(|filename| pages.get(filename).map(|contents| (filename, contents)))
+        .ok_or_else(|| {
+        io::Error::other(format!(
+            "unknown page `{page}`; choose a generated page such as `snip`, `snip-create`, or `sniplib.5`"
         ))
-        .into());
-    }
-
-    let path = generated_dir.join(filename).canonicalize()?;
+    })?;
+    let generated = tempfile::tempdir()?;
+    let path = generated.path().join(filename);
+    fs::write(&path, contents)?;
+    let path = path.canonicalize()?;
     println!("previewing {}", path.display());
     let status = Command::new("man").arg(&path).status().map_err(|error| {
         if error.kind() == io::ErrorKind::NotFound {
@@ -308,4 +1112,70 @@ fn preview_page(generated_dir: &Path, pages: &BTreeMap<String, Vec<u8>>, page: &
         return Err(io::Error::other(format!("`man` exited with status {status}")).into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Block, PAGES, cli::Cli, parse_parts, render_pages, roff_escape, validate_manifest,
+    };
+    use clap::CommandFactory;
+
+    #[test]
+    fn prose_parser_keeps_literal_blocks_and_collapses_paragraphs() {
+        let parts = parse_parts(
+            "%%DESCRIPTION\nfirst  line\ncontinued\n\n    snip --output json list\n    .literal\n",
+        )
+        .unwrap();
+        let blocks = &parts.sections["DESCRIPTION"];
+        assert!(matches!(&blocks[0], Block::Paragraph(text) if text == "first line continued"));
+        assert!(
+            matches!(&blocks[1], Block::Literal(lines) if lines == &["snip --output json list", ".literal"])
+        );
+    }
+
+    #[test]
+    fn roff_escape_protects_control_lines_backslashes_and_hyphens() {
+        assert_eq!(roff_escape(".snip --tag a\\b"), "\\&.snip \\-\\-tag a\\eb");
+        assert_eq!(roff_escape("'quoted'"), "\\&'quoted'");
+    }
+
+    #[test]
+    fn manifest_rejects_an_uncovered_visible_command() {
+        let root = Cli::command().subcommand(clap::Command::new("future-command"));
+        let error = validate_manifest(&root).unwrap_err().to_string();
+        assert!(error.contains("undocumented command: `snip future-command`"));
+    }
+
+    #[test]
+    fn rendered_pages_have_one_roff_preamble_and_structured_cross_references() {
+        let mut root = Cli::command().disable_help_subcommand(true);
+        root.build();
+        validate_manifest(&root).unwrap();
+        let pages = render_pages(&root).unwrap();
+        let preamble = ".ie \\n(.g .ds Aq \\(aq\n.el .ds Aq '\n";
+
+        for (name, page) in &pages {
+            let page = String::from_utf8(page.clone()).unwrap();
+            assert_eq!(page.matches(preamble).count(), 1, "{name}");
+            let see_also = page
+                .split_once(".SH \"SEE ALSO\"\n")
+                .unwrap_or_else(|| panic!("{name} has no SEE ALSO section"))
+                .1
+                .split(".SH ")
+                .next()
+                .unwrap();
+            assert!(see_also.starts_with(".BR "), "{name}: {see_also}");
+            assert!(!see_also.contains("\n.PP\n"), "{name}: {see_also}");
+        }
+
+        for spec in PAGES {
+            let name = format!("{}.{}", spec.name, spec.section);
+            let page = String::from_utf8(pages[&name].clone()).unwrap();
+            assert_eq!(page.matches(".SH \"VERSION\"\n").count(), 1, "{name}");
+            if spec.commands.len() == 1 {
+                assert_eq!(page.matches(".SH \"OPTIONS\"\n").count(), 1, "{name}");
+            }
+        }
+    }
 }

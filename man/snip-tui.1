@@ -1,61 +1,41 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-tui 1  "snip 0.6.0" 
-.SH NAME
-snip\-tui \- Open the interactive terminal browser
-.SH SYNOPSIS
-\fBsnip tui\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] 
-.SH DESCRIPTION
-Open the interactive terminal browser.
+.TH snip-tui 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-tui \- open the interactive terminal browser
+.SH "SYNOPSIS"
+\fBsnip tui\fR [\fB\-h\fR|\fB\-\-help\fR] 
+.SH "DESCRIPTION"
 .PP
-TUI bindings are loaded from keys.toml beside config.toml. Run `snip keys list` to inspect the effective bindings, `snip keys export` to create an editable starting point, and `snip keys check` to validate changes.
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
+Open the interactive terminal browser for the resolved library. The TUI provides browsing, preview, editing, trash, Git, Gist, theme, and key\-help workflows without changing the underlying library format.
+.PP
+Bindings are loaded from keys.toml beside config.toml. Use snip keys list to inspect effective bindings and snip keys export to create an editable starting point. The TUI requires a terminal and fails fast when standard input or output is not interactive.
+.PP
+Global options are described in snip(1).
+.SH "OPTIONS"
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help (see a summary with \*(Aq\-h\*(Aq)
+.SH "EXAMPLES"
+.PP
+Open the resolved library:
+.RS 4
+.nf
+snip tui
+.fi
+.RE
+.PP
+Open a named library with square bar caps for terminals without Powerline glyphs:
+.RS 4
+.nf
+snip \-\-library ~/Work.sniplib \-\-simplified\-ui tui
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-keys (1),
+.BR snip\-theme (1),
+.BR snip\-keys (5),
+.BR snip\-theme (5)
+.SH "VERSION"
+v0.6.0

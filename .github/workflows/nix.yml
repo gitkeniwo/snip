@@ -65,7 +65,11 @@ jobs:
         run: |
           ./result/bin/snip --version
           test "$(ls result/share/man/man1/*.1.gz | wc -l)" -eq "$(ls man/*.1 | wc -l)"
+          test "$(ls result/share/man/man5/*.5.gz | wc -l)" -eq "$(ls man/*.5 | wc -l)"
+          test "$(ls result/share/man/man7/*.7.gz | wc -l)" -eq "$(ls man/*.7 | wc -l)"
           test -f result/share/man/man1/snip.1.gz
+          test -f result/share/man/man5/sniplib.5.gz
+          test -f result/share/man/man7/snip-agents.7.gz
           test -f result/share/bash-completion/completions/snip.bash
           test -f result/share/zsh/site-functions/_snip
           test -f result/share/fish/vendor_completions.d/snip.fish

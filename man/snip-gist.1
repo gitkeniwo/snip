@@ -1,81 +1,155 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-gist 1  "snip 0.6.0" 
-.SH NAME
-snip\-gist \- Publish snippets to GitHub Gists through the gh CLI
-.SH SYNOPSIS
-\fBsnip gist\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
-.SH DESCRIPTION
+.TH snip-gist 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-gist \- publish snippets through GitHub Gists
+.SH "SYNOPSIS"
+\fBsnip gist\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip gist push\fR [\fB\-\-public\fR] [\fB\-\-desc\fR] [\fB\-\-new\fR] [\fB\-\-include\-notes\fR] [\fB\-\-no\-readme\fR] [\fB\-w\fR|\fB\-\-web\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip gist url\fR [\fB\-\-copy\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip gist status\fR [\fB\-\-all\fR] [\fB\-\-remote\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fISELECTOR\fR] 
+\fBsnip gist attach\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIGIST\fR> 
+\fBsnip gist detach\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip gist delete\fR [\fB\-\-yes\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip gist open\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+.SH "DESCRIPTION"
+.PP
+Publish snippets through the GitHub gh CLI. push creates or updates a gist, url prints its link, status compares local content with the last push, attach adopts an existing gist, detach forgets the local record, delete removes the remote gist, and open launches a browser.
+.PP
+Gists are secret unless \-\-public is used at creation. GitHub cannot change an existing gist's visibility. \-\-new creates a different gist and leaves the old one online; gist delete is irreversible. These operations require gh to be installed and authenticated.
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip gist"
+.PP
 Publish snippets to GitHub Gists through the gh CLI
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.SH SUBCOMMANDS
+.SS "snip gist push"
+.PP
+Create the snippet's gist, or update it when one already exists
 .TP
-snip\-gist\-push(1)
-Create the snippet\*(Aqs gist, or update it when one already exists
+\fB\-\-public\fR
+List the gist publicly. Only applies when creating; gist visibility cannot be changed afterwards
 .TP
-snip\-gist\-url(1)
-Print the URL of the snippet\*(Aqs gist
+\fB\-\-desc\fR \fI<DESC>\fR
+Gist description. Defaults to the snippet title, then to the description recorded by the previous push
 .TP
-snip\-gist\-status(1)
-Report whether a snippet\*(Aqs gist is current
+\fB\-\-new\fR
+Publish a new gist and replace the recorded one, leaving the old gist on GitHub
 .TP
-snip\-gist\-attach(1)
-Record an existing gist as this snippet\*(Aqs gist
+\fB\-\-include\-notes\fR
+Publish fragment notes as separate Markdown files
 .TP
-snip\-gist\-detach(1)
-Forget a snippet\*(Aqs gist without deleting it on GitHub
+\fB\-\-no\-readme\fR
+Leave the snippet README out of the gist
 .TP
-snip\-gist\-delete(1)
-Delete the snippet\*(Aqs gist on GitHub and forget it
+\fB\-w\fR, \fB\-\-web\fR
+Open the gist in a browser afterwards
 .TP
-snip\-gist\-open(1)
-Open the snippet\*(Aqs gist in a browser
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+Refuse the push unless the snippet still has this fingerprint
+.TP
+\fB\-\-force\fR
+Push even when the gist already matches the snippet
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip gist url"
+.PP
+Print the URL of the snippet's gist
+.TP
+\fB\-\-copy\fR
+Copy the URL to the clipboard as well as printing it
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip gist status"
+.PP
+Report whether a snippet's gist is current
+.TP
+\fB\-\-all\fR
+Report every snippet in the library that has a gist
+.TP
+\fB\-\-remote\fR
+Also fetch the gist from GitHub and report whether it still exists
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fISELECTOR\fR]
+Snippet title, UUID prefix, or package path
+.SS "snip gist attach"
+.PP
+Record an existing gist as this snippet's gist
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.TP
+<\fIGIST\fR>
+Gist ID or URL
+.SS "snip gist detach"
+.PP
+Forget a snippet's gist without deleting it on GitHub
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip gist delete"
+.PP
+Delete the snippet's gist on GitHub and forget it
+.TP
+\fB\-\-yes\fR
+Delete without prompting
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip gist open"
+.PP
+Open the snippet's gist in a browser
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SH "EXAMPLES"
+.PP
+Create or update a secret gist and print its URL:
+.RS 4
+.nf
+snip gist push Brewfile
+snip gist url Brewfile
+.fi
+.RE
+.PP
+Check every linked snippet without network access, then check one remotely:
+.RS 4
+.nf
+snip \-\-output json gist status \-\-all
+snip gist status Brewfile \-\-remote
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-query (1),
+.BR snip\-edit (1),
+.BR snip\-agents (7),
+.BR sniplib (5)
+.SH "VERSION"
+v0.6.0

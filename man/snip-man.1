@@ -1,75 +1,97 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-man 1  "snip 0.6.0" 
-.SH NAME
-snip\-man \- Install, inspect, or export the embedded manual pages
-.SH SYNOPSIS
-\fBsnip man\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
-.SH DESCRIPTION
+.TH snip-man 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-man \- install, inspect, and export manual pages
+.SH "SYNOPSIS"
+\fBsnip man\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip man path\fR [\fB\-\-prefix\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip man install\fR [\fB\-\-prefix\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip man uninstall\fR [\fB\-\-prefix\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip man show\fR [\fB\-h\fR|\fB\-\-help\fR] [\fIPAGE\fR] 
+\fBsnip man generate\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIDIRECTORY\fR> 
+.SH "DESCRIPTION"
+.PP
+Inspect and manage the manual pages embedded in the snip binary. path prints the installation directory, install writes pages and a hash manifest, uninstall removes only unchanged recorded pages, show opens an embedded page with the system viewer, and generate exports the embedded set.
+.PP
+Package\-managed binaries should install manual pages through the same package manager. install refuses an existing unrecorded page unless \-\-force is given. During upgrades it removes obsolete recorded pages whose hashes still match and keeps modified pages recorded for a later uninstall.
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip man"
+.PP
 Install, inspect, or export the embedded manual pages
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.SH SUBCOMMANDS
+.SS "snip man path"
+.PP
+Print the resolved man hierarchy root containing man1, man5, and man7
 .TP
-snip\-man\-path(1)
-Print the resolved man page installation directory
+\fB\-\-prefix\fR \fI<PREFIX>\fR
+Resolve the directory below PREFIX/share instead of the user data directory
 .TP
-snip\-man\-install(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip man install"
+.PP
 Install all manual pages
 .TP
-snip\-man\-uninstall(1)
+\fB\-\-prefix\fR \fI<PREFIX>\fR
+Install below PREFIX/share instead of the user data directory
+.TP
+\fB\-\-force\fR
+Replace pages not recorded in snip\*(Aqs installation manifest
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip man uninstall"
+.PP
 Remove unmodified pages recorded by snip
 .TP
-snip\-man\-show(1)
+\fB\-\-prefix\fR \fI<PREFIX>\fR
+Uninstall below PREFIX/share instead of the user data directory
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip man show"
+.PP
 Show an embedded manual page with the system man viewer
 .TP
-snip\-man\-generate(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fIPAGE\fR]
+Page stem or explicit page, such as snip, sniplib, or config.5
+.SS "snip man generate"
+.PP
 Export all embedded manual pages to a directory
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIDIRECTORY\fR>
+Destination root; pages are written below man1, man5, and man7
+.SH "EXAMPLES"
+.PP
+Install pages for the current user and show the create page:
+.RS 4
+.nf
+snip man install
+snip man show create
+.fi
+.RE
+.PP
+Export all embedded pages and install below a prefix:
+.RS 4
+.nf
+snip man generate ./generated\-man
+snip man install \-\-prefix /usr/local
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-config (5),
+.BR snip\-agents (7)
+.SH "VERSION"
+v0.6.0

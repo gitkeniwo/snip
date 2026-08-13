@@ -1,83 +1,12 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-list 1  "snip 0.6.0" 
-.SH NAME
-snip\-list \- List snippets without their full content
-.SH SYNOPSIS
-\fBsnip list\fR [\fB\-\-folder\fR] [\fB\-\-library\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-tag\fR] [\fB\-\-simplified\-ui\fR] [\fB\-\-sort\fR] [\fB\-h\fR|\fB\-\-help\fR] 
-.SH DESCRIPTION
-List snippets without their full content
-.SH OPTIONS
-.TP
-\fB\-\-folder\fR \fI<FOLDER>\fR
-Restrict to a folder and its subfolders. Pass "" for Uncategorized
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-no\-subfolders\fR
-Restrict \-\-folder to that folder alone, excluding its subfolders
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-tag\fR \fI<TAG>\fR
-
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
-.TP
-\fB\-\-sort\fR \fI<SORT>\fR [default: modified]
-Order of the listing. Pinned snippets always come first
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-modified: Most recently modified first. Legacy `manual` config values migrate here
-.IP \(bu 2
-title: Case\-insensitive title, ascending
-.IP \(bu 2
-created: Most recently created first
-.RE
-.TP
-\fB\-h\fR, \fB\-\-help\fR
-Print help (see a summary with \*(Aq\-h\*(Aq)
+.TH snip-list 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-list \- list snippets without their full content
+.SH "DESCRIPTION"
+.PP
+This command is documented in
+.BR snip\-query (1).
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-query (1)

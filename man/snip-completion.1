@@ -1,64 +1,25 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-completion 1  "snip 0.6.0" 
-.SH NAME
-snip\-completion \- Generate shell completion code
-.SH SYNOPSIS
-\fBsnip completion\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
-.SH DESCRIPTION
-Generate shell completion code
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
+.TH snip-completion 1  "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-completion \- generate shell completion code
+.SH "SYNOPSIS"
+\fBsnip completion\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
+.SH "DESCRIPTION"
+.PP
+Generate a completion script for a supported shell. The script is written to standard output; source it for the current session or save it in the shell's completion directory.
+.PP
+Completion generation does not modify shell startup files.
+.PP
+Global options are described in snip(1).
+.SH "OPTIONS"
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
 <\fISHELL\fR>
+Shell whose completion script should be generated
+.br
 
 .br
 \fIPossible values:\fR
@@ -74,3 +35,25 @@ powershell
 .IP \(bu 2
 zsh
 .RE
+.SH "EXAMPLES"
+.PP
+Load Bash completions for the current session:
+.RS 4
+.nf
+source <(snip completion bash)
+.fi
+.RE
+.PP
+Install a Zsh completion file in a user directory:
+.RS 4
+.nf
+mkdir \-p ~/.zfunc
+snip completion zsh > ~/.zfunc/_snip
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-config (1),
+.BR snip\-man (1)
+.SH "VERSION"
+v0.6.0
