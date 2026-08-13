@@ -112,6 +112,14 @@ jobs:
         with:
           key: ${{ matrix.name }}
       - run: cargo test --locked ${{ matrix.cargo_args }}
+      - name: Build and verify the Windows release binary
+        if: matrix.name == 'windows-stable-full'
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cargo build --locked --release --all-features
+          .\target\release\snip.exe --version
+          .\.github\scripts\check-windows-crt.ps1 -Executable target\release\snip.exe
       - name: Check generated man pages
         if: matrix.name == 'linux-msrv-full'
         run: cargo run --locked --all-features --example generate-man -- --check

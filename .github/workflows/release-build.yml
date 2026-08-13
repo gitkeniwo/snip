@@ -104,6 +104,10 @@ jobs:
         if: matrix.target != ''
       - run: .\target\release\snip.exe --version
         if: runner.os == 'Windows'
+      - name: Verify the Windows binary uses the static CRT
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\.github\scripts\check-windows-crt.ps1 -Executable target\release\snip.exe
       - name: Verify the binary is statically linked
         if: matrix.target != ''
         run: |
