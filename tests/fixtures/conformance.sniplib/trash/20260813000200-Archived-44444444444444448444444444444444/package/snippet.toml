@@ -1,0 +1,10 @@
+schema_version = 1
+id = "55555555-5555-4555-8555-555555555555"
+title = "Archived"
+created_at = "2026-08-13T00:02:00Z"
+
+[[fragments]]
+id = "66666666-6666-4666-8666-666666666666"
+title = "Fragment"
+language = "text"
+file = "fragments/001-Archived.txt"
