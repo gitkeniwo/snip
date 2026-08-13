@@ -211,16 +211,11 @@ pub fn attach(library: &Library, selector: &str, gist: &str) -> Result<Snippet> 
 }
 
 pub fn detach(library: &Library, selector: &str) -> Result<(Snippet, RemoteRecord)> {
-    let (snippet, record) = prepare_linked(library, selector)?;
-    let result = remove_record(library, &snippet)?;
-    Ok((result, record))
+    mutate_linked(library, selector, |_| Ok(()))
 }
 
 pub fn delete(library: &Library, selector: &str) -> Result<(Snippet, RemoteRecord)> {
-    let (snippet, record) = prepare_linked(library, selector)?;
-    gh::delete(&record.id)?;
-    let result = remove_record(library, &snippet)?;
-    Ok((result, record))
+    mutate_linked(library, selector, |record| gh::delete(&record.id))
 }
 
 pub fn status(snippet: &Snippet) -> Result<StatusReport> {
@@ -336,7 +331,14 @@ fn remove_record(library: &Library, snippet: &Snippet) -> Result<Snippet> {
     )
 }
 
-fn prepare_linked(library: &Library, selector: &str) -> Result<(Snippet, RemoteRecord)> {
+fn mutate_linked<F>(
+    library: &Library,
+    selector: &str,
+    before_remove: F,
+) -> Result<(Snippet, RemoteRecord)>
+where
+    F: FnOnce(&RemoteRecord) -> Result<()>,
+{
     let _lock = library.lock()?;
     let catalog = library.scan()?;
     let snippet = library.resolve_snippet(&catalog, selector)?.clone();
@@ -344,13 +346,74 @@ fn prepare_linked(library: &Library, selector: &str) -> Result<(Snippet, RemoteR
         SnipError::not_found(format!("snippet {} has no gist", snippet.title))
             .with_hint("run: snip gist push <selector>")
     })?;
-    Ok((snippet, record))
+    before_remove(&record)?;
+    let result = remove_record(library, &snippet)?;
+    Ok((result, record))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{RemoteRecord, parse_gist_id};
+    use super::{RemoteRecord, find, mutate_linked, parse_gist_id, write_record};
+    use crate::filesystem::Library;
+    use crate::service::{CreateOptions, create_snippet};
     use toml::Value;
+
+    fn linked_snippet() -> (tempfile::TempDir, Library, crate::Snippet) {
+        let temporary = tempfile::tempdir().unwrap();
+        let library = Library::init(&temporary.path().join("Gist.sniplib"), Some("Gist")).unwrap();
+        let snippet = create_snippet(
+            &library,
+            &CreateOptions {
+                title: "Linked".to_owned(),
+                language: "text".to_owned(),
+                content: "linked\n".to_owned(),
+                ..CreateOptions::default()
+            },
+        )
+        .unwrap();
+        let record = RemoteRecord {
+            kind: "gist".to_owned(),
+            host: "github.com".to_owned(),
+            id: "5b0e0062eb8e9654adad7bb1d81cc75f".to_owned(),
+            url: "https://gist.github.com/octocat/5b0e0062eb8e9654adad7bb1d81cc75f".to_owned(),
+            public: false,
+            description: Some("Linked".to_owned()),
+            files: vec!["Linked".to_owned()],
+            include_notes: false,
+            include_readme: true,
+            pushed_at: None,
+            pushed_digest: None,
+            extra: toml::Table::new(),
+        };
+        let lock = library.lock().unwrap();
+        let snippet = write_record(&library, &snippet, &record).unwrap();
+        drop(lock);
+        (temporary, library, snippet)
+    }
+
+    #[test]
+    fn linked_mutations_hold_the_library_lock_through_record_removal() {
+        let (_temporary, library, snippet) = linked_snippet();
+
+        let (updated, _) = mutate_linked(&library, &snippet.id.to_string(), |_| {
+            assert!(
+                library.lock().is_err(),
+                "the library lock must cover the mutation callback"
+            );
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(find(&updated).is_none());
+        assert!(
+            library
+                .transactions_dir()
+                .read_dir()
+                .unwrap()
+                .next()
+                .is_none()
+        );
+    }
 
     #[test]
     fn parse_gist_id_accepts_bare_ids_urls_and_trailing_slashes() {

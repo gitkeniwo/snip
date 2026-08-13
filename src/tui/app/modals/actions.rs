@@ -287,7 +287,8 @@ impl App {
                     .parent()
                     .unwrap_or_else(|| std::path::Path::new(""))
                     .join(name);
-                move_folder(&self.library, &path, &target.to_string_lossy())?;
+                let target = target.to_string_lossy().replace('\\', "/");
+                move_folder(&self.library, &path, &target)?;
                 "folder renamed".to_owned()
             }
             // Mirrors `snip folder move`: the picked destination becomes the new parent.

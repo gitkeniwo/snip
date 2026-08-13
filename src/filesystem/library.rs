@@ -41,6 +41,15 @@ impl Library {
             ))
             .with_hint("to use it instead of creating a new one:\n  snip config set default-library <path>"));
         }
+        let inferred_name = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Snippets");
+        let name = name.unwrap_or(inferred_name);
+        if name.trim().is_empty() {
+            return Err(SnipError::usage("library name cannot be empty"));
+        }
         fs::create_dir_all(path)
             .map_err(|error| SnipError::io(format!("cannot create {}: {error}", path.display())))?;
         for directory in [
@@ -53,16 +62,11 @@ impl Library {
             fs::create_dir_all(path.join(directory))
                 .map_err(|error| SnipError::io(format!("cannot create {directory}: {error}")))?;
         }
-        let inferred_name = path
-            .file_stem()
-            .and_then(|value| value.to_str())
-            .filter(|value| !value.is_empty())
-            .unwrap_or("Snippets");
         let manifest = LibraryManifest {
             format: FORMAT_NAME.to_owned(),
             schema_version: SCHEMA_VERSION,
             id: Uuid::new_v4(),
-            name: name.unwrap_or(inferred_name).to_owned(),
+            name: name.to_owned(),
             created_at: now_rfc3339()?,
             extra: toml::Table::new(),
         };
@@ -77,7 +81,7 @@ impl Library {
             &path.join("tags.toml"),
             toml::to_string_pretty(&tags)?.as_bytes(),
         )?;
-        let ignore = ".snip/cache/\n.snip/locks/\n.snip/transactions/\n.DS_Store\n";
+        let ignore = ".snip/\n.DS_Store\n";
         atomic_write(&path.join(".gitignore"), ignore.as_bytes())?;
         Self::open(path)
     }

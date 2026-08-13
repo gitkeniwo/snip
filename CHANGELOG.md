@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   binary, manual pages, and shell completions from a standalone Portage overlay;
   tagged releases update its ebuild and thin Manifest automatically.
 
+### Changed
+
+- **The v1 library format reference now matches current behavior.** It documents
+  metadata fields, fingerprints, gist payload digests, portable paths, trash,
+  and crash recovery, and `snip init` now ignores the complete `.snip/` runtime
+  tree.
+- **Format checks are safer without making old libraries unreadable.** New writes
+  validate timestamps and remote metadata; `snip doctor` reports those mistakes
+  in existing libraries while normal reads remain available. Transaction and
+  trash recovery reject escaping paths, package scans reject symbolic links in
+  unreferenced files, failed writes no longer leave incomplete transactions,
+  every gist mutation holds the library lock through its local write, and
+  `doctor --repair` holds the lock and removes safe staging debris.
+
 ## [0.6.0] - 2026-08-10
 
 ### Added

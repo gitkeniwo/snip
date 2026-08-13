@@ -5,6 +5,7 @@ use std::path::{Component, Path, PathBuf};
 use super::snippet::edit_snippet;
 use super::types::EditOptions;
 use crate::error::{Result, SnipError};
+use crate::filesystem::paths::{validate_portable_relative_path, validate_relative_path};
 use crate::filesystem::{Library, atomic_write};
 
 pub fn create_folder(library: &Library, folder: &str) -> Result<PathBuf> {
@@ -27,7 +28,9 @@ pub fn create_folder(library: &Library, folder: &str) -> Result<PathBuf> {
 
 pub fn move_folder(library: &Library, source: &str, target: &str) -> Result<PathBuf> {
     let _lock = library.lock()?;
-    let source = library.snippets_dir().join(validate_folder(source)?);
+    let source = library
+        .snippets_dir()
+        .join(validate_existing_folder(source)?);
     let target = library.snippets_dir().join(validate_folder(target)?);
     if source == library.snippets_dir() || target == library.snippets_dir() {
         return Err(SnipError::usage("cannot move the snippets root"));
@@ -56,7 +59,9 @@ pub fn move_folder(library: &Library, source: &str, target: &str) -> Result<Path
 
 pub fn delete_folder(library: &Library, folder: &str) -> Result<()> {
     let _lock = library.lock()?;
-    let path = library.snippets_dir().join(validate_folder(folder)?);
+    let path = library
+        .snippets_dir()
+        .join(validate_existing_folder(folder)?);
     if path == library.snippets_dir() {
         return Err(SnipError::usage("cannot delete the snippets root"));
     }
@@ -178,7 +183,24 @@ pub fn delete_tag(library: &Library, tag_to_delete: &str) -> Result<usize> {
 }
 
 pub(crate) fn validate_folder(folder: &str) -> Result<PathBuf> {
-    let path = Path::new(folder.trim_matches('/'));
+    validate_folder_with(folder, true)
+}
+
+fn validate_existing_folder(folder: &str) -> Result<PathBuf> {
+    validate_folder_with(folder, false)
+}
+
+fn validate_folder_with(folder: &str, portable: bool) -> Result<PathBuf> {
+    let relative = folder.trim_matches('/');
+    if relative.is_empty() {
+        return Ok(PathBuf::new());
+    }
+    if portable {
+        validate_portable_relative_path(relative)?;
+    } else {
+        validate_relative_path(relative)?;
+    }
+    let path = Path::new(relative);
     if path.is_absolute()
         || path
             .components()

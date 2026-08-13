@@ -34,7 +34,8 @@ pub fn command_folder(library: &Library, args: &FolderArgs, output: OutputMode) 
                 .parent()
                 .unwrap_or_else(|| Path::new(""))
                 .join(new_name);
-            let path = move_folder(library, folder, &target.to_string_lossy())?;
+            let target = target.to_string_lossy().replace('\\', "/");
+            let path = move_folder(library, folder, &target)?;
             print_simple_path("renamed", &path, output)?;
         }
         FolderCommand::Move { folder, target } => {

@@ -7,6 +7,8 @@ use super::snippet::{ensure_hash, ensure_mutable};
 use super::types::{TrashEntry, TrashMetadata};
 use crate::domain::{Fingerprint, SCHEMA_VERSION, Snippet};
 use crate::error::{Result, SnipError};
+use crate::filesystem::io::{reject_symlink, validate_rfc3339, validate_schema};
+use crate::filesystem::paths::resolve_relative_path;
 use crate::filesystem::{Library, atomic_write, now_rfc3339, package_name, safe_component};
 
 pub fn delete_snippet(
@@ -42,6 +44,7 @@ pub fn delete_snippet(
         entry_id: entry_id.clone(),
         deleted_at: deleted_at.clone(),
         original_path: original_path.clone(),
+        extra: toml::Table::new(),
     };
     atomic_write(
         &entry_dir.join("trash.toml"),
@@ -79,7 +82,9 @@ pub fn trash_entries(library: &Library) -> Result<Vec<TrashEntry>> {
         if !metadata_path.is_file() || !package_path.is_dir() {
             continue;
         }
+        reject_symlink(&metadata_path)?;
         let metadata: TrashMetadata = toml::from_str(&fs::read_to_string(&metadata_path)?)?;
+        validate_trash_metadata(library, &metadata, &metadata_path)?;
         let snippet = library.load_snippet(&package_path)?;
         result.push(TrashEntry {
             entry_id: metadata.entry_id,
@@ -107,7 +112,7 @@ pub fn restore_snippet(
         let snippet = library.load_snippet(&entry.package_path)?;
         parent.join(package_name(&snippet.title, snippet.id))
     } else {
-        library.root().join(&entry.original_path)
+        resolve_original_path(library, &entry.original_path)?
     };
     if target.exists() {
         return Err(SnipError::conflict(format!(
@@ -125,6 +130,38 @@ pub fn restore_snippet(
         let _ = fs::remove_dir(wrapper);
     }
     library.load_snippet(&target)
+}
+
+fn validate_trash_metadata(
+    library: &Library,
+    metadata: &TrashMetadata,
+    metadata_path: &std::path::Path,
+) -> Result<()> {
+    validate_schema(metadata.schema_version, metadata_path)?;
+    if metadata.entry_id.len() != 32
+        || !metadata
+            .entry_id
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(SnipError::validation(format!(
+            "{} has an invalid trash entry_id",
+            metadata_path.display()
+        )));
+    }
+    validate_rfc3339(&metadata.deleted_at, "deleted_at", metadata_path)?;
+    resolve_original_path(library, &metadata.original_path)?;
+    Ok(())
+}
+
+fn resolve_original_path(library: &Library, relative: &str) -> Result<std::path::PathBuf> {
+    let path = resolve_relative_path(library.root(), relative)?;
+    if path == library.snippets_dir() || !path.starts_with(library.snippets_dir()) {
+        return Err(SnipError::validation(format!(
+            "trash original_path must name a package below snippets/: {relative:?}"
+        )));
+    }
+    Ok(path)
 }
 
 pub fn purge_snippet(library: &Library, selector: &str) -> Result<TrashEntry> {
