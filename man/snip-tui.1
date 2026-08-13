@@ -1,12 +1,11 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-tui 1  "snip 0.6.0" "Snip Manual"
+.TH snip-tui 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-tui \- open the interactive terminal browser
 .SH "SYNOPSIS"
 \fBsnip tui\fR [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
-.PP
 Open the interactive terminal browser for the resolved library. The TUI provides browsing, preview, editing, trash, Git, Gist, theme, and key\-help workflows without changing the underlying library format.
 .PP
 Bindings are loaded from keys.toml beside config.toml. Use snip keys list to inspect effective bindings and snip keys export to create an editable starting point. The TUI requires a terminal and fails fast when standard input or output is not interactive.
@@ -17,7 +16,6 @@ Global options are described in snip(1).
 \fB\-h\fR, \fB\-\-help\fR
 Print help (see a summary with \*(Aq\-h\*(Aq)
 .SH "EXAMPLES"
-.PP
 Open the resolved library:
 .RS 4
 .nf

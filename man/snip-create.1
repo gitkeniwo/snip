@@ -1,12 +1,11 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-create 1  "snip 0.6.0" "Snip Manual"
+.TH snip-create 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-create \- create a snippet
 .SH "SYNOPSIS"
 \fBsnip create\fR <\fB\-\-title\fR> [\fB\-\-folder\fR] [\fB\-\-tag\fR] [\fB\-\-language\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-pin\fR] [\fB\-\-lock\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
-.PP
 Create a snippet with one initial fragment. The title is required; language, folder, and tags fall back to configured defaults when omitted. \-\-tag is repeatable, and a missing folder is created automatically.
 .PP
 Inline text and file input are mutually exclusive. A path of \- for \-\-content\-file, \-\-note\-file, or \-\-readme\-file reads UTF\-8 text from standard input. A note describes the initial fragment; a README describes the snippet as a whole.
@@ -56,7 +55,6 @@ Lock the new snippet against mutation
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH "EXAMPLES"
-.PP
 Create a shell snippet from inline content:
 .RS 4
 .nf

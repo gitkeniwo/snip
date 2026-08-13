@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-gist 1  "snip 0.6.0" "Snip Manual"
+.TH snip-gist 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-gist \- publish snippets through GitHub Gists
 .SH "SYNOPSIS"
@@ -13,7 +13,6 @@ snip\-gist \- publish snippets through GitHub Gists
 \fBsnip gist delete\fR [\fB\-\-yes\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip gist open\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 .SH "DESCRIPTION"
-.PP
 Publish snippets through the GitHub gh CLI. push creates or updates a gist, url prints its link, status compares local content with the last push, attach adopts an existing gist, detach forgets the local record, delete removes the remote gist, and open launches a browser.
 .PP
 Gists are secret unless \-\-public is used at creation. GitHub cannot change an existing gist's visibility. \-\-new creates a different gist and leaves the old one online; gist delete is irreversible. These operations require gh to be installed and authenticated.
@@ -21,13 +20,11 @@ Gists are secret unless \-\-public is used at creation. GitHub cannot change an 
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip gist"
-.PP
 Publish snippets to GitHub Gists through the gh CLI
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip gist push"
-.PP
 Create the snippet's gist, or update it when one already exists
 .TP
 \fB\-\-public\fR
@@ -60,7 +57,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip gist url"
-.PP
 Print the URL of the snippet's gist
 .TP
 \fB\-\-copy\fR
@@ -72,7 +68,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip gist status"
-.PP
 Report whether a snippet's gist is current
 .TP
 \fB\-\-all\fR
@@ -87,7 +82,6 @@ Print help
 [\fISELECTOR\fR]
 Snippet title, UUID prefix, or package path
 .SS "snip gist attach"
-.PP
 Record an existing gist as this snippet's gist
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -99,7 +93,6 @@ Snippet title, UUID prefix, or package path
 <\fIGIST\fR>
 Gist ID or URL
 .SS "snip gist detach"
-.PP
 Forget a snippet's gist without deleting it on GitHub
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -108,7 +101,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip gist delete"
-.PP
 Delete the snippet's gist on GitHub and forget it
 .TP
 \fB\-\-yes\fR
@@ -120,7 +112,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip gist open"
-.PP
 Open the snippet's gist in a browser
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -129,7 +120,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SH "EXAMPLES"
-.PP
 Create or update a secret gist and print its URL:
 .RS 4
 .nf

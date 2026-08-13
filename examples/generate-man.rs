@@ -589,6 +589,7 @@ fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
         .about(spec.title);
     clap_mangen::Man::new(title_command)
         .section(spec.section.to_string())
+        .date("\"\"")
         .source(SOURCE)
         .manual(MANUAL)
         .render_title(&mut output)?;
@@ -719,6 +720,7 @@ fn render_alias(alias: &AliasSpec) -> Result<Vec<u8>> {
         .about(alias.title);
     clap_mangen::Man::new(title_command)
         .section("1")
+        .date("\"\"")
         .source(SOURCE)
         .manual(MANUAL)
         .render_title(&mut output)?;
@@ -895,8 +897,21 @@ fn push_subsection_heading(output: &mut Vec<u8>, title: &str) {
 }
 
 fn push_paragraph(output: &mut Vec<u8>, text: &str) {
-    output.extend_from_slice(b".PP\n");
+    if !output_ends_with_heading(output) {
+        output.extend_from_slice(b".PP\n");
+    }
     push_text_line(output, text);
+}
+
+fn output_ends_with_heading(output: &[u8]) -> bool {
+    let end = output
+        .len()
+        .saturating_sub(usize::from(output.ends_with(b"\n")));
+    let start = output[..end]
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .map_or(0, |index| index + 1);
+    output[start..end].starts_with(b".SH ") || output[start..end].starts_with(b".SS ")
 }
 
 fn push_text_line(output: &mut Vec<u8>, text: &str) {
@@ -1117,7 +1132,8 @@ fn preview_page(pages: &BTreeMap<String, Vec<u8>>, page: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Block, PAGES, cli::Cli, parse_parts, render_pages, roff_escape, validate_manifest,
+        Block, MANUAL, PAGES, SOURCE, cli::Cli, parse_parts, render_pages, roff_escape,
+        validate_manifest,
     };
     use clap::CommandFactory;
 
@@ -1158,6 +1174,20 @@ mod tests {
         for (name, page) in &pages {
             let page = String::from_utf8(page.clone()).unwrap();
             assert_eq!(page.matches(preamble).count(), 1, "{name}");
+            let (title, section) = name.rsplit_once('.').unwrap();
+            let title_line = page.lines().find(|line| line.starts_with(".TH ")).unwrap();
+            assert_eq!(
+                title_line,
+                format!(".TH {title} {section} \"\" \"{SOURCE}\" \"{MANUAL}\"")
+            );
+            for lines in page.lines().collect::<Vec<_>>().windows(2) {
+                assert!(
+                    !((lines[0].starts_with(".SH ") || lines[0].starts_with(".SS "))
+                        && lines[1] == ".PP"),
+                    "{name}: redundant .PP after {}",
+                    lines[0]
+                );
+            }
             let see_also = page
                 .split_once(".SH \"SEE ALSO\"\n")
                 .unwrap_or_else(|| panic!("{name} has no SEE ALSO section"))

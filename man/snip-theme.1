@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-theme 1  "snip 0.6.0" "Snip Manual"
+.TH snip-theme 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-theme \- inspect and manage TUI color themes
 .SH "SYNOPSIS"
@@ -13,7 +13,6 @@ snip\-theme \- inspect and manage TUI color themes
 \fBsnip theme import\fR [\fB\-\-as\fR] [\fB\-\-syntax\fR] [\fB\-\-force\fR] [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIPATH\fR> 
 \fBsnip theme use\fR [\fB\-\-appearance\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
 .SH "DESCRIPTION"
-.PP
 List, inspect, validate, export, import, and select TUI color themes. Built\-in and user themes share the same validation rules. Appearance slots allow separate light and dark choices.
 .PP
 export copies a theme into the user theme directory for editing. import converts a base16 or base24 scheme. check reports contrast and role\-distinctness problems before a theme is selected.
@@ -21,13 +20,11 @@ export copies a theme into the user theme directory for editing. import converts
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip theme"
-.PP
 List, inspect, and switch TUI color themes
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip theme list"
-.PP
 List available themes
 .TP
 \fB\-\-appearance\fR \fI<APPEARANCE>\fR
@@ -46,7 +43,6 @@ dark
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip theme show"
-.PP
 Print one theme's resolved colors
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -55,7 +51,6 @@ Print help
 <\fINAME\fR>
 Theme name
 .SS "snip theme check"
-.PP
 Validate a theme's contrast and role distinctness
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -64,13 +59,11 @@ Print help
 <\fINAME\fR>
 Theme name
 .SS "snip theme path"
-.PP
 Print the directory user themes are read from
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip theme export"
-.PP
 Write a theme to the user theme directory so it can be edited
 .TP
 \fB\-\-as\fR \fI<AS>\fR
@@ -85,7 +78,6 @@ Print help
 <\fINAME\fR>
 Theme name to export
 .SS "snip theme import"
-.PP
 Convert a base16 scheme file into a user theme
 .TP
 \fB\-\-as\fR \fI<AS>\fR
@@ -106,7 +98,6 @@ Print help
 <\fIPATH\fR>
 Path to a base16 or base24 scheme file, or "\-" to read stdin
 .SS "snip theme use"
-.PP
 Select a theme for its appearance slot and save it to the config
 .TP
 \fB\-\-appearance\fR \fI<APPEARANCE>\fR
@@ -128,7 +119,6 @@ Print help
 <\fINAME\fR>
 Theme name to select
 .SH "EXAMPLES"
-.PP
 List dark themes and inspect one as JSON:
 .RS 4
 .nf

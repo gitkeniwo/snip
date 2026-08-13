@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-git 1  "snip 0.6.0" "Snip Manual"
+.TH snip-git 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-git \- run Git operations scoped to a library
 .SH "SYNOPSIS"
@@ -14,7 +14,6 @@ snip\-git \- run Git operations scoped to a library
 \fBsnip git fetch\fR [\fB\-h\fR|\fB\-\-help\fR] 
 \fBsnip git pull\fR [\fB\-\-ff\-only\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
-.PP
 Run Git backup operations scoped to the resolved library. status reports repository availability, dirty files, upstream, and ahead or behind counts. init is idempotent. commit stages and commits library content. backup commits when dirty and pushes when ahead. push retries a push without committing, fetch updates remote\-tracking refs, and pull fetches and merges the configured upstream.
 .PP
 CLI Git commands disable credential prompts and fail fast. They never switch branches. Use \-\-ff\-only with pull to reject divergence instead of creating a merge commit.
@@ -22,13 +21,11 @@ CLI Git commands disable credential prompts and fail fast. They never switch bra
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip git"
-.PP
 Run Git operations scoped to this library
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip git clone"
-.PP
 Clone a snip library from a Git remote
 .TP
 \fB\-\-gh\fR
@@ -46,19 +43,16 @@ Remote to clone. Passed to git unchanged; with \-\-gh it is passed to gh, which 
 [\fIPATH\fR]
 Destination directory. Defaults to ~/<repo name>.sniplib
 .SS "snip git status"
-.PP
 Show read\-only backup status for this library
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip git init"
-.PP
 Make this library a Git repository when it is not one already
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip git commit"
-.PP
 Commit all library changes without pushing
 .TP
 \fB\-m\fR, \fB\-\-message\fR \fI<MESSAGE>\fR
@@ -67,25 +61,21 @@ Override the generated backup message
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip git backup"
-.PP
 Commit all library changes and push when an upstream is configured
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip git push"
-.PP
 Push commits to the configured upstream without committing
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip git fetch"
-.PP
 Fetch and prune remote\-tracking refs without touching the worktree
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip git pull"
-.PP
 Fetch from the upstream and merge it into the current branch
 .TP
 \fB\-\-ff\-only\fR
@@ -94,7 +84,6 @@ Refuse to merge when the branch has diverged, instead of creating a merge commit
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH "EXAMPLES"
-.PP
 Initialize Git and commit the current library:
 .RS 4
 .nf

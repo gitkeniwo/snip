@@ -1,12 +1,11 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-completion 1  "snip 0.6.0" "Snip Manual"
+.TH snip-completion 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-completion \- generate shell completion code
 .SH "SYNOPSIS"
 \fBsnip completion\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
 .SH "DESCRIPTION"
-.PP
 Generate a completion script for a supported shell. The script is written to standard output; source it for the current session or save it in the shell's completion directory.
 .PP
 Completion generation does not modify shell startup files.
@@ -36,7 +35,6 @@ powershell
 zsh
 .RE
 .SH "EXAMPLES"
-.PP
 Load Bash completions for the current session:
 .RS 4
 .nf

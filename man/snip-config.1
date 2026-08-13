@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-config 1  "snip 0.6.0" "Snip Manual"
+.TH snip-config 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-config \- inspect and modify snip configuration
 .SH "SYNOPSIS"
@@ -11,7 +11,6 @@ snip\-config \- inspect and modify snip configuration
 \fBsnip config set\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
 \fBsnip config unset\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> 
 .SH "DESCRIPTION"
-.PP
 Inspect and modify the user configuration. path prints the resolved config file, show prints effective stored values, init creates a file, set updates one supported key, and unset removes a key so the built\-in default applies again.
 .PP
 Unknown TOML fields are preserved when snip writes the file. Configuration key meanings and defaults are documented in snip\-config(5).
@@ -19,25 +18,21 @@ Unknown TOML fields are preserved when snip writes the file. Configuration key m
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip config"
-.PP
 Inspect and modify ~/.config/snip/config.toml
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip config path"
-.PP
 Print the resolved config file path
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip config show"
-.PP
 Print the current config (defaults to an empty schema when absent)
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip config init"
-.PP
 Create a config file, optionally binding a default library
 .TP
 \fB\-\-force\fR
@@ -46,7 +41,6 @@ Replace an existing config file
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip config set"
-.PP
 Set one supported config key
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -108,7 +102,6 @@ git\-backup\-on\-quit
 <\fIVALUE\fR>
 New value, parsed according to the selected key
 .SS "snip config unset"
-.PP
 Remove one supported config key and restore its built\-in default
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -167,7 +160,6 @@ git\-auto\-pull
 git\-backup\-on\-quit
 .RE
 .SH "EXAMPLES"
-.PP
 Print the configuration path and current contents:
 .RS 4
 .nf

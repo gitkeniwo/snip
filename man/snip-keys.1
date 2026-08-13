@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-keys 1  "snip 0.6.0" "Snip Manual"
+.TH snip-keys 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-keys \- inspect and manage TUI key bindings
 .SH "SYNOPSIS"
@@ -11,7 +11,6 @@ snip\-keys \- inspect and manage TUI key bindings
 \fBsnip keys export\fR [\fB\-\-mode\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 \fBsnip keys check\fR [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
-.PP
 Inspect, export, and validate the effective TUI key map. list groups bindings by mode, show finds every binding for an action slug, path prints the keys.toml location, export writes an authoritative default file, and check reports conflicts and lockouts.
 .PP
 Key bindings are separate from config.toml and are never rewritten by snip config set. The file format, modes, chords, and required escape bindings are documented in snip\-keys(5).
@@ -19,13 +18,11 @@ Key bindings are separate from config.toml and are never rewritten by snip confi
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip keys"
-.PP
 Inspect, validate, and export TUI key bindings
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip keys list"
-.PP
 List effective bindings, grouped by mode
 .TP
 \fB\-\-mode\fR \fI<MODE>\fR
@@ -60,7 +57,6 @@ gist
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip keys show"
-.PP
 Show every mode and chord bound to one action slug
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -69,13 +65,11 @@ Print help
 <\fIACTION\fR>
 Action slug to inspect
 .SS "snip keys path"
-.PP
 Print the resolved keys.toml path
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip keys export"
-.PP
 Write the built\-in bindings as an authoritative keys.toml
 .TP
 \fB\-\-mode\fR \fI<MODE>\fR
@@ -113,13 +107,11 @@ Overwrite an existing keys.toml
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip keys check"
-.PP
 Validate keys.toml and report strict binding diagnostics
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH "EXAMPLES"
-.PP
 List effective preview\-mode bindings and inspect one action:
 .RS 4
 .nf

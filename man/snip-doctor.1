@@ -1,12 +1,11 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-doctor 1  "snip 0.6.0" "Snip Manual"
+.TH snip-doctor 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-doctor \- validate and repair a library
 .SH "SYNOPSIS"
 \fBsnip doctor\fR [\fB\-\-repair\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
-.PP
 Validate library manifests, paths, content, and interrupted transaction state. The report includes checked items, errors, warnings, pending transactions, repairs, and an overall ok flag.
 .PP
 With \-\-repair, snip finishes or rolls back interrupted staged writes. It does not invent missing snippet content or bypass ordinary validation failures.
@@ -20,7 +19,6 @@ Finish or roll back interrupted filesystem transactions
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH "EXAMPLES"
-.PP
 Check the resolved library and emit a machine\-readable report:
 .RS 4
 .nf

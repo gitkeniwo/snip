@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-init 1  "snip 0.6.0" "Snip Manual"
+.TH snip-init 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-init \- create and import snippet libraries
 .SH "SYNOPSIS"
@@ -8,7 +8,6 @@ snip\-init \- create and import snippet libraries
 \fBsnip import\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
 \fBsnip import snippetslab\fR <\fB\-\-into\fR> [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISOURCE\fR> 
 .SH "DESCRIPTION"
-.PP
 Create a new .sniplib library or import an existing SnippetsLab collection. init can create a dedicated Git repository and record a human\-readable library name. In noninteractive use, pass an explicit path or \-\-yes.
 .PP
 SnippetsLab imports require a destination library. Run with \-\-dry\-run first to inspect counts, normalized tags, attachments, and validation warnings without modifying the destination.
@@ -16,7 +15,6 @@ SnippetsLab imports require a destination library. Run with \-\-dry\-run first t
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip init"
-.PP
 Create a new filesystem snippet library
 .TP
 \fB\-\-name\fR \fI<NAME>\fR
@@ -34,13 +32,11 @@ Print help
 [\fIPATH\fR]
 Directory to create. Defaults to an interactive or platform\-specific choice
 .SS "snip import"
-.PP
 Import another snippet format
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip import snippetslab"
-.PP
 Import a SnippetsLab library or export
 .TP
 \fB\-\-into\fR \fI<INTO>\fR
@@ -55,7 +51,6 @@ Print help
 <\fISOURCE\fR>
 SnippetsLab source file or directory
 .SH "EXAMPLES"
-.PP
 Create a Git\-backed library without prompting:
 .RS 4
 .nf

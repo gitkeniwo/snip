@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-man 1  "snip 0.6.0" "Snip Manual"
+.TH snip-man 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-man \- install, inspect, and export manual pages
 .SH "SYNOPSIS"
@@ -11,7 +11,6 @@ snip\-man \- install, inspect, and export manual pages
 \fBsnip man show\fR [\fB\-h\fR|\fB\-\-help\fR] [\fIPAGE\fR] 
 \fBsnip man generate\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIDIRECTORY\fR> 
 .SH "DESCRIPTION"
-.PP
 Inspect and manage the manual pages embedded in the snip binary. path prints the installation directory, install writes pages and a hash manifest, uninstall removes only unchanged recorded pages, show opens an embedded page with the system viewer, and generate exports the embedded set.
 .PP
 Package\-managed binaries should install manual pages through the same package manager. install refuses an existing unrecorded page unless \-\-force is given. During upgrades it removes obsolete recorded pages whose hashes still match and keeps modified pages recorded for a later uninstall.
@@ -19,13 +18,11 @@ Package\-managed binaries should install manual pages through the same package m
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip man"
-.PP
 Install, inspect, or export the embedded manual pages
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip man path"
-.PP
 Print the resolved man hierarchy root containing man1, man5, and man7
 .TP
 \fB\-\-prefix\fR \fI<PREFIX>\fR
@@ -34,7 +31,6 @@ Resolve the directory below PREFIX/share instead of the user data directory
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip man install"
-.PP
 Install all manual pages
 .TP
 \fB\-\-prefix\fR \fI<PREFIX>\fR
@@ -46,7 +42,6 @@ Replace pages not recorded in snip\*(Aqs installation manifest
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip man uninstall"
-.PP
 Remove unmodified pages recorded by snip
 .TP
 \fB\-\-prefix\fR \fI<PREFIX>\fR
@@ -55,7 +50,6 @@ Uninstall below PREFIX/share instead of the user data directory
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip man show"
-.PP
 Show an embedded manual page with the system man viewer
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -64,7 +58,6 @@ Print help
 [\fIPAGE\fR]
 Page stem or explicit page, such as snip, sniplib, or config.5
 .SS "snip man generate"
-.PP
 Export all embedded manual pages to a directory
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -73,7 +66,6 @@ Print help
 <\fIDIRECTORY\fR>
 Destination root; pages are written below man1, man5, and man7
 .SH "EXAMPLES"
-.PP
 Install pages for the current user and show the create page:
 .RS 4
 .nf

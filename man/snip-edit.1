@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-edit 1  "snip 0.6.0" "Snip Manual"
+.TH snip-edit 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-edit \- modify and organize snippets
 .SH "SYNOPSIS"
@@ -22,7 +22,6 @@ snip\-edit \- modify and organize snippets
 \fBsnip tag delete\fR [\fB\-h\fR|\fB\-\-help\fR] <\fITAG\fR> 
 \fBsnip organize\fR [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
-.PP
 Modify snippet metadata and content, manage fragments, organize physical folders and tags, and normalize package directory names. Mutations use staged filesystem transactions and advisory locking.
 .PP
 Every read reports a BLAKE3 fingerprint computed from the snippet manifest, README, fragments, and notes. For a safe read\-modify\-write, read the current fingerprint and pass it back with \-\-if\-hash. If another writer changed the snippet, snip exits with conflict instead of overwriting it. Carry new_fingerprint from a successful mutation into the next write.
@@ -32,7 +31,6 @@ Use \-\-force only when overwriting concurrent changes or bypassing a lock is in
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip edit"
-.PP
 Modify a snippet or launch an external editor
 .TP
 \fB\-\-title\fR \fI<TITLE>\fR
@@ -113,13 +111,11 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip fragment"
-.PP
 Manage snippet fragments
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip fragment add"
-.PP
 Add a fragment to a snippet
 .TP
 \fB\-\-title\fR \fI<TITLE>\fR
@@ -152,7 +148,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip fragment edit"
-.PP
 Modify a fragment
 .TP
 \fB\-\-title\fR \fI<TITLE>\fR
@@ -191,7 +186,6 @@ Snippet title, UUID prefix, or package path
 <\fIFRAGMENT\fR>
 Fragment 1\-based index or UUID prefix
 .SS "snip fragment remove"
-.PP
 Remove a fragment
 .TP
 \fB\-\-if\-hash\fR \fI<IF_HASH>\fR
@@ -209,7 +203,6 @@ Snippet title, UUID prefix, or package path
 <\fIFRAGMENT\fR>
 Fragment 1\-based index or UUID prefix
 .SS "snip fragment reorder"
-.PP
 Move a fragment to a new 1\-based position
 .TP
 \fB\-\-position\fR \fI<POSITION>\fR
@@ -230,19 +223,16 @@ Snippet title, UUID prefix, or package path
 <\fIFRAGMENT\fR>
 Fragment 1\-based index or UUID prefix
 .SS "snip folder"
-.PP
 Manage physical folder paths
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip folder list"
-.PP
 List physical snippet folders
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip folder create"
-.PP
 Create a folder path
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -251,7 +241,6 @@ Print help
 <\fIFOLDER\fR>
 Folder path to create
 .SS "snip folder rename"
-.PP
 Rename the final component of a folder path
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -263,7 +252,6 @@ Existing folder path
 <\fINEW_NAME\fR>
 New final path component
 .SS "snip folder move"
-.PP
 Move a folder and its snippets
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -275,7 +263,6 @@ Existing folder path
 <\fITARGET\fR>
 Full destination folder path
 .SS "snip folder delete"
-.PP
 Delete an empty folder
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -284,19 +271,16 @@ Print help
 <\fIFOLDER\fR>
 Empty folder path to delete
 .SS "snip tag"
-.PP
 Rename or remove tags across snippets
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip tag list"
-.PP
 List all known tags
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip tag rename"
-.PP
 Rename a tag across the library
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -308,7 +292,6 @@ Existing tag name
 <\fINEW_NAME\fR>
 Replacement tag name
 .SS "snip tag delete"
-.PP
 Delete a tag from the registry and every snippet
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -317,7 +300,6 @@ Print help
 <\fITAG\fR>
 Tag name to delete
 .SS "snip organize"
-.PP
 Normalize snippet package directory names
 .TP
 \fB\-\-dry\-run\fR
@@ -326,7 +308,6 @@ Report package\-directory renames without applying them
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH "EXAMPLES"
-.PP
 Rename a snippet with optimistic concurrency:
 .RS 4
 .nf

@@ -1,12 +1,11 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip 1  "snip 0.6.0" "Snip Manual"
+.TH snip 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip \- filesystem\-native snippet library
 .SH "SYNOPSIS"
 \fBsnip\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
 .SH "DESCRIPTION"
-.PP
 snip stores code snippets as ordinary files in a .sniplib directory. It provides a scriptable command\-line interface and an optional interactive terminal browser while keeping the filesystem as the source of truth.
 .PP
 Library resolution follows this order: \-\-library, SNIP_LIBRARY, the nearest ancestor containing snip.toml, then default_library from the user configuration. Commands that need a library fail instead of silently creating one.
@@ -152,7 +151,6 @@ Install, inspect, or export the embedded manual pages
 snip\-completion(1)
 Generate shell completion code
 .SH "EXIT STATUS"
-.PP
 0 indicates success.
 .PP
 1 is io_error: a filesystem, process, or operating\-system operation failed.
@@ -165,7 +163,6 @@ Generate shell completion code
 .PP
 5 is validation_error: input or managed data violates snip's format rules.
 .SH "ENVIRONMENT"
-.PP
 SNIP_LIBRARY selects a library when \-\-library is absent.
 .PP
 SNIP_TUI_THEME temporarily selects the TUI theme.
@@ -176,14 +173,12 @@ EDITOR and VISUAL select the external text editor. PAGER selects the preview pag
 .PP
 XDG_CONFIG_HOME controls the user configuration directory. XDG_DATA_HOME controls the default user man\-page installation root.
 .SH "FILES"
-.PP
 ~/.config/snip/config.toml is the default user configuration file. keys.toml beside it contains TUI key bindings.
 .PP
 ~/.local/share/snip/man\-install.json records user\-installed manual pages when XDG_DATA_HOME is unset.
 .PP
 *.sniplib is a snippet library. Its format is documented in sniplib(5).
 .SH "EXAMPLES"
-.PP
 List snippets from the resolved library as JSON:
 .RS 4
 .nf

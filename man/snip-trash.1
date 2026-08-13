@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-trash 1  "snip 0.6.0" "Snip Manual"
+.TH snip-trash 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-trash \- manage the soft\-deletion lifecycle
 .SH "SYNOPSIS"
@@ -9,7 +9,6 @@ snip\-trash \- manage the soft\-deletion lifecycle
 \fBsnip restore\fR [\fB\-\-folder\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip purge\fR [\fB\-\-yes\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 .SH "DESCRIPTION"
-.PP
 Manage soft\-deleted snippets. delete moves a snippet package into the library trash and records its original path. trash lists entries and their entry_id. restore moves an entry back, optionally to another folder. purge permanently removes an entry and requires \-\-yes.
 .PP
 restore and purge select a trash entry by entry_id, not by the snippet UUID. A restore fails with conflict when the destination is occupied. Purge is irreversible.
@@ -17,7 +16,6 @@ restore and purge select a trash entry by entry_id, not by the snippet UUID. A r
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip delete"
-.PP
 Move a snippet to the library trash
 .TP
 \fB\-\-if\-hash\fR \fI<IF_HASH>\fR
@@ -32,13 +30,11 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip trash"
-.PP
 List deleted snippets
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SS "snip restore"
-.PP
 Restore a deleted snippet
 .TP
 \fB\-\-folder\fR \fI<FOLDER>\fR
@@ -50,7 +46,6 @@ Print help
 <\fISELECTOR\fR>
 Trash entry ID or unique prefix
 .SS "snip purge"
-.PP
 Permanently remove a trash entry
 .TP
 \fB\-\-yes\fR
@@ -62,7 +57,6 @@ Print help
 <\fISELECTOR\fR>
 Trash entry ID or unique prefix
 .SH "EXAMPLES"
-.PP
 Soft\-delete a snippet after checking its fingerprint:
 .RS 4
 .nf

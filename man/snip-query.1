@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-query 1  "snip 0.6.0" "Snip Manual"
+.TH snip-query 1 "" "snip 0.6.0" "Snip Manual"
 .SH "NAME"
 snip\-query \- query and inspect snippets without modifying them
 .SH "SYNOPSIS"
@@ -13,7 +13,6 @@ snip\-query \- query and inspect snippets without modifying them
 \fBsnip open\fR [\fB\-\-metadata\fR] [\fB\-\-readme\fR] [\fB\-\-fragment\fR] [\fB\-\-app\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip info\fR [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
-.PP
 Read and inspect snippets without modifying them. list returns summaries, search returns scored matching lines, show returns one complete snippet, cat prints raw fragment bytes, preview renders human\-facing output, path resolves managed files, open launches an application, and info reports library counts.
 .PP
 A snippet selector is resolved as a package path relative to snippets, a UUID prefix of at least eight hexadecimal digits, or an exact case\-sensitive title. Ambiguous titles are conflicts. Fragment selectors are a 1\-based index or a fragment UUID prefix.
@@ -25,7 +24,6 @@ Use show for structured content and fingerprints, cat for pipelines, and preview
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip list"
-.PP
 List snippets without their full content
 .TP
 \fB\-\-folder\fR \fI<FOLDER>\fR
@@ -55,7 +53,6 @@ created: Most recently created first
 \fB\-h\fR, \fB\-\-help\fR
 Print help (see a summary with \*(Aq\-h\*(Aq)
 .SS "snip search"
-.PP
 Search titles, tags, notes, and fragment content
 .TP
 \fB\-\-regex\fR
@@ -101,7 +98,6 @@ Print help
 <\fIQUERY\fR>
 Text or regular expression to find
 .SS "snip show"
-.PP
 Show a complete snippet
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -110,7 +106,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip cat"
-.PP
 Print one fragment with no decorations
 .TP
 \fB\-\-fragment\fR \fI<FRAGMENT>\fR
@@ -122,7 +117,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip preview"
-.PP
 Render a snippet for terminal or HTML preview
 .TP
 \fB\-\-render\fR \fI<RENDER>\fR
@@ -152,7 +146,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip path"
-.PP
 Print a managed filesystem path
 .TP
 \fB\-\-metadata\fR
@@ -170,7 +163,6 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip open"
-.PP
 Open a managed path in an external application
 .TP
 \fB\-\-metadata\fR
@@ -191,13 +183,11 @@ Print help
 <\fISELECTOR\fR>
 Snippet title, UUID prefix, or package path
 .SS "snip info"
-.PP
 Show library metadata and counts
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH "EXAMPLES"
-.PP
 List every snippet below the Code folder carrying the rust tag:
 .RS 4
 .nf
