@@ -4,6 +4,12 @@ man/*.1 text eol=lf linguist-generated -diff
 man/*.5 text eol=lf linguist-generated -diff
 man/*.7 text eol=lf linguist-generated -diff
 
+# Man prose digests and generated-document byte checks require stable bytes
+# on every checkout.
+FORMAT.md text eol=lf
+docs/keys.md text eol=lf
+docs/themes.md text eol=lf
+
 # Committed binary fixtures (Apple NSKeyedArchiver blobs). Treat as binary so
 # autocrlf never rewrites them and GitHub shows "Binary file changed".
 src/importer/snippetslab/fixtures/** -text
