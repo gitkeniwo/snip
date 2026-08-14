@@ -1,9 +1,15 @@
+#[cfg(feature = "tui")]
+#[path = "common/keydoc.rs"]
+mod keydoc;
+
 #[allow(dead_code)]
 #[path = "../src/cli.rs"]
 mod cli;
 
 use clap::CommandFactory;
 use cli::Cli;
+#[cfg(feature = "tui")]
+use snip::keys::Keymap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::error::Error;
@@ -843,6 +849,7 @@ fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
             if section != "DESCRIPTION" {
                 push_section_heading(&mut output, section);
                 render_part_section(&mut output, &parts, section);
+                render_generated_sections(&mut output, spec, section);
             }
         }
     }
@@ -854,6 +861,63 @@ fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
         "VERSION",
     )?;
     Ok(output)
+}
+
+fn render_generated_sections(output: &mut Vec<u8>, spec: &PageSpec, after_section: &str) {
+    if spec.name == "snip-keys" && spec.section == 5 && after_section == "MODES" {
+        push_section_heading(output, "DEFAULT BINDINGS");
+        #[cfg(feature = "tui")]
+        render_key_bindings(output);
+    }
+}
+
+#[cfg(feature = "tui")]
+fn render_key_bindings(output: &mut Vec<u8>) {
+    let document = keydoc::collect(&Keymap::defaults());
+    for mode in document.modes {
+        push_subsection_heading(output, mode.label);
+        push_paragraph(output, mode.blurb);
+        if mode.rows.is_empty() {
+            push_paragraph(output, "No bindings of its own.");
+        }
+        for row in mode.rows {
+            push_key_row(output, &row);
+        }
+        if !mode.inherited.is_empty() {
+            push_paragraph(output, "Inherited from global:");
+            for row in mode.inherited {
+                push_key_row(output, &row);
+            }
+        }
+    }
+    push_subsection_heading(output, "mouse");
+    for mouse in document.mouse {
+        push_tagged_paragraph(
+            output,
+            mouse.key,
+            &format!(
+                "{} Available in {}.",
+                mouse.description,
+                mouse.modes.join(", ")
+            ),
+        );
+    }
+}
+
+#[cfg(feature = "tui")]
+fn push_key_row(output: &mut Vec<u8>, row: &keydoc::KeyRow) {
+    let action = row.action.unwrap_or("fixed input");
+    push_tagged_paragraph(
+        output,
+        &row.keys.join(" / "),
+        &format!("{action}: {}", row.description),
+    );
+}
+
+fn push_tagged_paragraph(output: &mut Vec<u8>, tag: &str, description: &str) {
+    output.extend_from_slice(b".TP\n");
+    output.extend_from_slice(format!("\\fB{}\\fR\n", roff_escape(tag)).as_bytes());
+    push_text_line(output, description);
 }
 
 fn command_for_page(mut command: clap::Command, is_root: bool) -> clap::Command {
