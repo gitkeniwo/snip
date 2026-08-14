@@ -22,7 +22,7 @@
 [![Gentoo](https://img.shields.io/badge/gentoo-overlay-lightgrey)](https://github.com/gitkeniwo/gentoo-snip-overlay)
 [![Nix](https://img.shields.io/badge/nix-flake-lightgrey)](https://github.com/gitkeniwo/snip#nix)
 [![Cachix](https://img.shields.io/badge/cachix-snip-lightgrey)](https://app.cachix.org/cache/snip)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/gitkeniwo/snip#install)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/gitkeniwo/snip#installation)
 
 </p>
 
@@ -34,7 +34,7 @@ under Git.
 
 Runs on Linux, macOS, and Windows.
 
-- [Install](#install) · [Quick start](#quick-start) · [What it does](#what-it-does)
+- [Installation](#installation) · [Quick start](#quick-start) · [What it does](#what-it-does)
 - [Terminal browser](#terminal-browser) · [Agent-friendly operations](#agent-friendly-operations)
 - [AI agent skills](#ai-agent-skills) · [Configuration](#configuration)
 - [Files are the database](#files-are-the-database) · [Preview and editing](#preview-and-editing)
@@ -42,27 +42,29 @@ Runs on Linux, macOS, and Windows.
 - [Share as a gist](#share-as-a-gist) · [Manual pages](#manual-pages) · [Shell completion](#shell-completion)
 - [Development](#development) · [License](#license)
 
-## Install
+## Installation
 
 Every route installs one command, `snip`. Distribution packages are named
-`sniplab` after the crate.
+`sniplab` after the crate. Linux x86_64 and arm64 are covered throughout.
 
 | System | Quick start |
 |---|---|
-| macOS, Linux (no `sudo`) | `curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh \| sh` |
+| [macOS, Linux (no `sudo`)](#install-script) | `curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh \| sh` |
 | [Homebrew](#macos--linux-homebrew) | `brew install gitkeniwo/snip/snip` |
-| [Ubuntu, Debian, Mint, Kali](#debian--ubuntu--mint--kali) | add the OBS repository, then `sudo apt install sniplab` |
+| [Debian, Ubuntu, Mint, Kali](#debian--ubuntu--mint--kali) | add the OBS repository, then `sudo apt install sniplab` |
 | [Fedora, RHEL, Rocky, Alma](#fedora--enterprise-linux) | `sudo dnf copr enable gitkeniwo/snip`, then `sudo dnf install sniplab` |
 | [openSUSE Tumbleweed, Leap](#opensuse) | add the OBS repository, then `sudo zypper install sniplab` |
 | [Arch, Manjaro, EndeavourOS](#arch-linux) | `yay -S sniplab-bin` |
-| [Gentoo](#gentoo) | `sudo emerge app-misc/sniplab-bin` from the snip overlay |
+| [Gentoo](#gentoo) | `sudo emerge --ask app-misc/sniplab-bin` from the snip overlay |
 | [Nix, NixOS](#nix) | `nix profile install github:gitkeniwo/snip` |
 | [Windows](#windows-scoop) | `scoop bucket add snip https://github.com/gitkeniwo/scoop-snip`, then `scoop install snip` |
 | [Rust toolchain](#cargo) | `cargo binstall sniplab` |
 
-The Homebrew, deb, rpm, AUR, Gentoo, and Nix packages also install the manual
-pages and shell completions, so `man snip` and tab completion work right away.
-Everything else is opt-in through `snip man install` and `snip completion`.
+Homebrew, Nix, Gentoo, and the repository-built deb and rpm packages install
+the manual pages and shell completions, so `man snip` and tab completion work
+right away. The AUR packages and the standalone release `.deb` / `.rpm` carry
+the manual pages only. Everywhere else both are opt-in, through
+`snip man install` and `snip completion`.
 
 ### Install script
 
@@ -70,7 +72,7 @@ Everything else is opt-in through `snip man install` and `snip completion`.
 curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh | sh
 ```
 
-The script installs `snip` to `~/.local/bin` without `sudo`. 
+The script installs `snip` to `~/.local/bin` without `sudo`.
 Re-run it to **upgrade**, or pass `--uninstall` to **remove** the binary:
 
 ```bash
@@ -136,14 +138,19 @@ sudo apt update
 sudo apt install sniplab
 ```
 
-The repository is amd64 only. On arm64, install the standalone `.deb` from a
-release instead — it needs glibc 2.35 or newer, so Ubuntu 22.04+ and Debian
-12+, and upgrading means downloading the newer file again:
+Each repository carries both amd64 and arm64, and `apt` picks the right one, so
+the block above is the same on either architecture.
+
+On a distribution missing from the table — Debian 12, or a non-LTS Ubuntu —
+install the standalone `.deb` from a release instead. It needs glibc 2.35 or
+newer, and upgrading means downloading the newer file again:
 
 ```bash
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.deb
-sudo apt install ./snip-aarch64-unknown-linux-gnu.deb
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb
+sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
 ```
+
+On arm64, swap `x86_64` for `aarch64`.
 
 ### Fedora / Enterprise Linux
 
@@ -183,24 +190,26 @@ On arm64, swap `x86_64` for `aarch64`.
 Built natively for each release on the
 [Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab),
 so `zypper` installs a prebuilt `snip` and `zypper up` picks up new releases.
-x86_64 only.
 
-Tumbleweed (and Slowroll):
+Pick `REPO` from the table, then paste the block below it:
+
+| System | `REPO` |
+|---|---|
+| Tumbleweed, Slowroll (x86_64) | `openSUSE_Tumbleweed` |
+| Tumbleweed (aarch64) | `openSUSE_Factory_ARM` |
+| Leap 16.0 (x86_64, aarch64) | `16.0` |
 
 ```bash
-sudo zypper addrepo https://download.opensuse.org/repositories/home:gitkeniwo/openSUSE_Tumbleweed/home:gitkeniwo.repo
+REPO=openSUSE_Tumbleweed    # from the table above
+
+sudo zypper addrepo https://download.opensuse.org/repositories/home:gitkeniwo/$REPO/home:gitkeniwo.repo
 sudo zypper --gpg-auto-import-keys refresh
 sudo zypper install sniplab
 ```
 
-Leap 16.0 — the same three lines with `16.0` in place of
-`openSUSE_Tumbleweed`:
-
-```bash
-sudo zypper addrepo https://download.opensuse.org/repositories/home:gitkeniwo/16.0/home:gitkeniwo.repo
-sudo zypper --gpg-auto-import-keys refresh
-sudo zypper install sniplab
-```
+Tumbleweed is split by architecture because its aarch64 packages build against
+openSUSE Factory ARM, a separate upstream project. Leap serves both from one
+repository.
 
 ### Arch Linux
 
@@ -212,7 +221,7 @@ yay -S sniplab-bin
 ```
 
 `paru -S sniplab-bin` works too. If you prefer to build from source, install
-`sniplab` instead 
+`sniplab` instead:
 
 ```bash
 yay -S sniplab
@@ -325,7 +334,7 @@ version floor; the install script uses them on Linux. Upgrading a downloaded
 
 The distribution repositories are not affected by either requirement: Copr, the
 Open Build Service, and the AUR source package all compile against the release
-you install on. Copr covers x86_64 and arm64; OBS is x86_64 only for now.
+you install on, and both Copr and OBS cover x86_64 and arm64.
 
 Release history is in [CHANGELOG.md](CHANGELOG.md).
 
@@ -919,9 +928,9 @@ snippets carry no marker.
 
 ## Manual pages
 
-Homebrew, deb, rpm, AUR, and Gentoo packages install them, so `man snip` works
-right away. For `cargo install` or a downloaded archive, install the pages
-embedded in the binary:
+Homebrew, Nix, AUR, Gentoo, and the deb and rpm packages install them, so
+`man snip` works right away. For `cargo install` or a downloaded archive,
+install the pages embedded in the binary:
 
 ```bash
 snip man path                                # where they will go
@@ -939,6 +948,9 @@ below `DIR/man1`, `DIR/man5`, and `DIR/man7`. Windows has no `man`; use `snip
 --help`.
 
 ## Shell completion
+
+Homebrew, Nix, Gentoo, and the repository deb and rpm packages already install
+these. Elsewhere, generate them yourself:
 
 ```bash
 snip completion zsh > ~/.zfunc/_snip

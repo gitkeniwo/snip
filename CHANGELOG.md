@@ -25,12 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `home:gitkeniwo/sniplab`, which compiles `sniplab` natively for openSUSE
   Tumbleweed and Leap 16.0, Ubuntu 22.04/24.04/26.04, and Debian 13, testing,
   and unstable — covering derivatives such as Linux Mint, Pop!_OS, Zorin OS,
-  elementary OS, LMDE, and Kali. `zypper` and `apt` install a prebuilt `snip`
-  with its manual pages and shell completions, and pick up later releases on
-  upgrade. x86_64 only for now. An `OBS packaging probe` workflow rebuilds the
-  openSUSE rpm and the Debian source transform the way OBS does, and `Release
-  build` accepts an `obs_only` dispatch that resubmits the current version
-  without cutting a release.
+  elementary OS, LMDE, and Kali, on both x86_64 and arm64. `zypper` and `apt`
+  install a prebuilt `snip` with its manual pages and shell completions, and
+  pick up later releases on upgrade. An `OBS packaging probe` workflow rebuilds
+  the openSUSE rpm and the Debian source transform the way OBS does, and
+  `Release build` accepts an `obs_only` dispatch that resubmits the current
+  version without cutting a release.
 
 ### Changed
 
