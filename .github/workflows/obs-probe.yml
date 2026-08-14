@@ -3,6 +3,14 @@ name: OBS packaging probe
 on:
   push:
     branches: [ci/opensuse-probe]
+  pull_request:
+    # The probe rebuilds what OBS builds, so run it whenever a recipe it
+    # renders changes. Both the rpm and the Debian transform come from these
+    # files; a break here would otherwise surface only at release time.
+    paths:
+      - packaging/obs/**
+      - packaging/copr/sniplab.spec.in
+      - .github/workflows/obs-probe.yml
   workflow_dispatch:
 
 permissions:
