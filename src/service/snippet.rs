@@ -11,7 +11,7 @@ use super::types::{CreateOptions, EditOptions, TransactionState};
 use crate::domain::{
     ChangeSet, Fingerprint, FragmentManifest, SCHEMA_VERSION, Snippet, SnippetManifest,
 };
-use crate::error::{Result, SnipError};
+use crate::error::{ErrorKind, Result, SnipError};
 use crate::filesystem::{
     Library, atomic_write, extension_for_language, fragment_relative_path, normalize_tags,
     note_relative_path, now_rfc3339, package_name, resolve_managed_path, write_snippet_manifest,
@@ -353,7 +353,22 @@ where
         let _ = fs::remove_dir_all(&transaction_dir);
         return Err(error);
     }
-    write_snippet_manifest(&manifest_path, &manifest)?;
+    if let Err(mut error) = write_snippet_manifest(&manifest_path, &manifest) {
+        let _ = fs::remove_dir_all(&transaction_dir);
+        if error.kind == ErrorKind::Validation {
+            let source_manifest = snippet.package_path.join("snippet.toml");
+            error.message = error.message.replacen(
+                &manifest_path.display().to_string(),
+                &source_manifest.display().to_string(),
+                1,
+            );
+            error = error.with_hint(
+                "run snip doctor to list metadata that blocks writes, then fix it by hand"
+                    .to_owned(),
+            );
+        }
+        return Err(error);
+    }
     if let Err(error) = library.load_snippet(&stage) {
         let _ = fs::remove_dir_all(&transaction_dir);
         return Err(error);
@@ -366,6 +381,7 @@ where
         operation: "replace".to_owned(),
         original_path: relative_to_root(library, &snippet.package_path)?,
         target_path: relative_to_root(library, target_path)?,
+        extra: toml::Table::new(),
     };
     atomic_write(
         &transaction_dir.join("transaction.toml"),

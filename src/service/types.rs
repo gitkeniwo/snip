@@ -88,6 +88,8 @@ pub(crate) struct TrashMetadata {
     pub(crate) entry_id: String,
     pub(crate) deleted_at: String,
     pub(crate) original_path: String,
+    #[serde(flatten)]
+    pub(crate) extra: toml::Table,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -96,4 +98,6 @@ pub(crate) struct TransactionState {
     pub(crate) operation: String,
     pub(crate) original_path: String,
     pub(crate) target_path: String,
+    #[serde(flatten)]
+    pub(crate) extra: toml::Table,
 }

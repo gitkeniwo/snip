@@ -5,7 +5,10 @@ use std::path::{Path, PathBuf};
 use crate::domain::{CatalogSnapshot, Fingerprint, Fragment, Snippet, SnippetManifest};
 use crate::error::{Result, SnipError};
 
-use super::io::{hash_entry, read_safe_file, reject_symlink, validate_snippet_manifest};
+use super::io::{
+    hash_entry, read_safe_file, reject_symlink, reject_symlinks_recursive,
+    validate_snippet_manifest,
+};
 use super::library::Library;
 use super::paths::{normalize_tags, path_to_slashes, resolve_managed_path, system_time_rfc3339};
 
@@ -63,7 +66,7 @@ impl Library {
     }
 
     pub fn load_snippet(&self, package_path: &Path) -> Result<Snippet> {
-        reject_symlink(package_path)?;
+        reject_symlinks_recursive(package_path)?;
         let manifest_path = package_path.join(SNIPPET_MANIFEST);
         reject_symlink(&manifest_path)?;
         let manifest_bytes = fs::read(&manifest_path).map_err(|error| {
