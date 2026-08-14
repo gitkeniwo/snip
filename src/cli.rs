@@ -1,6 +1,7 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+use snip::config::ConfigKey;
 use snip::domain::{FolderFilter, SearchField};
 use snip::sort::SortMode;
 
@@ -974,33 +975,6 @@ pub enum ConfigCommand {
         #[arg(value_enum)]
         key: ConfigKey,
     },
-}
-
-#[derive(Clone, Copy, Debug, ValueEnum)]
-#[value(rename_all = "kebab-case")]
-pub enum ConfigKey {
-    DefaultLibrary,
-    Output,
-    Color,
-    PreviewRender,
-    PreviewPager,
-    Editor,
-    EditorCwd,
-    Pager,
-    DefaultLanguage,
-    DefaultFolder,
-    DefaultTags,
-    TuiTheme,
-    TuiLightTheme,
-    TuiDarkTheme,
-    TuiSort,
-    TuiDensity,
-    TuiLineNumbers,
-    TuiSimplifiedUi,
-    GitAutoCommitInterval,
-    GitAutoPush,
-    GitAutoPull,
-    GitBackupOnQuit,
 }
 
 #[cfg(test)]

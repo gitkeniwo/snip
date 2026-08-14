@@ -8,7 +8,7 @@ snip user configuration is TOML schema version 1. It supplies machine\-local def
 .SH "LOCATION"
 The file is $XDG_CONFIG_HOME/snip/config.toml, or ~/.config/snip/config.toml when XDG_CONFIG_HOME is unset. Explicit command\-line options override configuration. SNIP_TUI_THEME and an in\-session appearance override may override theme selection.
 .SH "SCHEMA"
-The complete schema and representative defaults are:
+The complete schema and representative values are shown below.
 .RS 4
 .nf
 schema_version = 1
@@ -24,10 +24,7 @@ pager = "less \-R"
 default_language = "text"
 default_folder = ""
 default_tags = ["personal"]
-.fi
-.RE
-.RS 4
-.nf
+
 [tui]
 theme = "auto"
 light_theme = "light\-default"
@@ -36,10 +33,7 @@ sort = "modified"
 density = "comfortable"
 line_numbers = true
 simplified_ui = false
-.fi
-.RE
-.RS 4
-.nf
+
 [git]
 auto_commit_interval = 0
 auto_push = false
@@ -47,24 +41,86 @@ auto_pull = false
 backup_on_quit = false
 .fi
 .RE
-.SH "GENERAL KEYS"
-default_library is the fallback after \-\-library, SNIP_LIBRARY, and ancestor discovery. output is human, json, or jsonl. color is auto, always, or never. preview_render is ansi, plain, or html. preview_pager controls pager use.
-.PP
-editor is the external editor command. vscode_cmd defaults to code and is used by open or the TUI's external\-app action. pager defaults to less \-R when PAGER is absent.
-.PP
-default_language, default_folder, and default_tags seed create when corresponding flags are absent. The empty folder means Uncategorized.
+.SH "CONFIGURATION KEYS"
+.SS "Settable keys"
+.TP
+\fBdefault_library (snip config set default\-library)\fR
+Selects the fallback library after command\-line, environment, and ancestor discovery. Values: path to a .sniplib directory.
+.TP
+\fBoutput (snip config set output)\fR
+Selects the default command output format. Values: human | json | jsonl.
+.TP
+\fBcolor (snip config set color)\fR
+Controls colored command output. Values: auto | always | never.
+.TP
+\fBpreview_render (snip config set preview\-render)\fR
+Selects the default preview renderer. Values: ansi | plain | html.
+.TP
+\fBpreview_pager (snip config set preview\-pager)\fR
+Controls whether previews use a pager. Values: true | false.
+.TP
+\fBeditor (snip config set editor)\fR
+Sets the external editor command. Values: non\-empty command string.
+.TP
+\fBeditor_cwd (snip config set editor\-cwd)\fR
+Selects the working directory used by the external editor. Values: inherit | library | folder | snippet | fragment.
+.TP
+\fBpager (snip config set pager)\fR
+Sets the pager command used when PAGER is absent. Values: non\-empty command string.
+.TP
+\fBdefault_language (snip config set default\-language)\fR
+Sets the language assigned by create when no language is supplied. Values: non\-empty language name.
+.TP
+\fBdefault_folder (snip config set default\-folder)\fR
+Sets the folder assigned by create; an empty value means Uncategorized. Values: folder path or empty string.
+.TP
+\fBdefault_tags (snip config set default\-tags)\fR
+Sets the tags assigned by create when no tags are supplied. Values: comma\-separated tags for the CLI; string array in TOML.
+.TP
+\fBtui.theme (snip config set tui\-theme)\fR
+Selects automatic, light, dark, or named TUI theme resolution. Values: auto | light | dark | theme name in TOML.
+.TP
+\fBtui.light_theme (snip config set tui\-light\-theme)\fR
+Selects the theme used for the light appearance slot. Values: non\-empty theme name.
+.TP
+\fBtui.dark_theme (snip config set tui\-dark\-theme)\fR
+Selects the theme used for the dark appearance slot. Values: non\-empty theme name.
+.TP
+\fBtui.sort (snip config set tui\-sort)\fR
+Selects the default TUI snippet sort order. Values: modified | created | title.
+.TP
+\fBtui.density (snip config set tui\-density)\fR
+Selects comfortable or compact TUI spacing. Values: comfortable | compact.
+.TP
+\fBtui.line_numbers (snip config set tui\-line\-numbers)\fR
+Controls the preview line\-number gutter. Values: true | false.
+.TP
+\fBtui.simplified_ui (snip config set tui\-simplified\-ui)\fR
+Replaces Powerline caps with square, font\-independent cells. Values: true | false.
+.TP
+\fBgit.auto_commit_interval (snip config set git\-auto\-commit\-interval)\fR
+Sets the automatic commit interval; zero disables scheduled commits and pushes. Values: non\-negative whole number of minutes.
+.TP
+\fBgit.auto_push (snip config set git\-auto\-push)\fR
+Pushes ahead commits after automatic interval work. Values: true | false.
+.TP
+\fBgit.auto_pull (snip config set git\-auto\-pull)\fR
+Fetches and integrates the upstream during configured TUI startup behavior. Values: true | false.
+.TP
+\fBgit.backup_on_quit (snip config set git\-backup\-on\-quit)\fR
+Requests an interactive backup before TUI exit. Values: true | false.
+.SS "File\-only keys"
+.TP
+\fBvscode_cmd (file only)\fR
+Sets the Visual Studio Code command used by open and TUI external\-app actions. Values: command string.
+.SS "Managed keys"
+.TP
+\fBschema_version (managed by snip)\fR
+Configuration schema version managed by snip; do not edit it manually. Values: 1.
 .SH "EDITOR WORKING DIRECTORY"
 editor_cwd is inherit, library, folder, snippet, or fragment. inherit keeps the caller directory. library uses the .sniplib root. folder uses the package's containing folder. snippet uses the package. fragment uses the fragment or note directory; README and metadata stay at package level.
 .PP
 Snippet packages are transactionally replaced as whole directories. Prefer folder or library when another process may write while an editor is open. On Windows, configure an absolute editor executable for untrusted libraries; relative commands are resolved before changing directory.
-.SH "TUI KEYS"
-tui.theme is auto, light, dark, or a theme name. light_theme and dark_theme select appearance slots. sort is modified, created, title, or manual where supported. density is comfortable or compact. line_numbers controls the preview gutter. simplified_ui uses square bar caps without Powerline glyphs.
-.PP
-SNIP_TUI_THEME=light or dark overrides tui.theme; any other non\-empty value selects a named theme. A session appearance override takes precedence without rewriting the file.
-.SH "GIT KEYS"
-git.auto_commit_interval is a whole number of minutes. Zero disables scheduled commits and pushes. auto_push pushes ahead commits in the background after interval work. auto_pull fetches and integrates the upstream during configured startup behavior. backup_on_quit requests an interactive backup before TUI exit.
-.PP
-Automatic Git work belongs to the TUI and configuration, not the library format. Enabling auto_push while the interval is zero has no effect and produces a warning.
 .SH "SEE ALSO"
 .BR snip (1),
 .BR snip\-config (1),

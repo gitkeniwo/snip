@@ -8,6 +8,7 @@ mod cli;
 
 use clap::CommandFactory;
 use cli::Cli;
+use snip::config::{CONFIG_FIELDS, ConfigFieldSpec, FieldKind};
 #[cfg(feature = "tui")]
 use snip::keys::Keymap;
 use std::collections::{BTreeMap, BTreeSet};
@@ -864,10 +865,64 @@ fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
 }
 
 fn render_generated_sections(output: &mut Vec<u8>, spec: &PageSpec, after_section: &str) {
+    if spec.name == "snip-config" && spec.section == 5 && after_section == "LOCATION" {
+        push_section_heading(output, "SCHEMA");
+        push_paragraph(
+            output,
+            "The complete schema and representative values are shown below.",
+        );
+        render_config_schema(output);
+        push_section_heading(output, "CONFIGURATION KEYS");
+        render_config_fields(output);
+    }
     if spec.name == "snip-keys" && spec.section == 5 && after_section == "MODES" {
         push_section_heading(output, "DEFAULT BINDINGS");
         #[cfg(feature = "tui")]
         render_key_bindings(output);
+    }
+}
+
+fn render_config_schema(output: &mut Vec<u8>) {
+    output.extend_from_slice(b".RS 4\n.nf\n");
+    let mut current_table = "";
+    for field in CONFIG_FIELDS {
+        let (table, key) = field
+            .toml_path
+            .rsplit_once('.')
+            .unwrap_or(("", field.toml_path));
+        if table != current_table {
+            output.push(b'\n');
+            push_text_line(output, &format!("[{table}]"));
+            current_table = table;
+        }
+        push_text_line(output, &format!("{key} = {}", field.example));
+    }
+    output.extend_from_slice(b".fi\n.RE\n");
+}
+
+fn render_config_fields(output: &mut Vec<u8>) {
+    for (kind, heading) in [
+        (FieldKind::Settable, "Settable keys"),
+        (FieldKind::FileOnly, "File-only keys"),
+        (FieldKind::Managed, "Managed keys"),
+    ] {
+        push_subsection_heading(output, heading);
+        for field in CONFIG_FIELDS.iter().filter(|field| field.kind == kind) {
+            let label = config_field_label(field);
+            let description = format!("{} Values: {}.", field.summary, field.values);
+            push_tagged_paragraph(output, &label, &description);
+        }
+    }
+}
+
+fn config_field_label(field: &ConfigFieldSpec) -> String {
+    match (field.kind, field.cli_key) {
+        (FieldKind::Settable, Some(key)) => {
+            format!("{} (snip config set {})", field.toml_path, key.name())
+        }
+        (FieldKind::FileOnly, None) => format!("{} (file only)", field.toml_path),
+        (FieldKind::Managed, None) => format!("{} (managed by snip)", field.toml_path),
+        _ => format!("{} (invalid registry entry)", field.toml_path),
     }
 }
 

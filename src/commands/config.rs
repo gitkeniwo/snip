@@ -2,8 +2,9 @@ use clap::CommandFactory;
 use serde_json::json;
 use snip::Library;
 use snip::config::{
-    AppConfig, ColorSetting, EDITOR_CWD_VALUES, EditorCwdSetting, GitConfig, OutputSetting,
-    PreviewRenderSetting, TuiConfig, TuiDensitySetting, TuiThemeSetting, config_path,
+    AppConfig, ColorSetting, ConfigKey, EDITOR_CWD_VALUES, EditorCwdSetting, GitConfig,
+    OutputSetting, PreviewRenderSetting, TuiConfig, TuiDensitySetting, TuiThemeSetting,
+    config_path,
 };
 use snip::error::{Result, SnipError};
 use snip::sort::SortMode;
@@ -12,8 +13,8 @@ use std::path::{Path, PathBuf};
 
 use super::output::{print_record, resolve_color, resolve_output};
 use crate::cli::{
-    Cli, ColorMode, CompletionArgs, CompletionShell, ConfigArgs, ConfigCommand, ConfigKey,
-    InitArgs, OutputMode,
+    Cli, ColorMode, CompletionArgs, CompletionShell, ConfigArgs, ConfigCommand, InitArgs,
+    OutputMode,
 };
 
 pub fn command_init(

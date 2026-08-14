@@ -44,7 +44,7 @@ Print help
 Set one supported config key
 .TP
 \fB\-h\fR, \fB\-\-help\fR
-Print help
+Print help (see a summary with \*(Aq\-h\*(Aq)
 .TP
 <\fIKEY\fR>
 Configuration key to update
@@ -54,49 +54,49 @@ Configuration key to update
 \fIPossible values:\fR
 .RS 14
 .IP \(bu 2
-default\-library
+default\-library: Selects the fallback library after command\-line, environment, and ancestor discovery.
 .IP \(bu 2
-output
+output: Selects the default command output format.
 .IP \(bu 2
-color
+color: Controls colored command output.
 .IP \(bu 2
-preview\-render
+preview\-render: Selects the default preview renderer.
 .IP \(bu 2
-preview\-pager
+preview\-pager: Controls whether previews use a pager.
 .IP \(bu 2
-editor
+editor: Sets the external editor command.
 .IP \(bu 2
-editor\-cwd
+editor\-cwd: Selects the working directory used by the external editor.
 .IP \(bu 2
-pager
+pager: Sets the pager command used when PAGER is absent.
 .IP \(bu 2
-default\-language
+default\-language: Sets the language assigned by create when no language is supplied.
 .IP \(bu 2
-default\-folder
+default\-folder: Sets the folder assigned by create; an empty value means Uncategorized.
 .IP \(bu 2
-default\-tags
+default\-tags: Sets the tags assigned by create when no tags are supplied.
 .IP \(bu 2
-tui\-theme
+tui\-theme: Selects automatic, light, dark, or named TUI theme resolution.
 .IP \(bu 2
-tui\-light\-theme
+tui\-light\-theme: Selects the theme used for the light appearance slot.
 .IP \(bu 2
-tui\-dark\-theme
+tui\-dark\-theme: Selects the theme used for the dark appearance slot.
 .IP \(bu 2
-tui\-sort
+tui\-sort: Selects the default TUI snippet sort order.
 .IP \(bu 2
-tui\-density
+tui\-density: Selects comfortable or compact TUI spacing.
 .IP \(bu 2
-tui\-line\-numbers
+tui\-line\-numbers: Controls the preview line\-number gutter.
 .IP \(bu 2
-tui\-simplified\-ui
+tui\-simplified\-ui: Replaces Powerline caps with square, font\-independent cells.
 .IP \(bu 2
-git\-auto\-commit\-interval
+git\-auto\-commit\-interval: Sets the automatic commit interval; zero disables scheduled commits and pushes.
 .IP \(bu 2
-git\-auto\-push
+git\-auto\-push: Pushes ahead commits after automatic interval work.
 .IP \(bu 2
-git\-auto\-pull
+git\-auto\-pull: Fetches and integrates the upstream during configured TUI startup behavior.
 .IP \(bu 2
-git\-backup\-on\-quit
+git\-backup\-on\-quit: Requests an interactive backup before TUI exit.
 .RE
 .TP
 <\fIVALUE\fR>
@@ -105,7 +105,7 @@ New value, parsed according to the selected key
 Remove one supported config key and restore its built\-in default
 .TP
 \fB\-h\fR, \fB\-\-help\fR
-Print help
+Print help (see a summary with \*(Aq\-h\*(Aq)
 .TP
 <\fIKEY\fR>
 Configuration key to remove
@@ -115,49 +115,49 @@ Configuration key to remove
 \fIPossible values:\fR
 .RS 14
 .IP \(bu 2
-default\-library
+default\-library: Selects the fallback library after command\-line, environment, and ancestor discovery.
 .IP \(bu 2
-output
+output: Selects the default command output format.
 .IP \(bu 2
-color
+color: Controls colored command output.
 .IP \(bu 2
-preview\-render
+preview\-render: Selects the default preview renderer.
 .IP \(bu 2
-preview\-pager
+preview\-pager: Controls whether previews use a pager.
 .IP \(bu 2
-editor
+editor: Sets the external editor command.
 .IP \(bu 2
-editor\-cwd
+editor\-cwd: Selects the working directory used by the external editor.
 .IP \(bu 2
-pager
+pager: Sets the pager command used when PAGER is absent.
 .IP \(bu 2
-default\-language
+default\-language: Sets the language assigned by create when no language is supplied.
 .IP \(bu 2
-default\-folder
+default\-folder: Sets the folder assigned by create; an empty value means Uncategorized.
 .IP \(bu 2
-default\-tags
+default\-tags: Sets the tags assigned by create when no tags are supplied.
 .IP \(bu 2
-tui\-theme
+tui\-theme: Selects automatic, light, dark, or named TUI theme resolution.
 .IP \(bu 2
-tui\-light\-theme
+tui\-light\-theme: Selects the theme used for the light appearance slot.
 .IP \(bu 2
-tui\-dark\-theme
+tui\-dark\-theme: Selects the theme used for the dark appearance slot.
 .IP \(bu 2
-tui\-sort
+tui\-sort: Selects the default TUI snippet sort order.
 .IP \(bu 2
-tui\-density
+tui\-density: Selects comfortable or compact TUI spacing.
 .IP \(bu 2
-tui\-line\-numbers
+tui\-line\-numbers: Controls the preview line\-number gutter.
 .IP \(bu 2
-tui\-simplified\-ui
+tui\-simplified\-ui: Replaces Powerline caps with square, font\-independent cells.
 .IP \(bu 2
-git\-auto\-commit\-interval
+git\-auto\-commit\-interval: Sets the automatic commit interval; zero disables scheduled commits and pushes.
 .IP \(bu 2
-git\-auto\-push
+git\-auto\-push: Pushes ahead commits after automatic interval work.
 .IP \(bu 2
-git\-auto\-pull
+git\-auto\-pull: Fetches and integrates the upstream during configured TUI startup behavior.
 .IP \(bu 2
-git\-backup\-on\-quit
+git\-backup\-on\-quit: Requests an interactive backup before TUI exit.
 .RE
 .SH "EXAMPLES"
 Print the configuration path and current contents:
