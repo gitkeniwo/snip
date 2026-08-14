@@ -1,74 +1,32 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-create 1  "snip 0.6.0" 
-.SH NAME
-snip\-create \- Create a snippet
-.SH SYNOPSIS
-\fBsnip create\fR [\fB\-\-library\fR] <\fB\-\-title\fR> [\fB\-\-folder\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-tag\fR] [\fB\-\-language\fR] [\fB\-\-simplified\-ui\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-pin\fR] [\fB\-\-lock\fR] [\fB\-h\fR|\fB\-\-help\fR] 
-.SH DESCRIPTION
-Create a snippet
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TH snip-create 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-create \- create a snippet
+.SH "SYNOPSIS"
+\fBsnip create\fR <\fB\-\-title\fR> [\fB\-\-folder\fR] [\fB\-\-tag\fR] [\fB\-\-language\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-pin\fR] [\fB\-\-lock\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH "DESCRIPTION"
+Create a snippet with one initial fragment. The title is required; language, folder, and tags fall back to configured defaults when omitted. \-\-tag is repeatable, and a missing folder is created automatically.
+.PP
+Inline text and file input are mutually exclusive. A path of \- for \-\-content\-file, \-\-note\-file, or \-\-readme\-file reads UTF\-8 text from standard input. A note describes the initial fragment; a README describes the snippet as a whole.
+.PP
+Global options are described in snip(1).
+.SH "OPTIONS"
 .TP
 \fB\-\-title\fR \fI<TITLE>\fR
-
+Snippet title
 .TP
 \fB\-\-folder\fR \fI<FOLDER>\fR
 Folder to file the snippet under; created when it does not exist. Pass "" for Uncategorized
 .TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
 \fB\-\-tag\fR \fI<TAGS>\fR
-
+Tag to attach. Repeatable
 .TP
 \fB\-\-language\fR \fI<LANGUAGE>\fR
-
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
+Syntax language for the initial fragment
 .TP
 \fB\-\-fragment\-title\fR \fI<FRAGMENT_TITLE>\fR [default: Fragment]
-
+Title for the initial fragment
 .TP
 \fB\-\-content\fR \fI<CONTENT>\fR
 Initial fragment content, given inline
@@ -80,19 +38,40 @@ Read initial fragment content from a UTF\-8 file; use \- for stdin
 Fragment note (Markdown), given inline. Prose about this one fragment; use \-\-readme for prose about the whole snippet
 .TP
 \fB\-\-note\-file\fR \fI<NOTE_FILE>\fR
-
+Read the fragment note from a UTF\-8 file; use \- for stdin
 .TP
 \fB\-\-readme\fR \fI<README>\fR
 Snippet README (Markdown), given inline. Prose about the whole snippet; use \-\-note for prose about one fragment
 .TP
 \fB\-\-readme\-file\fR \fI<README_FILE>\fR
-
+Read the snippet README from a UTF\-8 file; use \- for stdin
 .TP
 \fB\-\-pin\fR
-
+Pin the new snippet
 .TP
 \fB\-\-lock\fR
-
+Lock the new snippet against mutation
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
+.SH "EXAMPLES"
+Create a shell snippet from inline content:
+.RS 4
+.nf
+snip create \-\-title "List ports" \-\-language bash \-\-tag network \-\-content "lsof \-i"
+.fi
+.RE
+.PP
+Create a snippet from standard input:
+.RS 4
+.nf
+pbpaste | snip create \-\-title "tar over ssh" \-\-content\-file \-
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-edit (1),
+.BR snip\-query (1),
+.BR sniplib (5)
+.SH "VERSION"
+v0.6.0

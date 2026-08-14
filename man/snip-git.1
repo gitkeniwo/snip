@@ -1,84 +1,109 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-git 1  "snip 0.6.0" 
-.SH NAME
-snip\-git \- Run Git operations scoped to this library
-.SH SYNOPSIS
-\fBsnip git\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
-.SH DESCRIPTION
+.TH snip-git 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-git \- run Git operations scoped to a library
+.SH "SYNOPSIS"
+\fBsnip git\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip git clone\fR [\fB\-\-gh\fR] [\fB\-\-set\-default\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREMOTE\fR> [\fIPATH\fR] 
+\fBsnip git status\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip git init\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip git commit\fR [\fB\-m\fR|\fB\-\-message\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip git backup\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip git push\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip git fetch\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip git pull\fR [\fB\-\-ff\-only\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH "DESCRIPTION"
+Run Git backup operations scoped to the resolved library. status reports repository availability, dirty files, upstream, and ahead or behind counts. init is idempotent. commit stages and commits library content. backup commits when dirty and pushes when ahead. push retries a push without committing, fetch updates remote\-tracking refs, and pull fetches and merges the configured upstream.
+.PP
+CLI Git commands disable credential prompts and fail fast. They never switch branches. Use \-\-ff\-only with pull to reject divergence instead of creating a merge commit.
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip git"
 Run Git operations scoped to this library
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.SH SUBCOMMANDS
-.TP
-snip\-git\-clone(1)
+.SS "snip git clone"
 Clone a snip library from a Git remote
 .TP
-snip\-git\-status(1)
+\fB\-\-gh\fR
+Clone with `gh repo clone` instead of `git clone`, so GitHub credentials come from the GitHub CLI
+.TP
+\fB\-\-set\-default\fR
+Record the clone as default_library in the snip config
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIREMOTE\fR>
+Remote to clone. Passed to git unchanged; with \-\-gh it is passed to gh, which also accepts an OWNER/REPO shorthand
+.TP
+[\fIPATH\fR]
+Destination directory. Defaults to ~/<repo name>.sniplib
+.SS "snip git status"
 Show read\-only backup status for this library
 .TP
-snip\-git\-init(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip git init"
 Make this library a Git repository when it is not one already
 .TP
-snip\-git\-commit(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip git commit"
 Commit all library changes without pushing
 .TP
-snip\-git\-backup(1)
+\fB\-m\fR, \fB\-\-message\fR \fI<MESSAGE>\fR
+Override the generated backup message
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip git backup"
 Commit all library changes and push when an upstream is configured
 .TP
-snip\-git\-push(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip git push"
 Push commits to the configured upstream without committing
 .TP
-snip\-git\-fetch(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip git fetch"
 Fetch and prune remote\-tracking refs without touching the worktree
 .TP
-snip\-git\-pull(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip git pull"
 Fetch from the upstream and merge it into the current branch
+.TP
+\fB\-\-ff\-only\fR
+Refuse to merge when the branch has diverged, instead of creating a merge commit
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH "EXAMPLES"
+Initialize Git and commit the current library:
+.RS 4
+.nf
+snip git init
+snip git commit \-m "Back up snippets"
+.fi
+.RE
+.PP
+Fetch remote status without changing worktree files, then make an idempotent backup:
+.RS 4
+.nf
+snip git fetch
+snip git backup
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-init (1),
+.BR snip\-doctor (1),
+.BR snip\-config (5),
+.BR sniplib (5)
+.SH "VERSION"
+v0.6.0

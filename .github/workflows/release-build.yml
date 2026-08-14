@@ -134,7 +134,7 @@ jobs:
           stage="$RUNNER_TEMP/snip-archive"
           mkdir -p "$stage/man"
           cp target/release/snip "$stage/snip"
-          cp man/*.1 "$stage/man/"
+          cp man/*.[157] "$stage/man/"
           cp LICENSE README.md "$stage/"
           tar -C "$stage" -czf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" snip man LICENSE README.md
       - name: Verify portable archive (Unix)
@@ -142,6 +142,8 @@ jobs:
         run: |
           tar -tzf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" > "$RUNNER_TEMP/archive.list"
           grep -qx 'man/snip.1' "$RUNNER_TEMP/archive.list"
+          grep -qx 'man/sniplib.5' "$RUNNER_TEMP/archive.list"
+          grep -qx 'man/snip-agents.7' "$RUNNER_TEMP/archive.list"
           grep -qx 'LICENSE' "$RUNNER_TEMP/archive.list"
           grep -qx 'README.md' "$RUNNER_TEMP/archive.list"
       - name: Create portable archive (musl)
@@ -150,7 +152,7 @@ jobs:
           stage="$RUNNER_TEMP/snip-archive"
           mkdir -p "$stage/man"
           cp target/${{ matrix.target }}/release/snip "$stage/snip"
-          cp man/*.1 "$stage/man/"
+          cp man/*.[157] "$stage/man/"
           cp LICENSE README.md "$stage/"
           tar -C "$stage" -czf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" snip man LICENSE README.md
       - name: Verify portable archive (musl)
@@ -158,6 +160,8 @@ jobs:
         run: |
           tar -tzf "$GITHUB_WORKSPACE/${{ matrix.asset }}.tar.gz" > "$RUNNER_TEMP/archive.list"
           grep -qx 'man/snip.1' "$RUNNER_TEMP/archive.list"
+          grep -qx 'man/sniplib.5' "$RUNNER_TEMP/archive.list"
+          grep -qx 'man/snip-agents.7' "$RUNNER_TEMP/archive.list"
           grep -qx 'LICENSE' "$RUNNER_TEMP/archive.list"
           grep -qx 'README.md' "$RUNNER_TEMP/archive.list"
       - name: Create portable archive (Windows)
@@ -172,15 +176,21 @@ jobs:
         if: runner.os == 'Linux' && matrix.target == ''
         # Both builders use explicit asset lists, so a missing entry is silent.
         run: |
-          pages="$(printf '%s\n' man/*.1 | wc -l)"
+          pages1="$(printf '%s\n' man/*.1 | wc -l)"
+          pages5="$(printf '%s\n' man/*.5 | wc -l)"
+          pages7="$(printf '%s\n' man/*.7 | wc -l)"
           dpkg-deb -c ${{ matrix.asset }}.deb > "$RUNNER_TEMP/deb.list"
           grep -q ' \./usr/bin/snip$' "$RUNNER_TEMP/deb.list"
           grep -q ' \./usr/share/doc/sniplab/README.md$' "$RUNNER_TEMP/deb.list"
-          test "$(grep -c '\./usr/share/man/man1/.*\.1\.gz$' "$RUNNER_TEMP/deb.list")" -eq "$pages"
+          test "$(grep -c '\./usr/share/man/man1/.*\.1\.gz$' "$RUNNER_TEMP/deb.list")" -eq "$pages1"
+          test "$(grep -c '\./usr/share/man/man5/.*\.5\.gz$' "$RUNNER_TEMP/deb.list")" -eq "$pages5"
+          test "$(grep -c '\./usr/share/man/man7/.*\.7\.gz$' "$RUNNER_TEMP/deb.list")" -eq "$pages7"
           rpm -qlp ${{ matrix.asset }}.rpm > "$RUNNER_TEMP/rpm.list"
           grep -qx '/usr/bin/snip' "$RUNNER_TEMP/rpm.list"
           grep -qx '/usr/share/doc/sniplab/README.md' "$RUNNER_TEMP/rpm.list"
-          test "$(grep -c '^/usr/share/man/man1/.*\.1$' "$RUNNER_TEMP/rpm.list")" -eq "$pages"
+          test "$(grep -c '^/usr/share/man/man1/.*\.1$' "$RUNNER_TEMP/rpm.list")" -eq "$pages1"
+          test "$(grep -c '^/usr/share/man/man5/.*\.5$' "$RUNNER_TEMP/rpm.list")" -eq "$pages5"
+          test "$(grep -c '^/usr/share/man/man7/.*\.7$' "$RUNNER_TEMP/rpm.list")" -eq "$pages7"
       - uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.asset }}

@@ -1,99 +1,11 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-search 1  "snip 0.6.0" 
-.SH NAME
-snip\-search \- Search titles, tags, notes, and fragment content
-.SH SYNOPSIS
-\fBsnip search\fR [\fB\-\-library\fR] [\fB\-\-regex\fR] [\fB\-\-folder\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-simplified\-ui\fR] [\fB\-\-tag\fR] [\fB\-\-field\fR] [\fB\-C\fR|\fB\-\-context\fR] [\fB\-m\fR|\fB\-\-limit\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIQUERY\fR> 
-.SH DESCRIPTION
-Search titles, tags, notes, and fragment content
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-regex\fR
-Treat QUERY as a regular expression. Case\-insensitive; use (?\-i) to opt out
-.TP
-\fB\-\-folder\fR \fI<FOLDER>\fR
-Restrict to a folder and its subfolders. Pass "" for Uncategorized
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-no\-subfolders\fR
-Restrict \-\-folder to that folder alone, excluding its subfolders
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
-.TP
-\fB\-\-tag\fR \fI<TAG>\fR
-
-.TP
-\fB\-\-field\fR \fI<FIELDS>\fR
-Only search these parts of a snippet. Repeatable; defaults to all
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-title
-.IP \(bu 2
-tag
-.IP \(bu 2
-readme
-.IP \(bu 2
-content
-.IP \(bu 2
-note
-.RE
-.TP
-\fB\-C\fR, \fB\-\-context\fR \fI<N>\fR [default: 0]
-Lines of surrounding context to include with each match
-.TP
-\fB\-m\fR, \fB\-\-limit\fR \fI<N>\fR
-Keep only the top N results after scoring
-.TP
-\fB\-h\fR, \fB\-\-help\fR
-Print help
-.TP
-<\fIQUERY\fR>
-
+.TH snip-search 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-search \- search snippet metadata and content
+.SH "DESCRIPTION"
+This command is documented in
+.BR snip\-query (1).
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-query (1)

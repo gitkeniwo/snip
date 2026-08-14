@@ -1,65 +1,11 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-purge 1  "snip 0.6.0" 
-.SH NAME
-snip\-purge \- Permanently remove a trash entry
-.SH SYNOPSIS
-\fBsnip purge\fR [\fB\-\-library\fR] [\fB\-\-yes\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
-.SH DESCRIPTION
-Permanently remove a trash entry
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-yes\fR
-Confirm permanent deletion without an interactive prompt
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
-.TP
-\fB\-h\fR, \fB\-\-help\fR
-Print help
-.TP
-<\fISELECTOR\fR>
-
+.TH snip-purge 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-purge \- permanently remove a trash entry
+.SH "DESCRIPTION"
+This command is documented in
+.BR snip\-trash (1).
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-trash (1)

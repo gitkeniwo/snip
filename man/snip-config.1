@@ -1,75 +1,184 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-config 1  "snip 0.6.0" 
-.SH NAME
-snip\-config \- Inspect and modify ~/.config/snip/config.toml
-.SH SYNOPSIS
-\fBsnip config\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
-.SH DESCRIPTION
+.TH snip-config 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-config \- inspect and modify snip configuration
+.SH "SYNOPSIS"
+\fBsnip config\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip config path\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip config show\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip config init\fR [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip config set\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
+\fBsnip config unset\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> 
+.SH "DESCRIPTION"
+Inspect and modify the user configuration. path prints the resolved config file, show prints effective stored values, init creates a file, set updates one supported key, and unset removes a key so the built\-in default applies again.
+.PP
+Unknown TOML fields are preserved when snip writes the file. Configuration key meanings and defaults are documented in snip\-config(5).
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip config"
 Inspect and modify ~/.config/snip/config.toml
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.SH SUBCOMMANDS
-.TP
-snip\-config\-path(1)
+.SS "snip config path"
 Print the resolved config file path
 .TP
-snip\-config\-show(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip config show"
 Print the current config (defaults to an empty schema when absent)
 .TP
-snip\-config\-init(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip config init"
 Create a config file, optionally binding a default library
 .TP
-snip\-config\-set(1)
+\fB\-\-force\fR
+Replace an existing config file
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip config set"
 Set one supported config key
 .TP
-snip\-config\-unset(1)
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIKEY\fR>
+Configuration key to update
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+default\-library
+.IP \(bu 2
+output
+.IP \(bu 2
+color
+.IP \(bu 2
+preview\-render
+.IP \(bu 2
+preview\-pager
+.IP \(bu 2
+editor
+.IP \(bu 2
+editor\-cwd
+.IP \(bu 2
+pager
+.IP \(bu 2
+default\-language
+.IP \(bu 2
+default\-folder
+.IP \(bu 2
+default\-tags
+.IP \(bu 2
+tui\-theme
+.IP \(bu 2
+tui\-light\-theme
+.IP \(bu 2
+tui\-dark\-theme
+.IP \(bu 2
+tui\-sort
+.IP \(bu 2
+tui\-density
+.IP \(bu 2
+tui\-line\-numbers
+.IP \(bu 2
+tui\-simplified\-ui
+.IP \(bu 2
+git\-auto\-commit\-interval
+.IP \(bu 2
+git\-auto\-push
+.IP \(bu 2
+git\-auto\-pull
+.IP \(bu 2
+git\-backup\-on\-quit
+.RE
+.TP
+<\fIVALUE\fR>
+New value, parsed according to the selected key
+.SS "snip config unset"
 Remove one supported config key and restore its built\-in default
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIKEY\fR>
+Configuration key to remove
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+default\-library
+.IP \(bu 2
+output
+.IP \(bu 2
+color
+.IP \(bu 2
+preview\-render
+.IP \(bu 2
+preview\-pager
+.IP \(bu 2
+editor
+.IP \(bu 2
+editor\-cwd
+.IP \(bu 2
+pager
+.IP \(bu 2
+default\-language
+.IP \(bu 2
+default\-folder
+.IP \(bu 2
+default\-tags
+.IP \(bu 2
+tui\-theme
+.IP \(bu 2
+tui\-light\-theme
+.IP \(bu 2
+tui\-dark\-theme
+.IP \(bu 2
+tui\-sort
+.IP \(bu 2
+tui\-density
+.IP \(bu 2
+tui\-line\-numbers
+.IP \(bu 2
+tui\-simplified\-ui
+.IP \(bu 2
+git\-auto\-commit\-interval
+.IP \(bu 2
+git\-auto\-push
+.IP \(bu 2
+git\-auto\-pull
+.IP \(bu 2
+git\-backup\-on\-quit
+.RE
+.SH "EXAMPLES"
+Print the configuration path and current contents:
+.RS 4
+.nf
+snip config path
+snip \-\-output json config show
+.fi
+.RE
+.PP
+Set a default library and remove the saved color policy:
+.RS 4
+.nf
+snip config set default\-library ~/Notes.sniplib
+snip config unset color
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-config (5),
+.BR snip\-keys (1),
+.BR snip\-theme (1)
+.SH "VERSION"
+v0.6.0

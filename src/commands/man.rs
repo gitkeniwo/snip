@@ -16,7 +16,7 @@ const MANIFEST_RELATIVE: &str = "snip/man-install.json";
 
 struct Layout {
     root: PathBuf,
-    pages_relative: PathBuf,
+    man_relative: PathBuf,
     manifest_relative: PathBuf,
 }
 
@@ -44,7 +44,7 @@ pub fn command_man(args: &ManArgs, explicit_output: Option<OutputMode>) -> Resul
 
 fn command_path(prefix: Option<&Path>, output: OutputMode) -> Result<()> {
     let layout = layout(prefix)?;
-    let path = layout.root.join(layout.pages_relative);
+    let path = layout.root.join(layout.man_relative);
     if output == OutputMode::Human {
         println!("{}", path.display());
         Ok(())
@@ -66,7 +66,7 @@ fn command_install(prefix: Option<&Path>, force: bool, output: OutputMode) -> Re
     }
 
     let layout = layout(prefix)?;
-    let files = installation_files(&layout.pages_relative);
+    let files = installation_files(&layout.man_relative)?;
     let permission_hint = "retry with `sudo snip man install --prefix /usr/local` if a system-wide install is intended";
     let report = install(
         &files,
@@ -75,13 +75,14 @@ fn command_install(prefix: Option<&Path>, force: bool, output: OutputMode) -> Re
         force,
         permission_hint,
     )?;
-    let directory = layout.root.join(&layout.pages_relative);
+    let directory = layout.root.join(&layout.man_relative);
     if output == OutputMode::Human {
         println!(
-            "installed {} man pages in {} ({} updated)",
+            "installed {} man pages in {} ({} updated, {} obsolete removed)",
             report.files.len(),
             directory.display(),
-            report.changed
+            report.changed,
+            report.pruned.len()
         );
         println!("manifest: {}", report.manifest_path.display());
     } else {
@@ -91,13 +92,12 @@ fn command_install(prefix: Option<&Path>, force: bool, output: OutputMode) -> Re
                 "manifest": report.manifest_path,
                 "files": report.files,
                 "updated": report.changed,
+                "pruned": report.pruned,
             }),
             output,
         )?;
     }
-    if let Some(man_root) = directory.parent() {
-        warn_if_manpath_missing(man_root);
-    }
+    warn_if_manpath_missing(&directory);
     Ok(())
 }
 
@@ -179,7 +179,7 @@ fn command_generate(directory: &Path, output: OutputMode) -> Result<()> {
         ))
     })?;
     for (name, _) in PAGES {
-        let path = directory.join(name);
+        let path = export_path(directory, name)?;
         if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
             return Err(SnipError::conflict(format!(
                 "refusing to write through symbolic link {}",
@@ -189,7 +189,19 @@ fn command_generate(directory: &Path, output: OutputMode) -> Result<()> {
     }
     let mut paths = Vec::with_capacity(PAGES.len());
     for (name, contents) in PAGES {
-        let path = directory.join(name);
+        let path = export_path(directory, name)?;
+        let parent = path.parent().ok_or_else(|| {
+            SnipError::validation(format!(
+                "manual page path has no parent: {}",
+                path.display()
+            ))
+        })?;
+        fs::create_dir_all(parent).map_err(|error| {
+            SnipError::io(format!(
+                "cannot create manual page directory {}: {error}",
+                parent.display()
+            ))
+        })?;
         fs::write(&path, contents).map_err(|error| {
             SnipError::io(format!("cannot write man page {}: {error}", path.display()))
         })?;
@@ -221,7 +233,7 @@ fn layout(prefix: Option<&Path>) -> Result<Layout> {
     if let Some(prefix) = prefix {
         return Ok(Layout {
             root: prefix.to_path_buf(),
-            pages_relative: PathBuf::from("share/man/man1"),
+            man_relative: PathBuf::from("share/man"),
             manifest_relative: PathBuf::from("share").join(MANIFEST_RELATIVE),
         });
     }
@@ -229,7 +241,7 @@ fn layout(prefix: Option<&Path>) -> Result<Layout> {
     if let Some(data_home) = env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
         return Ok(Layout {
             root: PathBuf::from(data_home),
-            pages_relative: PathBuf::from("man").join("man1"),
+            man_relative: PathBuf::from("man"),
             manifest_relative: PathBuf::from(MANIFEST_RELATIVE),
         });
     }
@@ -241,40 +253,79 @@ fn layout(prefix: Option<&Path>) -> Result<Layout> {
         })?;
     Ok(Layout {
         root: PathBuf::from(home).join(".local"),
-        pages_relative: PathBuf::from("share/man/man1"),
+        man_relative: PathBuf::from("share/man"),
         manifest_relative: PathBuf::from("share").join(MANIFEST_RELATIVE),
     })
 }
 
-fn installation_files(pages_relative: &Path) -> Vec<InstallFile<'static>> {
+fn installation_files(man_relative: &Path) -> Result<Vec<InstallFile<'static>>> {
     PAGES
         .iter()
-        .map(|(name, contents)| InstallFile {
-            relative_path: pages_relative.join(name),
-            contents,
+        .map(|(name, contents)| {
+            let section = page_section(name)?;
+            Ok(InstallFile {
+                relative_path: man_relative.join(format!("man{section}")).join(name),
+                contents,
+            })
         })
         .collect()
+}
+
+fn export_path(directory: &Path, name: &str) -> Result<PathBuf> {
+    let section = page_section(name)?;
+    Ok(directory.join(format!("man{section}")).join(name))
+}
+
+fn page_section(name: &str) -> Result<&str> {
+    let (_, section) = name.rsplit_once('.').ok_or_else(|| {
+        SnipError::validation(format!("embedded manual page has no section: {name}"))
+    })?;
+    if matches!(section, "1" | "5" | "7") {
+        Ok(section)
+    } else {
+        Err(SnipError::validation(format!(
+            "unsupported embedded manual section in {name}"
+        )))
+    }
 }
 
 fn find_page(page: &str) -> Result<(&'static str, &'static [u8])> {
     if page.is_empty()
         || !page
             .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.'))
     {
         return Err(SnipError::usage(format!("invalid man page name `{page}`")));
     }
-    let filename = format!("{page}.1");
-    let matching_page = PAGES
+    let explicit_section = match page.rsplit_once('.') {
+        Some((stem, section)) if !stem.contains('.') && matches!(section, "1" | "5" | "7") => {
+            Some((stem, section))
+        }
+        Some(_) => {
+            return Err(SnipError::usage(format!(
+                "invalid man page name `{page}`; supported sections are 1, 5, and 7"
+            )));
+        }
+        None => None,
+    };
+    let sections = explicit_section
+        .map(|(_, section)| vec![section])
+        .unwrap_or_else(|| vec!["1", "5", "7"]);
+    let stem = explicit_section.map_or(page, |(stem, _)| stem);
+    let mut candidates = sections
         .iter()
-        .find(|(name, _)| *name == filename)
-        .copied()
-        .or_else(|| {
-            (!page.starts_with("snip-")).then(|| {
-                let filename = format!("snip-{page}.1");
-                PAGES.iter().find(|(name, _)| *name == filename).copied()
-            })?
-        });
+        .map(|section| format!("{stem}.{section}"))
+        .collect::<Vec<_>>();
+    if !stem.starts_with("snip-") {
+        candidates.extend(
+            sections
+                .iter()
+                .map(|section| format!("snip-{stem}.{section}")),
+        );
+    }
+    let matching_page = candidates
+        .iter()
+        .find_map(|filename| PAGES.iter().find(|(name, _)| *name == filename).copied());
     matching_page.ok_or_else(|| {
         SnipError::not_found(format!(
             "unknown man page `{page}`; try `snip` or a generated command page"
@@ -394,8 +445,14 @@ mod tests {
     #[test]
     fn short_man_page_names_fall_back_to_the_snip_prefix() {
         assert_eq!(find_page("create").unwrap().0, "snip-create.1");
-        assert_eq!(find_page("man-install").unwrap().0, "snip-man-install.1");
+        assert_eq!(find_page("man").unwrap().0, "snip-man.1");
         assert_eq!(find_page("snip-create").unwrap().0, "snip-create.1");
+        assert_eq!(find_page("sniplib").unwrap().0, "sniplib.5");
+        assert_eq!(find_page("sniplib.5").unwrap().0, "sniplib.5");
+        assert_eq!(find_page("config").unwrap().0, "snip-config.1");
+        assert_eq!(find_page("config.5").unwrap().0, "snip-config.5");
+        assert_eq!(find_page("agents").unwrap().0, "snip-agents.7");
+        assert!(find_page("snip.9").is_err());
         assert!(find_page("does-not-exist").is_err());
     }
 }

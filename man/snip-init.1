@@ -1,71 +1,74 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-init 1  "snip 0.6.0" 
-.SH NAME
-snip\-init \- Create a new filesystem snippet library
-.SH SYNOPSIS
-\fBsnip init\fR [\fB\-\-library\fR] [\fB\-\-name\fR] [\fB\-\-git\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-y\fR|\fB\-\-yes\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIPATH\fR] 
-.SH DESCRIPTION
+.TH snip-init 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-init \- create and import snippet libraries
+.SH "SYNOPSIS"
+\fBsnip init\fR [\fB\-\-name\fR] [\fB\-\-git\fR] [\fB\-y\fR|\fB\-\-yes\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIPATH\fR] 
+\fBsnip import\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBsnip import snippetslab\fR <\fB\-\-into\fR> [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISOURCE\fR> 
+.SH "DESCRIPTION"
+Create a new .sniplib library or import an existing SnippetsLab collection. init can create a dedicated Git repository and record a human\-readable library name. In noninteractive use, pass an explicit path or \-\-yes.
+.PP
+SnippetsLab imports require a destination library. Run with \-\-dry\-run first to inspect counts, normalized tags, attachments, and validation warnings without modifying the destination.
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip init"
 Create a new filesystem snippet library
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
 .TP
 \fB\-\-name\fR \fI<NAME>\fR
-
+Human\-readable library name
 .TP
 \fB\-\-git\fR
 Initialize a dedicated Git repository after creating the library
 .TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
 \fB\-y\fR, \fB\-\-yes\fR
 Skip the interactive setup and use defaults
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
 [\fIPATH\fR]
-
+Directory to create. Defaults to an interactive or platform\-specific choice
+.SS "snip import"
+Import another snippet format
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip import snippetslab"
+Import a SnippetsLab library or export
+.TP
+\fB\-\-into\fR \fI<INTO>\fR
+Destination snip library
+.TP
+\fB\-\-dry\-run\fR
+Validate and report the import without writing it
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISOURCE\fR>
+SnippetsLab source file or directory
+.SH "EXAMPLES"
+Create a Git\-backed library without prompting:
+.RS 4
+.nf
+snip init ~/Notes.sniplib \-\-name Notes \-\-git \-\-yes
+.fi
+.RE
+.PP
+Preview and then perform a SnippetsLab import:
+.RS 4
+.nf
+snip import snippetslab SnippetsLab.json \-\-into ~/Imported.sniplib \-\-dry\-run
+snip import snippetslab SnippetsLab.json \-\-into ~/Imported.sniplib
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-doctor (1),
+.BR snip\-git (1),
+.BR sniplib (5)
+.SH "VERSION"
+v0.6.0

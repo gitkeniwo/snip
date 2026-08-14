@@ -122,7 +122,9 @@ pub enum Command {
 
 #[derive(Args, Debug)]
 pub struct InitArgs {
+    /// Directory to create. Defaults to an interactive or platform-specific choice.
     pub path: Option<PathBuf>,
+    /// Human-readable library name.
     #[arg(long)]
     pub name: Option<String>,
     /// Initialize a dedicated Git repository after creating the library.
@@ -141,6 +143,7 @@ pub struct FilterArgs {
     /// Restrict --folder to that folder alone, excluding its subfolders.
     #[arg(long, requires = "folder")]
     pub no_subfolders: bool,
+    /// Restrict results to snippets carrying this tag.
     #[arg(long)]
     pub tag: Option<String>,
     /// Order of the listing. Pinned snippets always come first.
@@ -158,6 +161,7 @@ impl FilterArgs {
 
 #[derive(Args, Debug)]
 pub struct SearchArgs {
+    /// Text or regular expression to find.
     pub query: String,
     /// Treat QUERY as a regular expression. Case-insensitive; use (?-i) to opt out.
     #[arg(long)]
@@ -168,6 +172,7 @@ pub struct SearchArgs {
     /// Restrict --folder to that folder alone, excluding its subfolders.
     #[arg(long, requires = "folder")]
     pub no_subfolders: bool,
+    /// Restrict results to snippets carrying this tag.
     #[arg(long)]
     pub tag: Option<String>,
     /// Only search these parts of a snippet. Repeatable; defaults to all.
@@ -191,11 +196,13 @@ impl SearchArgs {
 
 #[derive(Args, Debug)]
 pub struct SelectorArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
 }
 
 #[derive(Args, Debug)]
 pub struct FragmentSelectorArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
     /// 1-based index or fragment UUID prefix.
     #[arg(long)]
@@ -211,7 +218,9 @@ pub enum RenderArg {
 
 #[derive(Args, Debug)]
 pub struct PreviewArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Rendering format. Defaults to the configured preview format.
     #[arg(long, value_enum)]
     pub render: Option<RenderArg>,
     /// Send output through the configured pager or $PAGER.
@@ -224,11 +233,15 @@ pub struct PreviewArgs {
 
 #[derive(Args, Debug)]
 pub struct PathArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Print the path to snippet.toml.
     #[arg(long, conflicts_with_all = ["readme", "fragment"])]
     pub metadata: bool,
+    /// Print the path to README.md.
     #[arg(long, conflicts_with_all = ["metadata", "fragment"])]
     pub readme: bool,
+    /// Print the path to a fragment selected by 1-based index or UUID prefix.
     #[arg(long, conflicts_with_all = ["metadata", "readme"])]
     pub fragment: Option<String>,
 }
@@ -237,11 +250,15 @@ pub struct PathArgs {
 /// This is the CLI counterpart of the TUI's `v` key.
 #[derive(Args, Debug)]
 pub struct OpenArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Open snippet.toml.
     #[arg(long, conflicts_with_all = ["readme", "fragment"])]
     pub metadata: bool,
+    /// Open README.md.
     #[arg(long, conflicts_with_all = ["metadata", "fragment"])]
     pub readme: bool,
+    /// Open a fragment selected by 1-based index or UUID prefix.
     #[arg(long, conflicts_with_all = ["metadata", "readme"])]
     pub fragment: Option<String>,
     /// Command to launch. Defaults to the `vscode_cmd` config key, then `code`.
@@ -251,15 +268,19 @@ pub struct OpenArgs {
 
 #[derive(Args, Debug)]
 pub struct CreateArgs {
+    /// Snippet title.
     #[arg(long)]
     pub title: String,
     /// Folder to file the snippet under; created when it does not exist. Pass "" for Uncategorized.
     #[arg(long)]
     pub folder: Option<String>,
+    /// Tag to attach. Repeatable.
     #[arg(long = "tag")]
     pub tags: Vec<String>,
+    /// Syntax language for the initial fragment.
     #[arg(long)]
     pub language: Option<String>,
+    /// Title for the initial fragment.
     #[arg(long, default_value = "Fragment")]
     pub fragment_title: String,
     /// Initial fragment content, given inline.
@@ -271,70 +292,92 @@ pub struct CreateArgs {
     /// Fragment note (Markdown), given inline. Prose about this one fragment; use --readme for prose about the whole snippet.
     #[arg(long, conflicts_with = "note_file")]
     pub note: Option<String>,
+    /// Read the fragment note from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub note_file: Option<String>,
     /// Snippet README (Markdown), given inline. Prose about the whole snippet; use --note for prose about one fragment.
     #[arg(long, conflicts_with = "readme_file")]
     pub readme: Option<String>,
+    /// Read the snippet README from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub readme_file: Option<String>,
+    /// Pin the new snippet.
     #[arg(long)]
     pub pin: bool,
+    /// Lock the new snippet against mutation.
     #[arg(long)]
     pub lock: bool,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct OptimisticArgs {
+    /// Refuse the write unless the snippet still has this fingerprint.
     #[arg(long)]
     pub if_hash: Option<String>,
+    /// Bypass fingerprint checks and locked-snippet protection.
     #[arg(long)]
     pub force: bool,
 }
 
 #[derive(Args, Debug)]
 pub struct EditArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Replace the snippet title.
     #[arg(long)]
     pub title: Option<String>,
+    /// Move the snippet to this folder. Pass "" for Uncategorized.
     #[arg(long)]
     pub folder: Option<String>,
+    /// Replace tags with this tag set. Repeatable.
     #[arg(long = "tag", conflicts_with = "clear_tags")]
     pub tags: Vec<String>,
+    /// Remove every tag from the snippet.
     #[arg(long, conflicts_with = "tags")]
     pub clear_tags: bool,
+    /// Pin the snippet.
     #[arg(long, conflicts_with = "unpin")]
     pub pin: bool,
+    /// Unpin the snippet.
     #[arg(long, conflicts_with = "pin")]
     pub unpin: bool,
+    /// Lock the snippet against mutation.
     #[arg(long, conflicts_with = "unlock")]
     pub lock: bool,
+    /// Unlock the snippet.
     #[arg(long, conflicts_with = "lock")]
     pub unlock: bool,
     /// Target fragment for structured changes or external editing.
     #[arg(long)]
     pub fragment: Option<String>,
+    /// Replace the selected fragment title.
     #[arg(long)]
     pub fragment_title: Option<String>,
+    /// Replace the selected fragment syntax language.
     #[arg(long)]
     pub language: Option<String>,
     /// Replacement fragment content, given inline.
     #[arg(long, conflicts_with = "content_file")]
     pub content: Option<String>,
+    /// Read replacement fragment content from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub content_file: Option<String>,
     /// Replacement fragment note (Markdown), given inline.
     #[arg(long, conflicts_with_all = ["note_file", "clear_note"])]
     pub note: Option<String>,
+    /// Read the replacement fragment note from a UTF-8 file; use - for stdin.
     #[arg(long, conflicts_with = "clear_note")]
     pub note_file: Option<String>,
+    /// Remove the selected fragment note.
     #[arg(long, conflicts_with_all = ["note_file", "note"])]
     pub clear_note: bool,
     /// Replacement snippet README (Markdown), given inline.
     #[arg(long, conflicts_with_all = ["readme_file", "clear_readme"])]
     pub readme: Option<String>,
+    /// Read the replacement snippet README from a UTF-8 file; use - for stdin.
     #[arg(long, conflicts_with = "clear_readme")]
     pub readme_file: Option<String>,
+    /// Remove the snippet README.
     #[arg(long, conflicts_with_all = ["readme_file", "readme"])]
     pub clear_readme: bool,
     /// Edit snippet.toml in the external editor when no structured change is given.
@@ -358,27 +401,36 @@ pub struct FragmentArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum FragmentCommand {
+    /// Add a fragment to a snippet.
     Add(FragmentAddArgs),
+    /// Modify a fragment.
     Edit(FragmentEditArgs),
+    /// Remove a fragment.
     Remove(FragmentRemoveArgs),
+    /// Move a fragment to a new 1-based position.
     Reorder(FragmentReorderArgs),
 }
 
 #[derive(Args, Debug)]
 pub struct FragmentAddArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Fragment title.
     #[arg(long)]
     pub title: String,
+    /// Syntax language for the fragment.
     #[arg(long)]
     pub language: Option<String>,
     /// Fragment content, given inline.
     #[arg(long, conflicts_with = "content_file")]
     pub content: Option<String>,
+    /// Read fragment content from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub content_file: Option<String>,
     /// Fragment note (Markdown), given inline.
     #[arg(long, conflicts_with = "note_file")]
     pub note: Option<String>,
+    /// Read the fragment note from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub note_file: Option<String>,
     #[command(flatten)]
@@ -387,22 +439,29 @@ pub struct FragmentAddArgs {
 
 #[derive(Args, Debug)]
 pub struct FragmentEditArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Fragment 1-based index or UUID prefix.
     pub fragment: String,
+    /// Replace the fragment title.
     #[arg(long)]
     pub title: Option<String>,
+    /// Replace the fragment syntax language.
     #[arg(long)]
     pub language: Option<String>,
     /// Replacement fragment content, given inline.
     #[arg(long, conflicts_with = "content_file")]
     pub content: Option<String>,
+    /// Read replacement fragment content from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub content_file: Option<String>,
     /// Replacement fragment note (Markdown), given inline.
     #[arg(long, conflicts_with_all = ["note_file", "clear_note"])]
     pub note: Option<String>,
+    /// Read the replacement note from a UTF-8 file; use - for stdin.
     #[arg(long, conflicts_with = "clear_note")]
     pub note_file: Option<String>,
+    /// Remove the fragment note.
     #[arg(long, conflicts_with_all = ["note_file", "note"])]
     pub clear_note: bool,
     #[command(flatten)]
@@ -411,7 +470,9 @@ pub struct FragmentEditArgs {
 
 #[derive(Args, Debug)]
 pub struct FragmentRemoveArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Fragment 1-based index or UUID prefix.
     pub fragment: String,
     #[command(flatten)]
     pub optimistic: OptimisticArgs,
@@ -419,8 +480,11 @@ pub struct FragmentRemoveArgs {
 
 #[derive(Args, Debug)]
 pub struct FragmentReorderArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Fragment 1-based index or UUID prefix.
     pub fragment: String,
+    /// New 1-based position.
     #[arg(long)]
     pub position: usize,
     #[command(flatten)]
@@ -435,11 +499,32 @@ pub struct FolderArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum FolderCommand {
+    /// List physical snippet folders.
     List,
-    Create { folder: String },
-    Rename { folder: String, new_name: String },
-    Move { folder: String, target: String },
-    Delete { folder: String },
+    /// Create a folder path.
+    Create {
+        /// Folder path to create.
+        folder: String,
+    },
+    /// Rename the final component of a folder path.
+    Rename {
+        /// Existing folder path.
+        folder: String,
+        /// New final path component.
+        new_name: String,
+    },
+    /// Move a folder and its snippets.
+    Move {
+        /// Existing folder path.
+        folder: String,
+        /// Full destination folder path.
+        target: String,
+    },
+    /// Delete an empty folder.
+    Delete {
+        /// Empty folder path to delete.
+        folder: String,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -450,13 +535,25 @@ pub struct TagArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum TagCommand {
+    /// List all known tags.
     List,
-    Rename { tag: String, new_name: String },
-    Delete { tag: String },
+    /// Rename a tag across the library.
+    Rename {
+        /// Existing tag name.
+        tag: String,
+        /// Replacement tag name.
+        new_name: String,
+    },
+    /// Delete a tag from the registry and every snippet.
+    Delete {
+        /// Tag name to delete.
+        tag: String,
+    },
 }
 
 #[derive(Args, Debug)]
 pub struct DeleteArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
     #[command(flatten)]
     pub optimistic: OptimisticArgs,
@@ -464,13 +561,16 @@ pub struct DeleteArgs {
 
 #[derive(Args, Debug)]
 pub struct RestoreArgs {
+    /// Trash entry ID or unique prefix.
     pub selector: String,
+    /// Restore into this folder instead of the original location.
     #[arg(long)]
     pub folder: Option<String>,
 }
 
 #[derive(Args, Debug)]
 pub struct PurgeArgs {
+    /// Trash entry ID or unique prefix.
     pub selector: String,
     /// Confirm permanent deletion without an interactive prompt.
     #[arg(long)]
@@ -479,12 +579,14 @@ pub struct PurgeArgs {
 
 #[derive(Args, Debug)]
 pub struct DoctorArgs {
+    /// Finish or roll back interrupted filesystem transactions.
     #[arg(long)]
     pub repair: bool,
 }
 
 #[derive(Args, Debug)]
 pub struct OrganizeArgs {
+    /// Report package-directory renames without applying them.
     #[arg(long)]
     pub dry_run: bool,
 }
@@ -497,10 +599,14 @@ pub struct ImportArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum ImportCommand {
+    /// Import a SnippetsLab library or export.
     Snippetslab {
+        /// SnippetsLab source file or directory.
         source: PathBuf,
+        /// Destination snip library.
         #[arg(long)]
         into: PathBuf,
+        /// Validate and report the import without writing it.
         #[arg(long)]
         dry_run: bool,
     },
@@ -580,11 +686,13 @@ pub enum GistCommand {
 
 #[derive(Args, Debug)]
 pub struct GistSelectorArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
 }
 
 #[derive(Args, Debug)]
 pub struct GistPushArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
     /// List the gist publicly. Only applies when creating; gist visibility
     /// cannot be changed afterwards.
@@ -617,6 +725,7 @@ pub struct GistPushArgs {
 
 #[derive(Args, Debug)]
 pub struct GistUrlArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
     /// Copy the URL to the clipboard as well as printing it.
     #[arg(long)]
@@ -625,6 +734,7 @@ pub struct GistUrlArgs {
 
 #[derive(Args, Debug)]
 pub struct GistStatusArgs {
+    /// Snippet title, UUID prefix, or package path.
     #[arg(conflicts_with = "all")]
     pub selector: Option<String>,
     /// Report every snippet in the library that has a gist.
@@ -637,6 +747,7 @@ pub struct GistStatusArgs {
 
 #[derive(Args, Debug)]
 pub struct GistAttachArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
     /// Gist ID or URL.
     pub gist: String,
@@ -644,6 +755,7 @@ pub struct GistAttachArgs {
 
 #[derive(Args, Debug)]
 pub struct GistDeleteArgs {
+    /// Snippet title, UUID prefix, or package path.
     pub selector: String,
     /// Delete without prompting.
     #[arg(long)]
@@ -658,7 +770,7 @@ pub struct ManArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum ManCommand {
-    /// Print the resolved man page installation directory.
+    /// Print the resolved man hierarchy root containing man1, man5, and man7.
     Path {
         /// Resolve the directory below PREFIX/share instead of the user data directory.
         #[arg(long)]
@@ -681,12 +793,12 @@ pub enum ManCommand {
     },
     /// Show an embedded manual page with the system man viewer.
     Show {
-        /// Page stem, such as snip or snip-create.
+        /// Page stem or explicit page, such as snip, sniplib, or config.5.
         page: Option<String>,
     },
     /// Export all embedded manual pages to a directory.
     Generate {
-        /// Destination directory.
+        /// Destination root; pages are written below man1, man5, and man7.
         directory: PathBuf,
     },
 }
@@ -702,6 +814,7 @@ pub enum CompletionShell {
 
 #[derive(Args, Debug)]
 pub struct CompletionArgs {
+    /// Shell whose completion script should be generated.
     #[arg(value_enum)]
     pub shell: CompletionShell,
 }
@@ -733,7 +846,10 @@ pub enum KeysCommand {
         mode: Option<KeyModeArg>,
     },
     /// Show every mode and chord bound to one action slug.
-    Show { action: String },
+    Show {
+        /// Action slug to inspect.
+        action: String,
+    },
     /// Print the resolved keys.toml path.
     Path,
     /// Write the built-in bindings as an authoritative keys.toml.
@@ -773,17 +889,25 @@ pub enum ThemeCommand {
         appearance: Option<AppearanceArg>,
     },
     /// Print one theme's resolved colors.
-    Show { name: String },
+    Show {
+        /// Theme name.
+        name: String,
+    },
     /// Validate a theme's contrast and role distinctness.
-    Check { name: String },
+    Check {
+        /// Theme name.
+        name: String,
+    },
     /// Print the directory user themes are read from.
     Path,
     /// Write a theme to the user theme directory so it can be edited.
     Export {
+        /// Theme name to export.
         name: String,
         /// Name to save it under. Defaults to "<name>-custom".
         #[arg(long)]
         r#as: Option<String>,
+        /// Overwrite an existing exported theme.
         #[arg(long)]
         force: bool,
     },
@@ -806,6 +930,7 @@ pub enum ThemeCommand {
     },
     /// Select a theme for its appearance slot and save it to the config.
     Use {
+        /// Theme name to select.
         name: String,
         /// Write to this slot instead of the theme's own appearance.
         #[arg(long, value_enum)]
@@ -828,19 +953,24 @@ pub enum ConfigCommand {
     Show,
     /// Create a config file, optionally binding a default library.
     Init {
+        /// Default library path to store in the new config.
         #[arg(long)]
         library: Option<PathBuf>,
+        /// Replace an existing config file.
         #[arg(long)]
         force: bool,
     },
     /// Set one supported config key.
     Set {
+        /// Configuration key to update.
         #[arg(value_enum)]
         key: ConfigKey,
+        /// New value, parsed according to the selected key.
         value: String,
     },
     /// Remove one supported config key and restore its built-in default.
     Unset {
+        /// Configuration key to remove.
         #[arg(value_enum)]
         key: ConfigKey,
     },

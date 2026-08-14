@@ -1,0 +1,55 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH snip-keys 5 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-keys \- snip TUI key binding format
+.SH "DESCRIPTION"
+keys.toml customizes rebindable TUI actions by mode. Run snip keys path to locate it, snip keys export to create a complete authoritative starting point, snip keys list to inspect the effective map, and snip keys check after editing.
+.SH "FILE FORMAT"
+The top\-level inherit\-defaults boolean defaults to true. Each configurable mode is a TOML table whose keys are action slugs and whose values are one chord string or a list of chord strings. An explicit empty list unbinds an action. A complete export sets inherit\-defaults = false.
+.RS 4
+.nf
+inherit\-defaults = true
+.fi
+.RE
+.RS 4
+.nf
+[list]
+"snippet.edit\-content" = "e"
+"snippet.rename" = ["r", "f2"]
+"snippet.move" = []
+.fi
+.RE
+.PP
+Mentioned actions lose their previous bindings before replacements are inserted, allowing two keys to be swapped. Duplicate claims in one mode are rejected together. ctrl\-c is reserved. Unknown modes, action slugs, chord names, and configurable search mode entries are errors.
+.SH "MODES"
+Normal pane stacks include global and the focused pane mode. Exclusive fragment\-grab, trash, help, git, gist, and search modes take over input but inherit a small allowlist from global. When several modes are active, the narrower mode wins.
+.PP
+Configurable modes are global, sidebar, list, preview, fragment, fragment\-grab, trash, help, git, and gist. Search text editing, digits, ctrl\-c, and mouse gestures are fixed rather than rebindable.
+.SH "GLOBAL DEFAULTS"
+/ searches the library. : or ctrl\-p opens the command palette. ? toggles help. A cycles appearance. N toggles line numbers. S toggles the sidebar. T toggles trash. Y copies the snippet ID. [ and ] select preview items. h/l or arrows move across panes. p copies a managed path. q quits. s cycles sort. y copies content. z toggles density. { and } jump paragraphs. Tab and shift\-tab change pane. Esc dismisses. F5 or ctrl\-r rescans. ctrl\-g and ctrl\-s toggle Git and Gist panels.
+.SH "SIDEBAR DEFAULTS"
+j/k and arrows move, g/G or Home/End jump, ctrl\-d/ctrl\-u page, Space expands folders, Enter applies a filter, n creates a folder, r renames, m moves, and d deletes the selected empty folder or tag.
+.SH "LIST AND PREVIEW DEFAULTS"
+j/k, g/G, and paging keys navigate. n creates a snippet; e edits content; E edits a note; R edits README; r renames; t edits tags; m moves; d trashes; f changes language; P toggles pin; L toggles lock; v opens the selected fragment; Enter enters preview.
+.PP
+Preview additionally uses \- and = to collapse or expand fragments. Drag selects preview text and mouse\-up copies it.
+.SH "FRAGMENT DEFAULTS"
+When the fragment tree is expanded, n adds, r renames, m grabs for reordering, and d removes. While a fragment is grabbed, j/k chooses the destination, Enter drops, and Esc cancels. ctrl\-g and ctrl\-s remain inherited.
+.SH "TRASH DEFAULTS"
+j/k, g/G, and paging keys navigate. u or Enter restores. x permanently purges. q or Esc closes trash. T, ctrl\-g, ctrl\-s, and the command palette remain inherited.
+.SH "HELP DEFAULTS"
+/ filters help, a switches current/all scope, s changes sorting, j/k moves, braces or ctrl\-u/ctrl\-d page, and q or Esc closes help. ?, ctrl\-g, ctrl\-s, and the command palette remain inherited.
+.SH "GIT DEFAULTS"
+ctrl\-g toggles the panel. c commits, C supplies a message, b backs up, p pushes, f fetches, l pulls, r refreshes, i initializes or changes interval, u toggles auto\-push, U toggles startup auto\-pull, o toggles backup\-on\-quit, and a pauses automatic backup for the session.
+.SH "GIST DEFAULTS"
+ctrl\-s toggles the panel. p publishes or updates a secret gist, P publishes publicly, a attaches, d detaches, o opens a browser, r verifies the remote, x deletes, and y copies the URL.
+.SH "FIXED INPUTS"
+Search accepts printable characters, Backspace, Enter, and Esc. Digits 1 through 9 and 0 jump to the first through tenth visible item where supported. The mouse wheel scrolls the hovered pane, click selects, double\-click drills into preview, drag selects text, and mouse\-up copies selected preview text.
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-tui (1),
+.BR snip\-keys (1),
+.BR snip\-config (5)
+.SH "VERSION"
+v0.6.0

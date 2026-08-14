@@ -1,0 +1,49 @@
+%%DESCRIPTION
+snip ships light and dark themes and loads editable TOML themes from the directory printed by snip theme path. A user file shadows a built-in theme with the same name. Schema version 1 supports complete themes, inheritance, embedded syntax themes, and base16-derived syntax.
+
+%%IDENTITY AND COLORS
+Every complete theme declares schema_version = 1, a kebab-case name matching its filename, optional display_name and source, and appearance = light or dark. Names contain lowercase ASCII letters and digits separated by single hyphens.
+
+Colors accept #rgb, #rrggbb, ansi:0 through ansi:255, or a 16-color ANSI name including bright variants. Hex and names are case-insensitive. terminal is allowed for background, foreground, and pill_secondary; background and foreground must both be terminal or both explicit.
+
+%%UI ROLES
+The [ui] table defines background, foreground, accent, accent_alt, border, muted, selection_bg, selection_fg, retained_bg, pill_primary, pill_secondary, bar_bg, bar_fg, tag, rule, success, warning, and error.
+
+background and foreground define the primary surface. accent and accent_alt mark active and secondary metadata. border, muted, and rule are structural. selection and retained roles cover focused and unfocused rows. pill and bar roles style shortcuts and chrome. tag, success, warning, and error are semantic.
+
+Foregrounds on pill and retained surfaces are computed at render time. The preferred theme color is retained at 4.5:1 contrast; otherwise snip chooses the most legible theme color and finally black or white. theme check reports forced fallback as a note.
+
+%%SYNTAX
+[syntax] contains exactly one strategy. theme names an embedded two-face theme case-insensitively. derive = "base16" requires a [palette] with all base00 through base0F six-digit RGB colors.
+
+Derived syntax uses base00 background, base05 foreground, base02 selection, base03 comments, base0B strings, base09 numbers, base08 variables/tags/errors, base0E keywords, base0D functions/headings, base0A types, and base0C constants/escapes/regular expressions.
+
+%%BASE16 UI MAPPING
+Generated themes map base00 to background; base05 to foreground and bar_fg; base0D to accent; base0E to accent_alt; base03 to border; base04 to muted; base02 to rule; base09 to tag; base0B to success; base0A to warning; and base08 to error.
+
+Selection, retained, bar, and pill surfaces are blends adjusted for contrast. Semantic foregrounds clear 4.5:1, rule clears 3.0:1, and border clears 2.5:1. selection_fg is the best of base00, base05, base06, or base07 against the adjusted selection background.
+
+Some built-ins transpose palette roles before mapping when a port follows syntax rather than UI identity. Vendored source palettes remain unchanged.
+
+%%IMPORTING
+snip theme import accepts the flat Tinted Theming subset: top-level name, optional variant, and palette base00 through base0F. Extra metadata and base24 slots are ignored. Indentation uses spaces; a leading YAML document marker is allowed.
+
+--as overrides the normalized filename and is required for stdin. --syntax selects an embedded syntax theme instead of derivation. --force replaces an existing file. --dry-run prints converted TOML. Validation errors block import; warnings do not.
+
+%%INHERITANCE
+An extending theme declares identity, appearance, and extends, then overrides only needed fields. UI, syntax, and palette inherit from the resolved parent. User themes shadow built-ins during inheritance. Cycles are rejected and a chain has at most eight parent links.
+
+    schema_version = 1
+    name = "dark-gruvbox-blue"
+    appearance = "dark"
+    extends = "dark-gruvbox"
+
+    [ui]
+    accent = "#7daea3"
+    pill_primary = "#7daea3"
+
+%%VALIDATION
+theme check blocks use for foreground-contrast and selection-contrast failures at 4.5:1. It warns about role legibility at 4.5:1 and graphic legibility for rule at 3.0:1 or border at 2.5:1. computed-foreground is a note because runtime fallback preserves readability.
+
+%%SEE ALSO
+snip(1), snip-tui(1), snip-theme(1), snip-config(5)

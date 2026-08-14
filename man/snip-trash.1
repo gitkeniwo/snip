@@ -1,59 +1,80 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-trash 1  "snip 0.6.0" 
-.SH NAME
-snip\-trash \- List deleted snippets
-.SH SYNOPSIS
-\fBsnip trash\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] 
-.SH DESCRIPTION
-List deleted snippets
-.SH OPTIONS
+.TH snip-trash 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-trash \- manage the soft\-deletion lifecycle
+.SH "SYNOPSIS"
+\fBsnip delete\fR [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip trash\fR [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip restore\fR [\fB\-\-folder\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip purge\fR [\fB\-\-yes\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+.SH "DESCRIPTION"
+Manage soft\-deleted snippets. delete moves a snippet package into the library trash and records its original path. trash lists entries and their entry_id. restore moves an entry back, optionally to another folder. purge permanently removes an entry and requires \-\-yes.
+.PP
+restore and purge select a trash entry by entry_id, not by the snippet UUID. A restore fails with conflict when the destination is occupied. Purge is irreversible.
+.PP
+Global options are described in snip(1).
+.SH "COMMANDS"
+.SS "snip delete"
+Move a snippet to the library trash
 .TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+\fB\-\-if\-hash\fR \fI<IF_HASH>\fR
+Refuse the write unless the snippet still has this fingerprint
 .TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
+\fB\-\-force\fR
+Bypass fingerprint checks and locked\-snippet protection
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
+.TP
+<\fISELECTOR\fR>
+Snippet title, UUID prefix, or package path
+.SS "snip trash"
+List deleted snippets
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SS "snip restore"
+Restore a deleted snippet
+.TP
+\fB\-\-folder\fR \fI<FOLDER>\fR
+Restore into this folder instead of the original location
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Trash entry ID or unique prefix
+.SS "snip purge"
+Permanently remove a trash entry
+.TP
+\fB\-\-yes\fR
+Confirm permanent deletion without an interactive prompt
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISELECTOR\fR>
+Trash entry ID or unique prefix
+.SH "EXAMPLES"
+Soft\-delete a snippet after checking its fingerprint:
+.RS 4
+.nf
+snip delete 79d92dea \-\-if\-hash 472697ff761e33cf
+.fi
+.RE
+.PP
+List trash as JSON and restore one entry elsewhere:
+.RS 4
+.nf
+snip \-\-output json trash
+snip restore 4401c19c \-\-folder Recovered
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-query (1),
+.BR snip\-edit (1),
+.BR sniplib (5)
+.SH "VERSION"
+v0.6.0

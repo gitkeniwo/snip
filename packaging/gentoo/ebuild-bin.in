@@ -47,7 +47,7 @@ src_test() {
 
 src_install() {
 	dobin snip
-	doman man/*.1
+	doman man/*.[157]
 	dodoc LICENSE README.md
 
 	if ! tc-is-cross-compiler; then

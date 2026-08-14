@@ -1,62 +1,43 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH snip-doctor 1  "snip 0.6.0" 
-.SH NAME
-snip\-doctor \- Validate the library and optionally recover interrupted transactions
-.SH SYNOPSIS
-\fBsnip doctor\fR [\fB\-\-library\fR] [\fB\-\-repair\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] 
-.SH DESCRIPTION
-Validate the library and optionally recover interrupted transactions
-.SH OPTIONS
-.TP
-\fB\-\-library\fR \fI<LIBRARY>\fR
-Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config
+.TH snip-doctor 1 "" "snip 0.6.0" "Snip Manual"
+.SH "NAME"
+snip\-doctor \- validate and repair a library
+.SH "SYNOPSIS"
+\fBsnip doctor\fR [\fB\-\-repair\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH "DESCRIPTION"
+Validate library manifests, semantic metadata, paths, content, and interrupted transaction state. The report includes checked items, errors, warnings, pending transactions, repairs, and an overall ok flag.
+.PP
+doctor checks the library and snippet created_at timestamps, optional source timestamps, remote records and pushed digests, the tag registry, package structure, duplicate snippet UUIDs, canonical package names, folder portability, and pending transactions. Ordinary scans keep structurally safe content readable when only semantic timestamps or remote metadata are malformed; doctor reports those integrity errors and sets ok to false.
+.PP
+With \-\-repair, snip finishes or rolls back interrupted staged writes. It does not invent missing snippet content or bypass ordinary validation failures.
+.PP
+Global options are described in snip(1).
+.SH "OPTIONS"
 .TP
 \fB\-\-repair\fR
-
-.TP
-\fB\-\-output\fR \fI<OUTPUT>\fR
-Structured output mode for commands that return records
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-human
-.IP \(bu 2
-json
-.IP \(bu 2
-jsonl
-.RE
-.TP
-\fB\-\-color\fR \fI<COLOR>\fR
-Color policy for terminal preview
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-auto
-.IP \(bu 2
-always
-.IP \(bu 2
-never
-.RE
-.TP
-\fB\-\-simplified\-ui\fR[=\fI<BOOL>\fR]
-Use square TUI bars without Powerline font glyphs for this run
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-true
-.IP \(bu 2
-false
-.RE
+Finish or roll back interrupted filesystem transactions
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
+.SH "EXAMPLES"
+Check the resolved library and emit a machine\-readable report:
+.RS 4
+.nf
+snip \-\-output json doctor
+.fi
+.RE
+.PP
+Repair interrupted transactions in a specific library:
+.RS 4
+.nf
+snip \-\-library ~/Notes.sniplib doctor \-\-repair
+.fi
+.RE
+.SH "SEE ALSO"
+.BR snip (1),
+.BR snip\-init (1),
+.BR snip\-edit (1),
+.BR sniplib (5)
+.SH "VERSION"
+v0.6.0
