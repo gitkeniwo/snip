@@ -123,6 +123,9 @@ jobs:
       - name: Check generated man pages
         if: matrix.name == 'linux-msrv-full'
         run: cargo run --locked --all-features --example generate-man -- --check
+      - name: Test man page generator
+        if: matrix.name == 'linux-msrv-full'
+        run: cargo test --locked --all-features --example generate-man
       - name: Check generated themes
         if: matrix.name == 'linux-msrv-full'
         run: cargo run --locked --all-features --example generate-themes -- --check

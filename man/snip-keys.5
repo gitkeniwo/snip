@@ -26,26 +26,579 @@ Mentioned actions lose their previous bindings before replacements are inserted,
 Normal pane stacks include global and the focused pane mode. Exclusive fragment\-grab, trash, help, git, gist, and search modes take over input but inherit a small allowlist from global. When several modes are active, the narrower mode wins.
 .PP
 Configurable modes are global, sidebar, list, preview, fragment, fragment\-grab, trash, help, git, and gist. Search text editing, digits, ctrl\-c, and mouse gestures are fixed rather than rebindable.
-.SH "GLOBAL DEFAULTS"
-/ searches the library. : or ctrl\-p opens the command palette. ? toggles help. A cycles appearance. N toggles line numbers. S toggles the sidebar. T toggles trash. Y copies the snippet ID. [ and ] select preview items. h/l or arrows move across panes. p copies a managed path. q quits. s cycles sort. y copies content. z toggles density. { and } jump paragraphs. Tab and shift\-tab change pane. Esc dismisses. F5 or ctrl\-r rescans. ctrl\-g and ctrl\-s toggle Git and Gist panels.
-.SH "SIDEBAR DEFAULTS"
-j/k and arrows move, g/G or Home/End jump, ctrl\-d/ctrl\-u page, Space expands folders, Enter applies a filter, n creates a folder, r renames, m moves, and d deletes the selected empty folder or tag.
-.SH "LIST AND PREVIEW DEFAULTS"
-j/k, g/G, and paging keys navigate. n creates a snippet; e edits content; E edits a note; R edits README; r renames; t edits tags; m moves; d trashes; f changes language; P toggles pin; L toggles lock; v opens the selected fragment; Enter enters preview.
+.SH "DEFAULT BINDINGS"
+.SS "global"
+Part of normal pane stacks; exclusive modes inherit only commands in their allowlist.
+.TP
+\fB/\fR
+library.search: Search the snippet library
+.TP
+\fB: / Ctrl\-p\fR
+palette.open: Open the command palette
+.TP
+\fB?\fR
+view.toggle\-help: Open or close the help panel
+.TP
+\fBA\fR
+view.cycle\-appearance: Switch between light and dark appearance
+.TP
+\fBN\fR
+view.toggle\-line\-numbers: Show or hide preview line numbers
+.TP
+\fBS\fR
+view.toggle\-sidebar: Show or hide the library pane
+.TP
+\fBT\fR
+library.toggle\-trash: Open or close the trash
+.TP
+\fBY\fR
+copy.snippet\-id: Copy the selected snippet ID
+.TP
+\fB[\fR
+preview.previous\-item: Select the previous preview item
+.TP
+\fB]\fR
+preview.next\-item: Select the next preview item
+.TP
+\fBh / Left\fR
+pane.back: Go back to the previous pane
+.TP
+\fBl / Right\fR
+pane.forward: Drill into the next pane
+.TP
+\fBp\fR
+copy.managed\-path: Copy the selected managed file path
+.TP
+\fBq\fR
+app.quit: Quit snip
+.TP
+\fBs\fR
+view.cycle\-sort: Cycle the snippet sort order
+.TP
+\fBy\fR
+copy.content: Copy the selected fragment content
+.TP
+\fBz\fR
+view.toggle\-density: Toggle compact snippet list spacing
+.TP
+\fB{\fR
+preview.previous\-paragraph: Jump to the previous paragraph
+.TP
+\fB}\fR
+preview.next\-paragraph: Jump to the next paragraph
+.TP
+\fBShift\-Tab\fR
+pane.previous: Focus the previous pane
+.TP
+\fBEsc\fR
+ui.dismiss: Close the active panel or clear the active filter
+.TP
+\fBF5 / Ctrl\-r\fR
+library.rescan: Rescan the snippet library
+.TP
+\fBTab\fR
+pane.next: Focus the next pane
+.TP
+\fBCtrl\-g\fR
+git.toggle\-console: Open or close the Git console
+.TP
+\fBCtrl\-s\fR
+gist.toggle\-panel: Open or close the Gist panel
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.SS "sidebar"
+Live while the library pane on the left has focus.
+.TP
+\fBG / End\fR
+nav.last: Move to the last item
+.TP
+\fBd\fR
+sidebar.delete: Delete the selected folder or tag
+.TP
+\fBg / Home\fR
+nav.first: Move to the first item
+.TP
+\fBj / Down\fR
+nav.down: Move to the next item
+.TP
+\fBk / Up\fR
+nav.up: Move to the previous item
+.TP
+\fBm\fR
+folder.move: Move the selected folder
+.TP
+\fBn\fR
+folder.new: Create a folder
+.TP
+\fBr\fR
+sidebar.rename: Rename the selected folder or tag
+.TP
+\fBSpace\fR
+sidebar.toggle\-folder: Expand or collapse the selected folder
+.TP
+\fBEnter\fR
+sidebar.activate: Apply the selected library filter
+.TP
+\fBCtrl\-d\fR
+nav.page\-down: Move down by half a page
+.TP
+\fBCtrl\-u\fR
+nav.page\-up: Move up by half a page
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.TP
+\fB1\-9 / 0\fR
+fixed input: Jump to the first through tenth item
+.TP
+\fBwheel\fR
+fixed input: Scroll the hovered pane
+.TP
+\fBclick\fR
+fixed input: Select an item or fragment
+.SS "list"
+Live while the snippet list has focus.
+.TP
+\fBE\fR
+snippet.edit\-note: Edit the selected fragment note
+.TP
+\fBG / End\fR
+nav.last: Move to the last item
+.TP
+\fBL\fR
+snippet.toggle\-lock: Lock or unlock the selected snippet
+.TP
+\fBP\fR
+snippet.toggle\-pin: Pin or unpin the selected snippet
+.TP
+\fBR\fR
+snippet.edit\-readme: Edit the selected snippet README
+.TP
+\fBd\fR
+snippet.move\-to\-trash: Move the selected snippet to trash
+.TP
+\fBe\fR
+snippet.edit\-content: Edit the selected fragment content
+.TP
+\fBf\fR
+snippet.edit\-language: Change the selected fragment language
+.TP
+\fBg / Home\fR
+nav.first: Move to the first item
+.TP
+\fBj / Down\fR
+nav.down: Move to the next item
+.TP
+\fBk / Up\fR
+nav.up: Move to the previous item
+.TP
+\fBm\fR
+snippet.move: Move the selected snippet to another folder
+.TP
+\fBn\fR
+snippet.new: Create a snippet
+.TP
+\fBr\fR
+snippet.rename: Rename the selected snippet
+.TP
+\fBt\fR
+snippet.edit\-tags: Edit the selected snippet tags
+.TP
+\fBv\fR
+snippet.open\-vscode: Open the selected fragment in VS Code
+.TP
+\fBEnter\fR
+list.enter\-preview: Focus the snippet preview
+.TP
+\fBCtrl\-d\fR
+nav.page\-down: Move down by half a page
+.TP
+\fBCtrl\-u\fR
+nav.page\-up: Move up by half a page
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.TP
+\fB1\-9 / 0\fR
+fixed input: Jump to the first through tenth item
+.TP
+\fBwheel\fR
+fixed input: Scroll the hovered pane
+.TP
+\fBclick\fR
+fixed input: Select an item or fragment
+.TP
+\fBdouble\-click\fR
+fixed input: Drill into the snippet preview
+.SS "preview"
+Live while the preview pane has focus.
+.TP
+\fB\-\fR
+preview.collapse\-fragments: Collapse the fragment list
+.TP
+\fB=\fR
+preview.expand\-fragments: Expand the fragment list
+.TP
+\fBE\fR
+snippet.edit\-note: Edit the selected fragment note
+.TP
+\fBG / End\fR
+nav.last: Move to the last item
+.TP
+\fBL\fR
+snippet.toggle\-lock: Lock or unlock the selected snippet
+.TP
+\fBP\fR
+snippet.toggle\-pin: Pin or unpin the selected snippet
+.TP
+\fBR\fR
+snippet.edit\-readme: Edit the selected snippet README
+.TP
+\fBd\fR
+snippet.move\-to\-trash: Move the selected snippet to trash
+.TP
+\fBe\fR
+snippet.edit\-content: Edit the selected fragment content
+.TP
+\fBf\fR
+snippet.edit\-language: Change the selected fragment language
+.TP
+\fBg / Home\fR
+nav.first: Move to the first item
+.TP
+\fBj / Down\fR
+nav.down: Move to the next item
+.TP
+\fBk / Up\fR
+nav.up: Move to the previous item
+.TP
+\fBm\fR
+snippet.move: Move the selected snippet to another folder
+.TP
+\fBn\fR
+snippet.new: Create a snippet
+.TP
+\fBr\fR
+snippet.rename: Rename the selected snippet
+.TP
+\fBt\fR
+snippet.edit\-tags: Edit the selected snippet tags
+.TP
+\fBv\fR
+snippet.open\-vscode: Open the selected fragment in VS Code
+.TP
+\fBCtrl\-d\fR
+nav.page\-down: Move down by half a page
+.TP
+\fBCtrl\-u\fR
+nav.page\-up: Move up by half a page
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.TP
+\fB1\-9 / 0\fR
+fixed input: Jump to the first through tenth item
+.TP
+\fBwheel\fR
+fixed input: Scroll the hovered pane
+.TP
+\fBclick\fR
+fixed input: Select an item or fragment
+.TP
+\fBdrag\fR
+fixed input: Select text in the preview
+.TP
+\fBmouse up\fR
+fixed input: Copy the selected preview text
+.SS "fragment"
+Live while the preview has focus and the fragment list is expanded.
+.TP
+\fBd\fR
+fragment.remove: Delete the selected fragment
+.TP
+\fBm\fR
+fragment.reorder: Move the selected fragment
+.TP
+\fBn\fR
+fragment.add: Add a fragment to the selected snippet
+.TP
+\fBr\fR
+fragment.rename: Rename the selected fragment
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.TP
+\fB1\-9 / 0\fR
+fixed input: Jump to the first through tenth item
+.TP
+\fBwheel\fR
+fixed input: Scroll the hovered pane
+.TP
+\fBclick\fR
+fixed input: Select an item or fragment
+.TP
+\fBdrag\fR
+fixed input: Select text in the preview
+.TP
+\fBmouse up\fR
+fixed input: Copy the selected preview text
+.SS "fragment\-grab"
+Live while a fragment is grabbed and waiting to be dropped.
+.TP
+\fB\- / Esc\fR
+ui.dismiss: Close the active panel or clear the active filter
+.TP
+\fBj / Down\fR
+nav.down: Move to the next item
+.TP
+\fBk / Up\fR
+nav.up: Move to the previous item
+.TP
+\fBEnter\fR
+grab.drop: Drop the grabbed fragment
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
 .PP
-Preview additionally uses \- and = to collapse or expand fragments. Drag selects preview text and mouse\-up copies it.
-.SH "FRAGMENT DEFAULTS"
-When the fragment tree is expanded, n adds, r renames, m grabs for reordering, and d removes. While a fragment is grabbed, j/k chooses the destination, Enter drops, and Esc cancels. ctrl\-g and ctrl\-s remain inherited.
-.SH "TRASH DEFAULTS"
-j/k, g/G, and paging keys navigate. u or Enter restores. x permanently purges. q or Esc closes trash. T, ctrl\-g, ctrl\-s, and the command palette remain inherited.
-.SH "HELP DEFAULTS"
-/ filters help, a switches current/all scope, s changes sorting, j/k moves, braces or ctrl\-u/ctrl\-d page, and q or Esc closes help. ?, ctrl\-g, ctrl\-s, and the command palette remain inherited.
-.SH "GIT DEFAULTS"
-ctrl\-g toggles the panel. c commits, C supplies a message, b backs up, p pushes, f fetches, l pulls, r refreshes, i initializes or changes interval, u toggles auto\-push, U toggles startup auto\-pull, o toggles backup\-on\-quit, and a pauses automatic backup for the session.
-.SH "GIST DEFAULTS"
-ctrl\-s toggles the panel. p publishes or updates a secret gist, P publishes publicly, a attaches, d detaches, o opens a browser, r verifies the remote, x deletes, and y copies the URL.
-.SH "FIXED INPUTS"
-Search accepts printable characters, Backspace, Enter, and Esc. Digits 1 through 9 and 0 jump to the first through tenth visible item where supported. The mouse wheel scrolls the hovered pane, click selects, double\-click drills into preview, drag selects text, and mouse\-up copies selected preview text.
+Inherited from global:
+.TP
+\fBCtrl\-g\fR
+git.toggle\-console: Open or close the Git console
+.TP
+\fBCtrl\-s\fR
+gist.toggle\-panel: Open or close the Gist panel
+.SS "trash"
+Live while the trash pane has focus. Takes over the keyboard.
+.TP
+\fBG / End\fR
+nav.last: Move to the last item
+.TP
+\fBg / Home\fR
+nav.first: Move to the first item
+.TP
+\fBj / Down\fR
+nav.down: Move to the next item
+.TP
+\fBk / Up\fR
+nav.up: Move to the previous item
+.TP
+\fBq / Esc\fR
+ui.dismiss: Close the active panel or clear the active filter
+.TP
+\fBu / Enter\fR
+trash.restore\-selected: Restore the selected snippet from trash
+.TP
+\fBx\fR
+trash.purge\-selected: Permanently delete the selected trashed snippet
+.TP
+\fBCtrl\-d\fR
+nav.page\-down: Move down by half a page
+.TP
+\fBCtrl\-u\fR
+nav.page\-up: Move up by half a page
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.PP
+Inherited from global:
+.TP
+\fBT\fR
+library.toggle\-trash: Open or close the trash
+.TP
+\fBCtrl\-g\fR
+git.toggle\-console: Open or close the Git console
+.TP
+\fBCtrl\-s\fR
+gist.toggle\-panel: Open or close the Gist panel
+.TP
+\fB: / Ctrl\-p\fR
+palette.open: Open the command palette
+.SS "help"
+Live while this help panel is open. Takes over the keyboard.
+.TP
+\fB/\fR
+help.filter: Filter the help cheatsheet
+.TP
+\fBa\fR
+help.toggle\-scope: Show this context or all modes
+.TP
+\fBj / Down\fR
+nav.down: Move to the next item
+.TP
+\fBk / Up\fR
+nav.up: Move to the previous item
+.TP
+\fBq / Esc\fR
+ui.dismiss: Close the active panel or clear the active filter
+.TP
+\fBs\fR
+help.cycle\-sort: Sort help rows by key or action
+.TP
+\fB{ / Ctrl\-u\fR
+nav.page\-up: Move up by half a page
+.TP
+\fB} / Ctrl\-d\fR
+nav.page\-down: Move down by half a page
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.TP
+\fBwheel\fR
+fixed input: Move the help selection
+.PP
+Inherited from global:
+.TP
+\fB?\fR
+view.toggle\-help: Open or close the help panel
+.TP
+\fBCtrl\-g\fR
+git.toggle\-console: Open or close the Git console
+.TP
+\fBCtrl\-s\fR
+gist.toggle\-panel: Open or close the Gist panel
+.TP
+\fB: / Ctrl\-p\fR
+palette.open: Open the command palette
+.SS "git"
+Live while the Git console is open. Takes over the keyboard.
+.TP
+\fBC\fR
+git.commit\-message: Commit library changes with a custom message
+.TP
+\fBU\fR
+git.toggle\-auto\-pull: Toggle automatic pull on startup
+.TP
+\fBa\fR
+git.pause\-auto\-backup: Pause automatic backup for this session
+.TP
+\fBb\fR
+git.backup: Commit changes and push them to the remote
+.TP
+\fBc\fR
+git.commit: Commit library changes
+.TP
+\fBf\fR
+git.fetch: Fetch the latest remote status
+.TP
+\fBi\fR
+git.init\-or\-set\-interval: Initialize Git or set the automatic commit interval
+.TP
+\fBl\fR
+git.pull: Pull changes from the remote
+.TP
+\fBo\fR
+git.toggle\-backup\-on\-quit: Toggle automatic backup on quit
+.TP
+\fBp\fR
+git.push: Push local commits to the remote
+.TP
+\fBr\fR
+git.refresh: Refresh local repository status
+.TP
+\fBu\fR
+git.toggle\-auto\-push: Toggle automatic push after commits
+.TP
+\fBEsc\fR
+ui.dismiss: Close the active panel or clear the active filter
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.PP
+Inherited from global:
+.TP
+\fBCtrl\-g\fR
+git.toggle\-console: Open or close the Git console
+.TP
+\fBCtrl\-s\fR
+gist.toggle\-panel: Open or close the Gist panel
+.TP
+\fB: / Ctrl\-p\fR
+palette.open: Open the command palette
+.SS "gist"
+Live while the Gist panel is open. Takes over the keyboard.
+.TP
+\fBP\fR
+gist.push\-public: Publish the selected snippet as a public gist
+.TP
+\fBa\fR
+gist.attach: Attach an existing gist to the selected snippet
+.TP
+\fBd\fR
+gist.detach: Detach the gist from the selected snippet
+.TP
+\fBo\fR
+gist.open\-browser: Open the selected snippet gist in a browser
+.TP
+\fBp\fR
+gist.push: Publish or update the selected snippet as a gist
+.TP
+\fBr\fR
+gist.verify: Check that the selected snippet gist still exists
+.TP
+\fBx\fR
+gist.delete: Delete the selected snippet gist from GitHub
+.TP
+\fBy\fR
+gist.copy\-url: Copy the selected snippet gist URL
+.TP
+\fBEsc\fR
+ui.dismiss: Close the active panel or clear the active filter
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.PP
+Inherited from global:
+.TP
+\fBCtrl\-g\fR
+git.toggle\-console: Open or close the Git console
+.TP
+\fBCtrl\-s\fR
+gist.toggle\-panel: Open or close the Gist panel
+.TP
+\fB: / Ctrl\-p\fR
+palette.open: Open the command palette
+.SS "search"
+Live while a search query is being typed. Takes over the keyboard.
+.TP
+\fBCtrl\-c\fR
+app.quit: Force quit before the active mode handles input
+.TP
+\fBany printable character\fR
+fixed input: Append a character to the search query
+.TP
+\fBBackspace\fR
+fixed input: Remove the final character from the search query
+.TP
+\fBEnter\fR
+fixed input: Keep the query and return focus to the snippet list
+.TP
+\fBEsc\fR
+fixed input: Leave search without clearing the query
+.PP
+Inherited from global:
+.TP
+\fBCtrl\-g\fR
+git.toggle\-console: Open or close the Git console
+.TP
+\fBCtrl\-s\fR
+gist.toggle\-panel: Open or close the Gist panel
+.SS "mouse"
+.TP
+\fBwheel\fR
+Scroll the hovered pane Available in sidebar, list, preview, fragment.
+.TP
+\fBclick\fR
+Select an item or fragment Available in sidebar, list, preview, fragment.
+.TP
+\fBdouble\-click\fR
+Drill into the snippet preview Available in list.
+.TP
+\fBdrag\fR
+Select text in the preview Available in preview, fragment.
+.TP
+\fBmouse up\fR
+Copy the selected preview text Available in preview, fragment.
 .SH "SEE ALSO"
 .BR snip (1),
 .BR snip\-tui (1),

@@ -1,9 +1,16 @@
+#[cfg(feature = "tui")]
+#[path = "common/keydoc.rs"]
+mod keydoc;
+
 #[allow(dead_code)]
 #[path = "../src/cli.rs"]
 mod cli;
 
 use clap::CommandFactory;
 use cli::Cli;
+use snip::config::{CONFIG_FIELDS, ConfigFieldSpec, FieldKind};
+#[cfg(feature = "tui")]
+use snip::keys::Keymap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::error::Error;
@@ -20,6 +27,17 @@ const SOURCE: &str = concat!("snip ", env!("CARGO_PKG_VERSION"));
 const MANUAL: &str = "Snip Manual";
 const GLOBAL_ARGS: &[&str] = &["library", "output", "color", "simplified_ui"];
 const MANAGED_SECTIONS: &[&str] = &["1", "5", "7"];
+const FORMAT_DIGEST: &str =
+    "blake3:570984a131cfa5f49c587efe207ceb73f74d86a1a686a1226235ae50abab591f";
+const THEMES_DIGEST: &str =
+    "blake3:e89bb1c502bc22f30b0c6657816e4aa3f45236d4fd1a422e33ee7c9053a348b5";
+const SNIPLIB_SOURCES: &[DerivedSource] =
+    &[derived_source("FORMAT.md", FORMAT_DIGEST, "FORMAT_DIGEST")];
+const THEME_SOURCES: &[DerivedSource] = &[derived_source(
+    "docs/themes.md",
+    THEMES_DIGEST,
+    "THEMES_DIGEST",
+)];
 
 struct PageSpec {
     name: &'static str,
@@ -27,6 +45,13 @@ struct PageSpec {
     title: &'static str,
     commands: &'static [CommandPath],
     parts: Option<&'static str>,
+    derived_from: &'static [DerivedSource],
+}
+
+struct DerivedSource {
+    path: &'static str,
+    digest: &'static str,
+    digest_constant: &'static str,
 }
 
 struct AliasSpec {
@@ -202,7 +227,13 @@ const PAGES: &[PageSpec] = &[
         &[&["completion"]],
         "parts/snip-completion.md",
     ),
-    prose_page("sniplib", 5, "snip library file format", "parts/sniplib.md"),
+    derived_prose_page(
+        "sniplib",
+        5,
+        "snip library file format",
+        "parts/sniplib.md",
+        SNIPLIB_SOURCES,
+    ),
     prose_page(
         "snip-config",
         5,
@@ -215,11 +246,12 @@ const PAGES: &[PageSpec] = &[
         "snip TUI key binding format",
         "parts/snip-keys.5.md",
     ),
-    prose_page(
+    derived_prose_page(
         "snip-theme",
         5,
         "snip TUI theme format",
         "parts/snip-theme.5.md",
+        THEME_SOURCES,
     ),
     prose_page(
         "snip-agents",
@@ -288,6 +320,7 @@ const fn page(
         title,
         commands,
         parts: Some(parts),
+        derived_from: &[],
     }
 }
 
@@ -303,6 +336,36 @@ const fn prose_page(
         title,
         commands: &[],
         parts: Some(parts),
+        derived_from: &[],
+    }
+}
+
+const fn derived_prose_page(
+    name: &'static str,
+    section: u8,
+    title: &'static str,
+    parts: &'static str,
+    derived_from: &'static [DerivedSource],
+) -> PageSpec {
+    PageSpec {
+        name,
+        section,
+        title,
+        commands: &[],
+        parts: Some(parts),
+        derived_from,
+    }
+}
+
+const fn derived_source(
+    path: &'static str,
+    digest: &'static str,
+    digest_constant: &'static str,
+) -> DerivedSource {
+    DerivedSource {
+        path,
+        digest,
+        digest_constant,
     }
 }
 
@@ -318,6 +381,7 @@ enum Mode {
     Generate,
     Check,
     Preview(String),
+    AcceptSources,
 }
 
 #[derive(Default)]
@@ -374,7 +438,11 @@ fn run() -> Result<()> {
 
     let mut root = Cli::command().disable_help_subcommand(true);
     root.build();
-    validate_manifest(&root)?;
+    validate_manifest_structure(&root)?;
+    if matches!(mode, Mode::AcceptSources) {
+        return accept_derived_sources();
+    }
+
     let expected = render_pages(&root)?;
     if expected.is_empty() {
         return Err(io::Error::other("page manifest produced no manual pages").into());
@@ -382,8 +450,12 @@ fn run() -> Result<()> {
 
     match mode {
         Mode::Generate => sync_artifacts(&expected),
-        Mode::Check => check_artifacts(&expected),
+        Mode::Check => {
+            validate_derived_sources()?;
+            check_artifacts(&expected)
+        }
         Mode::Preview(page) => preview_page(&expected, &page),
+        Mode::AcceptSources => unreachable!("handled before rendering"),
     }
 }
 
@@ -393,9 +465,11 @@ fn parse_mode() -> Result<Mode> {
         None => Mode::Generate,
         Some("--check") => Mode::Check,
         Some("--preview") => Mode::Preview(args.next().unwrap_or_else(|| "snip".to_owned())),
+        Some("--accept-sources") => Mode::AcceptSources,
         Some(argument) => {
             return Err(io::Error::other(format!(
-                "unknown argument `{argument}`; expected `--check` or `--preview [PAGE]`"
+                "unknown argument `{argument}`; expected `--check`, `--preview [PAGE]`, or \
+                 `--accept-sources`"
             ))
             .into());
         }
@@ -414,7 +488,115 @@ fn index_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/commands/man_pages.rs")
 }
 
-fn validate_manifest(root: &clap::Command) -> Result<()> {
+fn repo_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn normalized_digest(bytes: &[u8]) -> String {
+    let mut hasher = blake3::Hasher::new();
+    let mut start = 0;
+    let mut index = 0;
+    while index + 1 < bytes.len() {
+        if bytes[index] == b'\r' && bytes[index + 1] == b'\n' {
+            hasher.update(&bytes[start..index]);
+            hasher.update(b"\n");
+            index += 2;
+            start = index;
+        } else {
+            index += 1;
+        }
+    }
+    hasher.update(&bytes[start..]);
+    format!("blake3:{}", hasher.finalize().to_hex())
+}
+
+fn validate_derived_sources() -> Result<()> {
+    validate_derived_sources_at(repo_root())
+}
+
+fn validate_derived_sources_at(root: &Path) -> Result<()> {
+    for page in PAGES {
+        for source in page.derived_from {
+            let source_path = root.join(source.path);
+            let bytes = fs::read(&source_path).map_err(|error| {
+                io::Error::other(format!(
+                    "cannot read derived source for `{}`: {}: {error}",
+                    page.name,
+                    source_path.display()
+                ))
+            })?;
+            let actual = normalized_digest(&bytes);
+            if actual != source.digest {
+                let reviewed = page
+                    .parts
+                    .map(|parts| format!("man/{parts}"))
+                    .unwrap_or_else(|| format!("{}.{}", page.name, page.section));
+                return Err(io::Error::other(format!(
+                    "{} changed since {reviewed} was last reviewed.\n  recorded: {}\n  actual:   \
+                     {actual}\nRe-read {}, update {reviewed} if the prose is now wrong,\nthen run \
+                     `cargo run --all-features --example generate-man -- --accept-sources`.",
+                    source.path, source.digest, source.path
+                ))
+                .into());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn accept_derived_sources() -> Result<()> {
+    let generator_path = repo_root().join("examples/generate-man.rs");
+    let mut generator = fs::read_to_string(&generator_path)?;
+    let original = generator.clone();
+    let mut seen = BTreeSet::new();
+    for page in PAGES {
+        for source in page.derived_from {
+            if !seen.insert(source.path) {
+                continue;
+            }
+            let actual = normalized_digest(&fs::read(repo_root().join(source.path))?);
+            replace_digest_literal(&mut generator, source, &actual)?;
+        }
+    }
+    if generator != original {
+        fs::write(generator_path, generator)?;
+    }
+    Ok(())
+}
+
+fn replace_digest_literal(
+    generator: &mut String,
+    source: &DerivedSource,
+    digest: &str,
+) -> Result<()> {
+    let marker = format!("const {}: &str =", source.digest_constant);
+    let marker_start = generator.find(&marker).ok_or_else(|| {
+        io::Error::other(format!(
+            "cannot find digest constant `{}` in examples/generate-man.rs",
+            source.digest_constant
+        ))
+    })?;
+    let value_start = marker_start
+        + generator[marker_start..].find('"').ok_or_else(|| {
+            io::Error::other(format!("{} has no string value", source.digest_constant))
+        })?;
+    let value_end = value_start
+        + 1
+        + generator[value_start + 1..].find('"').ok_or_else(|| {
+            io::Error::other(format!("{} has no closing quote", source.digest_constant))
+        })?;
+    if &generator[value_start + 1..value_end] != source.digest {
+        return Err(io::Error::other(format!(
+            "{} contains an unexpected digest",
+            source.digest_constant
+        ))
+        .into());
+    }
+    generator.replace_range(value_start + 1..value_end, digest);
+    Ok(())
+}
+
+fn validate_manifest_structure(root: &clap::Command) -> Result<()> {
     let mut actual = BTreeSet::new();
     collect_command_paths(root, &mut Vec::new(), &mut actual);
     let mut covered = BTreeSet::new();
@@ -668,6 +850,7 @@ fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
             if section != "DESCRIPTION" {
                 push_section_heading(&mut output, section);
                 render_part_section(&mut output, &parts, section);
+                render_generated_sections(&mut output, spec, section);
             }
         }
     }
@@ -679,6 +862,117 @@ fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
         "VERSION",
     )?;
     Ok(output)
+}
+
+fn render_generated_sections(output: &mut Vec<u8>, spec: &PageSpec, after_section: &str) {
+    if spec.name == "snip-config" && spec.section == 5 && after_section == "LOCATION" {
+        push_section_heading(output, "SCHEMA");
+        push_paragraph(
+            output,
+            "The complete schema and representative values are shown below.",
+        );
+        render_config_schema(output);
+        push_section_heading(output, "CONFIGURATION KEYS");
+        render_config_fields(output);
+    }
+    if spec.name == "snip-keys" && spec.section == 5 && after_section == "MODES" {
+        push_section_heading(output, "DEFAULT BINDINGS");
+        #[cfg(feature = "tui")]
+        render_key_bindings(output);
+    }
+}
+
+fn render_config_schema(output: &mut Vec<u8>) {
+    output.extend_from_slice(b".RS 4\n.nf\n");
+    let mut current_table = "";
+    for field in CONFIG_FIELDS {
+        let (table, key) = field
+            .toml_path
+            .rsplit_once('.')
+            .unwrap_or(("", field.toml_path));
+        if table != current_table {
+            output.push(b'\n');
+            push_text_line(output, &format!("[{table}]"));
+            current_table = table;
+        }
+        push_text_line(output, &format!("{key} = {}", field.example));
+    }
+    output.extend_from_slice(b".fi\n.RE\n");
+}
+
+fn render_config_fields(output: &mut Vec<u8>) {
+    for (kind, heading) in [
+        (FieldKind::Settable, "Settable keys"),
+        (FieldKind::FileOnly, "File-only keys"),
+        (FieldKind::Managed, "Managed keys"),
+    ] {
+        push_subsection_heading(output, heading);
+        for field in CONFIG_FIELDS.iter().filter(|field| field.kind == kind) {
+            let label = config_field_label(field);
+            let description = format!("{} Values: {}.", field.summary, field.values);
+            push_tagged_paragraph(output, &label, &description);
+        }
+    }
+}
+
+fn config_field_label(field: &ConfigFieldSpec) -> String {
+    match (field.kind, field.cli_key) {
+        (FieldKind::Settable, Some(key)) => {
+            format!("{} (snip config set {})", field.toml_path, key.name())
+        }
+        (FieldKind::FileOnly, None) => format!("{} (file only)", field.toml_path),
+        (FieldKind::Managed, None) => format!("{} (managed by snip)", field.toml_path),
+        _ => format!("{} (invalid registry entry)", field.toml_path),
+    }
+}
+
+#[cfg(feature = "tui")]
+fn render_key_bindings(output: &mut Vec<u8>) {
+    let document = keydoc::collect(&Keymap::defaults());
+    for mode in document.modes {
+        push_subsection_heading(output, mode.label);
+        push_paragraph(output, mode.blurb);
+        if mode.rows.is_empty() {
+            push_paragraph(output, "No bindings of its own.");
+        }
+        for row in mode.rows {
+            push_key_row(output, &row);
+        }
+        if !mode.inherited.is_empty() {
+            push_paragraph(output, "Inherited from global:");
+            for row in mode.inherited {
+                push_key_row(output, &row);
+            }
+        }
+    }
+    push_subsection_heading(output, "mouse");
+    for mouse in document.mouse {
+        push_tagged_paragraph(
+            output,
+            mouse.key,
+            &format!(
+                "{} Available in {}.",
+                mouse.description,
+                mouse.modes.join(", ")
+            ),
+        );
+    }
+}
+
+#[cfg(feature = "tui")]
+fn push_key_row(output: &mut Vec<u8>, row: &keydoc::KeyRow) {
+    let action = row.action.unwrap_or("fixed input");
+    push_tagged_paragraph(
+        output,
+        &row.keys.join(" / "),
+        &format!("{action}: {}", row.description),
+    );
+}
+
+fn push_tagged_paragraph(output: &mut Vec<u8>, tag: &str, description: &str) {
+    output.extend_from_slice(b".TP\n");
+    output.extend_from_slice(format!("\\fB{}\\fR\n", roff_escape(tag)).as_bytes());
+    push_text_line(output, description);
 }
 
 fn command_for_page(mut command: clap::Command, is_root: bool) -> clap::Command {
@@ -1132,10 +1426,11 @@ fn preview_page(pages: &BTreeMap<String, Vec<u8>>, page: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Block, MANUAL, PAGES, SOURCE, cli::Cli, parse_parts, render_pages, roff_escape,
-        validate_manifest,
+        Block, MANUAL, PAGES, SOURCE, cli::Cli, normalized_digest, parse_parts, render_pages,
+        roff_escape, validate_derived_sources_at, validate_manifest_structure,
     };
     use clap::CommandFactory;
+    use std::fs;
 
     #[test]
     fn prose_parser_keeps_literal_blocks_and_collapses_paragraphs() {
@@ -1159,7 +1454,7 @@ mod tests {
     #[test]
     fn manifest_rejects_an_uncovered_visible_command() {
         let root = Cli::command().subcommand(clap::Command::new("future-command"));
-        let error = validate_manifest(&root).unwrap_err().to_string();
+        let error = validate_manifest_structure(&root).unwrap_err().to_string();
         assert!(error.contains("undocumented command: `snip future-command`"));
     }
 
@@ -1167,7 +1462,7 @@ mod tests {
     fn rendered_pages_have_one_roff_preamble_and_structured_cross_references() {
         let mut root = Cli::command().disable_help_subcommand(true);
         root.build();
-        validate_manifest(&root).unwrap();
+        validate_manifest_structure(&root).unwrap();
         let pages = render_pages(&root).unwrap();
         let preamble = ".ie \\n(.g .ds Aq \\(aq\n.el .ds Aq '\n";
 
@@ -1207,5 +1502,39 @@ mod tests {
                 assert_eq!(page.matches(".SH \"OPTIONS\"\n").count(), 1, "{name}");
             }
         }
+    }
+
+    #[test]
+    fn normalized_digest_treats_crlf_and_lf_as_the_same_content() {
+        assert_eq!(
+            normalized_digest(b"first\nsecond\n"),
+            normalized_digest(b"first\r\nsecond\r\n")
+        );
+    }
+
+    #[test]
+    fn derived_source_mismatch_names_source_and_recovery_command() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("docs")).unwrap();
+        fs::write(root.path().join("FORMAT.md"), "changed\n").unwrap();
+        fs::write(root.path().join("docs/themes.md"), "changed\n").unwrap();
+
+        let error = validate_derived_sources_at(root.path())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("FORMAT.md changed"));
+        assert!(error.contains("recorded: blake3:"));
+        assert!(error.contains("actual:   blake3:"));
+        assert!(error.contains("--accept-sources"));
+    }
+
+    #[test]
+    fn derived_source_missing_file_names_the_path() {
+        let root = tempfile::tempdir().unwrap();
+        let error = validate_derived_sources_at(root.path())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("FORMAT.md"));
+        assert!(error.contains("cannot read derived source"));
     }
 }
