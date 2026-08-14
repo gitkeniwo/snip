@@ -16,6 +16,7 @@
 
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-lightgrey)](https://github.com/gitkeniwo/homebrew-snip)
 [![Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/package/sniplab/)
+[![OBS](https://img.shields.io/badge/obs-home%3Agitkeniwo-lightgrey)](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab)
 [![AUR](https://img.shields.io/aur/version/sniplab-bin?color=lightgrey&label=aur)](https://aur.archlinux.org/packages/sniplab-bin)
 [![Scoop](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgitkeniwo%2Fscoop-snip%2Fmain%2Fbucket%2Fsnip.json&query=%24.version&label=scoop&prefix=v&color=lightgrey)](https://github.com/gitkeniwo/scoop-snip)
 [![Gentoo](https://img.shields.io/badge/gentoo-overlay-lightgrey)](https://github.com/gitkeniwo/gentoo-snip-overlay)
@@ -42,6 +43,26 @@ Runs on Linux, macOS, and Windows.
 - [Development](#development) · [License](#license)
 
 ## Install
+
+Every route installs one command, `snip`. Distribution packages are named
+`sniplab` after the crate.
+
+| System | Quick start |
+|---|---|
+| macOS, Linux (no `sudo`) | `curl -fsSL https://github.com/gitkeniwo/snip/releases/latest/download/install.sh \| sh` |
+| [Homebrew](#macos--linux-homebrew) | `brew install gitkeniwo/snip/snip` |
+| [Ubuntu, Debian, Mint, Kali](#debian--ubuntu--mint--kali) | add the OBS repository, then `sudo apt install sniplab` |
+| [Fedora, RHEL, Rocky, Alma](#fedora--enterprise-linux) | `sudo dnf copr enable gitkeniwo/snip`, then `sudo dnf install sniplab` |
+| [openSUSE Tumbleweed, Leap](#opensuse) | add the OBS repository, then `sudo zypper install sniplab` |
+| [Arch, Manjaro, EndeavourOS](#arch-linux) | `yay -S sniplab-bin` |
+| [Gentoo](#gentoo) | `sudo emerge app-misc/sniplab-bin` from the snip overlay |
+| [Nix, NixOS](#nix) | `nix profile install github:gitkeniwo/snip` |
+| [Windows](#windows-scoop) | `scoop bucket add snip https://github.com/gitkeniwo/scoop-snip`, then `scoop install snip` |
+| [Rust toolchain](#cargo) | `cargo binstall sniplab` |
+
+The Homebrew, deb, rpm, AUR, Gentoo, and Nix packages also install the manual
+pages and shell completions, so `man snip` and tab completion work right away.
+Everything else is opt-in through `snip man install` and `snip completion`.
 
 ### Install script
 
@@ -71,8 +92,6 @@ brew install gitkeniwo/snip/snip
 
 ### Cargo
 
-The crate is `sniplab`; the binary it installs is `snip`.
-
 Prebuilt binary via [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), no compilation:
 
 ```bash
@@ -87,13 +106,13 @@ cargo install sniplab
 
 ### Debian / Ubuntu / Mint / Kali
 
-From the [Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab)
-(OBS). Each release is compiled on the target distribution, so `apt` installs a
-prebuilt `snip` without a Rust toolchain on your machine, and `apt upgrade`
-picks up new releases.
+Each release is compiled on the target distribution by the
+[Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab)
+(OBS), so `apt` installs a prebuilt `snip` without a Rust toolchain on your
+machine, and `apt upgrade` picks up new releases.
 
-Pick the repository matching your distribution — derivatives use their Debian
-or Ubuntu base:
+Pick `REPO` from the table — derivatives use their Debian or Ubuntu base — then
+paste the block below it:
 
 | Distribution | `REPO` |
 |---|---|
@@ -117,25 +136,19 @@ sudo apt update
 sudo apt install sniplab
 ```
 
-The package is `sniplab`; the command it installs is `snip`. OBS repositories
-are amd64 only.
-
-On arm64, or on a release without an OBS repository, grab the standalone `.deb`
-from a release instead — it needs glibc 2.35 or newer, so Ubuntu 22.04+ and
-Debian 12+:
+The repository is amd64 only. On arm64, install the standalone `.deb` from a
+release instead — it needs glibc 2.35 or newer, so Ubuntu 22.04+ and Debian
+12+, and upgrading means downloading the newer file again:
 
 ```bash
-curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-x86_64-unknown-linux-gnu.deb
-sudo apt install ./snip-x86_64-unknown-linux-gnu.deb
+curl -fLO https://github.com/gitkeniwo/snip/releases/latest/download/snip-aarch64-unknown-linux-gnu.deb
+sudo apt install ./snip-aarch64-unknown-linux-gnu.deb
 ```
-
-On arm64, swap `x86_64` for `aarch64`. Upgrading a downloaded `.deb` means
-downloading the newer file again.
 
 ### Fedora / Enterprise Linux
 
-From [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/). Fedora's
-build machines compile each release and publish a binary package, so `dnf`
+Each release is compiled on Fedora's build machines by
+[Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/), so `dnf`
 installs a prebuilt `snip` without a Rust toolchain on your machine, and
 `dnf upgrade` picks up new releases:
 
@@ -167,9 +180,10 @@ On arm64, swap `x86_64` for `aarch64`.
 
 ### openSUSE
 
-From the [Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab),
-compiled natively for each release, so `zypper` installs a prebuilt `snip` and
-`zypper up` picks up new releases.
+Built natively for each release on the
+[Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab),
+so `zypper` installs a prebuilt `snip` and `zypper up` picks up new releases.
+x86_64 only.
 
 Tumbleweed (and Slowroll):
 
@@ -179,15 +193,14 @@ sudo zypper --gpg-auto-import-keys refresh
 sudo zypper install sniplab
 ```
 
-Leap 16.0:
+Leap 16.0 — the same three lines with `16.0` in place of
+`openSUSE_Tumbleweed`:
 
 ```bash
 sudo zypper addrepo https://download.opensuse.org/repositories/home:gitkeniwo/16.0/home:gitkeniwo.repo
 sudo zypper --gpg-auto-import-keys refresh
 sudo zypper install sniplab
 ```
-
-The package is `sniplab`; the command it installs is `snip`. x86_64 only.
 
 ### Arch Linux
 
@@ -307,13 +320,12 @@ For a smaller binary without the terminal browser, add `--no-default-features`.
 
 GNU Linux archives and the release `.deb` / `.rpm` packages are built on Ubuntu
 22.04 and need glibc 2.35 or newer. The static musl archives have no glibc
-version floor; the install script uses them on Linux.
-Upgrading a downloaded `.deb` / `.rpm` means downloading the newer file again.
+version floor; the install script uses them on Linux. Upgrading a downloaded
+`.deb` / `.rpm` means downloading the newer file again.
 
-The distribution repositories are not affected by either binary requirement:
-Copr, the Open Build Service, and the AUR source package all compile against
-the release you install on. Copr covers x86_64 and arm64; OBS is x86_64 only
-for now.
+The distribution repositories are not affected by either requirement: Copr, the
+Open Build Service, and the AUR source package all compile against the release
+you install on. Copr covers x86_64 and arm64; OBS is x86_64 only for now.
 
 Release history is in [CHANGELOG.md](CHANGELOG.md).
 
@@ -968,6 +980,7 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
 | `CI` | pushes and PRs: fmt, Clippy on both feature sets, tests on Linux (stable, 1.89 MSRV, `--no-default-features`), macOS arm64, and Windows; checks generated man pages and lints their roff |
 | `Nix` | pushes and PRs: builds the flake on Linux (x86_64, arm64) and macOS, checks the installed layout, and verifies the hashes in `nix/package.nix` |
 | `Deep tests` | manual: full deterministic suite, importer fixture, watcher regression, coverage |
+| `OBS packaging probe` | manual: rebuilds the openSUSE rpm and the Debian source transform the way OBS does, before a release relies on them |
 | `Release build` | `v*` tags and manual: builds every platform, then publishes (see below) |
 
 ### Releasing
@@ -1007,9 +1020,17 @@ skipped when that secret is absent:
 | [scoop-snip](https://github.com/gitkeniwo/scoop-snip) | `SCOOP_BUCKET_TOKEN` |
 | [gentoo-snip-overlay](https://github.com/gitkeniwo/gentoo-snip-overlay) (`sniplab-bin`) | `GENTOO_OVERLAY_TOKEN` |
 | [Copr](https://copr.fedorainfracloud.org/coprs/gitkeniwo/snip/) (`sniplab`) | `COPR_API_CONFIG` |
+| [Open Build Service](https://build.opensuse.org/package/show/home:gitkeniwo/sniplab) (`sniplab`) | `OSC_CONFIG` |
 
-Copr builds run in mock without network access, so the release job vendors the
-crate dependencies into the SRPM before submitting it.
+Copr builds run in mock without network access, and OBS builds run offline in
+their own workers, so the release job vendors the crate dependencies into the
+sources it submits to both. `OSC_CONFIG` is a complete `oscrc` for
+`https://api.opensuse.org`; the job replaces every file in
+`home:gitkeniwo/sniplab` with the freshly rendered spec, `.dsc`, Debian files,
+and source archives, and commits only when something changed.
+
+`Release build` can also be dispatched manually from `main` with `obs_only`, to
+resubmit the current version to OBS without cutting a GitHub release.
 
 The workflow rewrites only URLs and checksums, so the tap's own `man1`, `man5`,
 and `man7` install declarations are maintained in `gitkeniwo/homebrew-snip`.
