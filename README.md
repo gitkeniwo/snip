@@ -113,7 +113,7 @@ Each release is compiled on the target distribution by the
 (OBS), so `apt` installs a prebuilt `snip` without a Rust toolchain on your
 machine, and `apt upgrade` picks up new releases.
 
-Pick `REPO` from the table — derivatives use their Debian or Ubuntu base — then
+Pick `REPO` from the table (derivatives use their Debian or Ubuntu base), then
 paste the block below it:
 
 | Distribution | `REPO` |
@@ -141,7 +141,7 @@ sudo apt install sniplab
 Each repository carries both amd64 and arm64, and `apt` picks the right one, so
 the block above is the same on either architecture.
 
-On a distribution missing from the table — Debian 12, or a non-LTS Ubuntu —
+On a distribution missing from the table, such as Debian 12 or a non-LTS Ubuntu,
 install the standalone `.deb` from a release instead. It needs glibc 2.35 or
 newer, and upgrading means downloading the newer file again:
 
@@ -165,8 +165,8 @@ sudo dnf install sniplab
 ```
 
 This covers the currently supported Fedora releases and the Enterprise Linux 9
-and 10 families — RHEL, Rocky Linux, AlmaLinux, Oracle Linux, and CentOS Stream
-— on both x86_64 and arm64. On Enterprise Linux, `dnf copr enable` ships in
+and 10 families (RHEL, Rocky Linux, AlmaLinux, Oracle Linux, and CentOS Stream)
+on both x86_64 and arm64. On Enterprise Linux, `dnf copr enable` ships in
 `dnf-plugins-core`, so install that first if the subcommand is missing:
 
 ```bash
@@ -174,8 +174,8 @@ sudo dnf install dnf-plugins-core
 ```
 
 Or grab the standalone `.rpm` from a release. It needs glibc 2.35 or newer, so
-it suits Fedora and the Enterprise Linux 10 family — RHEL 10.0+, Rocky Linux
-10.0+, AlmaLinux 10.0+, Oracle Linux 10+, CentOS Stream 10+ — but not
+it suits Fedora and the Enterprise Linux 10 family (RHEL 10.0+, Rocky Linux
+10.0+, AlmaLinux 10.0+, Oracle Linux 10+, CentOS Stream 10+), but not
 Enterprise Linux 9, which ships glibc 2.34. Use Copr there:
 
 ```bash
@@ -268,7 +268,7 @@ installing:
 nix run github:gitkeniwo/snip -- list
 ```
 
-On NixOS, install it declaratively instead — add the flake input, then apply the
+On NixOS, install it declaratively instead: add the flake input, then apply the
 overlay in a module:
 
 ```nix
@@ -409,7 +409,7 @@ file watcher picks up changes made outside the browser.
 
 The left pane holds the scopes you can be in (`All snippets`, `Uncategorized`,
 `Trash`), then `Filters`, then the folder and tag trees. Moving the cursor onto
-a scope applies it, `Trash` included — deleted snippets open in the snippet pane
+a scope applies it, `Trash` included. Deleted snippets open in the snippet pane
 and preview normally, so you can read one before restoring it with `u` or
 purging it with `x`. `Published`, under `Filters`, is a toggle that narrows
 whatever you are already looking at; press `Enter` or click to apply it.
@@ -471,8 +471,8 @@ Appearance Override** from the command palette to restore normal theme
 resolution; it may use `tui.theme`, `SNIP_TUI_THEME`, or system detection.
 Neither command writes to `config.toml`.
 
-Any other `SNIP_TUI_THEME` value selects a theme by name for that run — see
-[Themes](#themes). `A` overrides either form: if the variable pins a name such
+Any other `SNIP_TUI_THEME` value selects a theme by name for that run (see
+[Themes](#themes)). `A` overrides either form: if the variable pins a name such
 as `dark-nord`, the first press drops the pin and loads your configured
 `light_theme` or `dark_theme`.
 
@@ -734,7 +734,7 @@ Three kinds of state live in three places, and only one of them belongs in Git:
 | `Main.sniplib/snip.toml`, `tags.toml` | library identity (UUID, name, schema) and the tag registry | one library | yes |
 | `Main.sniplib/snippets/`, `trash/` | every snippet and every soft-deleted one | one library | yes |
 | `Main.sniplib/.snip/` | library lock, in-flight transactions, reserved cache | one library, one machine | no |
-| `~/.config/snip/config.toml` | your preferences: default library, editor, pager, colors, theme, Git automation | all libraries, one machine | no — it lives outside the library |
+| `~/.config/snip/config.toml` | your preferences: default library, editor, pager, colors, theme, Git automation | all libraries, one machine | no (it lives outside the library) |
 
 The distinction that matters when you sync: `snip.toml` says *what this library
 is* and travels with it, so the same library has the same UUID on every machine.
@@ -855,7 +855,7 @@ snip config set default-library ~/Main.sniplib
 ```
 
 Use `gh repo clone` for a private repository, so credentials stay with `gh`;
-`git clone` works for a public one. Nothing else needs restoring — the library
+`git clone` works for a public one. Nothing else needs restoring: the library
 UUID, every snippet, the trash, and the tag registry are all in the repository.
 
 The same restore is available as one command:
@@ -879,8 +879,8 @@ The default merge mode handles both fast-forwards and cleanly diverged snippet
 changes. Use `--ff-only` when you require linear history.
 
 `.snip/` is excluded from Git and Git does not record empty directories, so a
-clone arrives without it — and without `snippets/` or `trash/` if either was
-empty. snip recreates them the first time it opens the library, so there is
+clone arrives without it (and without `snippets/` or `trash/` if either was
+empty). snip recreates them the first time it opens the library, so there is
 nothing to repair by hand.
 
 `snip delete` moves packages into tracked `trash/`. `snip restore` moves them
@@ -915,7 +915,7 @@ adopts a gist you created elsewhere and `detach` forgets one without deleting
 it. snip only manages the files it published, so anything you add to the gist
 in the browser is left alone.
 
-Visibility is fixed at creation — GitHub cannot turn a secret gist public — so
+Visibility is fixed at creation (GitHub cannot turn a secret gist public), so
 changing it means publishing a new one with `--new`.
 
 In the TUI, `Ctrl-s` opens the gist panel for the selected snippet: `p`
@@ -998,7 +998,7 @@ Recreate it any time with `snip init ./Main.sniplib --name Main`.
 ### Releasing
 
 1. Bump `version` in `Cargo.toml`, then rerun
-   `cargo run --locked --all-features --example generate-man` — the pages embed
+   `cargo run --locked --all-features --example generate-man`. The pages embed
    the version, so CI fails without it.
 2. Add the release to [CHANGELOG.md](CHANGELOG.md).
 3. Commit, then tag `vX.Y.Z` and push the tag.
