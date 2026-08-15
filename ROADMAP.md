@@ -16,6 +16,12 @@ its palette title (`src/tui/command/registry.rs:65`), and the help entry
 - [ ] Add a `gui_editor` key, keeping `vscode_cmd` as a deprecated alias; rename
   the command to `snippet.open-gui`; have the help and palette strings read the
   configured command, so they say "open in zed" when that is what will happen.
+- [ ] Settle its config status in the same change: `vscode_cmd` lives in
+  `AppConfig` and is named in `snip vscode --help` (`src/cli.rs:265`), but it is
+  not a `ConfigKey`, so `snip config set vscode_cmd` fails and
+  `snip-config(5)` has to document it as file-only. If the new `gui_editor` key
+  is settable, that is a behavior change and belongs in its own commit
+  (`docs/plans/man-drift-followup.md`, §3.2.3).
 
 This is what remains of the former "Configurable snippet editor" item. Terminal
 editors are already covered by `editor` / `$VISUAL` / `$EDITOR`, and are a shell
@@ -71,6 +77,39 @@ grows linearly with library size.
   or be renamed to reflect that it is a linear scanner. This depends on the
   library size we intend to support and is not urgent at today's scale.
 
+## Library format
+
+### `doctor` diagnostics follow-up
+
+The format refresh tightened new writes and left the reporting side deliberately
+narrow, so old libraries stayed readable. Two gaps were named in that work and
+never recorded here:
+
+- [ ] Broader name-collision diagnostics: Unicode normalization, case-only
+  differences, and Windows reserved names. `snip doctor` warns about
+  non-portable folder names today, but does not detect two entries that collide
+  only after normalization or only on a case-insensitive filesystem.
+- [ ] Have `snip doctor` scan trash entries. `src/service/doctor.rs` walks the
+  live catalog only, so a malformed package survives in `trash/` unreported and
+  surfaces at restore time instead.
+
+## Documentation
+
+### Reconcile and archive the man page plans
+
+PR #35 and PR #36 shipped the manual overhaul and the prose drift checks, but
+neither plan document was closed out:
+
+- [ ] `docs/plans/man-drift-followup.md` still reads `状态: 待实施` against
+  baseline `fdf655a`, while `derived_from`, `--accept-sources`, and the
+  `eol=lf` pins are all on `main`. Walk its 17 acceptance checks (and the 14 in
+  `docs/plans/man-page-overhaul.md`) against what actually shipped, tick or
+  re-open each, then move both files into `docs/plans/completed/`.
+- [ ] Several other finished plans are still loose in `docs/plans/`
+  (`editor-cwd.md`, `help-panel-redesign.md`, `narrow-terminal-layout.md`,
+  `scheme-transposition-and-preview.md`, `user-defined-keys.md`). Archive them
+  the same way so `docs/plans/` means "not done yet".
+
 ## Sharing
 
 ### GitLab snippets
@@ -108,9 +147,20 @@ stays the single source of truth.
 
 ## Packaging
 
-Existing channels: Homebrew, Nix (flake + Cachix), Copr, AUR (`sniplab` and
-`sniplab-bin`), Scoop, Gentoo, standalone `.deb` / `.rpm` / archives, and
-`install.sh`.
+Existing channels: Homebrew, Nix (flake + Cachix), Copr, OBS (openSUSE and the
+apt family), AUR (`sniplab` and `sniplab-bin`), Scoop, Gentoo, standalone
+`.deb` / `.rpm` / archives, and `install.sh`.
+
+### Open Build Service
+
+The project builds natively for openSUSE Tumbleweed and Leap 16.0, Ubuntu
+22.04/24.04/26.04, and Debian 13/testing/unstable. What remains lives on the OBS
+side rather than in this repository, which is exactly why it needs writing down:
+
+- [ ] Ubuntu 22.04 and 24.04 need the repository paths
+  `Ubuntu:22.04/universe-update` and `Ubuntu:24.04/universe-update` configured
+  in the OBS project's meta. This is project configuration, not a change any
+  file here can carry, so a rebuilt project would silently lose it.
 
 ### Gentoo overlay
 
@@ -160,7 +210,9 @@ there is no popularity threshold for new packages.
     themselves to `maintainers/maintainer-list.nix`, either in the same PR or in
     one before it
 - [ ] Refresh the `version` and both hashes in `nix/package.nix` once, right
-  before opening the PR (the flake never reads them).
+  before opening the PR (the flake never reads them). They currently say
+  `0.3.0`, three minor releases behind, which is harmless while nothing reads
+  the file but is the first thing a reviewer would catch.
 - [ ] Once it is in nixpkgs, users can install `pkgs.sniplab` without adding a
   flake input at all, and the flake in this repository stays for tracking `main`.
 
@@ -168,9 +220,25 @@ there is no popularity threshold for new packages.
 
 ### TUI
 
+- **Configurable editor working directory** — `editor_cwd` launches external
+  edits from the inherited directory, the library, the containing folder, the
+  snippet package, or the fragment's own directory, through one cwd-resolution
+  path shared by the CLI and the TUI. Default stays `inherit`. Package-level
+  directories can move under a concurrent save, so `folder` or `library` is the
+  recommendation for concurrent writers. (`docs/plans/editor-cwd.md`)
+- **Help panel redesign** — contextual and all-mode browsing with search over
+  the effective keymap, readable selected rows, and keyboard hints that stay in
+  sync with the generated key documentation.
+  (`docs/plans/help-panel-redesign.md`)
+- **Simplified UI mode** — a square, font-independent bar mode for terminals
+  without powerline glyphs, reachable from `--simplified-ui`, the
+  `tui.simplified_ui` config key, and an in-app toggle.
+- **Search result legibility** — an active search is visible while it is
+  running, input mode stays stable across refreshes, and matches stay
+  highlighted inside truncated excerpts.
 - **Narrow-terminal layout** — the session-only `S` sidebar toggle reclaims its
   width for reading, and snippet titles retain at least ten display cells before
-  date, gist, and language decoration give way. (`docs/plans/completed/narrow-terminal-layout.md`)
+  date, gist, and language decoration give way. (`docs/plans/narrow-terminal-layout.md`)
 - **Session appearance override** — `A` toggles light/dark for the current TUI
   session by occupying the existing environment-precedence slot, so an explicit
   keypress beats `SNIP_TUI_THEME` without adding another resolver layer;
@@ -258,6 +326,38 @@ there is no popularity threshold for new packages.
   refusal paths; `Ctrl-g l` to pull and `Ctrl-g U` to start auto-pull in the TUI,
   with an explicit catalog rescan on success. (`docs/plans/completed/library-pull.md`)
 
+### Library format
+
+- **The v1 specification matches the implementation again** — `FORMAT.md` was
+  rewritten to document metadata fields, validation severity, atomic writes,
+  fingerprints, gist payload digests, portable paths, trash, and transaction
+  recovery, with a conformance fixture guarding it.
+- **Strict on write, forgiving on read** — `open` now rejects only broken
+  library identity and schema, while `doctor` reports malformed timestamps and
+  remote metadata, so an old library stays readable. New writes refuse symlinks
+  anywhere inside a snippet package and paths escaping trash or transactions,
+  the UTF-8 filename limit is a correct 80 bytes, existing non-portable folders
+  can still be read, edited, and renamed to a portable name, and a failed
+  recovery names the backup rescue path.
+
+### Documentation
+
+- **Task-oriented manual** — 80 clap-generated pages became 15 substantive
+  section-1 pages plus 16 compatibility stubs, four section-5 file-format
+  pages, and `snip-agents(7)`, driven by a declarative page manifest. A new
+  visible clap command that no page covers fails the generator's `--check`.
+  `snip man path` prints the hierarchy root, `snip man generate DIR` writes
+  `man1` / `man5` / `man7`, `snip man show` accepts `config.5` as well as a
+  bare stem, and an upgrade prunes pages the previous version installed.
+  (`docs/plans/man-page-overhaul.md`)
+- **Prose drift checks** — key binding and config schema man content is
+  generated from its source registries, and pages that transcribe prose from
+  elsewhere record a `derived_from` digest, so editing `FORMAT.md` or
+  `docs/keys.md` without revisiting the page fails CI with the exact
+  `--accept-sources` command to run. Digests normalize CRLF and the sources are
+  pinned `eol=lf`, so the check cannot fail spuriously on Windows.
+  (`docs/plans/man-drift-followup.md`)
+
 ### Sharing
 
 - **`snip gist`** — publishes a snippet to GitHub Gists through `gh`, with no
@@ -278,6 +378,26 @@ there is no popularity threshold for new packages.
 
 ### Packaging
 
+- **Open Build Service packages** — tagged releases submit vendored,
+  offline-buildable sources to `home:gitkeniwo/sniplab`, which compiles
+  natively for openSUSE Tumbleweed and Leap 16.0, Ubuntu 22.04/24.04/26.04, and
+  Debian 13/testing/unstable, covering Mint, Pop!_OS, Zorin, elementary, LMDE,
+  and Kali through their bases, on x86_64 and arm64. `zypper` and `apt` install
+  a prebuilt `snip` with manual pages and completions and upgrade normally. An
+  `OBS packaging probe` workflow rebuilds the openSUSE rpm and the Debian source
+  transform the way OBS does — offline, with an empty Cargo cache, so a broken
+  vendor config cannot hide behind a warm registry — and `Release build` takes
+  an `obs_only` dispatch that resubmits the current version from `main` without
+  cutting a release. Verified against the real project by two such dispatches.
+- **Gentoo overlay** — `app-misc/sniplab-bin` installs the static musl release
+  binary, `man/*`, and shell completions from a standalone Portage overlay;
+  tagged releases render its ebuild and thin Manifest the same way the Copr spec
+  and Scoop manifest are rendered.
+- **Windows without a redistributable** — MSVC builds link the static CRT, and
+  a shared `dumpbin /dependents` gate fails CI on any dynamic VC/MSVC/UCRT
+  import, checked both in normal CI and before the release ZIP is assembled, so
+  the portable Windows asset runs without a separately installed Visual C++
+  runtime.
 - **Binary cache** — a Cachix cache named `snip` with `CACHIX_AUTH_TOKEN` in the
   repo secrets, so the `Nix` and `Release build` workflows push prebuilt binaries
   and `nix run` / `nix profile install` download instead of building. Verified on
