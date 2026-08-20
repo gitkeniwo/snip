@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   palette, help panel, search, and launch status name the configured editor.
   `gui-editor` is supported by `snip config set` and `unset`.
 
+### Changed
+
+- **Preview ownership uses shared snapshots.** The TUI and search index share
+  one catalog allocation. Live and trash previews borrow snippets instead of
+  copying their content each frame.
+
 ### Deprecated
 
 - The `vscode_cmd` config key and `snippet.open-vscode` command slug remain

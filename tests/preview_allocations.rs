@@ -14,6 +14,7 @@ struct CountingAllocator;
 
 static COUNTING: AtomicBool = AtomicBool::new(false);
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
+static MAX_ALLOCATION: AtomicUsize = AtomicUsize::new(0);
 
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
@@ -22,6 +23,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if COUNTING.load(Ordering::Relaxed) {
             ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+            MAX_ALLOCATION.fetch_max(layout.size(), Ordering::Relaxed);
         }
         unsafe { System.alloc(layout) }
     }
@@ -33,6 +35,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         if COUNTING.load(Ordering::Relaxed) {
             ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+            MAX_ALLOCATION.fetch_max(new_size, Ordering::Relaxed);
         }
         unsafe { System.realloc(ptr, layout, new_size) }
     }
@@ -48,6 +51,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
         .map(|index| format!("let value_{index} = {index};"))
         .collect::<Vec<_>>()
         .join("\n");
+    let snippet_size = content.len();
     create_snippet(
         &library,
         &CreateOptions {
@@ -196,6 +200,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
     let prepare_allocations = ALLOCATIONS.load(Ordering::Relaxed);
 
     ALLOCATIONS.store(0, Ordering::Relaxed);
+    MAX_ALLOCATION.store(0, Ordering::Relaxed);
     COUNTING.store(true, Ordering::Relaxed);
     for _ in 0..FRAMES {
         terminal
@@ -207,6 +212,7 @@ fn cached_preview_frames_keep_allocations_bounded() {
     }
     COUNTING.store(false, Ordering::Relaxed);
     let draw_allocations = ALLOCATIONS.load(Ordering::Relaxed);
+    let max_draw_allocation = MAX_ALLOCATION.load(Ordering::Relaxed);
 
     assert!(
         prepare_allocations < 5_000,
@@ -215,5 +221,10 @@ fn cached_preview_frames_keep_allocations_bounded() {
     assert!(
         draw_allocations < 32_000,
         "{FRAMES} cached preview draws allocated {draw_allocations} times"
+    );
+    assert!(
+        max_draw_allocation < snippet_size,
+        "a cached preview draw allocated a {max_draw_allocation}-byte buffer for a \
+         {snippet_size}-byte snippet"
     );
 }

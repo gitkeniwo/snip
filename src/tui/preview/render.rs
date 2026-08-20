@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -25,7 +27,10 @@ const FRAGMENT_LIST_MAX_ROWS: usize = 12;
 const PREVIEW_MIN_CONTENT_ROWS: u16 = 3;
 
 pub fn draw_preview(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
-    let snippet = app.selected_snippet().cloned();
+    let catalog = Arc::clone(&app.catalog);
+    let snippet = app
+        .selected_id
+        .and_then(|id| catalog.snippets.iter().find(|snippet| snippet.id == id));
     let accent = app.theme.accent;
     draw_preview_of(frame, app, area, snippet, accent);
 }
@@ -36,14 +41,14 @@ pub fn draw_preview_of(
     frame: &mut Frame<'_>,
     app: &mut App,
     area: Rect,
-    snippet: Option<crate::domain::Snippet>,
+    snippet: Option<&Snippet>,
     accent: ratatui::style::Color,
 ) {
     let block = widgets::preview_block_tinted(
         app.focus == Pane::Preview,
         app.theme,
         accent,
-        snippet.as_ref(),
+        snippet,
         app.preview_target,
         area.width,
     );
@@ -65,7 +70,7 @@ pub fn draw_preview_of(
     let fragment_rows = if expanded {
         // Sized on rows, not fragments: a snippet at the cap must not lose its
         // README row silently.
-        let rows = total_fragments + usize::from(has_readme(&snippet));
+        let rows = total_fragments + usize::from(has_readme(snippet));
         let wanted = 1 + rows.min(FRAGMENT_LIST_MAX_ROWS) as u16;
         let fixed = 2 + u16::from(has_tags) + 1;
         let budget = inner
@@ -113,7 +118,7 @@ pub fn draw_preview_of(
     draw_preview_header(
         frame,
         app,
-        &snippet,
+        snippet,
         PreviewHeaderAreas {
             title: title_area,
             metadata: metadata_area,
@@ -124,7 +129,7 @@ pub fn draw_preview_of(
     );
     let mut preview_cache = std::mem::take(&mut app.preview);
     match preview_cache.get(
-        &snippet,
+        snippet,
         app.preview_target,
         content_area.width.max(1),
         app.show_line_numbers,
@@ -1192,7 +1197,7 @@ mod tests {
                     frame,
                     &mut app,
                     Rect::new(0, 0, width, height),
-                    Some(snippet),
+                    Some(&snippet),
                     accent,
                 );
             })

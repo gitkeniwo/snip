@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc::Sender;
+use std::sync::{Arc, mpsc::Sender};
 use std::time::{Duration, Instant};
 
 use ratatui::widgets::ListState;
@@ -63,8 +63,8 @@ impl App {
             extra,
             ..
         } = session_state;
-        let catalog = library.scan()?;
-        let index = MemoryIndex::new(catalog.clone());
+        let catalog = Arc::new(library.scan()?);
+        let index = MemoryIndex::new(Arc::clone(&catalog));
         let gist_badges = crate::tui::gist_panel::compute_all(&catalog.snippets);
         let tui = config.tui.clone().unwrap_or_default();
         let theme_overrides = tui
@@ -654,9 +654,9 @@ impl App {
     }
 
     pub fn rescan(&mut self) -> Result<()> {
-        let catalog = self.library.scan()?;
-        self.catalog = catalog.clone();
-        self.index = MemoryIndex::new(catalog);
+        let catalog = Arc::new(self.library.scan()?);
+        self.index = MemoryIndex::new(Arc::clone(&catalog));
+        self.catalog = catalog;
         self.gist_badges = crate::tui::gist_panel::compute_all(&self.catalog.snippets);
         self.rebuild_sidebar();
         self.refresh_visible();
@@ -882,6 +882,21 @@ mod tests {
         (temporary, app)
     }
 
+    fn replace_catalog(app: &mut App, snippets: Vec<Snippet>) {
+        let mut catalog = app.library.scan().unwrap();
+        catalog.snippets = snippets;
+        let catalog = Arc::new(catalog);
+        app.index = MemoryIndex::new(Arc::clone(&catalog));
+        app.catalog = catalog;
+    }
+
+    #[test]
+    fn app_and_search_index_share_the_catalog_allocation() {
+        let (_temporary, app) = app_with_readme(None);
+
+        assert!(Arc::ptr_eq(&app.catalog, app.index.catalog_arc()));
+    }
+
     #[test]
     fn rescan_keeps_the_readme_target() {
         let (_temporary, mut app) = app_with_readme(Some("snippet level prose\n"));
@@ -1055,8 +1070,7 @@ mod tests {
         let mut outside = make_test_snippet("Other", false);
         outside.manifest.title = "Outside".to_owned();
         app.selected_id = Some(outside.id);
-        app.catalog.snippets = vec![first, second, outside];
-        app.index = MemoryIndex::new(app.catalog.clone());
+        replace_catalog(&mut app, vec![first, second, outside]);
         app.filter.folder = Some("Dotfiles".to_owned());
         app.list_state.select(Some(1));
         *app.list_state.offset_mut() = 25;
@@ -1105,14 +1119,16 @@ mod tests {
         let library = Library::init(&temporary.path().join("Stable Offset.sniplib"), None).unwrap();
         let mut app = App::new(library, &AppConfig::default()).unwrap();
         app.sort = crate::tui::state::SortMode::Title;
-        app.catalog.snippets = (0..59)
-            .map(|index| {
-                let mut snippet = make_test_snippet("", false);
-                snippet.manifest.title = format!("Snippet {index:02}");
-                snippet
-            })
-            .collect();
-        app.index = MemoryIndex::new(app.catalog.clone());
+        replace_catalog(
+            &mut app,
+            (0..59)
+                .map(|index| {
+                    let mut snippet = make_test_snippet("", false);
+                    snippet.manifest.title = format!("Snippet {index:02}");
+                    snippet
+                })
+                .collect(),
+        );
         app.layout.list = Rect::new(0, 0, 40, 42);
         app.refresh_visible();
         app.list_state.select(Some(40));
