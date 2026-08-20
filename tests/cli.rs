@@ -1,5 +1,6 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use snip::config::AppConfig;
 
 #[cfg(feature = "tui")]
 #[test]
@@ -375,6 +376,42 @@ fn config_binds_default_library_and_supplies_create_defaults() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Local"));
+}
+
+#[test]
+fn gui_editor_config_round_trips_and_preserves_the_legacy_key() {
+    let temporary = tempfile::tempdir().unwrap();
+    let config_home = temporary.path().join("config-home");
+    let config_path = config_home.join("snip/config.toml");
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "set", "gui-editor", "zed"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("gui_editor = \"zed\""));
+
+    let mut config = AppConfig::load_from(&config_path).unwrap();
+    assert_eq!(config.gui_editor.as_deref(), Some("zed"));
+    config.vscode_cmd = Some("code-insiders".to_owned());
+    config.save_to(&config_path).unwrap();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "unset", "gui-editor"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("gui_editor").not())
+        .stdout(predicate::str::contains("vscode_cmd = \"code-insiders\""))
+        .stderr(predicate::str::contains(
+            "vscode_cmd is deprecated; use gui_editor instead",
+        ));
+
+    let config = AppConfig::load_from(&config_path).unwrap();
+    assert_eq!(config.gui_editor, None);
+    assert_eq!(config.vscode_cmd.as_deref(), Some("code-insiders"));
 }
 
 #[test]
