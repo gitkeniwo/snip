@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Vendor-neutral GUI editor naming.** The `gui_editor` config key and
+  `snippet.open-gui` command replace VS Code-specific vocabulary, and the TUI
+  palette, help panel, search, and launch status name the configured editor.
+  `gui-editor` is supported by `snip config set` and `unset`.
+
+### Deprecated
+
+- The `vscode_cmd` config key and `snippet.open-vscode` command slug remain
+  compatible throughout 0.x. Config output and key checks point users to their
+  replacements without rewriting existing files.
+
 ## [0.6.1] - 2026-08-20
 
 ### Added

@@ -5,49 +5,6 @@ commitment to a date.
 
 ## TUI
 
-### Vendor-neutral GUI editor naming
-
-The GUI launch path is already generic — `shlex::split` + `spawn` + the file path
-— so `vscode_cmd = "zed"` works today. Only the naming is wrong. Two of those
-names are user-facing vocabulary and one is internal:
-
-- the config key `vscode_cmd` (`src/config.rs:181`, spec at
-  `src/config/fields.rs:192`), read by `snip open` (`src/commands/query.rs:253`)
-  and by the TUI's `v` (`src/tui.rs:211`)
-- the command slug `snippet.open-vscode` and its "Open in VS Code" palette title
-  and description (`src/tui/command/registry.rs:290`)
-- internally, `CommandId::SnippetOpenVsCode`, `Effect::OpenInVsCode`,
-  `snippet_open_vscode`, `open_vscode_effect` — a mechanical rename with no
-  external contract
-
-Since user-defined keys shipped, the slug is a public interface: `keys.toml`
-binds by slug and `by_slug` (`src/keys/config.rs:205`) rejects an unknown one
-with a diagnostic, so a bare rename breaks the config of anyone who rebound `v`.
-
-- [ ] Add a `gui_editor` key, keeping `vscode_cmd` as a deprecated alias with a
-  settled precedence, and rename the slug to `snippet.open-gui` with
-  `snippet.open-vscode` kept as a deprecated alias in the slug table, warning
-  rather than erroring. Have the palette title, the help panel, and the status
-  messages read the configured command, so they say "open in zed" when that is
-  what will happen. The help panel needs no separate change: since the panel
-  redesign it renders `command.title` / `command.description` straight from the
-  registry (`src/tui/help.rs:291`).
-- [ ] Settle its config status in the same change: `vscode_cmd` lives in
-  `AppConfig` and is named in `snip open --help` (`src/cli.rs:265`), but it is
-  not a `ConfigKey`, so `snip config set vscode_cmd` fails and
-  `snip-config(5)` has to document it as file-only. If the new `gui_editor` key
-  is settable, that is a behavior change and belongs in its own commit
-  (`docs/plans/man-drift-followup.md`, §3.2.3).
-- [ ] Regenerate the derived documentation in the same PR and expect CI to
-  demand it: `docs/keys.md` (two tables), `man/snip-keys.5`, `man/snip-config.5`
-  (the `%%SCHEMA` block and the key list), and `man/snip-query.1`, which quotes
-  the config key name in `snip open --app`. All four are covered by
-  `--check` jobs in `ci.yml`.
-
-This is what remains of the former "Configurable snippet editor" item. Terminal
-editors are already covered by `editor` / `$VISUAL` / `$EDITOR`, and are a shell
-contract snip should respect rather than re-implement.
-
 ### Inline preview editor — deferred, not scheduled
 
 The preview stays read-only; editing goes through `e` (`$EDITOR`) and `v` (GUI).
@@ -240,6 +197,11 @@ there is no popularity threshold for new packages.
 ## Shipped
 
 ### TUI
+
+- **Vendor-neutral GUI editor naming** — `gui_editor` and `snippet.open-gui`
+  replace VS Code-specific vocabulary while retaining both old names as
+  deprecated 0.x aliases. Palette search, help, and launch status resolve the
+  configured executable name at runtime. (`docs/plans/completed/gui-editor-naming.md`)
 
 - **Configurable editor working directory** — `editor_cwd` launches external
   edits from the inherited directory, the library, the containing folder, the

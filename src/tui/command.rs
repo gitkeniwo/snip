@@ -1,5 +1,8 @@
 mod registry;
 
+use std::borrow::Cow;
+use std::path::Path;
+
 use crate::tui::app::{App, Effect};
 
 pub use registry::registry;
@@ -247,4 +250,44 @@ pub fn resolve_slug(slug: &str) -> Option<(CommandId, Option<&'static str>)> {
             .find(|(deprecated, _)| *deprecated == slug)
             .map(|(_, id)| (*id, Some(get(*id).slug)))
     })
+}
+
+pub fn display_title(command: &Command, gui_editor: Option<&str>) -> Cow<'static, str> {
+    if command.id == CommandId::SnippetOpenGui
+        && let Some(name) = gui_editor_name(gui_editor)
+    {
+        return Cow::Owned(format!("Open in {name}"));
+    }
+    Cow::Borrowed(command.title)
+}
+
+pub fn gui_editor_name(gui_editor: Option<&str>) -> Option<String> {
+    let parts = shlex::split(gui_editor?)?;
+    let executable = parts.first()?;
+    Path::new(executable)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .map(str::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CommandId, display_title, get};
+
+    #[test]
+    fn gui_editor_title_uses_the_configured_executable_name() {
+        let command = get(CommandId::SnippetOpenGui);
+        assert_eq!(display_title(command, Some("zed")), "Open in zed");
+        assert_eq!(
+            display_title(command, Some("/usr/local/bin/code -w")),
+            "Open in code"
+        );
+        assert_eq!(display_title(command, None), "Open in GUI Editor");
+        assert_eq!(display_title(command, Some("'")), "Open in GUI Editor");
+        assert_eq!(
+            display_title(get(CommandId::SnippetRename), Some("zed")),
+            "Rename"
+        );
+    }
 }

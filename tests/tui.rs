@@ -555,7 +555,8 @@ fn command_palette_opens_over_help_and_filters_hidden_commands() {
     assert!(app.palette.open);
 
     let hidden = std::collections::HashSet::from([CommandId::GitPush]);
-    app.palette.refresh(&hidden, &app.keymap);
+    app.palette
+        .refresh(&hidden, &app.keymap, app.gui_editor_cmd.as_deref());
     assert!(
         !app.palette
             .matches
@@ -3347,7 +3348,7 @@ fn note_and_readme_editor_targets_save_markdown() {
 fn v_key_emits_open_in_gui_editor_effect() {
     let (_temporary, library, first_id, _second_id) = fixture();
     let config = AppConfig {
-        gui_editor: Some("code-insiders".to_owned()),
+        vscode_cmd: Some("code-insiders".to_owned()),
         ..AppConfig::default()
     };
     let mut app = App::new(library, &config).unwrap();

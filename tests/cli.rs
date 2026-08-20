@@ -392,6 +392,13 @@ fn gui_editor_config_round_trips_and_preserves_the_legacy_key() {
         .success()
         .stdout(predicate::str::contains("gui_editor = \"zed\""));
 
+    Command::cargo_bin("snip")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", &config_home)
+        .args(["config", "set", "vscode_cmd", "zed"])
+        .assert()
+        .code(2);
+
     let mut config = AppConfig::load_from(&config_path).unwrap();
     assert_eq!(config.gui_editor.as_deref(), Some("zed"));
     config.vscode_cmd = Some("code-insiders".to_owned());

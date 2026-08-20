@@ -19,6 +19,7 @@ preview_render = "ansi"
 preview_pager = false
 editor = "nvim \-f"
 editor_cwd = "inherit"
+gui_editor = "zed"
 vscode_cmd = "code"
 pager = "less \-R"
 default_language = "text"
@@ -64,6 +65,9 @@ Sets the external editor command. Values: non\-empty command string.
 .TP
 \fBeditor_cwd (snip config set editor\-cwd)\fR
 Selects the working directory used by the external editor. Values: inherit | library | folder | snippet | fragment.
+.TP
+\fBgui_editor (snip config set gui\-editor)\fR
+Sets the GUI editor command used by open and TUI external\-app actions. Values: non\-empty command string.
 .TP
 \fBpager (snip config set pager)\fR
 Sets the pager command used when PAGER is absent. Values: non\-empty command string.
@@ -112,7 +116,7 @@ Requests an interactive backup before TUI exit. Values: true | false.
 .SS "File\-only keys"
 .TP
 \fBvscode_cmd (file only)\fR
-Sets the Visual Studio Code command used by open and TUI external\-app actions. Values: command string.
+Deprecated alias for gui_editor; retained for compatibility through 0.x. Values: command string.
 .SS "Managed keys"
 .TP
 \fBschema_version (managed by snip)\fR

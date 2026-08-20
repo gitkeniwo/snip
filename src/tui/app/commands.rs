@@ -40,7 +40,8 @@ impl App {
 
     pub fn refresh_palette(&mut self) {
         let hidden = hidden_command_ids(self, command::registry());
-        self.palette.refresh(&hidden, &self.keymap);
+        self.palette
+            .refresh(&hidden, &self.keymap, self.gui_editor_cmd.as_deref());
     }
 }
 
@@ -331,7 +332,8 @@ pub(crate) fn toggle_help(app: &mut App) -> Vec<Effect> {
         app.help.close();
     } else {
         let stack = crate::keys::Mode::stack(app);
-        app.help.open(stack, &app.keymap);
+        app.help
+            .open(stack, &app.keymap, app.gui_editor_cmd.as_deref());
         app.show_help = true;
     }
     Vec::new()
@@ -344,7 +346,8 @@ pub(crate) fn help_filter(app: &mut App) -> Vec<Effect> {
 }
 pub(crate) fn help_toggle_scope(app: &mut App) -> Vec<Effect> {
     if app.show_help {
-        app.help.toggle_scope(&app.keymap);
+        app.help
+            .toggle_scope(&app.keymap, app.gui_editor_cmd.as_deref());
     }
     Vec::new()
 }
@@ -430,7 +433,8 @@ mod tests {
         }];
         let hidden = hidden_command_ids(&app, &commands);
         app.palette.open();
-        app.palette.refresh(&hidden, &app.keymap);
+        app.palette
+            .refresh(&hidden, &app.keymap, app.gui_editor_cmd.as_deref());
         assert!(
             !app.palette
                 .matches

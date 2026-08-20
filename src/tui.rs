@@ -209,6 +209,8 @@ fn execute_effect(
         },
         Effect::OpenInGuiEditor { path } => {
             let gui_editor = app.gui_editor_cmd.as_deref().unwrap_or("code");
+            let editor_name = command::gui_editor_name(Some(gui_editor))
+                .unwrap_or_else(|| "GUI editor".to_owned());
             let parts = match shlex::split(gui_editor).filter(|parts| !parts.is_empty()) {
                 Some(parts) if !parts.is_empty() => parts,
                 _ => {
@@ -228,11 +230,11 @@ fn execute_effect(
                         .file_name()
                         .and_then(|value| value.to_str())
                         .unwrap_or("file");
-                    app.set_status(format!("opened {name} in GUI editor"), StatusLevel::Info);
+                    app.set_status(format!("opened {name} in {editor_name}"), StatusLevel::Info);
                 }
                 Err(error) => {
                     app.set_status(
-                        format!("cannot launch GUI editor ({:?}): {error}", parts[0]),
+                        format!("cannot launch {editor_name} ({:?}): {error}", parts[0]),
                         StatusLevel::Error,
                     );
                 }
