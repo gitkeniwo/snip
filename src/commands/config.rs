@@ -83,12 +83,12 @@ pub fn command_config(args: &ConfigArgs, explicit_output: Option<OutputMode>) ->
             }
             config.save_to(&path)?;
             let output = resolve_output(explicit_output, &config);
-            print_config(&config, &path, output)
+            print_config_with_warnings(&config, &path, output)
         }
         ConfigCommand::Show => {
             let config = AppConfig::load_from(&path)?;
             let output = resolve_output(explicit_output, &config);
-            print_config(&config, &path, output)
+            print_config_with_warnings(&config, &path, output)
         }
         ConfigCommand::Set { key, value } => {
             let mut config = AppConfig::load_from(&path)?;
@@ -105,14 +105,14 @@ pub fn command_config(args: &ConfigArgs, explicit_output: Option<OutputMode>) ->
                 );
             }
             let output = resolve_output(explicit_output, &config);
-            print_config(&config, &path, output)
+            print_config_with_warnings(&config, &path, output)
         }
         ConfigCommand::Unset { key } => {
             let mut config = AppConfig::load_from(&path)?;
             unset_config_value(&mut config, *key);
             config.save_to(&path)?;
             let output = resolve_output(explicit_output, &config);
-            print_config(&config, &path, output)
+            print_config_with_warnings(&config, &path, output)
         }
     }
 }
@@ -138,6 +138,14 @@ fn print_config(config: &AppConfig, path: &Path, output: OutputMode) -> Result<(
     } else {
         print_record(&json!({"path": path, "config": config}), output)
     }
+}
+
+fn print_config_with_warnings(config: &AppConfig, path: &Path, output: OutputMode) -> Result<()> {
+    print_config(config, path, output)?;
+    if config.vscode_cmd.is_some() {
+        eprintln!("warning: vscode_cmd is deprecated; use gui_editor instead");
+    }
+    Ok(())
 }
 
 fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Result<()> {
@@ -179,6 +187,9 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
             config.editor_cwd = Some(value.parse::<EditorCwdSetting>().map_err(|()| {
                 SnipError::usage(format!("editor-cwd must be {EDITOR_CWD_VALUES}"))
             })?);
+        }
+        ConfigKey::GuiEditor => {
+            config.gui_editor = Some(nonempty_value("gui-editor", value)?);
         }
         ConfigKey::Pager => config.pager = Some(nonempty_value("pager", value)?),
         ConfigKey::DefaultLanguage => {
@@ -278,6 +289,7 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
         ConfigKey::PreviewPager => config.preview_pager = None,
         ConfigKey::Editor => config.editor = None,
         ConfigKey::EditorCwd => config.editor_cwd = None,
+        ConfigKey::GuiEditor => config.gui_editor = None,
         ConfigKey::Pager => config.pager = None,
         ConfigKey::DefaultLanguage => config.default_language = None,
         ConfigKey::DefaultFolder => config.default_folder = None,

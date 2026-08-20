@@ -98,7 +98,7 @@ Live while the snippet list has focus.
 | `n` | `snippet.new` | Create a snippet |
 | `r` | `snippet.rename` | Rename the selected snippet |
 | `t` | `snippet.edit-tags` | Edit the selected snippet tags |
-| `v` | `snippet.open-vscode` | Open the selected fragment in VS Code |
+| `v` | `snippet.open-gui` | Open the selected fragment in the configured GUI editor |
 | `Enter` | `list.enter-preview` | Focus the snippet preview |
 | `Ctrl-d` | `nav.page-down` | Move down by half a page |
 | `Ctrl-u` | `nav.page-up` | Move up by half a page |
@@ -131,7 +131,7 @@ Live while the preview pane has focus.
 | `n` | `snippet.new` | Create a snippet |
 | `r` | `snippet.rename` | Rename the selected snippet |
 | `t` | `snippet.edit-tags` | Edit the selected snippet tags |
-| `v` | `snippet.open-vscode` | Open the selected fragment in VS Code |
+| `v` | `snippet.open-gui` | Open the selected fragment in the configured GUI editor |
 | `Ctrl-d` | `nav.page-down` | Move down by half a page |
 | `Ctrl-u` | `nav.page-up` | Move up by half a page |
 | `Ctrl-c` | `app.quit` | Force quit before the active mode handles input |

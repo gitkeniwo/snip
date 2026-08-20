@@ -86,6 +86,13 @@ fn cli_lists_shows_paths_and_exports_keys_without_a_library() {
     assert_eq!(shown["action"], "snippet.edit-content");
     assert_eq!(shown["bindings"].as_array().unwrap().len(), 2);
 
+    let legacy = keys_command(config_home, &["keys", "show", "snippet.open-vscode"])
+        .output()
+        .unwrap();
+    assert!(legacy.status.success());
+    let legacy: Value = serde_json::from_slice(&legacy.stdout).unwrap();
+    assert_eq!(legacy["action"], "snippet.open-gui");
+
     let checked = keys_command(config_home, &["keys", "check"])
         .output()
         .unwrap();
