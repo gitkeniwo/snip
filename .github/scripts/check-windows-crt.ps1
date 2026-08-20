@@ -14,13 +14,25 @@ if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
     throw "vswhere.exe was not found at '$vswhere'."
 }
 
-$installationPath = (& $vswhere `
+# Read the exit code straight off the invocation. Piping into `Select-Object
+# -First 1` stops the upstream pipeline as soon as it has its one object, so
+# PowerShell never records the native command's exit code and `$LASTEXITCODE`
+# keeps whatever it held before -- `$null` in a fresh process, and `$null -ne 0`
+# is true.
+$vswhereOutput = & $vswhere `
     -latest `
     -products * `
     -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-    -property installationPath | Select-Object -First 1)
+    -property installationPath
+$vswhereExitCode = $LASTEXITCODE
 
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($installationPath)) {
+if ($vswhereExitCode -ne 0) {
+    throw "vswhere.exe failed with exit code $vswhereExitCode."
+}
+
+$installationPath = ($vswhereOutput | Select-Object -First 1)
+
+if ([string]::IsNullOrWhiteSpace($installationPath)) {
     throw "vswhere.exe could not find a Visual Studio installation with the MSVC x64 tools."
 }
 
