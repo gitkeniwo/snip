@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -18,7 +20,7 @@ pub struct TrashState {
     pub selected: usize,
     /// The selected entry's package, loaded so the preview pane can render it.
     /// Cached because loading it per frame would re-read the package from disk.
-    pub preview: Option<crate::domain::Snippet>,
+    pub preview: Option<Arc<crate::domain::Snippet>>,
 }
 
 impl TrashState {

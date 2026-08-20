@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::service::restore_snippet;
 
 use super::super::modal::{ConfirmModal, Modal, ModalAction};
@@ -46,7 +48,7 @@ impl App {
                 .rsplit_once('/')
                 .map(|(folder, _)| folder.to_owned())
                 .unwrap_or_default();
-            Some(snippet)
+            Some(Arc::new(snippet))
         });
     }
 

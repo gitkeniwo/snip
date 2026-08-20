@@ -69,34 +69,15 @@ mouse users can copy part of a fragment).
   visual column. Independent of the grapheme-cluster measurement that shipped
   alongside it.
 
-### Preview allocation follow-up
+Implementation handoff, with the verified surface inventory, the settled
+decisions, and corrections to the details above:
+`docs/plans/preview-ownership-and-tabs.md`.
 
-The rendered-preview cache removed the per-frame recompose and rewrap. One clone
-per frame remains:
+### Search index follow-up
 
-- [ ] Borrow the selected snippet in `draw_preview` rather than cloning it
-  (`src/tui/preview/render.rs:21`). The clone exists to end the `&App` borrow
-  before `&mut App` is needed, so this needs the borrow split untangled first.
-  Deliberately deferred after the cache work: the normal and trash preview
-  ownership paths need a wider borrow refactor, for a much smaller payoff than
-  the wrapping allocations already removed.
-  Tracks `docs/plans/completed/preview-render-cost.md`.
-
-### Catalog held twice in memory
-
-`App` holds a `CatalogSnapshot` and a `MemoryIndex` that is nothing but a second
-full copy of it (`src/tui/app/core.rs:51` and `:496` call
-`MemoryIndex::new(catalog.clone())`; `src/search.rs:106` shows the struct has one
-field and builds no index — `search()` is a linear scan over `catalog.snippets`).
-A rescan transiently holds a third copy. That is ~0.8 MB at today's scale, but it
-grows linearly with library size.
-
-- [ ] Share one `Arc<CatalogSnapshot>` between `App` and `MemoryIndex`, or have
-  the search borrow the catalog directly, so the snapshot is stored once.
-- [ ] Separately: `MemoryIndex` is misnamed for what it does. Decide whether it
-  should acquire a real index (inverted index over titles/tags, or a prefilter)
-  or be renamed to reflect that it is a linear scanner. This depends on the
-  library size we intend to support and is not urgent at today's scale.
+- [ ] Decide whether `MemoryIndex` needs an inverted index over titles and tags.
+  Otherwise, rename it to reflect its linear scan. The answer depends on the
+  supported library size and is not urgent at today's scale.
 
 ## Library format
 
@@ -321,6 +302,10 @@ there is no popularity threshold for new packages.
   total footprint was not worth optimizing. A lazy syntax set and
   visible-window-only highlighting were both considered and rejected.
   (`docs/plans/completed/preview-render-cost.md`)
+- **Shared preview ownership** — `App` and `MemoryIndex` share one
+  `Arc<CatalogSnapshot>`. Live and trash previews borrow snippets or clone
+  `Arc`s, so frames do not copy snippet content.
+  (`docs/plans/preview-ownership-and-tabs.md`, Track 1)
 
 ### Library portability
 

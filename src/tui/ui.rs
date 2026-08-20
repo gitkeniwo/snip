@@ -59,7 +59,7 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
         trash::draw_trash_list(frame, app, list_area);
         let preview = app.trash.preview.clone();
         let accent = app.theme.accent_alt;
-        preview::draw_preview_of(frame, app, preview_area, preview, accent);
+        preview::draw_preview_of(frame, app, preview_area, preview.as_deref(), accent);
     } else {
         draw_list(frame, app, list_area);
         preview::draw_preview(frame, app, preview_area);
