@@ -5,12 +5,16 @@ use syntect::easy::HighlightLines;
 use syntect::highlighting::{FontStyle, Theme};
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::domain::Fragment;
 use crate::error::{Result, SnipError};
 use crate::render::find_syntax;
 
+use super::selection::cluster_width;
 use super::theme::TuiTheme;
+
+const PREVIEW_TAB_WIDTH: u16 = 4;
 
 pub struct Highlighter {
     syntaxes: SyntaxSet,
@@ -64,7 +68,9 @@ impl Highlighter {
                     )
                 })
                 .collect::<Vec<_>>();
-            lines.push(Line::from(spans));
+            let mut line = Line::from(spans);
+            expand_preview_tabs(&mut line);
+            lines.push(line);
         }
         if lines.is_empty() {
             lines.push(Line::default());
@@ -122,7 +128,36 @@ pub fn markdown(markdown: &str, theme: TuiTheme) -> Text<'static> {
     while lines.len() > 1 && lines.last().is_some_and(|line| line.spans.is_empty()) {
         lines.pop();
     }
+    for line in &mut lines {
+        expand_preview_tabs(line);
+    }
     Text::from(lines)
+}
+
+fn expand_preview_tabs(line: &mut Line<'static>) {
+    let mut column = 0_u16;
+    for span in &mut line.spans {
+        if span.content.contains('\t') {
+            let mut expanded = String::with_capacity(span.content.len());
+            for cluster in span.content.graphemes(true) {
+                if cluster == "\t" {
+                    let padding = PREVIEW_TAB_WIDTH - (column % PREVIEW_TAB_WIDTH);
+                    expanded.extend(std::iter::repeat_n(' ', usize::from(padding)));
+                    column = column.saturating_add(padding);
+                } else {
+                    expanded.push_str(cluster);
+                    column = column.saturating_add(cluster_width(cluster));
+                }
+            }
+            span.content = expanded.into();
+        } else {
+            column = span
+                .content
+                .graphemes(true)
+                .map(cluster_width)
+                .fold(column, u16::saturating_add);
+        }
+    }
 }
 
 fn push_span(lines: &mut Vec<Line<'static>>, value: &str, style: Style) {
@@ -148,6 +183,30 @@ mod tests {
     use std::path::PathBuf;
     use uuid::Uuid;
 
+    fn fragment(language: &str, file: &str, content: &str) -> Fragment {
+        Fragment {
+            manifest: FragmentManifest {
+                id: Uuid::new_v4(),
+                title: "Test".to_owned(),
+                language: language.to_owned(),
+                file: file.to_owned(),
+                note: None,
+                source_language: None,
+                extra: toml::Table::new(),
+            },
+            content: content.to_owned(),
+            note_content: None,
+            absolute_path: PathBuf::from(file),
+        }
+    }
+
+    fn line_text(line: &Line<'_>) -> String {
+        line.spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect()
+    }
+
     #[test]
     fn markdown_maps_emphasis_and_rust_gets_non_default_styles() {
         let source = crate::theme::load("dark-default").unwrap();
@@ -161,20 +220,11 @@ mod tests {
                 .any(|span| span.style != Style::default())
         );
 
-        let fragment = Fragment {
-            manifest: FragmentManifest {
-                id: Uuid::new_v4(),
-                title: "Rust".to_owned(),
-                language: "rust".to_owned(),
-                file: "fragments/main.rs".to_owned(),
-                note: None,
-                source_language: None,
-                extra: toml::Table::new(),
-            },
-            content: "fn main() { let answer = 42; }\n".to_owned(),
-            note_content: None,
-            absolute_path: PathBuf::from("main.rs"),
-        };
+        let fragment = fragment(
+            "rust",
+            "fragments/main.rs",
+            "fn main() { let answer = 42; }\n",
+        );
         let highlighted = Highlighter::new(&source)
             .unwrap()
             .fragment(&fragment)
@@ -184,6 +234,51 @@ mod tests {
                 .lines
                 .iter()
                 .flat_map(|line| &line.spans)
+                .any(|span| span.style != Style::default())
+        );
+    }
+
+    #[test]
+    fn tabs_expand_to_four_cell_stops() {
+        for (input, expected) in [
+            ("\tfoo", "    foo"),
+            ("a\tb", "a   b"),
+            ("abcd\te", "abcd    e"),
+            ("中\tx", "中  x"),
+        ] {
+            let mut line = Line::raw(input.to_owned());
+            expand_preview_tabs(&mut line);
+            assert_eq!(line_text(&line), expected, "{input:?}");
+        }
+    }
+
+    #[test]
+    fn tab_stops_carry_across_span_boundaries() {
+        let red = Style::default().fg(Color::Red);
+        let blue = Style::default().fg(Color::Blue);
+        let mut line = Line::from(vec![Span::styled("a", red), Span::styled("\tb", blue)]);
+
+        expand_preview_tabs(&mut line);
+
+        assert_eq!(line_text(&line), "a   b");
+        assert_eq!(line.spans[0].style, red);
+        assert_eq!(line.spans[1].style, blue);
+    }
+
+    #[test]
+    fn makefile_recipe_is_highlighted_before_its_tab_expands() {
+        let source = crate::theme::load("dark-default").unwrap();
+        let highlighted = Highlighter::new(&source)
+            .unwrap()
+            .fragment(&fragment("makefile", "Makefile", "all:\n\t@echo ok\n"))
+            .unwrap();
+        let recipe = &highlighted.lines[1];
+
+        assert_eq!(line_text(recipe), "    @echo ok");
+        assert!(
+            recipe
+                .spans
+                .iter()
                 .any(|span| span.style != Style::default())
         );
     }

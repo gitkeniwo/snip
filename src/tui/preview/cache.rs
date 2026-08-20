@@ -163,6 +163,15 @@ mod tests {
             .collect()
     }
 
+    fn assert_no_tabs(text: &Text<'static>) {
+        assert!(
+            text.lines
+                .iter()
+                .flat_map(|line| &line.spans)
+                .all(|span| !span.content.contains('\t'))
+        );
+    }
+
     #[test]
     fn fragment_document_omits_readme() {
         let (highlighter, theme) = highlighter();
@@ -203,6 +212,53 @@ mod tests {
                 build(&snippet(readme), PreviewTarget::Readme, &highlighter, theme).unwrap();
             assert!(matches!(document, PreviewDocument::Empty), "{readme:?}");
         }
+    }
+
+    #[test]
+    fn built_fragment_and_markdown_documents_expand_tabs() {
+        let (highlighter, theme) = highlighter();
+        let mut snippet = snippet(Some("```\n\treadme\n```\n"));
+        snippet.loaded_fragments[0].content = "\tfragment\n".to_owned();
+        snippet.loaded_fragments[0].note_content = Some("```\n\tnote\n```\n".to_owned());
+
+        let fragment = build(&snippet, PreviewTarget::Fragment(0), &highlighter, theme).unwrap();
+        let PreviewDocument::Fragment { note, body } = fragment else {
+            panic!("a fragment target must build a fragment document");
+        };
+        assert_no_tabs(&body);
+        assert_no_tabs(note.as_ref().expect("fixture has a note"));
+        assert!(plain(&body).contains("    fragment"));
+        assert!(plain(note.as_ref().unwrap()).contains("    note"));
+
+        let readme = build(&snippet, PreviewTarget::Readme, &highlighter, theme).unwrap();
+        let PreviewDocument::Readme(readme) = readme else {
+            panic!("a README target must build a README document");
+        };
+        assert_no_tabs(&readme);
+        assert!(plain(&readme).contains("    readme"));
+    }
+
+    #[test]
+    fn cjk_before_a_tab_wraps_at_the_expanded_display_column() {
+        let (highlighter, theme) = highlighter();
+        let mut snippet = snippet(None);
+        snippet.loaded_fragments[0].content = "中\tx\n".to_owned();
+        snippet.loaded_fragments[0].note_content = None;
+        let document = build(&snippet, PreviewTarget::Fragment(0), &highlighter, theme).unwrap();
+        let wrapped = wrap_preview(compose_preview(document, false, theme, 4), 4, false);
+        let lines = wrapped
+            .text
+            .lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(lines, ["中  ", "x"]);
     }
 
     #[test]

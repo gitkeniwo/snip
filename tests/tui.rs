@@ -1634,6 +1634,48 @@ fn preview_drag_selection_copies_text_without_line_number_gutter() {
 }
 
 #[test]
+fn preview_expands_tabs_but_copy_content_preserves_source_tabs() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = Library::init(&temporary.path().join("Tabs.sniplib"), None).unwrap();
+    create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Tabs".to_owned(),
+            language: "makefile".to_owned(),
+            content: "\tfoo\n".to_owned(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let backend = TestBackend::new(100, 20);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| snip::tui::ui::draw(frame, &mut app))
+        .unwrap();
+
+    let x = app.layout.preview_content.x;
+    let y = app.layout.preview_content.y;
+    assert!(row_text_from(terminal.backend().buffer(), y, x).starts_with("1│     foo"));
+
+    let _ = app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), x, y));
+    let _ = app.handle_mouse(mouse(MouseEventKind::Drag(MouseButton::Left), x + 10, y));
+    let effects = app.handle_mouse(mouse(MouseEventKind::Up(MouseButton::Left), x + 10, y));
+    let Effect::CopyToClipboard { text, label } = &effects[0] else {
+        panic!("expected automatic clipboard effect");
+    };
+    assert_eq!(text, "    foo");
+    assert_eq!(label, "selection");
+
+    let effects = app.run_command(CommandId::CopyContent);
+    let Effect::CopyToClipboard { text, label } = &effects[0] else {
+        panic!("expected content clipboard effect");
+    };
+    assert_eq!(text, "\tfoo\n");
+    assert_eq!(label, "fragment");
+}
+
+#[test]
 fn help_overlay_accepts_mouse_wheel_scrolling() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
