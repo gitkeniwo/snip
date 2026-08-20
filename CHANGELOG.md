@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Preview ownership uses shared snapshots.** The TUI and search index share
   one catalog allocation. Live and trash previews borrow snippets instead of
   copying their content each frame.
+- **Preview tabs use four-cell stops.** Fragment, README, and note previews
+  expand tabs after syntax highlighting. Wrapping and mouse selections match
+  the visible columns. Full-content copy preserves source tabs.
 
 ### Deprecated
 

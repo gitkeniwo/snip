@@ -19,17 +19,6 @@ the rejected options and the settled shape should it ever be built, plus one
 separable read-only idea (keyboard selection and yank, closing the gap where only
 mouse users can copy part of a fragment).
 
-### Tab expansion in the preview
-
-- [ ] Expand tabs before syntax highlighting using an explicit tab-stop policy;
-  ratatui filters the control character itself, so tabs currently collapse to one
-  visual column. Independent of the grapheme-cluster measurement that shipped
-  alongside it.
-
-Implementation handoff, with the verified surface inventory, the settled
-decisions, and corrections to the details above:
-`docs/plans/preview-ownership-and-tabs.md`.
-
 ### Search index follow-up
 
 - [ ] Decide whether `MemoryIndex` needs an inverted index over titles and tags.
@@ -267,7 +256,11 @@ there is no popularity threshold for new packages.
 - **Shared preview ownership** — `App` and `MemoryIndex` share one
   `Arc<CatalogSnapshot>`. Live and trash previews borrow snippets or clone
   `Arc`s, so frames do not copy snippet content.
-  (`docs/plans/preview-ownership-and-tabs.md`, Track 1)
+  (`docs/plans/completed/preview-ownership-and-tabs.md`, Track 1)
+- **Tab expansion in previews** — Tabs in fragment, README, and note previews
+  expand to four-cell stops after syntax highlighting. Display-cell widths keep
+  CJK wrapping and mouse selection aligned. Full-content copy preserves source
+  tabs. (`docs/plans/completed/preview-ownership-and-tabs.md`, Track 2)
 
 ### Library portability
 
