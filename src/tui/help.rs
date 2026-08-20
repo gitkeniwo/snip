@@ -2,6 +2,7 @@ mod extras;
 mod render;
 mod state;
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use crate::keys::{Chord, Keymap, Mode, chord_sort_key};
@@ -97,7 +98,7 @@ pub struct HelpRow {
     pub key: HelpKey,
     pub slug: &'static str,
     pub description: &'static str,
-    pub title: &'static str,
+    pub title: Cow<'static, str>,
     pub category: &'static str,
     pub keywords: &'static [&'static str],
     pub aliases: &'static [&'static str],
@@ -111,7 +112,7 @@ pub struct VisibleHelpRow {
     pub matched: HelpMatch,
 }
 
-pub fn declared(mode: Mode, keymap: &Keymap) -> Vec<HelpRow> {
+pub fn declared(mode: Mode, keymap: &Keymap, gui_editor: Option<&str>) -> Vec<HelpRow> {
     let defaults = Keymap::defaults();
     let mut bindings = keymap.bindings_for(mode).collect::<Vec<_>>();
     bindings.sort_unstable_by_key(|(chord, _)| chord_sort_key(*chord));
@@ -136,12 +137,13 @@ pub fn declared(mode: Mode, keymap: &Keymap) -> Vec<HelpRow> {
             vec![chord],
             keymap,
             &defaults,
+            gui_editor,
         ));
     }
     rows
 }
 
-pub fn effective(stack: &[Mode], keymap: &Keymap) -> Vec<HelpRow> {
+pub fn effective(stack: &[Mode], keymap: &Keymap, gui_editor: Option<&str>) -> Vec<HelpRow> {
     let defaults = Keymap::defaults();
     let mut candidates = stack
         .iter()
@@ -179,18 +181,24 @@ pub fn effective(stack: &[Mode], keymap: &Keymap) -> Vec<HelpRow> {
                 vec![chord],
                 keymap,
                 &defaults,
+                gui_editor,
             ));
         }
     }
     rows
 }
 
-pub(crate) fn project(scope: HelpScope, stack: &[Mode], keymap: &Keymap) -> Vec<HelpRow> {
+pub(crate) fn project(
+    scope: HelpScope,
+    stack: &[Mode],
+    keymap: &Keymap,
+    gui_editor: Option<&str>,
+) -> Vec<HelpRow> {
     let mut rows = match scope {
-        HelpScope::Context => effective(stack, keymap),
+        HelpScope::Context => effective(stack, keymap, gui_editor),
         HelpScope::All => Mode::ALL
             .into_iter()
-            .flat_map(|mode| declared(mode, keymap))
+            .flat_map(|mode| declared(mode, keymap, gui_editor))
             .collect(),
     };
     let applicable_modes: &[Mode] = match scope {
@@ -209,7 +217,7 @@ pub(crate) fn project(scope: HelpScope, stack: &[Mode], keymap: &Keymap) -> Vec<
         }
     }
     if scope == HelpScope::Context {
-        for mut row in declared(Mode::Help, keymap) {
+        for mut row in declared(Mode::Help, keymap, gui_editor) {
             row.display_group = HelpGroup::HelpControls;
             rows.push(row);
         }
@@ -280,6 +288,7 @@ fn command_row(
     chords: Vec<Chord>,
     keymap: &Keymap,
     defaults: &Keymap,
+    gui_editor: Option<&str>,
 ) -> HelpRow {
     let command = command::get(id);
     HelpRow {
@@ -289,7 +298,7 @@ fn command_row(
         key: HelpKey::Chords(chords),
         slug: command.slug,
         description: command.description,
-        title: command.title,
+        title: command::display_title(command, gui_editor),
         category: command.category,
         keywords: command.keywords,
         aliases: &[],
@@ -314,7 +323,7 @@ fn extra_row(extra: &'static HelpExtra, extra_order: usize) -> HelpRow {
         key: HelpKey::Literal(extra.key),
         slug: extra.slug,
         description: extra.description,
-        title: "",
+        title: Cow::Borrowed(""),
         category: "",
         keywords: &[],
         aliases: extra.aliases,
@@ -345,7 +354,7 @@ mod tests {
     #[test]
     fn effective_rows_drop_shadowed_bindings() {
         let keymap = Keymap::defaults();
-        let rows = effective(&[Mode::List, Mode::Global], &keymap);
+        let rows = effective(&[Mode::List, Mode::Global], &keymap, None);
         let enter = rows
             .iter()
             .filter(|row| row.key.display().contains("Enter"))
@@ -357,7 +366,7 @@ mod tests {
     #[test]
     fn effective_rows_surface_only_inherited_globals() {
         let keymap = Keymap::defaults();
-        let rows = effective(&[Mode::Help], &keymap);
+        let rows = effective(&[Mode::Help], &keymap, None);
         assert!(rows.iter().any(|row| row.slug == "git.toggle-console"));
         assert!(rows.iter().any(|row| row.slug == "gist.toggle-panel"));
         assert!(rows.iter().any(|row| row.slug == "palette.open"));
@@ -373,18 +382,33 @@ mod tests {
     #[test]
     fn context_appends_help_controls_once_and_all_does_not_duplicate() {
         let keymap = Keymap::defaults();
-        let context = project(HelpScope::Context, &[Mode::List, Mode::Global], &keymap);
+        let context = project(
+            HelpScope::Context,
+            &[Mode::List, Mode::Global],
+            &keymap,
+            None,
+        );
         assert!(
             context
                 .iter()
                 .any(|row| row.display_group == HelpGroup::HelpControls)
         );
-        let all = project(HelpScope::All, &[Mode::List, Mode::Global], &keymap);
+        let all = project(HelpScope::All, &[Mode::List, Mode::Global], &keymap, None);
         assert_eq!(
             all.iter()
                 .filter(|row| row.slug == "help.toggle-scope")
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn help_rows_use_the_configured_gui_editor_name() {
+        let rows = declared(Mode::List, &Keymap::defaults(), Some("zed"));
+        let open = rows
+            .iter()
+            .find(|row| row.slug == "snippet.open-gui")
+            .unwrap();
+        assert_eq!(open.title, "Open in zed");
     }
 }

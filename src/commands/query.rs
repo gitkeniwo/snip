@@ -252,7 +252,7 @@ pub fn command_open(
     let app = args
         .app
         .as_deref()
-        .or(config.vscode_cmd.as_deref())
+        .or(config.gui_editor_command())
         .unwrap_or("code");
     let parts = shlex::split(app)
         .filter(|parts| !parts.is_empty())

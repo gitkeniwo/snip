@@ -57,14 +57,14 @@ impl Default for HelpState {
 }
 
 impl HelpState {
-    pub fn open(&mut self, scope_stack: Vec<Mode>, keymap: &Keymap) {
+    pub fn open(&mut self, scope_stack: Vec<Mode>, keymap: &Keymap, gui_editor: Option<&str>) {
         self.scope = HelpScope::Context;
         self.scope_stack = scope_stack;
         self.filter = TextInput::default();
         self.filtering = false;
         self.selected = 0;
         self.scroll = 0;
-        self.rebuild(keymap);
+        self.rebuild(keymap, gui_editor);
     }
 
     pub fn close(&mut self) {
@@ -86,12 +86,12 @@ impl HelpState {
         }
     }
 
-    pub fn toggle_scope(&mut self, keymap: &Keymap) {
+    pub fn toggle_scope(&mut self, keymap: &Keymap, gui_editor: Option<&str>) {
         self.scope = match self.scope {
             HelpScope::Context => HelpScope::All,
             HelpScope::All => HelpScope::Context,
         };
-        self.rebuild(keymap);
+        self.rebuild(keymap, gui_editor);
     }
 
     pub fn cycle_sort(&mut self) {
@@ -166,8 +166,8 @@ impl HelpState {
         self.rows.len()
     }
 
-    fn rebuild(&mut self, keymap: &Keymap) {
-        self.rows = project(self.scope, &self.scope_stack, keymap);
+    fn rebuild(&mut self, keymap: &Keymap, gui_editor: Option<&str>) {
+        self.rows = project(self.scope, &self.scope_stack, keymap, gui_editor);
         let group_order = self.group_order();
         sort_rows(&mut self.rows, self.sort, &group_order);
         self.rebuild_visible_preserving_selection();
@@ -246,7 +246,7 @@ fn match_row(row: &HelpRow, pattern: &Pattern, matcher: &mut Matcher) -> Option<
     let hidden_reason = if displayed {
         None
     } else {
-        std::iter::once(("title", row.title))
+        std::iter::once(("title", row.title.as_ref()))
             .chain(std::iter::once(("category", row.category)))
             .chain(row.keywords.iter().copied().map(|value| ("keyword", value)))
             .chain(row.aliases.iter().copied().map(|value| ("alias", value)))
@@ -287,7 +287,7 @@ mod tests {
     fn filter_matches_hidden_fields_and_preserves_selection() {
         let keymap = Keymap::defaults();
         let mut state = HelpState::default();
-        state.open(vec![Mode::List, Mode::Global], &keymap);
+        state.open(vec![Mode::List, Mode::Global], &keymap, None);
         state.filter.value = "force".to_owned();
         state.refresh_filter();
         assert!(
@@ -308,13 +308,13 @@ mod tests {
     fn scope_change_preserves_stable_global_identity() {
         let keymap = Keymap::defaults();
         let mut state = HelpState::default();
-        state.open(vec![Mode::Help], &keymap);
+        state.open(vec![Mode::Help], &keymap, None);
         state.selected = state
             .visible
             .iter()
             .position(|row| row.row.slug == "git.toggle-console")
             .unwrap();
-        state.toggle_scope(&keymap);
+        state.toggle_scope(&keymap, None);
         assert_eq!(state.visible[state.selected].row.slug, "git.toggle-console");
     }
 
@@ -322,7 +322,7 @@ mod tests {
     fn growing_viewport_reclamps_scroll_without_bottom_blank_space() {
         let keymap = Keymap::defaults();
         let mut state = HelpState::default();
-        state.open(vec![Mode::List, Mode::Global], &keymap);
+        state.open(vec![Mode::List, Mode::Global], &keymap, None);
         let content_lines = state.count();
         let ranges = (0..content_lines)
             .map(|line| line..line + 1)

@@ -16,6 +16,7 @@ pub enum ConfigKey {
     PreviewPager,
     Editor,
     EditorCwd,
+    GuiEditor,
     Pager,
     DefaultLanguage,
     DefaultFolder,
@@ -42,6 +43,7 @@ impl ConfigKey {
         Self::PreviewPager,
         Self::Editor,
         Self::EditorCwd,
+        Self::GuiEditor,
         Self::Pager,
         Self::DefaultLanguage,
         Self::DefaultFolder,
@@ -68,6 +70,7 @@ impl ConfigKey {
             Self::PreviewPager => "preview-pager",
             Self::Editor => "editor",
             Self::EditorCwd => "editor-cwd",
+            Self::GuiEditor => "gui-editor",
             Self::Pager => "pager",
             Self::DefaultLanguage => "default-language",
             Self::DefaultFolder => "default-folder",
@@ -189,11 +192,18 @@ pub const CONFIG_FIELDS: &[ConfigFieldSpec] = &[
         "inherit | library | folder | snippet | fragment",
         "\"inherit\"",
     ),
+    settable(
+        "gui_editor",
+        ConfigKey::GuiEditor,
+        "Sets the GUI editor command used by open and TUI external-app actions.",
+        "non-empty command string",
+        "\"zed\"",
+    ),
     ConfigFieldSpec {
         toml_path: "vscode_cmd",
         cli_key: None,
         kind: FieldKind::FileOnly,
-        summary: "Sets the Visual Studio Code command used by open and TUI external-app actions.",
+        summary: "Deprecated alias for gui_editor; retained for compatibility through 0.x.",
         values: "command string",
         example: "\"code\"",
     },
@@ -344,6 +354,7 @@ mod tests {
             preview_pager: _,
             editor: _,
             editor_cwd: _,
+            gui_editor: _,
             vscode_cmd: _,
             pager: _,
             default_language: _,
@@ -371,7 +382,7 @@ mod tests {
             extra: _,
         } = GitConfig::default();
 
-        assert_eq!(CONFIG_FIELDS.len(), 24);
+        assert_eq!(CONFIG_FIELDS.len(), 25);
         assert_eq!(
             CONFIG_FIELDS
                 .iter()

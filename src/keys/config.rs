@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::error::{Result, SnipError};
-use crate::tui::command::{CommandId, by_slug, get};
+use crate::tui::command::{CommandId, get, resolve_slug};
 
 use super::{Chord, Keymap, Mode};
 
@@ -202,13 +202,18 @@ fn parse_mode(
     let mut parsed = Vec::new();
 
     for (slug, value) in bindings {
-        let Some(id) = by_slug(&slug) else {
+        let Some((id, replacement)) = resolve_slug(&slug) else {
             diagnostics.push(Diagnostic::error(format!(
                 "unknown key binding action \"{slug}\" in mode \"{}\"",
                 mode.config_name()
             )));
             continue;
         };
+        if let Some(replacement) = replacement {
+            diagnostics.push(Diagnostic::info(format!(
+                "key binding action \"{slug}\" is deprecated; use \"{replacement}\""
+            )));
+        }
         let Some(chord_names) = chord_names(&value) else {
             diagnostics.push(Diagnostic::error(format!(
                 "binding for {slug} in mode \"{}\" must be a chord or a list of chords",
@@ -381,5 +386,34 @@ mod tests {
             keymap.resolve(&[Mode::List], "r".parse().unwrap()),
             Some(CommandId::SnippetRename)
         );
+    }
+
+    #[test]
+    fn deprecated_gui_editor_slug_binds_with_one_info_diagnostic() {
+        let (keymap, diagnostics) = load(
+            r#"
+                [list]
+                "snippet.open-vscode" = "alt-v"
+            "#,
+        );
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].level, DiagnosticLevel::Info);
+        assert_eq!(
+            diagnostics[0].message,
+            "key binding action \"snippet.open-vscode\" is deprecated; use \"snippet.open-gui\""
+        );
+        assert_eq!(
+            keymap.resolve(&[Mode::List], "alt-v".parse().unwrap()),
+            Some(CommandId::SnippetOpenGui)
+        );
+
+        let (_, canonical_diagnostics) = load(
+            r#"
+                [list]
+                "snippet.open-gui" = "alt-v"
+            "#,
+        );
+        assert!(canonical_diagnostics.is_empty());
     }
 }

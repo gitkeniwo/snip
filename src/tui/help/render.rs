@@ -765,7 +765,7 @@ mod tests {
     fn real_rows_never_ellipsize_and_narrow_rows_put_the_slug_below() {
         let keymap = Keymap::defaults();
         let mut state = HelpState::default();
-        state.open(vec![Mode::List, Mode::Global], &keymap);
+        state.open(vec![Mode::List, Mode::Global], &keymap, None);
         let theme = TuiTheme::default_for(Appearance::Dark);
         let plan = build_render_plan(54, state.visible_rows(), theme);
         assert!(
@@ -797,7 +797,7 @@ mod tests {
     fn selected_hidden_match_note_wraps_in_wide_and_narrow_layouts() {
         let keymap = Keymap::defaults();
         let mut state = HelpState::default();
-        state.open(vec![Mode::List, Mode::Global], &keymap);
+        state.open(vec![Mode::List, Mode::Global], &keymap, None);
         let mut row = state.visible_rows()[0].clone();
         let value = "强制主题匹配字段非常长而且不能因为终端宽度不足就消失".repeat(3);
         row.matched.hidden_reason = Some(HiddenMatch {
@@ -822,7 +822,7 @@ mod tests {
     fn custom_bindings_keep_warning_marker_and_selected_note() {
         let keymap = Keymap::defaults();
         let mut state = HelpState::default();
-        state.open(vec![Mode::List, Mode::Global], &keymap);
+        state.open(vec![Mode::List, Mode::Global], &keymap, None);
         let mut row = state.visible_rows()[0].clone();
         row.row.user_modified = true;
         let theme = TuiTheme::default_for(Appearance::Dark);
@@ -870,7 +870,7 @@ mod tests {
     fn selected_help_spans_are_legible_in_every_builtin_theme() {
         let keymap = Keymap::defaults();
         let mut state = HelpState::default();
-        state.open(vec![Mode::List, Mode::Global], &keymap);
+        state.open(vec![Mode::List, Mode::Global], &keymap, None);
         let mut row = state.visible_rows()[0].clone();
         row.row.user_modified = true;
         row.matched.key_indices = vec![0];

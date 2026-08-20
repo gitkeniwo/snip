@@ -71,7 +71,12 @@ impl PaletteState {
         }
         self.recent.truncate(MAX_RECENT);
     }
-    pub fn refresh(&mut self, hidden: &std::collections::HashSet<CommandId>, keymap: &Keymap) {
+    pub fn refresh(
+        &mut self,
+        hidden: &std::collections::HashSet<CommandId>,
+        keymap: &Keymap,
+        gui_editor: Option<&str>,
+    ) {
         let query = self.input.value.trim();
         if query.is_empty() {
             let mut ids = self
@@ -103,7 +108,8 @@ impl PaletteState {
                 .enumerate()
                 .filter(|(_, command)| !hidden.contains(&command.id))
                 .filter_map(|(index, command)| {
-                    let haystack = format!("{}: {}", command.category, command.title);
+                    let title = command::display_title(command, gui_editor);
+                    let haystack = format!("{}: {title}", command.category);
                     let mut indices = Vec::new();
                     let mut haystack_buf = Vec::new();
                     let mut score = pattern.indices(
@@ -294,7 +300,8 @@ pub fn draw_palette(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
         .enumerate()
     {
         let command = command::get(matched.id);
-        let full_text = format!("{}: {}", command.category, command.title);
+        let title = command::display_title(command, app.gui_editor_cmd.as_deref());
+        let full_text = format!("{}: {title}", command.category);
         let state = (command.state)(app);
         let (hint, disabled) = match state {
             CommandState::Enabled => (matched.key_hint.as_str(), false),
@@ -362,7 +369,7 @@ mod tests {
         assert!(diagnostics.is_empty());
 
         let mut palette = PaletteState::default();
-        palette.refresh(&std::collections::HashSet::new(), &keymap);
+        palette.refresh(&std::collections::HashSet::new(), &keymap, None);
 
         let edit_content = palette
             .matches
@@ -370,5 +377,23 @@ mod tests {
             .find(|matched| matched.id == CommandId::SnippetEditContent)
             .unwrap();
         assert_eq!(edit_content.key_hint, "e / Alt-e");
+    }
+
+    #[test]
+    fn configured_gui_editor_is_searchable() {
+        let mut palette = PaletteState::default();
+        palette.input.value = "zed".to_owned();
+        palette.refresh(
+            &std::collections::HashSet::new(),
+            &Keymap::defaults(),
+            Some("zed"),
+        );
+
+        assert!(
+            palette
+                .matches
+                .iter()
+                .any(|matched| matched.id == CommandId::SnippetOpenGui)
+        );
     }
 }

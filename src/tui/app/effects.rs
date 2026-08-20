@@ -200,7 +200,7 @@ impl App {
             .collect()
     }
 
-    pub(super) fn open_vscode_effect(&self) -> Vec<Effect> {
+    pub(super) fn open_gui_editor_effect(&self) -> Vec<Effect> {
         self.selected_snippet()
             .map(|snippet| {
                 let path = match self.preview_target.fragment_index() {
@@ -211,7 +211,7 @@ impl App {
                         .unwrap_or_else(|| snippet.package_path.clone()),
                     None => snippet.package_path.join("README.md"),
                 };
-                Effect::OpenInVsCode { path }
+                Effect::OpenInGuiEditor { path }
             })
             .into_iter()
             .collect()

@@ -132,7 +132,7 @@ impl App {
             pending_quit: false,
             editor_cmd: config.editor.clone(),
             editor_cwd: config.editor_cwd.unwrap_or_default(),
-            vscode_cmd: config.vscode_cmd.clone(),
+            gui_editor_cmd: config.gui_editor_command().map(str::to_owned),
             show_help: false,
             help: Default::default(),
             default_language: config

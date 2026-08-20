@@ -329,7 +329,7 @@ fn bind_snippet_actions(keymap: &mut Keymap, mode: Mode) {
     keymap.bind(mode, SnippetEditContent, &["e"]);
     keymap.bind(mode, SnippetEditNote, &["E"]);
     keymap.bind(mode, SnippetEditReadme, &["R"]);
-    keymap.bind(mode, SnippetOpenVsCode, &["v"]);
+    keymap.bind(mode, SnippetOpenGui, &["v"]);
     keymap.bind(mode, SnippetRename, &["r"]);
     keymap.bind(mode, SnippetMove, &["m"]);
     keymap.bind(mode, SnippetEditTags, &["t"]);

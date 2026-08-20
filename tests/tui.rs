@@ -555,7 +555,8 @@ fn command_palette_opens_over_help_and_filters_hidden_commands() {
     assert!(app.palette.open);
 
     let hidden = std::collections::HashSet::from([CommandId::GitPush]);
-    app.palette.refresh(&hidden, &app.keymap);
+    app.palette
+        .refresh(&hidden, &app.keymap, app.gui_editor_cmd.as_deref());
     assert!(
         !app.palette
             .matches
@@ -3344,7 +3345,7 @@ fn note_and_readme_editor_targets_save_markdown() {
     );
 }
 #[test]
-fn v_key_emits_open_in_vscode_effect() {
+fn v_key_emits_open_in_gui_editor_effect() {
     let (_temporary, library, first_id, _second_id) = fixture();
     let config = AppConfig {
         vscode_cmd: Some("code-insiders".to_owned()),
@@ -3360,11 +3361,11 @@ fn v_key_emits_open_in_vscode_effect() {
             .unwrap(),
     ));
 
-    assert_eq!(app.vscode_cmd.as_deref(), Some("code-insiders"));
+    assert_eq!(app.gui_editor_cmd.as_deref(), Some("code-insiders"));
 
     let effects = app.handle_key(key(KeyCode::Char('v')));
-    let Effect::OpenInVsCode { path } = effects.into_iter().next().unwrap() else {
-        panic!("expected OpenInVsCode effect");
+    let Effect::OpenInGuiEditor { path } = effects.into_iter().next().unwrap() else {
+        panic!("expected OpenInGuiEditor effect");
     };
 
     let snippet = app.selected_snippet().unwrap();

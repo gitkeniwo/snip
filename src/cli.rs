@@ -262,7 +262,7 @@ pub struct OpenArgs {
     /// Open a fragment selected by 1-based index or UUID prefix.
     #[arg(long, conflicts_with_all = ["metadata", "readme"])]
     pub fragment: Option<String>,
-    /// Command to launch. Defaults to the `vscode_cmd` config key, then `code`.
+    /// Command to launch. Defaults to the `gui_editor` config key, then `code`.
     #[arg(long)]
     pub app: Option<String>,
 }

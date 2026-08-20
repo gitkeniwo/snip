@@ -245,11 +245,13 @@ on a linked snippet is a `conflict` (4); an un-publishable payload is a
 
 - `snip open <SELECTOR>` — hand a managed path to an application. Same target
   flags as `path` (`--fragment`, `--readme`, `--metadata`) plus `--app <CMD>`;
-  defaults to the `vscode_cmd` config key, then `code`. This launches a GUI
+  defaults to the `gui_editor` config key, then the deprecated `vscode_cmd`
+  alias, then `code`. This launches a GUI
   program, so only run it when the user asked to open something.
 - `snip config path|show|init|set <KEY> <VALUE>|unset <KEY>` — keys:
   `default-library`, `output`, `color`, `preview-render`, `preview-pager`,
-  `editor`, `editor-cwd`, `pager`, `default-language`, `default-folder`, `default-tags`,
+  `editor`, `editor-cwd`, `gui-editor`, `pager`, `default-language`,
+  `default-folder`, `default-tags`,
   `tui-theme`, `tui-sort`, `tui-density`, `tui-line-numbers`,
   `tui-simplified-ui`,
   `git-auto-commit-interval`,
