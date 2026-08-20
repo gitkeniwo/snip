@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.1] - 2026-08-20
 
 ### Added
 
@@ -56,6 +56,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subdirectories, and install, uninstall, packages, and release archives manage
   all three sections. `snip man show` accepts either a short stem or an explicit
   section such as `config.5`.
+- **The Windows binary no longer needs a Visual C++ runtime.** MSVC builds link
+  the static CRT, so `snip.exe` from the release ZIP and from Scoop runs on a
+  clean Windows installation. A shared `dumpbin /dependents` gate fails CI on
+  any dynamic VC, MSVC, or UCRT import, both in normal CI and before the release
+  archive is assembled. The setting lives in `.cargo/config.toml`, which Cargo
+  does not publish to crates.io, so `cargo install sniplab` links as before.
+
+### Fixed
+
+- **`install.sh` installs the native binary under Rosetta 2.** A Rosetta
+  terminal on Apple Silicon makes `uname -m` report `x86_64`; the script now
+  checks `sysctl.proc_translated` and fetches the `aarch64-apple-darwin` build
+  instead of silently installing the slower Intel one.
+- **`snip man install` prunes pages the previous version installed.** It
+  overwrote the files it was about to write and left the rest behind, so a page
+  the manual overhaul dropped stayed in the install root and kept resolving.
+  Installing now removes managed files the current version no longer ships,
+  along with any directory left empty; a file edited since it was installed no
+  longer matches its recorded hash and is kept.
 
 ## [0.6.0] - 2026-08-10
 
@@ -504,6 +523,7 @@ Initial release, distributed as prebuilt binaries and through the
 - An agent skill under `skills/snip/` describing the CLI and data model.
 - CI, deep-test, and release-build workflows covering Linux, macOS, and Windows.
 
+[0.6.1]: https://github.com/gitkeniwo/snip/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/gitkeniwo/snip/compare/v0.5.5...v0.6.0
 [0.5.5]: https://github.com/gitkeniwo/snip/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/gitkeniwo/snip/compare/v0.5.3...v0.5.4
