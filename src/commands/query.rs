@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde_json::json;
 use snip::Library;
 use snip::config::{AppConfig, PreviewRenderSetting};
@@ -74,7 +76,7 @@ pub fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) ->
 }
 
 pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) -> Result<()> {
-    let index = MemoryIndex::new(library.scan()?);
+    let index = MemoryIndex::new(Arc::new(library.scan()?));
     let query = SearchQuery::new(&args.query, args.regex)?
         .folder(args.folder_filter())
         .tag(args.tag.as_deref())

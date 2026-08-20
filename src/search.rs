@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use regex::{Regex, RegexBuilder};
 
 use crate::domain::{CatalogSnapshot, FolderFilter, SearchField, SearchResult, Snippet};
@@ -105,15 +107,20 @@ impl<'a> SearchQuery<'a> {
 
 #[derive(Clone, Debug)]
 pub struct MemoryIndex {
-    catalog: CatalogSnapshot,
+    catalog: Arc<CatalogSnapshot>,
 }
 
 impl MemoryIndex {
-    pub fn new(catalog: CatalogSnapshot) -> Self {
+    pub fn new(catalog: Arc<CatalogSnapshot>) -> Self {
         Self { catalog }
     }
 
     pub fn catalog(&self) -> &CatalogSnapshot {
+        &self.catalog
+    }
+
+    #[cfg(all(test, feature = "tui"))]
+    pub(crate) fn catalog_arc(&self) -> &Arc<CatalogSnapshot> {
         &self.catalog
     }
 }

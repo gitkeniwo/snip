@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::mpsc::Sender;
+use std::sync::{Arc, mpsc::Sender};
 use std::time::{Duration, Instant};
 
 use ratatui::widgets::ListState;
@@ -180,7 +180,7 @@ pub fn grab_order(total: usize, origin: usize, current: usize) -> Vec<usize> {
 pub struct App {
     pub config_path: PathBuf,
     pub library: Library,
-    pub catalog: CatalogSnapshot,
+    pub catalog: Arc<CatalogSnapshot>,
     pub index: MemoryIndex,
     pub gist_badges: HashMap<Uuid, GistBadge>,
     pub focus: Pane,
