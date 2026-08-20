@@ -34,7 +34,7 @@ pub enum CommandId {
     SnippetEditContent,
     SnippetEditNote,
     SnippetEditReadme,
-    SnippetOpenVsCode,
+    SnippetOpenGui,
     SnippetRename,
     SnippetMove,
     SnippetEditTags,
@@ -135,7 +135,7 @@ impl CommandId {
         Self::SnippetEditContent,
         Self::SnippetEditNote,
         Self::SnippetEditReadme,
-        Self::SnippetOpenVsCode,
+        Self::SnippetOpenGui,
         Self::SnippetRename,
         Self::SnippetMove,
         Self::SnippetEditTags,
@@ -238,4 +238,13 @@ pub fn by_slug(slug: &str) -> Option<CommandId> {
         .iter()
         .find(|command| command.slug == slug)
         .map(|command| command.id)
+}
+
+pub fn resolve_slug(slug: &str) -> Option<(CommandId, Option<&'static str>)> {
+    by_slug(slug).map(|id| (id, None)).or_else(|| {
+        registry::DEPRECATED_SLUGS
+            .iter()
+            .find(|(deprecated, _)| *deprecated == slug)
+            .map(|(_, id)| (*id, Some(get(*id).slug)))
+    })
 }

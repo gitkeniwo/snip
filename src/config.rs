@@ -178,6 +178,8 @@ pub struct AppConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editor_cwd: Option<EditorCwdSetting>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gui_editor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vscode_cmd: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pager: Option<String>,
@@ -206,6 +208,7 @@ impl Default for AppConfig {
             preview_pager: None,
             editor: None,
             editor_cwd: None,
+            gui_editor: None,
             vscode_cmd: None,
             pager: None,
             default_language: None,
@@ -219,6 +222,11 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    /// The configured GUI editor command, preferring the vendor-neutral key.
+    pub fn gui_editor_command(&self) -> Option<&str> {
+        self.gui_editor.as_deref().or(self.vscode_cmd.as_deref())
+    }
+
     /// Load the user configuration, or return defaults when the file is absent.
     pub fn load() -> Result<Self> {
         Self::load_from(&config_path()?)
@@ -266,6 +274,7 @@ impl AppConfig {
         }
         for (name, value) in [
             ("editor", self.editor.as_deref()),
+            ("gui_editor", self.gui_editor.as_deref()),
             ("vscode_cmd", self.vscode_cmd.as_deref()),
             ("pager", self.pager.as_deref()),
             ("default_language", self.default_language.as_deref()),
@@ -302,4 +311,26 @@ pub fn config_path() -> Result<PathBuf> {
         .filter(|value| !value.is_empty())
         .ok_or_else(|| SnipError::io("cannot locate config: HOME or USERPROFILE is not set"))?;
     Ok(PathBuf::from(home).join(".config/snip/config.toml"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppConfig;
+
+    #[test]
+    fn gui_editor_command_prefers_new_key_and_keeps_legacy_fallback() {
+        let config = AppConfig {
+            gui_editor: Some("zed".to_owned()),
+            vscode_cmd: Some("code-insiders".to_owned()),
+            ..AppConfig::default()
+        };
+        assert_eq!(config.gui_editor_command(), Some("zed"));
+
+        let legacy = AppConfig {
+            vscode_cmd: Some("code-insiders".to_owned()),
+            ..AppConfig::default()
+        };
+        assert_eq!(legacy.gui_editor_command(), Some("code-insiders"));
+        assert_eq!(AppConfig::default().gui_editor_command(), None);
+    }
 }

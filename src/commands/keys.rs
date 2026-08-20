@@ -95,7 +95,9 @@ fn command_list(path: &Path, mode: Option<Mode>, output: OutputMode) -> Result<(
 }
 
 fn command_show(path: &Path, action: &str, output: OutputMode) -> Result<()> {
-    let id = command::by_slug(action).ok_or_else(|| unknown_action(action))?;
+    let id = command::resolve_slug(action)
+        .map(|(id, _)| id)
+        .ok_or_else(|| unknown_action(action))?;
     let action = command::get(id).slug;
     let (keymap, _) = Keymap::load_from(path)?;
     let defaults = Keymap::defaults();

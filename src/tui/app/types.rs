@@ -50,7 +50,7 @@ pub enum Effect {
         text: String,
         label: String,
     },
-    OpenInVsCode {
+    OpenInGuiEditor {
         path: PathBuf,
     },
     RunGit(git::GitAction),
@@ -234,7 +234,7 @@ pub struct App {
     pub pending_quit: bool,
     pub editor_cmd: Option<String>,
     pub editor_cwd: EditorCwdSetting,
-    pub vscode_cmd: Option<String>,
+    pub gui_editor_cmd: Option<String>,
     pub show_help: bool,
     pub help: HelpState,
     pub default_language: String,

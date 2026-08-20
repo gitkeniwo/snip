@@ -344,6 +344,7 @@ mod tests {
             preview_pager: _,
             editor: _,
             editor_cwd: _,
+            gui_editor: _,
             vscode_cmd: _,
             pager: _,
             default_language: _,

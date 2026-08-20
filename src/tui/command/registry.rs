@@ -287,14 +287,14 @@ static COMMANDS: &[Command] = &[
         snippet_edit_readme
     ),
     command!(
-        SnippetOpenVsCode,
-        "snippet.open-vscode",
+        SnippetOpenGui,
+        "snippet.open-gui",
         "Snippet",
-        "Open in VS Code",
-        "Open the selected fragment in VS Code",
-        &["code", "editor"],
+        "Open in GUI Editor",
+        "Open the selected fragment in the configured GUI editor",
+        &["code", "editor", "vscode", "gui"],
         has_snippet,
-        snippet_open_vscode
+        snippet_open_gui
     ),
     command!(
         SnippetRename,
@@ -972,6 +972,9 @@ static COMMANDS: &[Command] = &[
         app_quit
     ),
 ];
+
+pub const DEPRECATED_SLUGS: &[(&str, CommandId)] =
+    &[("snippet.open-vscode", CommandId::SnippetOpenGui)];
 
 #[cfg(test)]
 mod tests {

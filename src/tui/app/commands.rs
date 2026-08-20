@@ -206,8 +206,8 @@ pub(crate) fn snippet_edit_note(app: &mut App) -> Vec<Effect> {
 pub(crate) fn snippet_edit_readme(app: &mut App) -> Vec<Effect> {
     app.edit_readme_effect()
 }
-pub(crate) fn snippet_open_vscode(app: &mut App) -> Vec<Effect> {
-    app.open_vscode_effect()
+pub(crate) fn snippet_open_gui(app: &mut App) -> Vec<Effect> {
+    app.open_gui_editor_effect()
 }
 pub(crate) fn copy_content(app: &mut App) -> Vec<Effect> {
     app.copy_content_effect()

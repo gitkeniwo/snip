@@ -207,13 +207,13 @@ fn execute_effect(
             }
             Err(error) => app.set_status(error.to_string(), StatusLevel::Error),
         },
-        Effect::OpenInVsCode { path } => {
-            let vscode_bin = app.vscode_cmd.as_deref().unwrap_or("code");
-            let parts = match shlex::split(vscode_bin).filter(|parts| !parts.is_empty()) {
+        Effect::OpenInGuiEditor { path } => {
+            let gui_editor = app.gui_editor_cmd.as_deref().unwrap_or("code");
+            let parts = match shlex::split(gui_editor).filter(|parts| !parts.is_empty()) {
                 Some(parts) if !parts.is_empty() => parts,
                 _ => {
                     app.set_status(
-                        format!("invalid vscode command: {vscode_bin:?}"),
+                        format!("invalid GUI editor command: {gui_editor:?}"),
                         StatusLevel::Error,
                     );
                     return Ok(());
@@ -228,11 +228,11 @@ fn execute_effect(
                         .file_name()
                         .and_then(|value| value.to_str())
                         .unwrap_or("file");
-                    app.set_status(format!("opened {name} in VS Code"), StatusLevel::Info);
+                    app.set_status(format!("opened {name} in GUI editor"), StatusLevel::Info);
                 }
                 Err(error) => {
                     app.set_status(
-                        format!("cannot launch VS Code ({:?}): {error}", parts[0]),
+                        format!("cannot launch GUI editor ({:?}): {error}", parts[0]),
                         StatusLevel::Error,
                     );
                 }

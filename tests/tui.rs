@@ -3344,10 +3344,10 @@ fn note_and_readme_editor_targets_save_markdown() {
     );
 }
 #[test]
-fn v_key_emits_open_in_vscode_effect() {
+fn v_key_emits_open_in_gui_editor_effect() {
     let (_temporary, library, first_id, _second_id) = fixture();
     let config = AppConfig {
-        vscode_cmd: Some("code-insiders".to_owned()),
+        gui_editor: Some("code-insiders".to_owned()),
         ..AppConfig::default()
     };
     let mut app = App::new(library, &config).unwrap();
@@ -3360,11 +3360,11 @@ fn v_key_emits_open_in_vscode_effect() {
             .unwrap(),
     ));
 
-    assert_eq!(app.vscode_cmd.as_deref(), Some("code-insiders"));
+    assert_eq!(app.gui_editor_cmd.as_deref(), Some("code-insiders"));
 
     let effects = app.handle_key(key(KeyCode::Char('v')));
-    let Effect::OpenInVsCode { path } = effects.into_iter().next().unwrap() else {
-        panic!("expected OpenInVsCode effect");
+    let Effect::OpenInGuiEditor { path } = effects.into_iter().next().unwrap() else {
+        panic!("expected OpenInGuiEditor effect");
     };
 
     let snippet = app.selected_snippet().unwrap();
