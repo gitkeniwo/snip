@@ -33,6 +33,10 @@ impl Highlighter {
         Ok(())
     }
 
+    /// Tabs are expanded after highlighting, so syntect always parses the
+    /// original bytes. No bundled syntax is known to need that — a Makefile
+    /// recipe highlights identically either way — but the order costs nothing
+    /// and keeps a tab-sensitive syntax from silently breaking later.
     pub fn fragment(&self, fragment: &Fragment) -> Result<Text<'static>> {
         let syntax = find_syntax(&self.syntaxes, &fragment.language, &fragment.file);
         let mut highlighter = HighlightLines::new(syntax, &self.theme);
@@ -266,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn makefile_recipe_is_highlighted_before_its_tab_expands() {
+    fn makefile_recipe_expands_its_leading_tab_and_stays_highlighted() {
         let source = crate::theme::load("dark-default").unwrap();
         let highlighted = Highlighter::new(&source)
             .unwrap()
