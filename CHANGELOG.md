@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **SSH-aware clipboard copying.** All copy paths (TUI `y`/`Y`/`p`, mouse
+  selection, gist URL copies, and CLI `--copy`) now prefer the OSC 52 terminal
+  escape over SSH so text lands on the client machine's clipboard instead of
+  the host's, falling back to the system clipboard when the terminal does not
+  respond. The new `SNIP_CLIPBOARD=system|osc52|auto` environment variable
+  forces a strategy; unknown values fall back to `auto`.
+
+### Fixed
+
+- **One-shot CLI copies survive on X11.** `snip gist url --copy` keeps serving
+  the X11 clipboard after exiting (printing a notice before it blocks), where
+  previously the copied URL died with the process unless a clipboard manager
+  was running.
+
 ## [0.6.2] - 2026-08-22
 
 ### Added
