@@ -76,7 +76,7 @@ fn command_gist_url(library: &Library, args: &GistUrlArgs, output: OutputMode) -
     if output == OutputMode::Human {
         println!("{}", record.url);
         if args.copy {
-            match snip::clipboard::copy(&record.url)? {
+            match snip::clipboard::copy_oneshot(&record.url)? {
                 ClipboardMethod::System => eprintln!("copied to system clipboard"),
                 ClipboardMethod::Osc52 => eprintln!("copied to terminal clipboard"),
             }
