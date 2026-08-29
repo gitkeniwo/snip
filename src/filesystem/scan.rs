@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -187,12 +188,56 @@ impl Library {
             return one_match(id_matches, "snippet UUID", selector);
         }
 
-        let title_matches = catalog
+        let mut title_matches = catalog
             .snippets
             .iter()
             .filter(|snippet| snippet.title == selector)
             .collect::<Vec<_>>();
-        one_match(title_matches, "snippet title", selector)
+        match title_matches.as_mut_slice() {
+            [] => Err(SnipError::not_found(format!(
+                "no snippet title matches {selector:?}"
+            ))),
+            [snippet] => Ok(*snippet),
+            _ => {
+                title_matches.sort_by(|left, right| left.package_path.cmp(&right.package_path));
+                let count = title_matches.len();
+                let candidates = title_matches
+                    .iter()
+                    .take(10)
+                    .map(|snippet| {
+                        let path = snippet
+                            .package_path
+                            .strip_prefix(self.snippets_dir())
+                            .map(path_to_slashes)
+                            .unwrap_or_else(|_| path_to_slashes(&snippet.package_path));
+                        (path, snippet.folder.as_str())
+                    })
+                    .collect::<Vec<_>>();
+                let width = candidates
+                    .iter()
+                    .map(|(path, _)| path.len())
+                    .max()
+                    .unwrap_or_default();
+                let mut hint = String::from("pass a package path to pick one:");
+                for (path, folder) in candidates {
+                    if folder.is_empty() {
+                        write!(hint, "\n  {path:<width$}  (uncategorized)")
+                            .expect("writing to a String cannot fail");
+                    } else {
+                        write!(hint, "\n  {path:<width$}  (folder: {folder})")
+                            .expect("writing to a String cannot fail");
+                    }
+                }
+                if count > 10 {
+                    write!(hint, "\n  … and {} more", count - 10)
+                        .expect("writing to a String cannot fail");
+                }
+                Err(SnipError::not_found(format!(
+                    "ambiguous snippet title {selector:?}: {count} matches"
+                ))
+                .with_hint(hint))
+            }
+        }
     }
 
     pub fn resolve_fragment<'a>(
