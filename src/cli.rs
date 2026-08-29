@@ -327,6 +327,9 @@ pub struct OptimisticArgs {
 pub struct EditArgs {
     /// Snippet title, UUID prefix, or package path.
     pub selector: String,
+    /// Create the snippet when the selector matches nothing, then open the editor.
+    #[arg(long)]
+    pub create: bool,
     /// Replace the snippet title.
     #[arg(long)]
     pub title: Option<String>,

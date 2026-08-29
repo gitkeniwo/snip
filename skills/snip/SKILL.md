@@ -228,6 +228,10 @@ with a `usage_error` telling you to pass a structured change, so it cannot hang
 you — but it also gets nothing done. Always pass at least one structured flag.
 The same holds for `--metadata-editor`, `--readme-editor`, and `--note-editor`.
 
+Humans may add `--create` to that editor form to create a missing snippet before
+opening it. It is not for agents: use `snip create` for explicit,
+non-interactive creation.
+
 ### Multiple fragments
 
 ```bash

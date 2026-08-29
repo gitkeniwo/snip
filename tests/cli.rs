@@ -423,6 +423,91 @@ fn bare_selector_matches_preview_and_handles_cli_edge_cases() {
         .stdout(predicate::str::contains("list"))
         .stdout(predicate::str::contains("preview"));
 }
+
+#[test]
+fn edit_create_rejects_non_editor_paths_without_creating_a_snippet() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("EditCreate.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "edit",
+            "Missing",
+            "--create",
+            "--content",
+            "x",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "--create cannot be combined with structured changes",
+        ));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "edit",
+            "Missing",
+            "--create",
+            "--if-hash",
+            "abc",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "--create cannot be combined with --if-hash",
+        ));
+
+    let before = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--output",
+            "json",
+            "list",
+        ])
+        .output()
+        .unwrap();
+    assert!(before.status.success());
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "edit",
+            "Missing",
+            "--create",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "external editing requires an interactive terminal",
+        ));
+    let after = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--output",
+            "json",
+            "list",
+        ])
+        .output()
+        .unwrap();
+    assert!(after.status.success());
+    assert_eq!(before.stdout, after.stdout);
+}
+
 #[test]
 fn config_binds_default_library_and_supplies_create_defaults() {
     let temporary = tempfile::tempdir().unwrap();
