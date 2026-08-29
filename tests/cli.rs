@@ -219,6 +219,87 @@ fn ancestor_discovery_and_raw_cat_work() {
 }
 
 #[test]
+fn cat_warns_when_defaulting_to_the_first_of_multiple_fragments() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("Cat.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "create",
+            "--title",
+            "Multiple",
+            "--content",
+            "first\n",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "fragment",
+            "add",
+            "Multiple",
+            "--title",
+            "Second",
+            "--content",
+            "second\n",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "create",
+            "--title",
+            "Single",
+            "--content",
+            "only\n",
+        ])
+        .assert()
+        .success();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "cat", "Multiple"])
+        .assert()
+        .success()
+        .stdout("first\n")
+        .stderr(predicate::str::contains("1/2"));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "cat",
+            "Multiple",
+            "--fragment",
+            "2",
+        ])
+        .assert()
+        .success()
+        .stdout("second\n")
+        .stderr("");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "cat", "Single"])
+        .assert()
+        .success()
+        .stdout("only\n")
+        .stderr("");
+}
+
+#[test]
 fn config_binds_default_library_and_supplies_create_defaults() {
     let temporary = tempfile::tempdir().unwrap();
     let config_home = temporary.path().join("config-home");

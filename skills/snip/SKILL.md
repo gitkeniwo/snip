@@ -120,6 +120,9 @@ them (title beats tags beats content), and hands back snippet IDs, folders, and
 fingerprints. `cat` is the right move when you want to pipe content somewhere —
 it emits nothing but the fragment.
 
+When a snippet has multiple fragments and `--fragment` is omitted, `cat` still
+prints only fragment 1 and writes a selection note to stderr.
+
 ```bash
 snip search 'kubectl (apply|rollout)' --regex     # full regex, not just substrings
 snip search "rollout" --context 2                 # surrounding lines, like rg -C

@@ -7,6 +7,8 @@ For list and search, --folder includes the named folder and all descendants. Add
 
 Use show for structured content and fingerprints, cat for pipelines, and preview for people. JSON and JSONL output contracts are documented in snip-agents(7).
 
+When cat is used without --fragment on a snippet containing multiple fragments, it still prints only fragment 1 and writes a selection note to standard error.
+
 %%EXAMPLES
 List every snippet below the Code folder carrying the rust tag:
 
