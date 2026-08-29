@@ -375,8 +375,8 @@ so you can branch on either:
 | `io_error` | 1 | Filesystem problem. Check the path and permissions. |
 | `usage_error` | 2 | Bad arguments or a missing confirmation flag. Fix the command; do not retry unchanged. |
 | `no_library` | 3 | No library could be resolved. `message` remains a stable machine field; an optional sibling `hint` supplies human next steps. Set `SNIP_LIBRARY`, pass `--library`, or initialize/configure a library. |
-| `not_found` | 3 | Selector matched nothing. List or search to find the real one. |
-| `conflict` | 4 | Something changed under you, or a selector was ambiguous, or the snippet is locked. Re-read and reassess — do not reflexively add `--force`. |
+| `not_found` | 3 | Selector matched nothing or more than one snippet. List or search to find the real one. |
+| `conflict` | 4 | Something changed under you, or the snippet is locked. Re-read and reassess — do not reflexively add `--force`. |
 | `validation_error` | 5 | The library or input violates the format. `snip doctor` explains it. |
 
 ## Health

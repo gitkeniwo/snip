@@ -10,9 +10,9 @@ Library resolution follows this order: --library, SNIP_LIBRARY, the nearest ance
 
 2 is usage_error: command-line input is invalid or a required confirmation is missing.
 
-3 is no_library or not_found: no library could be resolved, or the requested item does not exist.
+3 is no_library or not_found: no library could be resolved, the requested item does not exist, or the selector matches more than one snippet.
 
-4 is conflict: the target is ambiguous, locked, changed since it was read, or would overwrite unmanaged data.
+4 is conflict: the target is locked, changed since it was read, or would overwrite unmanaged data.
 
 5 is validation_error: input or managed data violates snip's format rules.
 
