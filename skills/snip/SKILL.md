@@ -21,8 +21,8 @@ that guard correctly.
 parse. The human format is aligned for eyes, not parsers, and its columns are
 not a stable contract. JSON payload shapes are.
 
-**Never run `snip tui`, and never run a bare `snip`.** The TUI is the
-interactive interface for humans. It refuses to start without a terminal
+**Never run `snip tui`, and never run `snip` with no arguments.** The TUI is
+the interactive interface for humans. It refuses to start without a terminal
 (`usage_error`, exit 2), so it will not hang you — but you also gain nothing
 from trying. Everything the TUI does has a CLI equivalent.
 
@@ -111,6 +111,12 @@ snip show <selector> --output json            # one snippet, everything, with co
 snip cat <selector> --fragment 2              # raw fragment bytes, no decoration
 snip path <selector> --fragment 1             # absolute path to a managed file
 ```
+
+Humans can use `snip <selector>` as an exact shorthand for `snip preview
+<selector>`; preview options require the explicit form, and subcommand names
+take precedence over titles. Agents should not use the shorthand because its
+rendered output is not a stable machine contract; keep using `show --output
+json` or `cat`.
 
 **Search the library with `snip search`, not `rg`.** Both read the same files,
 but `rg` returns paths inside package directories that you then have to map back

@@ -364,10 +364,15 @@ printf 'echo hello\n' | snip create \
 snip list
 snip list --sort modified          # modified | created | title
 snip search hello
-snip preview Hello
-snip edit Hello
+snip Hello                         # same human preview as `snip preview Hello`
+snip preview Hello                 # use this form when passing preview options
 snip open Hello                    # hand a managed path to an app
 ```
+
+For quick human lookup, `snip <selector>` is exactly `snip preview <selector>`,
+including its header. Quote selectors containing spaces. Preview options belong
+on `snip preview`; a title that matches a subcommand name must also use the
+explicit `snip preview <selector>` form.
 
 Then open the terminal browser:
 

@@ -9,7 +9,8 @@ use snip::sort::SortMode;
 #[command(
     name = "snip",
     version,
-    about = "Filesystem-native snippets for humans, scripts, and AI agents"
+    about = "Filesystem-native snippets for humans, scripts, and AI agents",
+    override_usage = "snip [OPTIONS] [COMMAND]\n       snip [OPTIONS] <SELECTOR>"
 )]
 pub struct Cli {
     /// Library root. Falls back to SNIP_LIBRARY, ancestor discovery, then config.
@@ -119,6 +120,8 @@ pub enum Command {
     Man(ManArgs),
     /// Generate shell completion code.
     Completion(CompletionArgs),
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }
 
 #[derive(Args, Debug)]

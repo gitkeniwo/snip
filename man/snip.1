@@ -5,10 +5,17 @@
 snip \- filesystem\-native snippet library
 .SH "SYNOPSIS"
 \fBsnip\fR [\fB\-\-library\fR] [\fB\-\-output\fR] [\fB\-\-color\fR] [\fB\-\-simplified\-ui\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
+.RS 4
+.nf
+snip [OPTIONS] <SELECTOR>
+.fi
+.RE
 .SH "DESCRIPTION"
 snip stores code snippets as ordinary files in a .sniplib directory. It provides a scriptable command\-line interface and an optional interactive terminal browser while keeping the filesystem as the source of truth.
 .PP
 Library resolution follows this order: \-\-library, SNIP_LIBRARY, the nearest ancestor containing snip.toml, then default_library from the user configuration. Commands that need a library fail instead of silently creating one.
+.PP
+For quick human lookup, snip <selector> is equivalent to snip preview <selector>, including headers. Options belong on the explicit preview command, and a title that matches a subcommand name must be opened with snip preview because command names take precedence.
 .SH "OPTIONS"
 .TP
 \fB\-\-library\fR \fI<LIBRARY>\fR
@@ -157,9 +164,9 @@ Generate shell completion code
 .PP
 2 is usage_error: command\-line input is invalid or a required confirmation is missing.
 .PP
-3 is no_library or not_found: no library could be resolved, or the requested item does not exist.
+3 is no_library or not_found: no library could be resolved, the requested item does not exist, or the selector matches more than one snippet.
 .PP
-4 is conflict: the target is ambiguous, locked, changed since it was read, or would overwrite unmanaged data.
+4 is conflict: the target is locked, changed since it was read, or would overwrite unmanaged data.
 .PP
 5 is validation_error: input or managed data violates snip's format rules.
 .SH "ENVIRONMENT"
