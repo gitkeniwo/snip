@@ -21,8 +21,8 @@ that guard correctly.
 parse. The human format is aligned for eyes, not parsers, and its columns are
 not a stable contract. JSON payload shapes are.
 
-**Never run `snip tui`, and never run a bare `snip`.** The TUI is the
-interactive interface for humans. It refuses to start without a terminal
+**Never run `snip tui`, and never run `snip` with no arguments.** The TUI is
+the interactive interface for humans. It refuses to start without a terminal
 (`usage_error`, exit 2), so it will not hang you — but you also gain nothing
 from trying. Everything the TUI does has a CLI equivalent.
 
@@ -112,6 +112,12 @@ snip cat <selector> --fragment 2              # raw fragment bytes, no decoratio
 snip path <selector> --fragment 1             # absolute path to a managed file
 ```
 
+Humans can use `snip <selector>` as an exact shorthand for `snip preview
+<selector>`; preview options require the explicit form, and subcommand names
+take precedence over titles. Agents should not use the shorthand because its
+rendered output is not a stable machine contract; keep using `show --output
+json` or `cat`.
+
 **Search the library with `snip search`, not `rg`.** Both read the same files,
 but `rg` returns paths inside package directories that you then have to map back
 to snippets, and it cannot see titles or tags at all. `snip search` knows the
@@ -119,6 +125,9 @@ structure: it searches titles, tags, README, fragment content, and notes, scores
 them (title beats tags beats content), and hands back snippet IDs, folders, and
 fingerprints. `cat` is the right move when you want to pipe content somewhere —
 it emits nothing but the fragment.
+
+When a snippet has multiple fragments and `--fragment` is omitted, `cat` still
+prints only fragment 1 and writes a selection note to stderr.
 
 ```bash
 snip search 'kubectl (apply|rollout)' --regex     # full regex, not just substrings
@@ -218,6 +227,10 @@ A bare `snip edit <selector>` with no structured flag means "open this in
 with a `usage_error` telling you to pass a structured change, so it cannot hang
 you — but it also gets nothing done. Always pass at least one structured flag.
 The same holds for `--metadata-editor`, `--readme-editor`, and `--note-editor`.
+
+Humans may add `--create` to that editor form to create a missing snippet before
+opening it. It is not for agents: use `snip create` for explicit,
+non-interactive creation.
 
 ### Multiple fragments
 
@@ -375,8 +388,8 @@ so you can branch on either:
 | `io_error` | 1 | Filesystem problem. Check the path and permissions. |
 | `usage_error` | 2 | Bad arguments or a missing confirmation flag. Fix the command; do not retry unchanged. |
 | `no_library` | 3 | No library could be resolved. `message` remains a stable machine field; an optional sibling `hint` supplies human next steps. Set `SNIP_LIBRARY`, pass `--library`, or initialize/configure a library. |
-| `not_found` | 3 | Selector matched nothing. List or search to find the real one. |
-| `conflict` | 4 | Something changed under you, or a selector was ambiguous, or the snippet is locked. Re-read and reassess — do not reflexively add `--force`. |
+| `not_found` | 3 | Selector matched nothing or more than one snippet. List or search to find the real one. |
+| `conflict` | 4 | Something changed under you, or the snippet is locked. Re-read and reassess — do not reflexively add `--force`. |
 | `validation_error` | 5 | The library or input violates the format. `snip doctor` explains it. |
 
 ## Health

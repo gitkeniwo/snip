@@ -21,7 +21,7 @@ show emits a complete snippet, including package_path, optional readme, fingerpr
 %%WRITE CONTRACT
 Mutations emit snippet plus changes. changes contains fields, old_fingerprint, new_fingerprint, old_path, and new_path; create uses null because no prior snippet exists. Carry new_fingerprint into the next write.
 
-Read the current record before replacing content. Assert its fingerprint with --if-hash. A conflict means another writer changed, locked, or ambiguously selected the target; re-read and reassess rather than automatically adding --force.
+Read the current record before replacing content. Assert its fingerprint with --if-hash. A conflict means another writer changed or locked the target; re-read and reassess rather than automatically adding --force.
 
     record=$(snip --output json show 79d92dea)
     hash=$(printf '%s' "$record" | jq -r .fingerprint)

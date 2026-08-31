@@ -1,8 +1,8 @@
 use serde_json::json;
 use snip::Library;
-use snip::config::{AppConfig, EditorCwdSetting};
-use snip::domain::Fingerprint;
-use snip::error::{Result, SnipError};
+use snip::config::AppConfig;
+use snip::domain::{CatalogSnapshot, Fingerprint, Snippet};
+use snip::error::{ErrorKind, Result, SnipError};
 use snip::external_editor::{
     EditorTargetKind, editor_dir_for_target, launch_editor, resolve_editor_cwd,
 };
@@ -64,14 +64,18 @@ pub fn command_edit(
     output: OutputMode,
     config: &AppConfig,
 ) -> Result<()> {
-    if !edit_has_structured_changes(args) {
-        return edit_external(
-            library,
-            args,
-            output,
-            config.editor.as_deref(),
-            config.editor_cwd.unwrap_or_default(),
-        );
+    if args.create && edit_has_create_incompatible_changes(args) {
+        return Err(SnipError::usage(
+            "--create cannot be combined with structured changes; use snip create instead",
+        ));
+    }
+    if args.create && args.optimistic.if_hash.is_some() {
+        return Err(SnipError::usage(
+            "--create cannot be combined with --if-hash",
+        ));
+    }
+    if args.create || !edit_has_structured_changes(args) {
+        return edit_external(library, args, output, config);
     }
     let options = EditOptions {
         title: args.title.clone(),
@@ -187,8 +191,7 @@ fn edit_external(
     library: &Library,
     args: &EditArgs,
     output: OutputMode,
-    configured_editor: Option<&str>,
-    editor_cwd: EditorCwdSetting,
+    config: &AppConfig,
 ) -> Result<()> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(SnipError::usage(
@@ -196,7 +199,22 @@ fn edit_external(
         ));
     }
     let catalog = library.scan()?;
-    let original = library.resolve_snippet(&catalog, &args.selector)?.clone();
+    let original = match library.resolve_snippet(&catalog, &args.selector) {
+        Ok(snippet) => {
+            if args.create && edit_has_creation_options(args) {
+                return Err(SnipError::usage(
+                    "--folder, --tag, and --language are only used when --create creates a missing snippet",
+                ));
+            }
+            snippet.clone()
+        }
+        // `--create` depends on the resolver contract that only ambiguity carries a hint.
+        // Adding a hint to ordinary not-found errors would silently disable creation.
+        Err(error) if args.create && error.kind == ErrorKind::NotFound && error.hint.is_none() => {
+            create_external_snippet(library, &catalog, args, config)?
+        }
+        Err(error) => return Err(error),
+    };
     let expected = fingerprint(args.optimistic.if_hash.as_deref())
         .unwrap_or_else(|| original.fingerprint.clone());
     if expected != original.fingerprint {
@@ -256,7 +274,7 @@ fn edit_external(
         library.root(),
         &original.package_path,
         leaf_dir.as_deref(),
-        editor_cwd,
+        config.editor_cwd.unwrap_or_default(),
     );
     let mut temp = Builder::new()
         .prefix("snip-edit-")
@@ -264,7 +282,7 @@ fn edit_external(
         .tempfile()?;
     temp.write_all(initial.as_bytes())?;
     temp.as_file().sync_all()?;
-    launch_editor(temp.path(), cwd.as_deref(), configured_editor)?;
+    launch_editor(temp.path(), cwd.as_deref(), config.editor.as_deref())?;
     let edited = fs::read_to_string(temp.path())?;
     if edited == initial {
         if output == OutputMode::Human {
@@ -326,6 +344,54 @@ fn edit_external(
     print_mutation(&snippet, Some(&changes), output)
 }
 
+fn create_external_snippet(
+    library: &Library,
+    catalog: &CatalogSnapshot,
+    args: &EditArgs,
+    config: &AppConfig,
+) -> Result<Snippet> {
+    let (selector_folder, title) = split_create_selector(&args.selector)?;
+    let folder = selector_folder
+        .or_else(|| args.folder.clone())
+        .or_else(|| config.default_folder.clone());
+    if let Some(snippet) =
+        library.find_by_folder_and_title(catalog, folder.as_deref().unwrap_or_default(), &title)?
+    {
+        return Ok(snippet.clone());
+    }
+    let tags = if args.tags.is_empty() {
+        config.default_tags.clone()
+    } else {
+        args.tags.clone()
+    };
+    create_snippet(
+        library,
+        &CreateOptions {
+            title,
+            folder,
+            tags,
+            language: args
+                .language
+                .clone()
+                .or_else(|| config.default_language.clone())
+                .unwrap_or_else(|| "text".to_owned()),
+            ..CreateOptions::default()
+        },
+    )
+}
+
+fn split_create_selector(selector: &str) -> Result<(Option<String>, String)> {
+    let Some((folder, title)) = selector.rsplit_once('/') else {
+        return Ok((None, selector.to_owned()));
+    };
+    if title.is_empty() {
+        return Err(SnipError::usage(
+            "cannot create a snippet from a selector with an empty title",
+        ));
+    }
+    Ok((Some(folder.to_owned()), title.to_owned()))
+}
+
 enum ExternalTarget {
     Metadata,
     Readme,
@@ -377,6 +443,28 @@ fn read_optional_file(path: Option<&str>) -> Result<Option<String>> {
         .map_err(|error| SnipError::io(format!("cannot read {path:?}: {error}")))
 }
 
+fn edit_has_create_incompatible_changes(args: &EditArgs) -> bool {
+    args.title.is_some()
+        || args.clear_tags
+        || args.pin
+        || args.unpin
+        || args.lock
+        || args.unlock
+        || args.fragment_title.is_some()
+        || args.content.is_some()
+        || args.content_file.is_some()
+        || args.note.is_some()
+        || args.note_file.is_some()
+        || args.clear_note
+        || args.readme.is_some()
+        || args.readme_file.is_some()
+        || args.clear_readme
+}
+
+fn edit_has_creation_options(args: &EditArgs) -> bool {
+    args.folder.is_some() || !args.tags.is_empty() || args.language.is_some()
+}
+
 fn edit_has_structured_changes(args: &EditArgs) -> bool {
     args.title.is_some()
         || args.folder.is_some()
@@ -404,7 +492,7 @@ fn fingerprint(value: Option<&str>) -> Option<Fingerprint> {
 
 #[cfg(test)]
 mod tests {
-    use super::{EditorTargetKind, ExternalTarget, external_target_kind};
+    use super::{EditorTargetKind, ExternalTarget, external_target_kind, split_create_selector};
 
     #[test]
     fn external_edit_targets_map_to_shared_target_kinds() {
@@ -424,5 +512,22 @@ mod tests {
             external_target_kind(&ExternalTarget::Note(String::new())),
             EditorTargetKind::Note
         );
+    }
+
+    #[test]
+    fn create_selector_splits_nested_folders_and_rejects_trailing_slashes() {
+        assert_eq!(
+            split_create_selector("foo/bar").unwrap(),
+            (Some("foo".to_owned()), "bar".to_owned())
+        );
+        assert_eq!(
+            split_create_selector("a/b/c").unwrap(),
+            (Some("a/b".to_owned()), "c".to_owned())
+        );
+        assert_eq!(
+            split_create_selector("title").unwrap(),
+            (None, "title".to_owned())
+        );
+        assert!(split_create_selector("foo/").is_err());
     }
 }

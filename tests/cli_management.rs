@@ -749,10 +749,52 @@ fn cli_reports_selector_ambiguity_and_jsonl_records() {
         .assert()
         .success();
     }
-    command(&library, &["show", "Duplicate"])
-        .assert()
-        .code(3)
-        .stderr(predicates::str::contains("ambiguous"));
+
+    let summaries = json(&library, &["list"]);
+    let mut selectors = summaries
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            let folder = row["folder"].as_str().unwrap();
+            let package = Path::new(row["path"].as_str().unwrap())
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap();
+            format!("{folder}/{package}")
+        })
+        .collect::<Vec<_>>();
+    selectors.sort();
+
+    let human = Command::cargo_bin("snip")
+        .unwrap()
+        .arg("--library")
+        .arg(&library)
+        .args(["show", "Duplicate"])
+        .output()
+        .unwrap();
+    assert_eq!(human.status.code(), Some(3));
+    let stderr = String::from_utf8(human.stderr).unwrap();
+    assert!(stderr.contains("ambiguous"));
+    for selector in &selectors {
+        assert!(stderr.contains(selector), "{stderr}");
+    }
+    assert!(stderr.contains("(folder: One)"), "{stderr}");
+    assert!(stderr.contains("(folder: Two)"), "{stderr}");
+
+    let machine = command(&library, &["show", "Duplicate"]).output().unwrap();
+    assert_eq!(machine.status.code(), Some(3));
+    let error: Value = serde_json::from_slice(&machine.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "not_found");
+    let hint = error["error"]["hint"].as_str().unwrap();
+    for selector in &selectors {
+        assert!(hint.contains(selector), "{hint}");
+    }
+    assert!(
+        hint.find(&selectors[0]) < hint.find(&selectors[1]),
+        "{hint}"
+    );
 
     let output = Command::cargo_bin("snip")
         .unwrap()

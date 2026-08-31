@@ -5,11 +5,17 @@ Every read reports a BLAKE3 fingerprint computed from the snippet manifest, READ
 
 Use --force only when overwriting concurrent changes or bypassing a lock is intentional. Folder rename changes one path component; folder move accepts a full destination path. Fragment positions are 1-based.
 
+The external-editor form accepts --create to create a missing snippet before opening it. It cannot be combined with --if-hash or content and metadata mutation flags; use snip create for non-interactive creation. On a missing selector, --folder, --tag, and --language configure the new snippet. A selector containing a slash uses everything before the final slash as the folder and the final component as the title.
+
 %%EXAMPLES
 Rename a snippet with optimistic concurrency:
 
     hash=$(snip --output json show Greeter | jq -r .fingerprint)
     snip edit Greeter --title "Friendly greeter" --if-hash "$hash"
+
+Create a missing nested snippet and open its first fragment:
+
+    snip edit scratch/testsheet --create
 
 Add a second fragment from a file:
 

@@ -14,6 +14,7 @@ pub mod system;
 pub mod theme;
 pub mod trash;
 
+use clap::CommandFactory;
 use snip::Library;
 use snip::config::AppConfig;
 use snip::error::{ErrorKind, Result, SnipError};
@@ -23,7 +24,7 @@ use std::io::{self, IsTerminal};
 pub use output::effective_output;
 use output::{resolve_color, resolve_output};
 
-use crate::cli::{Cli, Command, GitArgs, GitCommand, OutputMode};
+use crate::cli::{Cli, Command, GitArgs, GitCommand, OutputMode, PreviewArgs};
 
 #[cfg(feature = "tui")]
 fn tui_config_with_cli_override(mut config: AppConfig, simplified_ui: Option<bool>) -> AppConfig {
@@ -104,6 +105,7 @@ pub fn run(cli: &Cli) -> Result<()> {
         Command::Show(args) => query::command_show(&library, args, output),
         Command::Cat(args) => query::command_cat(&library, args),
         Command::Preview(args) => query::command_preview(&library, args, color, &config),
+        Command::External(args) => command_external(&library, args, color, &config),
         Command::Path(args) => query::command_path(&library, args),
         Command::Create(args) => snippet::command_create(&library, args, output, &config),
         Command::Edit(args) => snippet::command_edit(&library, args, output, &config),
@@ -129,6 +131,71 @@ pub fn run(cli: &Cli) -> Result<()> {
         #[cfg(feature = "tui")]
         Command::Keys(_) => unreachable!(),
     }
+}
+
+fn command_external(
+    library: &Library,
+    args: &[String],
+    color: crate::cli::ColorMode,
+    config: &AppConfig,
+) -> Result<()> {
+    assert!(
+        !args.is_empty(),
+        "clap external subcommands always contain a selector"
+    );
+    if let Some(extra) = args.get(1) {
+        return Err(SnipError::usage(format!(
+            "unexpected argument {extra:?}; the bare form takes one selector — use snip preview for options"
+        )));
+    }
+    let selector = &args[0];
+    let preview_args = PreviewArgs {
+        selector: selector.clone(),
+        render: None,
+        pager: false,
+        no_pager: false,
+    };
+    query::command_preview(library, &preview_args, color, config).map_err(|error| {
+        if error.kind != ErrorKind::NotFound || error.hint.is_some() {
+            return error;
+        }
+        match closest_subcommand(selector) {
+            Some(candidate) => error.with_hint(format!("did you mean \"snip {candidate}\"?")),
+            None => error,
+        }
+    })
+}
+
+fn closest_subcommand(token: &str) -> Option<String> {
+    Cli::command()
+        .get_subcommands()
+        .filter_map(|command| {
+            let name = command.get_name();
+            let distance = levenshtein(token, name);
+            (distance <= 2).then(|| (distance, name.to_owned()))
+        })
+        .min_by(|left, right| left.cmp(right))
+        .map(|(_, name)| name)
+}
+
+fn levenshtein(left: &str, right: &str) -> usize {
+    let right = right.chars().collect::<Vec<_>>();
+    let mut previous = (0..=right.len()).collect::<Vec<_>>();
+    let mut current = vec![0; right.len() + 1];
+    for (left_index, left_char) in left.chars().enumerate() {
+        current[0] = left_index + 1;
+        for (right_index, right_char) in right.iter().enumerate() {
+            current[right_index + 1] = if left_char == *right_char {
+                previous[right_index]
+            } else {
+                1 + previous[right_index]
+                    .min(current[right_index])
+                    .min(previous[right_index + 1])
+            };
+        }
+        std::mem::swap(&mut previous, &mut current);
+    }
+    previous[right.len()]
 }
 
 fn open_library_or_onboard(

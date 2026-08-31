@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -187,12 +188,35 @@ impl Library {
             return one_match(id_matches, "snippet UUID", selector);
         }
 
-        let title_matches = catalog
+        let mut title_matches = catalog
             .snippets
             .iter()
             .filter(|snippet| snippet.title == selector)
             .collect::<Vec<_>>();
-        one_match(title_matches, "snippet title", selector)
+        match title_matches.as_mut_slice() {
+            [] => Err(SnipError::not_found(format!(
+                "no snippet title matches {selector:?}"
+            ))),
+            [snippet] => Ok(*snippet),
+            _ => {
+                let snippets_dir = self.snippets_dir();
+                Err(ambiguous_snippet_error(
+                    &mut title_matches,
+                    &snippets_dir,
+                    selector,
+                ))
+            }
+        }
+    }
+
+    pub fn find_by_folder_and_title<'a>(
+        &self,
+        catalog: &'a CatalogSnapshot,
+        folder: &str,
+        title: &str,
+    ) -> Result<Option<&'a Snippet>> {
+        let snippets_dir = self.snippets_dir();
+        find_snippet_by_folder_and_title(&catalog.snippets, &snippets_dir, folder, title)
     }
 
     pub fn resolve_fragment<'a>(
@@ -235,6 +259,66 @@ impl Library {
             .collect::<Vec<_>>();
         one_match(matches, "fragment UUID", selector)
     }
+}
+
+fn find_snippet_by_folder_and_title<'a>(
+    snippets: &'a [Snippet],
+    snippets_dir: &Path,
+    folder: &str,
+    title: &str,
+) -> Result<Option<&'a Snippet>> {
+    let mut matches = snippets
+        .iter()
+        .filter(|snippet| snippet.folder == folder && snippet.title == title)
+        .collect::<Vec<_>>();
+    match matches.as_mut_slice() {
+        [] => Ok(None),
+        [snippet] => Ok(Some(*snippet)),
+        _ => Err(ambiguous_snippet_error(&mut matches, snippets_dir, title)),
+    }
+}
+
+fn ambiguous_snippet_error(
+    matches: &mut Vec<&Snippet>,
+    snippets_dir: &Path,
+    label: &str,
+) -> SnipError {
+    matches.sort_by(|left, right| left.package_path.cmp(&right.package_path));
+    let count = matches.len();
+    let candidates = matches
+        .iter()
+        .take(10)
+        .map(|snippet| {
+            let path = snippet
+                .package_path
+                .strip_prefix(snippets_dir)
+                .map(path_to_slashes)
+                .unwrap_or_else(|_| path_to_slashes(&snippet.package_path));
+            (path, snippet.folder.as_str())
+        })
+        .collect::<Vec<_>>();
+    let width = candidates
+        .iter()
+        .map(|(path, _)| path.len())
+        .max()
+        .unwrap_or_default();
+    let mut hint = String::from("pass a package path to pick one:");
+    for (path, folder) in candidates {
+        if folder.is_empty() {
+            write!(hint, "\n  {path:<width$}  (uncategorized)")
+                .expect("writing to a String cannot fail");
+        } else {
+            write!(hint, "\n  {path:<width$}  (folder: {folder})")
+                .expect("writing to a String cannot fail");
+        }
+    }
+    if count > 10 {
+        write!(hint, "\n  … and {} more", count - 10).expect("writing to a String cannot fail");
+    }
+    SnipError::not_found(format!(
+        "ambiguous snippet title {label:?}: {count} matches"
+    ))
+    .with_hint(hint)
 }
 
 fn walk_snippets(
@@ -298,5 +382,163 @@ fn one_match<'a, T>(matches: Vec<&'a T>, kind: &str, selector: &str) -> Result<&
             "ambiguous {kind} {selector:?}: {} matches",
             matches.len()
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Library, find_snippet_by_folder_and_title};
+    use crate::domain::{
+        CatalogSnapshot, FORMAT_NAME, Fingerprint, LibraryManifest, SCHEMA_VERSION, Snippet,
+        SnippetManifest,
+    };
+    use crate::error::ErrorKind;
+    use std::path::{Path, PathBuf};
+    use uuid::Uuid;
+
+    #[test]
+    fn create_lookup_matches_nested_folder_and_title() {
+        let snippets = vec![
+            snippet("scratch", "notes", "notes--11111111"),
+            snippet("archive", "notes", "notes--22222222"),
+        ];
+
+        let found =
+            find_snippet_by_folder_and_title(&snippets, Path::new("snippets"), "scratch", "notes")
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(
+            found.package_path,
+            PathBuf::from("snippets/scratch/notes--11111111")
+        );
+    }
+
+    #[test]
+    fn create_lookup_matches_flat_selector_with_resolved_folder() {
+        let snippets = vec![snippet("default", "notes", "notes--11111111")];
+
+        let found =
+            find_snippet_by_folder_and_title(&snippets, Path::new("snippets"), "default", "notes")
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(found.title, "notes");
+    }
+
+    #[test]
+    fn create_lookup_matches_uncategorized_empty_folder() {
+        let snippets = vec![snippet("", "notes", "notes--11111111")];
+
+        let found = find_snippet_by_folder_and_title(&snippets, Path::new("snippets"), "", "notes")
+            .unwrap()
+            .unwrap();
+
+        assert!(found.folder.is_empty());
+    }
+
+    #[test]
+    fn create_lookup_rejects_duplicate_folder_and_title() {
+        let snippets = vec![
+            snippet("scratch", "notes", "notes--11111111"),
+            snippet("scratch", "notes", "notes--22222222"),
+        ];
+
+        let error =
+            find_snippet_by_folder_and_title(&snippets, Path::new("snippets"), "scratch", "notes")
+                .unwrap_err();
+
+        assert_eq!(error.kind, ErrorKind::NotFound);
+        assert_eq!(
+            error.message,
+            "ambiguous snippet title \"notes\": 2 matches"
+        );
+        assert_eq!(
+            error.hint.as_deref(),
+            Some(
+                "pass a package path to pick one:\n  scratch/notes--11111111  (folder: scratch)\n  scratch/notes--22222222  (folder: scratch)"
+            )
+        );
+    }
+
+    #[test]
+    fn create_lookup_returns_none_for_missing_snippet() {
+        let snippets = vec![snippet("scratch", "other", "other--11111111")];
+
+        let found =
+            find_snippet_by_folder_and_title(&snippets, Path::new("snippets"), "scratch", "notes")
+                .unwrap();
+
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn resolve_and_create_lookup_ambiguity_hints_are_byte_identical() {
+        let library = library();
+        let catalog = CatalogSnapshot {
+            library: library.manifest.clone(),
+            root: library.root.clone(),
+            snippets: vec![
+                snippet("scratch", "notes", "notes--11111111"),
+                snippet("scratch", "notes", "notes--22222222"),
+            ],
+            folders: vec!["scratch".to_owned()],
+            tags: Vec::new(),
+        };
+
+        let resolve_error = library.resolve_snippet(&catalog, "notes").unwrap_err();
+        let create_error = find_snippet_by_folder_and_title(
+            &catalog.snippets,
+            Path::new("snippets"),
+            "scratch",
+            "notes",
+        )
+        .unwrap_err();
+
+        assert_eq!(resolve_error.hint, create_error.hint);
+    }
+
+    fn library() -> Library {
+        Library {
+            root: PathBuf::new(),
+            manifest: LibraryManifest {
+                format: FORMAT_NAME.to_owned(),
+                schema_version: SCHEMA_VERSION,
+                id: Uuid::nil(),
+                name: String::new(),
+                created_at: String::new(),
+                extra: toml::Table::new(),
+            },
+            restored: Vec::new(),
+        }
+    }
+
+    fn snippet(folder: &str, title: &str, package: &str) -> Snippet {
+        let package_path = if folder.is_empty() {
+            PathBuf::from("snippets").join(package)
+        } else {
+            PathBuf::from("snippets").join(folder).join(package)
+        };
+        Snippet {
+            manifest: SnippetManifest {
+                schema_version: 1,
+                id: Uuid::nil(),
+                title: title.to_owned(),
+                tags: Vec::new(),
+                pinned: false,
+                locked: false,
+                created_at: String::new(),
+                source: None,
+                remotes: Vec::new(),
+                fragments: Vec::new(),
+                extra: toml::Table::new(),
+            },
+            readme: None,
+            folder: folder.to_owned(),
+            package_path,
+            modified_at: None,
+            fingerprint: Fingerprint(String::new()),
+            loaded_fragments: Vec::new(),
+        }
     }
 }

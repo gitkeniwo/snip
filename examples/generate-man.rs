@@ -789,6 +789,7 @@ fn render_page(root: &clap::Command, spec: &PageSpec) -> Result<Vec<u8>> {
                 "SYNOPSIS",
             )?;
         }
+        render_part_section(&mut output, &parts, "SYNOPSIS");
     }
 
     push_section_heading(&mut output, "DESCRIPTION");

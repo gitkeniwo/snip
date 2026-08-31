@@ -157,6 +157,10 @@ pub fn command_cat(library: &Library, args: &FragmentSelectorArgs) -> Result<()>
     let catalog = library.scan()?;
     let snippet = library.resolve_snippet(&catalog, &args.selector)?;
     let fragment = library.resolve_fragment(snippet, args.fragment.as_deref())?;
+    if args.fragment.is_none() && snippet.loaded_fragments.len() > 1 {
+        let count = snippet.loaded_fragments.len();
+        eprintln!("note: snippet has {count} fragments; printed 1/{count} (use --fragment N)");
+    }
     print!("{}", fragment.content);
     io::stdout().flush()?;
     Ok(())

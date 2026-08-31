@@ -219,6 +219,296 @@ fn ancestor_discovery_and_raw_cat_work() {
 }
 
 #[test]
+fn cat_warns_when_defaulting_to_the_first_of_multiple_fragments() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("Cat.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "create",
+            "--title",
+            "Multiple",
+            "--content",
+            "first\n",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "fragment",
+            "add",
+            "Multiple",
+            "--title",
+            "Second",
+            "--content",
+            "second\n",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "create",
+            "--title",
+            "Single",
+            "--content",
+            "only\n",
+        ])
+        .assert()
+        .success();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "cat", "Multiple"])
+        .assert()
+        .success()
+        .stdout("first\n")
+        .stderr(predicate::str::contains("1/2"));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "cat",
+            "Multiple",
+            "--fragment",
+            "2",
+        ])
+        .assert()
+        .success()
+        .stdout("second\n")
+        .stderr("");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "cat", "Single"])
+        .assert()
+        .success()
+        .stdout("only\n")
+        .stderr("");
+}
+
+#[test]
+fn bare_selector_matches_preview_and_handles_cli_edge_cases() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("Bare.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+    for (title, content) in [("Single", "one\n"), ("Multiple", "first\n")] {
+        Command::cargo_bin("snip")
+            .unwrap()
+            .args([
+                "--library",
+                library.to_str().unwrap(),
+                "create",
+                "--title",
+                title,
+                "--content",
+                content,
+            ])
+            .assert()
+            .success();
+    }
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "fragment",
+            "add",
+            "Multiple",
+            "--title",
+            "Second",
+            "--content",
+            "second\n",
+        ])
+        .assert()
+        .success();
+    for folder in ["One", "Two"] {
+        Command::cargo_bin("snip")
+            .unwrap()
+            .args([
+                "--library",
+                library.to_str().unwrap(),
+                "create",
+                "--title",
+                "Duplicate",
+                "--folder",
+                folder,
+            ])
+            .assert()
+            .success();
+    }
+
+    let bare = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--color",
+            "never",
+            "Single",
+        ])
+        .output()
+        .unwrap();
+    let preview = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--color",
+            "never",
+            "preview",
+            "Single",
+        ])
+        .output()
+        .unwrap();
+    assert!(bare.status.success());
+    assert_eq!(bare.stdout, preview.stdout);
+    let single = String::from_utf8(bare.stdout).unwrap();
+    assert!(single.contains("Single"), "{single}");
+    assert!(single.contains("one"), "{single}");
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--color",
+            "never",
+            "Multiple",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--- 1."))
+        .stdout(predicate::str::contains("--- 2."));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "Single", "extra"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("the bare form takes one selector"));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "lst"])
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("did you mean \"snip list\"?"));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library.to_str().unwrap(), "Duplicate"])
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("(folder: One)"))
+        .stderr(predicate::str::contains("(folder: Two)"));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("list"))
+        .stdout(predicate::str::contains("preview"));
+}
+
+#[test]
+fn edit_create_rejects_non_editor_paths_without_creating_a_snippet() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("EditCreate.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "edit",
+            "Missing",
+            "--create",
+            "--content",
+            "x",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "--create cannot be combined with structured changes",
+        ));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "edit",
+            "Missing",
+            "--create",
+            "--if-hash",
+            "abc",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "--create cannot be combined with --if-hash",
+        ));
+
+    let before = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--output",
+            "json",
+            "list",
+        ])
+        .output()
+        .unwrap();
+    assert!(before.status.success());
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "edit",
+            "Missing",
+            "--create",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains(
+            "external editing requires an interactive terminal",
+        ));
+    let after = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library.to_str().unwrap(),
+            "--output",
+            "json",
+            "list",
+        ])
+        .output()
+        .unwrap();
+    assert!(after.status.success());
+    assert_eq!(before.stdout, after.stdout);
+}
+
+#[test]
 fn config_binds_default_library_and_supplies_create_defaults() {
     let temporary = tempfile::tempdir().unwrap();
     let config_home = temporary.path().join("config-home");

@@ -4,7 +4,7 @@
 .SH "NAME"
 snip\-edit \- modify and organize snippets
 .SH "SYNOPSIS"
-\fBsnip edit\fR [\fB\-\-title\fR] [\fB\-\-folder\fR] [\fB\-\-tag\fR] [\fB\-\-clear\-tags\fR] [\fB\-\-pin\fR] [\fB\-\-unpin\fR] [\fB\-\-lock\fR] [\fB\-\-unlock\fR] [\fB\-\-fragment\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-clear\-readme\fR] [\fB\-\-metadata\-editor\fR] [\fB\-\-readme\-editor\fR] [\fB\-\-note\-editor\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip edit\fR [\fB\-\-create\fR] [\fB\-\-title\fR] [\fB\-\-folder\fR] [\fB\-\-tag\fR] [\fB\-\-clear\-tags\fR] [\fB\-\-pin\fR] [\fB\-\-unpin\fR] [\fB\-\-lock\fR] [\fB\-\-unlock\fR] [\fB\-\-fragment\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-clear\-readme\fR] [\fB\-\-metadata\-editor\fR] [\fB\-\-readme\-editor\fR] [\fB\-\-note\-editor\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip fragment\fR [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
 \fBsnip fragment add\fR <\fB\-\-title\fR> [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip fragment edit\fR [\fB\-\-title\fR] [\fB\-\-language\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-clear\-note\fR] [\fB\-\-if\-hash\fR] [\fB\-\-force\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> <\fIFRAGMENT\fR> 
@@ -28,10 +28,15 @@ Every read reports a BLAKE3 fingerprint computed from the snippet manifest, READ
 .PP
 Use \-\-force only when overwriting concurrent changes or bypassing a lock is intentional. Folder rename changes one path component; folder move accepts a full destination path. Fragment positions are 1\-based.
 .PP
+The external\-editor form accepts \-\-create to create a missing snippet before opening it. It cannot be combined with \-\-if\-hash or content and metadata mutation flags; use snip create for non\-interactive creation. On a missing selector, \-\-folder, \-\-tag, and \-\-language configure the new snippet. A selector containing a slash uses everything before the final slash as the folder and the final component as the title.
+.PP
 Global options are described in snip(1).
 .SH "COMMANDS"
 .SS "snip edit"
 Modify a snippet or launch an external editor
+.TP
+\fB\-\-create\fR
+Create the snippet when the selector matches nothing, then open the editor
 .TP
 \fB\-\-title\fR \fI<TITLE>\fR
 Replace the snippet title
@@ -313,6 +318,13 @@ Rename a snippet with optimistic concurrency:
 .nf
 hash=$(snip \-\-output json show Greeter | jq \-r .fingerprint)
 snip edit Greeter \-\-title "Friendly greeter" \-\-if\-hash "$hash"
+.fi
+.RE
+.PP
+Create a missing nested snippet and open its first fragment:
+.RS 4
+.nf
+snip edit scratch/testsheet \-\-create
 .fi
 .RE
 .PP

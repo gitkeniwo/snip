@@ -1,7 +1,12 @@
+%%SYNOPSIS
+    snip [OPTIONS] <SELECTOR>
+
 %%DESCRIPTION
 snip stores code snippets as ordinary files in a .sniplib directory. It provides a scriptable command-line interface and an optional interactive terminal browser while keeping the filesystem as the source of truth.
 
 Library resolution follows this order: --library, SNIP_LIBRARY, the nearest ancestor containing snip.toml, then default_library from the user configuration. Commands that need a library fail instead of silently creating one.
+
+For quick human lookup, snip <selector> is equivalent to snip preview <selector>, including headers. Options belong on the explicit preview command, and a title that matches a subcommand name must be opened with snip preview because command names take precedence.
 
 %%EXIT STATUS
 0 indicates success.
@@ -10,9 +15,9 @@ Library resolution follows this order: --library, SNIP_LIBRARY, the nearest ance
 
 2 is usage_error: command-line input is invalid or a required confirmation is missing.
 
-3 is no_library or not_found: no library could be resolved, or the requested item does not exist.
+3 is no_library or not_found: no library could be resolved, the requested item does not exist, or the selector matches more than one snippet.
 
-4 is conflict: the target is ambiguous, locked, changed since it was read, or would overwrite unmanaged data.
+4 is conflict: the target is locked, changed since it was read, or would overwrite unmanaged data.
 
 5 is validation_error: input or managed data violates snip's format rules.
 
