@@ -28,6 +28,8 @@ SNIP_TUI_THEME temporarily selects the TUI theme.
 
 SNIP_GH_BIN overrides the gh executable used by gist commands.
 
+SNIP_CLIPBOARD selects the clipboard strategy: system uses only the local system clipboard, osc52 writes only through the OSC 52 terminal escape, and auto (the default) prefers OSC 52 over SSH and the system clipboard otherwise.
+
 EDITOR and VISUAL select the external text editor. PAGER selects the preview pager. NO_COLOR disables color when color policy is auto.
 
 XDG_CONFIG_HOME controls the user configuration directory. XDG_DATA_HOME controls the default user man-page installation root.

@@ -688,6 +688,13 @@ Config values are defaults only; explicit CLI options override them. Unknown
 TOML fields are preserved when `snip config set` or `unset` rewrites the file,
 so future settings can coexist.
 
+`SNIP_CLIPBOARD=system|osc52|auto` controls where copies go (default `auto`).
+Over SSH, `auto` prefers the OSC 52 terminal escape so text lands on the client
+machine's clipboard instead of the host's — this is how `p`, `y`, and gist URL
+copies behave in a remote TUI session. `system` forces the local system
+clipboard, and `osc52` forces the escape sequence; both fail hard when their
+method is unavailable instead of falling back.
+
 `editor_cwd` controls the working directory of terminal editors opened by both
 the CLI and TUI:
 
