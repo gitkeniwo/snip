@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Bare selectors for quick lookup.** `snip <selector>` renders a snippet
+  exactly as `snip preview <selector>` does, header included, so a cheatsheet
+  is one word away. Preview options still belong on the explicit command, and
+  subcommand names take precedence over titles, so a snippet called `list` is
+  reached with `snip preview list`. A mistyped subcommand now suggests the
+  closest real one instead of failing as a missing snippet.
+- **`snip edit --create`.** The external-editor form creates a missing snippet
+  and opens it in one step. A selector containing a slash files the new snippet
+  under that folder, so `snip edit scratch/notes --create` creates `notes` in
+  `scratch`, and repeating the command edits that snippet instead of making a
+  second one. `--folder`, `--tag`, and `--language` configure the new snippet;
+  `--if-hash` and content-bearing flags are refused because `snip create`
+  already covers non-interactive creation.
+
+### Changed
+
+- **Ambiguous selectors list their candidates.** A title shared by several
+  snippets now reports each one's package path and folder, and those package
+  paths are themselves valid selectors, so the error states how to resolve
+  itself. The exit code is unchanged at 3 (`not_found`).
+- **`snip cat` announces a truncated snippet.** Reading a multi-fragment
+  snippet without `--fragment` still prints fragment 1, and still writes
+  nothing but that fragment to standard output; it now notes the fragment count
+  on standard error so the rest are no longer silently invisible.
+
+### Fixed
+
+- **Documented exit code for ambiguous selectors.** `snip(1)` and the agent
+  skill described an ambiguous selector as a `conflict` (exit 4). It has always
+  been `not_found` (exit 3), and the documentation now says so.
+
 ## [0.6.3] - 2026-08-23
 
 ### Added
