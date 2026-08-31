@@ -11,7 +11,6 @@ use snip::service::{
     create_snippet, delete_snippet, edit_fragment, edit_snippet, remove_fragment, reorder_fragment,
     replace_manifest_text,
 };
-use std::fmt::Write as _;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -355,11 +354,9 @@ fn create_external_snippet(
     let folder = selector_folder
         .or_else(|| args.folder.clone())
         .or_else(|| config.default_folder.clone());
-    if let Some(snippet) = find_existing_create_snippet(
-        &catalog.snippets,
-        folder.as_deref().unwrap_or_default(),
-        &title,
-    )? {
+    if let Some(snippet) =
+        library.find_by_folder_and_title(catalog, folder.as_deref().unwrap_or_default(), &title)?
+    {
         return Ok(snippet.clone());
     }
     let tags = if args.tags.is_empty() {
@@ -381,65 +378,6 @@ fn create_external_snippet(
             ..CreateOptions::default()
         },
     )
-}
-
-fn find_existing_create_snippet<'a>(
-    snippets: &'a [Snippet],
-    folder: &str,
-    title: &str,
-) -> Result<Option<&'a Snippet>> {
-    let mut matches = snippets
-        .iter()
-        .filter(|snippet| snippet.folder == folder && snippet.title == title)
-        .collect::<Vec<_>>();
-    match matches.as_mut_slice() {
-        [] => Ok(None),
-        [snippet] => Ok(Some(*snippet)),
-        _ => {
-            matches.sort_by(|left, right| left.package_path.cmp(&right.package_path));
-            let count = matches.len();
-            let candidates = matches
-                .iter()
-                .take(10)
-                .map(|snippet| {
-                    let package = snippet
-                        .package_path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| snippet.package_path.to_string_lossy().into_owned());
-                    let path = if snippet.folder.is_empty() {
-                        package
-                    } else {
-                        format!("{}/{package}", snippet.folder)
-                    };
-                    (path, snippet.folder.as_str())
-                })
-                .collect::<Vec<_>>();
-            let width = candidates
-                .iter()
-                .map(|(path, _)| path.len())
-                .max()
-                .unwrap_or_default();
-            let mut hint = String::from("pass a package path to pick one:");
-            for (path, folder) in candidates {
-                if folder.is_empty() {
-                    write!(hint, "\n  {path:<width$}  (uncategorized)")
-                        .expect("writing to a String cannot fail");
-                } else {
-                    write!(hint, "\n  {path:<width$}  (folder: {folder})")
-                        .expect("writing to a String cannot fail");
-                }
-            }
-            if count > 10 {
-                write!(hint, "\n  … and {} more", count - 10)
-                    .expect("writing to a String cannot fail");
-            }
-            Err(SnipError::not_found(format!(
-                "ambiguous snippet title {title:?}: {count} matches"
-            ))
-            .with_hint(hint))
-        }
-    }
 }
 
 fn split_create_selector(selector: &str) -> Result<(Option<String>, String)> {
@@ -554,14 +492,7 @@ fn fingerprint(value: Option<&str>) -> Option<Fingerprint> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        EditorTargetKind, ExternalTarget, external_target_kind, find_existing_create_snippet,
-        split_create_selector,
-    };
-    use snip::domain::{Fingerprint, Snippet, SnippetManifest};
-    use snip::error::ErrorKind;
-    use std::path::PathBuf;
-    use uuid::Uuid;
+    use super::{EditorTargetKind, ExternalTarget, external_target_kind, split_create_selector};
 
     #[test]
     fn external_edit_targets_map_to_shared_target_kinds() {
@@ -584,76 +515,6 @@ mod tests {
     }
 
     #[test]
-    fn create_lookup_matches_nested_folder_and_title() {
-        let snippets = vec![
-            snippet("scratch", "notes", "notes--11111111"),
-            snippet("archive", "notes", "notes--22222222"),
-        ];
-
-        let found = find_existing_create_snippet(&snippets, "scratch", "notes")
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(
-            found.package_path,
-            PathBuf::from("snippets/scratch/notes--11111111")
-        );
-    }
-
-    #[test]
-    fn create_lookup_matches_flat_selector_with_resolved_folder() {
-        let snippets = vec![snippet("default", "notes", "notes--11111111")];
-
-        let found = find_existing_create_snippet(&snippets, "default", "notes")
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(found.title, "notes");
-    }
-
-    #[test]
-    fn create_lookup_matches_uncategorized_empty_folder() {
-        let snippets = vec![snippet("", "notes", "notes--11111111")];
-
-        let found = find_existing_create_snippet(&snippets, "", "notes")
-            .unwrap()
-            .unwrap();
-
-        assert!(found.folder.is_empty());
-    }
-
-    #[test]
-    fn create_lookup_rejects_duplicate_folder_and_title() {
-        let snippets = vec![
-            snippet("scratch", "notes", "notes--11111111"),
-            snippet("scratch", "notes", "notes--22222222"),
-        ];
-
-        let error = find_existing_create_snippet(&snippets, "scratch", "notes").unwrap_err();
-
-        assert_eq!(error.kind, ErrorKind::NotFound);
-        assert_eq!(
-            error.message,
-            "ambiguous snippet title \"notes\": 2 matches"
-        );
-        assert_eq!(
-            error.hint.as_deref(),
-            Some(
-                "pass a package path to pick one:\n  scratch/notes--11111111  (folder: scratch)\n  scratch/notes--22222222  (folder: scratch)"
-            )
-        );
-    }
-
-    #[test]
-    fn create_lookup_returns_none_for_missing_snippet() {
-        let snippets = vec![snippet("scratch", "other", "other--11111111")];
-
-        let found = find_existing_create_snippet(&snippets, "scratch", "notes").unwrap();
-
-        assert!(found.is_none());
-    }
-
-    #[test]
     fn create_selector_splits_nested_folders_and_rejects_trailing_slashes() {
         assert_eq!(
             split_create_selector("foo/bar").unwrap(),
@@ -668,34 +529,5 @@ mod tests {
             (None, "title".to_owned())
         );
         assert!(split_create_selector("foo/").is_err());
-    }
-
-    fn snippet(folder: &str, title: &str, package: &str) -> Snippet {
-        let package_path = if folder.is_empty() {
-            PathBuf::from("snippets").join(package)
-        } else {
-            PathBuf::from("snippets").join(folder).join(package)
-        };
-        Snippet {
-            manifest: SnippetManifest {
-                schema_version: 1,
-                id: Uuid::nil(),
-                title: title.to_owned(),
-                tags: Vec::new(),
-                pinned: false,
-                locked: false,
-                created_at: String::new(),
-                source: None,
-                remotes: Vec::new(),
-                fragments: Vec::new(),
-                extra: toml::Table::new(),
-            },
-            readme: None,
-            folder: folder.to_owned(),
-            package_path,
-            modified_at: None,
-            fingerprint: Fingerprint(String::new()),
-            loaded_fragments: Vec::new(),
-        }
     }
 }
