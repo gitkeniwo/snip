@@ -809,6 +809,45 @@ fn cli_reports_selector_ambiguity_and_jsonl_records() {
         .unwrap();
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout).lines().count(), 2);
+
+    let by_folder = json(&library, &["show", "Two/Duplicate"]);
+    assert_eq!(by_folder["folder"], "Two");
+    let missing = command(&library, &["show", "Three/Duplicate"])
+        .output()
+        .unwrap();
+    assert_eq!(missing.status.code(), Some(3));
+}
+
+#[test]
+fn human_mutation_output_names_the_action() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("Actions.sniplib");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["init", library.to_str().unwrap()])
+        .assert()
+        .success();
+    let human = |arguments: &[&str]| {
+        let output = Command::cargo_bin("snip")
+            .unwrap()
+            .arg("--library")
+            .arg(&library)
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+
+    assert!(human(&["create", "--title", "Action"]).starts_with("created: "));
+    assert!(human(&["edit", "Action", "--tag", "x"]).starts_with("updated: "));
+    let deleted = json(&library, &["delete", "Action"]);
+    let entry_id = deleted["entry_id"].as_str().unwrap();
+    assert!(human(&["restore", entry_id]).starts_with("restored: "));
 }
 
 #[test]
