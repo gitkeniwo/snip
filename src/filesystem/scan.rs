@@ -194,9 +194,23 @@ impl Library {
             .filter(|snippet| snippet.title == selector)
             .collect::<Vec<_>>();
         match title_matches.as_mut_slice() {
-            [] => Err(SnipError::not_found(format!(
-                "no snippet title matches {selector:?}"
-            ))),
+            [] => {
+                // `folder/title` is the spelling `edit --create` files a new snippet under,
+                // so every selector reads it back. An exact title containing `/` wins above.
+                if let Some((folder, title)) = selector.rsplit_once('/')
+                    && let Some(snippet) = find_snippet_by_folder_and_title(
+                        &catalog.snippets,
+                        &self.snippets_dir(),
+                        folder,
+                        title,
+                    )?
+                {
+                    return Ok(snippet);
+                }
+                Err(SnipError::not_found(format!(
+                    "no snippet title matches {selector:?}"
+                )))
+            }
             [snippet] => Ok(*snippet),
             _ => {
                 let snippets_dir = self.snippets_dir();
@@ -496,6 +510,64 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(resolve_error.hint, create_error.hint);
+    }
+
+    fn catalog_of(library: &Library, snippets: Vec<Snippet>) -> CatalogSnapshot {
+        CatalogSnapshot {
+            library: library.manifest.clone(),
+            root: library.root.clone(),
+            snippets,
+            folders: Vec::new(),
+            tags: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn resolve_accepts_folder_and_title() {
+        let library = library();
+        let catalog = catalog_of(
+            &library,
+            vec![
+                snippet("work", "notes", "notes--11111111"),
+                snippet("personal", "notes", "notes--22222222"),
+                snippet("deep/nested", "thing", "thing--33333333"),
+            ],
+        );
+
+        let found = library.resolve_snippet(&catalog, "work/notes").unwrap();
+        assert_eq!(found.folder, "work");
+        let nested = library
+            .resolve_snippet(&catalog, "deep/nested/thing")
+            .unwrap();
+        assert_eq!(nested.title, "thing");
+    }
+
+    #[test]
+    fn resolve_prefers_an_exact_title_containing_a_slash() {
+        let library = library();
+        let catalog = catalog_of(
+            &library,
+            vec![
+                snippet("", "work/notes", "work-notes--11111111"),
+                snippet("work", "notes", "notes--22222222"),
+            ],
+        );
+
+        let found = library.resolve_snippet(&catalog, "work/notes").unwrap();
+        assert!(found.folder.is_empty());
+    }
+
+    #[test]
+    fn resolve_missing_folder_and_title_is_a_hintless_not_found() {
+        let library = library();
+        let catalog = catalog_of(&library, vec![snippet("work", "notes", "notes--11111111")]);
+
+        // `edit --create` creates only on a not-found without a hint.
+        let error = library
+            .resolve_snippet(&catalog, "scratch/notes")
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::NotFound);
+        assert!(error.hint.is_none());
     }
 
     fn library() -> Library {

@@ -15,7 +15,7 @@ snip\-query \- query and inspect snippets without modifying them
 .SH "DESCRIPTION"
 Read and inspect snippets without modifying them. list returns summaries, search returns scored matching lines, show returns one complete snippet, cat prints raw fragment bytes, preview renders human\-facing output, path resolves managed files, open launches an application, and info reports library counts.
 .PP
-A snippet selector is resolved as a package path relative to snippets, a UUID prefix of at least eight hexadecimal digits, or an exact case\-sensitive title. Ambiguous titles are conflicts. Fragment selectors are a 1\-based index or a fragment UUID prefix.
+A snippet selector is resolved as a package path relative to snippets, a UUID prefix of at least eight hexadecimal digits, an exact case\-sensitive title, or a folder and title joined by a slash, split at the final slash and tried only when no title matches the whole selector. An ambiguous selector is reported as not_found and lists the package paths of its candidates. Fragment selectors are a 1\-based index or a fragment UUID prefix.
 .PP
 For list and search, \-\-folder includes the named folder and all descendants. Add \-\-no\-subfolders for only the direct folder, and pass \-\-folder "" for Uncategorized. Folder matching is case\-insensitive on complete path components. \-\-tag restricts results to one tag.
 .PP
@@ -106,7 +106,7 @@ Show a complete snippet
 Print help
 .TP
 <\fISELECTOR\fR>
-Snippet title, UUID prefix, or package path
+Snippet title, folder/title, UUID prefix, or package path
 .SS "snip cat"
 Print one fragment with no decorations
 .TP
@@ -117,7 +117,7 @@ Print one fragment with no decorations
 Print help
 .TP
 <\fISELECTOR\fR>
-Snippet title, UUID prefix, or package path
+Snippet title, folder/title, UUID prefix, or package path
 .SS "snip preview"
 Render a snippet for terminal or HTML preview
 .TP
@@ -146,7 +146,7 @@ Disable a pager enabled in the config file
 Print help
 .TP
 <\fISELECTOR\fR>
-Snippet title, UUID prefix, or package path
+Snippet title, folder/title, UUID prefix, or package path
 .SS "snip path"
 Print a managed filesystem path
 .TP
@@ -163,7 +163,7 @@ Print the path to a fragment selected by 1\-based index or UUID prefix
 Print help
 .TP
 <\fISELECTOR\fR>
-Snippet title, UUID prefix, or package path
+Snippet title, folder/title, UUID prefix, or package path
 .SS "snip open"
 Open a managed path in an external application
 .TP
@@ -183,7 +183,7 @@ Command to launch. Defaults to the `gui_editor` config key, then `code`
 Print help
 .TP
 <\fISELECTOR\fR>
-Snippet title, UUID prefix, or package path
+Snippet title, folder/title, UUID prefix, or package path
 .SS "snip info"
 Show library metadata and counts
 .TP

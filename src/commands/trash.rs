@@ -25,7 +25,7 @@ pub fn command_trash(library: &Library, output: OutputMode) -> Result<()> {
 
 pub fn command_restore(library: &Library, args: &RestoreArgs, output: OutputMode) -> Result<()> {
     let snippet = restore_snippet(library, &args.selector, args.folder.as_deref())?;
-    print_mutation(&snippet, None, output)
+    print_mutation("restored", &snippet, None, output)
 }
 
 pub fn command_purge(library: &Library, args: &PurgeArgs, output: OutputMode) -> Result<()> {

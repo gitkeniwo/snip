@@ -58,13 +58,15 @@ pub fn send_to_pager(content: &str, configured_pager: Option<&str>) -> Result<()
     Ok(())
 }
 
+/// `action` labels the human-mode first line: `created`, `updated`, or `restored`.
 pub fn print_mutation(
+    action: &str,
     snippet: &Snippet,
     changes: Option<&snip::ChangeSet>,
     output: OutputMode,
 ) -> Result<()> {
     if output == OutputMode::Human {
-        println!("updated: {}", snippet.package_path.display());
+        println!("{action}: {}", snippet.package_path.display());
         println!("id: {}", snippet.id);
         println!("fingerprint: {}", snippet.fingerprint);
         if let Some(changes) = changes {
