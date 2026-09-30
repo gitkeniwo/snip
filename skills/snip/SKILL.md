@@ -91,6 +91,8 @@ Most commands take a `<SELECTOR>`, resolved in this order:
 1. **Package path** relative to `snippets/` — `Scripts/Greeter--79d92dea`
 2. **UUID prefix**, at least 8 hex digits — `79d92dea`
 3. **Exact title** — `Greeter` (exact, case-sensitive, no fuzzy matching)
+4. **Folder and title** — `Scripts/Greeter`, split at the last `/`, tried only
+   when no title matches the whole selector
 
 Prefer the UUID. Titles are ambiguous — two snippets can share one, and an
 ambiguous selector is a hard error rather than a guess. When you have just

@@ -1,7 +1,7 @@
 %%DESCRIPTION
 Read and inspect snippets without modifying them. list returns summaries, search returns scored matching lines, show returns one complete snippet, cat prints raw fragment bytes, preview renders human-facing output, path resolves managed files, open launches an application, and info reports library counts.
 
-A snippet selector is resolved as a package path relative to snippets, a UUID prefix of at least eight hexadecimal digits, or an exact case-sensitive title. Ambiguous titles are conflicts. Fragment selectors are a 1-based index or a fragment UUID prefix.
+A snippet selector is resolved as a package path relative to snippets, a UUID prefix of at least eight hexadecimal digits, an exact case-sensitive title, or a folder and title joined by a slash, split at the final slash and tried only when no title matches the whole selector. An ambiguous selector is reported as not_found and lists the package paths of its candidates. Fragment selectors are a 1-based index or a fragment UUID prefix.
 
 For list and search, --folder includes the named folder and all descendants. Add --no-subfolders for only the direct folder, and pass --folder "" for Uncategorized. Folder matching is case-insensitive on complete path components. --tag restricts results to one tag.
 
