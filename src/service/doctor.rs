@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 use std::fs;
 
-use super::helpers::collect_package_paths;
-use super::types::{DoctorReport, TransactionState};
+use super::helpers::{collect_package_paths, path_to_slashes};
+use super::portability::{collisions, describe_collision, non_portable_paths};
+use super::trash::validate_trash_metadata;
+use super::types::{DoctorReport, TransactionState, TrashMetadata};
 use crate::domain::ChangeSet;
 use crate::error::{Result, SnipError};
 use crate::filesystem::io::{
@@ -93,8 +95,16 @@ pub fn doctor(library: &Library, repair: bool) -> DoctorReport {
     match collect_package_paths(&library.snippets_dir()) {
         Ok(paths) => {
             let mut ids = HashSet::new();
+            // Slash paths of every package, relative to snippets/. Collected
+            // from disk rather than from `snippet.folder` so that a package
+            // whose metadata fails to load still contributes its directories,
+            // and so the package name itself takes part in sibling checks.
+            let mut tree = Vec::with_capacity(paths.len());
             for path in paths {
                 checked += 1;
+                if let Ok(relative) = path.strip_prefix(library.snippets_dir()) {
+                    tree.push(path_to_slashes(relative));
+                }
                 match library.load_snippet(&path) {
                     Ok(snippet) => {
                         let manifest_path = path.join("snippet.toml");
@@ -126,9 +136,22 @@ pub fn doctor(library: &Library, repair: bool) -> DoctorReport {
                     Err(error) => errors.push(format!("{}: {error}", path.display())),
                 }
             }
+            // Portability recommendations from FORMAT.md, "Folders": schema v1
+            // does not make these validity requirements, so they are warnings
+            // and an affected library stays fully usable on this machine.
+            for collision in collisions(&tree) {
+                warnings.push(describe_collision(&library.snippets_dir(), &collision));
+            }
+            for (relative, reason) in non_portable_paths(&tree) {
+                warnings.push(format!(
+                    "{}: path component {reason}",
+                    library.snippets_dir().join(&relative).display()
+                ));
+            }
         }
         Err(error) => errors.push(error.to_string()),
     }
+    let checked_trash = scan_trash(library, &mut errors, &mut warnings);
     let active_pending = if repair_lock.is_some() {
         list_transaction_names(library)
     } else {
@@ -137,12 +160,102 @@ pub fn doctor(library: &Library, repair: bool) -> DoctorReport {
     let ok = errors.is_empty() && active_pending.is_empty();
     DoctorReport {
         checked,
+        checked_trash,
         errors,
         warnings,
         pending_transactions: active_pending,
         repaired,
         ok,
     }
+}
+
+/// Validates `trash/` the way the package walk validates `snippets/`, and
+/// returns the number of entries examined.
+///
+/// `trash_entries` cannot be reused here: it stops at the first bad entry and
+/// silently skips directories that lack `trash.toml` or `package/`, which is
+/// exactly how a malformed entry stays invisible until someone tries to
+/// restore it. Each entry is therefore reported on its own, and one broken
+/// entry does not hide the rest.
+fn scan_trash(library: &Library, errors: &mut Vec<String>, warnings: &mut Vec<String>) -> usize {
+    let mut checked = 0;
+    let read = match fs::read_dir(library.trash_dir()) {
+        Ok(read) => read,
+        Err(error) => {
+            errors.push(format!(
+                "{}: cannot read trash: {error}",
+                library.trash_dir().display()
+            ));
+            return 0;
+        }
+    };
+    let mut entries = read.filter_map(|entry| entry.ok()).collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let path = entry.path();
+        if let Err(error) = reject_symlink(&path) {
+            errors.push(format!("{}: {error}", path.display()));
+            continue;
+        }
+        if !path.is_dir() {
+            warnings.push(format!(
+                "{}: unexpected file in trash; snip only writes entry directories there",
+                path.display()
+            ));
+            continue;
+        }
+        let metadata_path = path.join("trash.toml");
+        let package_path = path.join("package");
+        let has_metadata = metadata_path.is_file();
+        let has_package = package_path.is_dir();
+        match (has_metadata, has_package) {
+            (false, false) => {
+                warnings.push(format!(
+                    "{}: unrecognized directory in trash; it has neither trash.toml nor package/",
+                    path.display()
+                ));
+                continue;
+            }
+            (false, true) => {
+                // The payload is intact but unreachable: `snip trash` skips the
+                // entry, so the snippet can be neither listed nor restored.
+                errors.push(format!(
+                    "{}: trash entry has no trash.toml, so the package is not listed and cannot be restored",
+                    path.display()
+                ));
+                continue;
+            }
+            (true, false) => {
+                errors.push(format!(
+                    "{}: trash entry has no package/ directory",
+                    path.display()
+                ));
+                continue;
+            }
+            (true, true) => {}
+        }
+        checked += 1;
+        if let Err(error) = check_trash_entry(library, &metadata_path, &package_path) {
+            errors.push(format!("{}: {error}", path.display()));
+        }
+    }
+    checked
+}
+
+fn check_trash_entry(
+    library: &Library,
+    metadata_path: &std::path::Path,
+    package_path: &std::path::Path,
+) -> Result<()> {
+    reject_symlink(metadata_path)?;
+    let metadata: TrashMetadata = toml::from_str(&fs::read_to_string(metadata_path)?)?;
+    validate_trash_metadata(library, &metadata, metadata_path)?;
+    let snippet = library.load_snippet(package_path)?;
+    // `load_snippet` enforces structure, paths, and UTF-8 but leaves semantic
+    // metadata to doctor, exactly as it does for a live package. Without this
+    // the entry would pass here and fail on restore.
+    validate_snippet_metadata(&snippet.manifest, &package_path.join("snippet.toml"))?;
+    Ok(())
 }
 
 fn list_transaction_names(library: &Library) -> Vec<String> {

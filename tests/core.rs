@@ -822,3 +822,209 @@ fn legacy_auto_backup_interval_loads_and_is_rewritten_with_the_precise_name() {
     assert!(saved.contains("auto_commit_interval = 15"));
     assert!(!saved.contains("auto_backup_interval"));
 }
+
+/// Creates a snippet in `folder` so that the folder directory exists on disk.
+fn create_in_folder(library: &Library, title: &str, folder: &str) -> snip::Snippet {
+    create_snippet(
+        library,
+        &CreateOptions {
+            title: title.to_owned(),
+            folder: Some(folder.to_owned()),
+            language: "text".to_owned(),
+            content: "body\n".to_owned(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap()
+}
+
+// Sibling case and normalization collisions are not integration-testable:
+// creating `Rust` and `rust`, or an NFC and an NFD spelling of one name, yields
+// a single directory on APFS and on NTFS, so the two siblings the check looks
+// for cannot be made to exist on a developer's own machine. Those groupings are
+// covered by the unit tests in `src/service/portability.rs`. What is
+// reproducible anywhere is a name that is merely unusable elsewhere, which is
+// what these tests pin.
+
+#[test]
+fn doctor_warns_about_windows_reserved_folder_names() {
+    let (_temporary, library) = library();
+    create_in_folder(&library, "Device", "CON");
+    create_in_folder(&library, "Nested", "Notes/LPT1");
+
+    let report = doctor(&library, false);
+    // A portability recommendation, not a validity rule: the library stays
+    // usable here and `ok` must not flip.
+    assert!(report.ok, "errors: {:?}", report.errors);
+    assert_eq!(report.checked, 2);
+    let reserved = report
+        .warnings
+        .iter()
+        .filter(|warning| warning.contains("reserved device name on Windows"))
+        .count();
+    assert_eq!(reserved, 2, "warnings: {:?}", report.warnings);
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("Notes/LPT1") || warning.contains("Notes\\LPT1")),
+        "warnings: {:?}",
+        report.warnings
+    );
+}
+
+#[test]
+fn doctor_warns_about_a_folder_ending_in_a_space() {
+    let (_temporary, library) = library();
+    create_in_folder(&library, "Trailing", "Notes ");
+
+    let report = doctor(&library, false);
+    assert!(report.ok, "errors: {:?}", report.errors);
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("ends in a dot or space")),
+        "warnings: {:?}",
+        report.warnings
+    );
+}
+
+#[test]
+fn doctor_accepts_portable_folder_names() {
+    let (_temporary, library) = library();
+    create_in_folder(&library, "Fine", "Data Science/Queries");
+    create_in_folder(&library, "Also fine", "你好");
+
+    let report = doctor(&library, false);
+    assert!(report.ok, "errors: {:?}", report.errors);
+    assert!(
+        report.warnings.is_empty(),
+        "warnings: {:?}",
+        report.warnings
+    );
+}
+
+#[test]
+fn doctor_counts_a_healthy_trash_entry() {
+    let (_temporary, library) = library();
+    let snippet = create_example(&library, false);
+    delete_snippet(&library, &snippet.id.to_string(), None, false).unwrap();
+
+    let report = doctor(&library, false);
+    assert!(report.ok, "errors: {:?}", report.errors);
+    assert_eq!(report.checked, 0);
+    assert_eq!(report.checked_trash, 1);
+}
+
+#[test]
+fn doctor_reports_a_trash_entry_whose_metadata_is_missing() {
+    let (_temporary, library) = library();
+    let snippet = create_example(&library, false);
+    let entry = delete_snippet(&library, &snippet.id.to_string(), None, false).unwrap();
+    let wrapper = entry.package_path.parent().unwrap().to_path_buf();
+    fs::remove_file(wrapper.join("trash.toml")).unwrap();
+
+    // This is the gap the check closes: the package is intact and completely
+    // invisible, so nothing tells the user it is there until a restore that
+    // can never be asked for.
+    assert!(trash_entries(&library).unwrap().is_empty());
+
+    let report = doctor(&library, false);
+    assert!(!report.ok);
+    assert_eq!(report.checked_trash, 0);
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|error| error.contains("no trash.toml") && error.contains("cannot be restored")),
+        "errors: {:?}",
+        report.errors
+    );
+}
+
+#[test]
+fn doctor_reports_a_trash_entry_whose_package_is_missing() {
+    let (_temporary, library) = library();
+    let snippet = create_example(&library, false);
+    let entry = delete_snippet(&library, &snippet.id.to_string(), None, false).unwrap();
+    fs::remove_dir_all(&entry.package_path).unwrap();
+
+    assert!(trash_entries(&library).unwrap().is_empty());
+    let report = doctor(&library, false);
+    assert!(!report.ok);
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|error| error.contains("no package/ directory")),
+        "errors: {:?}",
+        report.errors
+    );
+}
+
+#[test]
+fn doctor_reports_a_malformed_package_inside_trash() {
+    let (_temporary, library) = library();
+    let snippet = create_example(&library, false);
+    let entry = delete_snippet(&library, &snippet.id.to_string(), None, false).unwrap();
+    let manifest = entry.package_path.join("snippet.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        &manifest,
+        text.replace(&snippet.manifest.created_at, "not-a-timestamp"),
+    )
+    .unwrap();
+
+    let report = doctor(&library, false);
+    assert!(!report.ok);
+    assert_eq!(report.checked_trash, 1);
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|error| error.contains("created_at")),
+        "errors: {:?}",
+        report.errors
+    );
+}
+
+#[test]
+fn doctor_reports_each_broken_trash_entry_separately() {
+    let (_temporary, library) = library();
+    let first = create_example(&library, false);
+    let second = create_in_folder(&library, "Second", "Other");
+    let first_entry = delete_snippet(&library, &first.id.to_string(), None, false).unwrap();
+    let second_entry = delete_snippet(&library, &second.id.to_string(), None, false).unwrap();
+    for entry in [&first_entry, &second_entry] {
+        let wrapper = entry.package_path.parent().unwrap();
+        fs::remove_file(wrapper.join("trash.toml")).unwrap();
+    }
+
+    // `trash_entries` returns the first failure and stops; doctor must list
+    // every entry so one pass is enough to fix the library.
+    let report = doctor(&library, false);
+    let reported = report
+        .errors
+        .iter()
+        .filter(|error| error.contains("no trash.toml"))
+        .count();
+    assert_eq!(reported, 2, "errors: {:?}", report.errors);
+}
+
+#[test]
+fn doctor_warns_about_stray_files_in_trash() {
+    let (_temporary, library) = library();
+    fs::write(library.trash_dir().join("stray.txt"), b"junk").unwrap();
+
+    let report = doctor(&library, false);
+    assert!(report.ok, "errors: {:?}", report.errors);
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("unexpected file in trash")),
+        "warnings: {:?}",
+        report.warnings
+    );
+}

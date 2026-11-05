@@ -2,6 +2,7 @@ pub mod doctor;
 pub mod folder_tag;
 pub mod fragment;
 pub mod helpers;
+pub(crate) mod portability;
 pub mod snippet;
 pub mod trash;
 pub mod types;

@@ -65,6 +65,9 @@ pub struct FragmentEditOptions {
 #[derive(Clone, Debug, Serialize)]
 pub struct DoctorReport {
     pub checked: usize,
+    /// Trash entries that had both `trash.toml` and `package/` and were
+    /// therefore validated; malformed entries are counted in `errors` instead.
+    pub checked_trash: usize,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
     pub pending_transactions: Vec<String>,

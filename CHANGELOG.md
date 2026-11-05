@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`snip doctor` scans the trash.** Each entry under `trash/` is validated
+  like a live package — metadata, structure, and semantic fields — and reported
+  on its own, so one broken entry no longer hides the rest. Entries that
+  `snip trash` skips silently because `trash.toml` or `package/` is missing are
+  now reported as errors instead of staying invisible until a restore. The
+  report gains a `checked_trash` count.
+- **`snip doctor` warns about cross-platform name clashes.** Sibling names that
+  differ only in case or only in Unicode composition, Windows device names
+  (`CON`, `LPT1`, … with or without an extension), and names ending in a dot or
+  space are reported as warnings, following the portability recommendations in
+  `FORMAT.md`. They never change `ok`.
+
 ### Changed
 
 - **Folder-and-title selectors.** Every command that takes a snippet selector

@@ -486,8 +486,9 @@ and reports what it did.
 The format is the contract; the CLI is one implementation of it. `snip doctor`
 is a useful integrity check, not a complete conformance validator. In schema v1
 it checks library and snippet semantic metadata, the tag registry, active
-snippet packages, duplicate snippet UUIDs, canonical package-directory names,
-folder portability, and pending package transactions; with `--repair` it also
+snippet packages, trash entries, duplicate snippet UUIDs, canonical
+package-directory names, folder portability including the sibling-collision and
+device-name recommendations above, and pending package transactions; with `--repair` it also
 attempts transaction recovery. Opening validates only enough root metadata to
 identify a supported library. Ordinary scans enforce package structure, path,
 UTF-8, and symbolic-link rules while leaving semantic metadata errors to
