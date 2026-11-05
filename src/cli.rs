@@ -200,13 +200,13 @@ impl SearchArgs {
 
 #[derive(Args, Debug)]
 pub struct SelectorArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
 }
 
 #[derive(Args, Debug)]
 pub struct FragmentSelectorArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// 1-based index or fragment UUID prefix.
     #[arg(long)]
@@ -222,7 +222,7 @@ pub enum RenderArg {
 
 #[derive(Args, Debug)]
 pub struct PreviewArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Rendering format. Defaults to the configured preview format.
     #[arg(long, value_enum)]
@@ -237,7 +237,7 @@ pub struct PreviewArgs {
 
 #[derive(Args, Debug)]
 pub struct PathArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Print the path to snippet.toml.
     #[arg(long, conflicts_with_all = ["readme", "fragment"])]
@@ -254,7 +254,7 @@ pub struct PathArgs {
 /// This is the CLI counterpart of the TUI's `v` key.
 #[derive(Args, Debug)]
 pub struct OpenArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Open snippet.toml.
     #[arg(long, conflicts_with_all = ["readme", "fragment"])]
@@ -325,7 +325,7 @@ pub struct OptimisticArgs {
 
 #[derive(Args, Debug)]
 pub struct EditArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Create the snippet when the selector matches nothing, then open the editor.
     #[arg(long)]
@@ -420,7 +420,7 @@ pub enum FragmentCommand {
 
 #[derive(Args, Debug)]
 pub struct FragmentAddArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Fragment title.
     #[arg(long)]
@@ -446,7 +446,7 @@ pub struct FragmentAddArgs {
 
 #[derive(Args, Debug)]
 pub struct FragmentEditArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Fragment 1-based index or UUID prefix.
     pub fragment: String,
@@ -477,7 +477,7 @@ pub struct FragmentEditArgs {
 
 #[derive(Args, Debug)]
 pub struct FragmentRemoveArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Fragment 1-based index or UUID prefix.
     pub fragment: String,
@@ -487,7 +487,7 @@ pub struct FragmentRemoveArgs {
 
 #[derive(Args, Debug)]
 pub struct FragmentReorderArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Fragment 1-based index or UUID prefix.
     pub fragment: String,
@@ -560,7 +560,7 @@ pub enum TagCommand {
 
 #[derive(Args, Debug)]
 pub struct DeleteArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     #[command(flatten)]
     pub optimistic: OptimisticArgs,
@@ -693,13 +693,13 @@ pub enum GistCommand {
 
 #[derive(Args, Debug)]
 pub struct GistSelectorArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
 }
 
 #[derive(Args, Debug)]
 pub struct GistPushArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// List the gist publicly. Only applies when creating; gist visibility
     /// cannot be changed afterwards.
@@ -732,7 +732,7 @@ pub struct GistPushArgs {
 
 #[derive(Args, Debug)]
 pub struct GistUrlArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Copy the URL to the clipboard as well as printing it.
     #[arg(long)]
@@ -741,7 +741,7 @@ pub struct GistUrlArgs {
 
 #[derive(Args, Debug)]
 pub struct GistStatusArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     #[arg(conflicts_with = "all")]
     pub selector: Option<String>,
     /// Report every snippet in the library that has a gist.
@@ -754,7 +754,7 @@ pub struct GistStatusArgs {
 
 #[derive(Args, Debug)]
 pub struct GistAttachArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Gist ID or URL.
     pub gist: String,
@@ -762,7 +762,7 @@ pub struct GistAttachArgs {
 
 #[derive(Args, Debug)]
 pub struct GistDeleteArgs {
-    /// Snippet title, UUID prefix, or package path.
+    /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// Delete without prompting.
     #[arg(long)]

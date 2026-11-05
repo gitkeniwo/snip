@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Folder-and-title selectors.** Every command that takes a snippet selector
+  now accepts `folder/title`, split at the last slash, the same spelling
+  `snip edit --create` files a new snippet under. It is tried only after
+  package paths, UUID prefixes, and exact titles, so a title that itself
+  contains a slash still resolves as before.
+- **Mutation output names what happened.** The human-mode first line reads
+  `created:` for `snip create` and for `snip edit --create` when it creates a
+  snippet, and `restored:` for `snip restore`, instead of `updated:` for all
+  of them. JSON output is unchanged.
+
+### Fixed
+
+- **`snip edit --create` no longer reports `unchanged:` for a new snippet.**
+  Closing the editor without saving still leaves the created snippet in place,
+  and the command now says `created:` instead of implying nothing happened.
+- **`snip-query(1)` described ambiguous selectors as conflicts.** They have
+  always been `not_found` (exit 3), as `snip(1)` already says.
+
 ## [0.6.4] - 2026-09-25
 
 ### Added

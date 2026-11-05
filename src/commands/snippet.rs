@@ -55,7 +55,7 @@ pub fn command_create(
             ..CreateOptions::default()
         },
     )?;
-    print_mutation(&snippet, None, output)
+    print_mutation("created", &snippet, None, output)
 }
 
 pub fn command_edit(
@@ -107,7 +107,7 @@ pub fn command_edit(
         force: args.optimistic.force,
     };
     let (snippet, changes) = edit_snippet(library, &args.selector, &options)?;
-    print_mutation(&snippet, Some(&changes), output)
+    print_mutation("updated", &snippet, Some(&changes), output)
 }
 
 pub fn command_fragment(
@@ -169,7 +169,7 @@ pub fn command_fragment(
             args.optimistic.force,
         )?,
     };
-    print_mutation(&snippet, Some(&changes), output)
+    print_mutation("updated", &snippet, Some(&changes), output)
 }
 
 pub fn command_delete(library: &Library, args: &DeleteArgs, output: OutputMode) -> Result<()> {
@@ -199,6 +199,7 @@ fn edit_external(
         ));
     }
     let catalog = library.scan()?;
+    let mut created = false;
     let original = match library.resolve_snippet(&catalog, &args.selector) {
         Ok(snippet) => {
             if args.create && edit_has_creation_options(args) {
@@ -211,7 +212,9 @@ fn edit_external(
         // `--create` depends on the resolver contract that only ambiguity carries a hint.
         // Adding a hint to ordinary not-found errors would silently disable creation.
         Err(error) if args.create && error.kind == ErrorKind::NotFound && error.hint.is_none() => {
-            create_external_snippet(library, &catalog, args, config)?
+            let (snippet, is_new) = create_external_snippet(library, &catalog, args, config)?;
+            created = is_new;
+            snippet
         }
         Err(error) => return Err(error),
     };
@@ -285,6 +288,10 @@ fn edit_external(
     launch_editor(temp.path(), cwd.as_deref(), config.editor.as_deref())?;
     let edited = fs::read_to_string(temp.path())?;
     if edited == initial {
+        // A snippet created for this edit exists even when the editor saved nothing.
+        if created {
+            return print_mutation("created", &original, None, output);
+        }
         if output == OutputMode::Human {
             println!("unchanged: {}", original.id);
         } else {
@@ -341,7 +348,8 @@ fn edit_external(
             },
         )?,
     };
-    print_mutation(&snippet, Some(&changes), output)
+    let action = if created { "created" } else { "updated" };
+    print_mutation(action, &snippet, Some(&changes), output)
 }
 
 fn create_external_snippet(
@@ -349,7 +357,7 @@ fn create_external_snippet(
     catalog: &CatalogSnapshot,
     args: &EditArgs,
     config: &AppConfig,
-) -> Result<Snippet> {
+) -> Result<(Snippet, bool)> {
     let (selector_folder, title) = split_create_selector(&args.selector)?;
     let folder = selector_folder
         .or_else(|| args.folder.clone())
@@ -357,7 +365,7 @@ fn create_external_snippet(
     if let Some(snippet) =
         library.find_by_folder_and_title(catalog, folder.as_deref().unwrap_or_default(), &title)?
     {
-        return Ok(snippet.clone());
+        return Ok((snippet.clone(), false));
     }
     let tags = if args.tags.is_empty() {
         config.default_tags.clone()
@@ -378,6 +386,7 @@ fn create_external_snippet(
             ..CreateOptions::default()
         },
     )
+    .map(|snippet| (snippet, true))
 }
 
 fn split_create_selector(selector: &str) -> Result<(Option<String>, String)> {
