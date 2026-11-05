@@ -1,7 +1,9 @@
 %%DESCRIPTION
-Validate library manifests, semantic metadata, paths, content, and interrupted transaction state. The report includes checked items, errors, warnings, pending transactions, repairs, and an overall ok flag.
+Validate library manifests, semantic metadata, paths, content, and interrupted transaction state. The report includes checked snippets, checked trash entries, errors, warnings, pending transactions, repairs, and an overall ok flag.
 
-doctor checks the library and snippet created_at timestamps, optional source timestamps, remote records and pushed digests, the tag registry, package structure, duplicate snippet UUIDs, canonical package names, folder portability, and pending transactions. Ordinary scans keep structurally safe content readable when only semantic timestamps or remote metadata are malformed; doctor reports those integrity errors and sets ok to false.
+doctor checks the library and snippet created_at timestamps, optional source timestamps, remote records and pushed digests, the tag registry, package structure, duplicate snippet UUIDs, canonical package names, folder portability, and pending transactions. It also validates every trash entry the way it validates a live package, reporting each malformed entry on its own, including entries snip trash would otherwise skip silently because trash.toml or package/ is missing.
+
+Portability warnings cover names that are distinct here but merge or fail on another filesystem: sibling names that differ only in case, sibling names that differ only in Unicode composition (NFC versus NFD), Windows device names such as CON or LPT1 with or without an extension, and names ending in a dot or space. These are warnings, not errors, and do not change ok. Ordinary scans keep structurally safe content readable when only semantic timestamps or remote metadata are malformed; doctor reports those integrity errors and sets ok to false.
 
 With --repair, snip finishes or rolls back interrupted staged writes. It does not invent missing snippet content or bypass ordinary validation failures.
 

@@ -27,20 +27,6 @@ mouse users can copy part of a fragment).
 
 ## Library format
 
-### `doctor` diagnostics follow-up
-
-The format refresh tightened new writes and left the reporting side deliberately
-narrow, so old libraries stayed readable. Two gaps were named in that work and
-never recorded here:
-
-- [ ] Broader name-collision diagnostics: Unicode normalization, case-only
-  differences, and Windows reserved names. `snip doctor` warns about
-  non-portable folder names today, but does not detect two entries that collide
-  only after normalization or only on a case-insensitive filesystem.
-- [ ] Have `snip doctor` scan trash entries. `src/service/doctor.rs` walks the
-  live catalog only, so a malformed package survives in `trash/` unreported and
-  surfaces at restore time instead.
-
 ## Documentation
 
 ### Reconcile and archive the man page plans
@@ -300,6 +286,11 @@ there is no popularity threshold for new packages.
   the UTF-8 filename limit is a correct 80 bytes, existing non-portable folders
   can still be read, edited, and renamed to a portable name, and a failed
   recovery names the backup rescue path.
+- **Doctor covers trash and cross-platform names** — `snip doctor` validates
+  every trash entry individually (including entries `snip trash` skips because
+  `trash.toml` or `package/` is missing) and warns about sibling names that
+  collide under case folding or NFC normalization, Windows device names, and
+  trailing dots or spaces, per the `FORMAT.md` portability recommendations.
 
 ### Documentation
 

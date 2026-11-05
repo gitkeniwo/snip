@@ -132,7 +132,7 @@ pub fn restore_snippet(
     library.load_snippet(&target)
 }
 
-fn validate_trash_metadata(
+pub(super) fn validate_trash_metadata(
     library: &Library,
     metadata: &TrashMetadata,
     metadata_path: &std::path::Path,

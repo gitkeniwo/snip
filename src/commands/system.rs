@@ -18,6 +18,7 @@ pub fn command_doctor(library: &Library, args: &DoctorArgs, output: OutputMode) 
     let report = doctor(library, args.repair);
     if output == OutputMode::Human {
         println!("checked: {} snippets", report.checked);
+        println!("checked: {} trash entries", report.checked_trash);
         println!("errors: {}", report.errors.len());
         println!("warnings: {}", report.warnings.len());
         println!(

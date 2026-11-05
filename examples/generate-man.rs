@@ -28,7 +28,7 @@ const MANUAL: &str = "Snip Manual";
 const GLOBAL_ARGS: &[&str] = &["library", "output", "color", "simplified_ui"];
 const MANAGED_SECTIONS: &[&str] = &["1", "5", "7"];
 const FORMAT_DIGEST: &str =
-    "blake3:570984a131cfa5f49c587efe207ceb73f74d86a1a686a1226235ae50abab591f";
+    "blake3:c285afc607604a7accdfe433ee4d10489614e611d274a98d5b95d23686664d36";
 const THEMES_DIGEST: &str =
     "blake3:e89bb1c502bc22f30b0c6657816e4aa3f45236d4fd1a422e33ee7c9053a348b5";
 const SNIPLIB_SOURCES: &[DerivedSource] =
