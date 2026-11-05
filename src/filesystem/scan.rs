@@ -197,15 +197,21 @@ impl Library {
             [] => {
                 // `folder/title` is the spelling `edit --create` files a new snippet under,
                 // so every selector reads it back. An exact title containing `/` wins above.
-                if let Some((folder, title)) = selector.rsplit_once('/')
-                    && let Some(snippet) = find_snippet_by_folder_and_title(
-                        &catalog.snippets,
-                        &self.snippets_dir(),
-                        folder,
-                        title,
-                    )?
-                {
-                    return Ok(snippet);
+                // The selector as written comes first, because that is what `--create`
+                // splits; the `snippets/`-stripped spelling is tried after it, so a path
+                // copied from `snip path` resolves even without the package suffix.
+                let snippets_dir = self.snippets_dir();
+                for candidate in [selector, normalized_path] {
+                    if let Some((folder, title)) = candidate.rsplit_once('/')
+                        && let Some(snippet) = find_snippet_by_folder_and_title(
+                            &catalog.snippets,
+                            &snippets_dir,
+                            folder,
+                            title,
+                        )?
+                    {
+                        return Ok(snippet);
+                    }
                 }
                 Err(SnipError::not_found(format!(
                     "no snippet title matches {selector:?}"
@@ -540,6 +546,36 @@ mod tests {
             .resolve_snippet(&catalog, "deep/nested/thing")
             .unwrap();
         assert_eq!(nested.title, "thing");
+    }
+
+    #[test]
+    fn resolve_accepts_a_snippets_prefixed_folder_and_title() {
+        let library = library();
+        let catalog = catalog_of(&library, vec![snippet("work", "notes", "notes--11111111")]);
+
+        // The same spelling `snip path` prints, minus the package suffix.
+        let found = library
+            .resolve_snippet(&catalog, "snippets/work/notes")
+            .unwrap();
+        assert_eq!(found.folder, "work");
+    }
+
+    #[test]
+    fn resolve_prefers_a_folder_literally_named_snippets() {
+        let library = library();
+        let catalog = catalog_of(
+            &library,
+            vec![
+                snippet("snippets/work", "notes", "notes--11111111"),
+                snippet("work", "notes", "notes--22222222"),
+            ],
+        );
+
+        // The selector as written is what `--create` files under, so it wins.
+        let found = library
+            .resolve_snippet(&catalog, "snippets/work/notes")
+            .unwrap();
+        assert_eq!(found.folder, "snippets/work");
     }
 
     #[test]
