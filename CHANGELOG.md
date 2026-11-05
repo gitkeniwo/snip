@@ -13,17 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now accepts `folder/title`, split at the last slash, the same spelling
   `snip edit --create` files a new snippet under. It is tried only after
   package paths, UUID prefixes, and exact titles, so a title that itself
-  contains a slash still resolves as before.
+  contains a slash still resolves as before. A leading `snippets/` is accepted
+  too, so a path from `snip path` resolves without its package suffix.
 - **Mutation output names what happened.** The human-mode first line reads
   `created:` for `snip create` and for `snip edit --create` when it creates a
   snippet, and `restored:` for `snip restore`, instead of `updated:` for all
-  of them. JSON output is unchanged.
+  of them. The JSON mutation record itself is unchanged; the one JSON change is
+  `snip edit --create` below.
 
 ### Fixed
 
 - **`snip edit --create` no longer reports `unchanged:` for a new snippet.**
   Closing the editor without saving still leaves the created snippet in place,
-  and the command now says `created:` instead of implying nothing happened.
+  and the command now says `created:` instead of implying nothing happened. In
+  `--json` and `--jsonl` modes this case now emits the usual mutation record
+  instead of `{"unchanged": true, "id": ...}`.
 - **`snip-query(1)` described ambiguous selectors as conflicts.** They have
   always been `not_found` (exit 3), as `snip(1)` already says.
 
