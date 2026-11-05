@@ -3,6 +3,63 @@
 Planned work, roughly in the order it is likely to land. Nothing here is a
 commitment to a date.
 
+## Agent interface
+
+snip's remaining edge over SnippetsLab 2.7's `lab` CLI and MCP server is that an
+agent can *maintain* the library — edit, move, delete to trash, restore — on
+plain files under Git, on any machine, with no GUI running. `lab` can only
+search, read, and create, and only while SnippetsLab.app is open on a Mac. The
+items below close the setup and citation gaps without giving that up.
+
+### Stable snippet citations
+
+- [ ] Settle one citation form for agents to use when they quote or rely on a
+  snippet, and state it in `skills/snip`. The constraint that decides it: a
+  citation must itself be a valid selector, so `snip show <citation>` round-trips
+  it. Package paths and UUID prefixes already resolve (package paths first); pick
+  between them — or a combination such as `folder/title (uuid-prefix)` — on
+  readability versus stability under rename. This is the counterpart of
+  SnippetsLab's `snippetslab://snippet/<uuid>` links, and needs no new code if
+  an existing selector form is chosen.
+
+### `snip agent setup --client <name>`
+
+- [ ] One command that installs the skill for a named client (`claude-code`,
+  `codex`, `opencode`, `omp`, or the vendor-neutral `~/.agents/skills/`). Today
+  the README's install steps symlink `skills/snip` from a repository checkout,
+  so users who installed through Homebrew, apt, AUR, Scoop, or `install.sh` have
+  no skill to link. Embed `skills/snip` in the binary the way `man/` is embedded,
+  and write it out.
+- [ ] Keep the written copy from going stale across upgrades — the weakness of
+  SnippetsLab's static skill copy. Record the snip version that wrote it, have
+  `snip agent setup --check` (and possibly `snip doctor`) report a mismatch, and
+  make re-running `setup` replace it. A symlink into a checkout stays supported
+  for development and is left alone.
+- [ ] Once `snip mcp` exists, the same command writes that client's MCP server
+  entry.
+
+### `snip mcp` — planned, not prioritized
+
+Recorded so the design is not rediscovered; not scheduled. Agents that can run
+shell commands already reach everything through the CLI and the skill, and that
+is how snip is used in practice today. MCP matters for clients with no shell.
+
+- [ ] A stdio MCP server exposing read tools (`search`, `get`, `list_filters`,
+  `info`) and write tools (`create`, `edit`, `move`, `delete`, `restore`), each
+  carrying `readOnlyHint` / `destructiveHint` annotations, plus server
+  instructions describing the search-then-fetch workflow. Tools wrap the same
+  service functions and read primitives the CLI uses, never a second code path.
+- [ ] `edit` and `move` require `if_hash`; `delete` only moves to trash. The
+  pitch against `lab` is "everything is writable, every step is undoable"
+  (trash, Git history, fingerprints), not "nothing is writable".
+- [ ] A write tier for the server — `off`, `create`, or `full`, defaulting to
+  `create` — enforced by the server. A CLI-level read-only flag is not planned:
+  an agent with a shell can bypass it, so the boundary only means something at
+  the MCP layer.
+- [ ] Write a plan before implementing: `rmcp` versus a minimal hand-rolled
+  JSON-RPC loop (dependency weight, async runtime, effect on the static musl and
+  Windows builds), tool schemas, and output size limits.
+
 ## TUI
 
 ### Inline preview editor — deferred, not scheduled
