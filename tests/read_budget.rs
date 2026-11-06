@@ -8,18 +8,29 @@ use std::collections::HashSet;
 use std::path::Path;
 
 fn run(library: &Path, arguments: &[&str]) -> std::process::Output {
+    run_with_stdin(library, arguments, "")
+}
+
+// Large bodies go through stdin: Windows caps a command line at 32,767 UTF-16
+// units, which the big fixtures below exceed.
+fn run_with_stdin(library: &Path, arguments: &[&str], stdin: &str) -> std::process::Output {
     Command::cargo_bin("snip")
         .unwrap()
         .arg("--library")
         .arg(library)
         .args(["--output", "json"])
         .args(arguments)
+        .write_stdin(stdin)
         .output()
         .unwrap()
 }
 
 fn json(library: &Path, arguments: &[&str]) -> (Value, usize) {
-    let output = run(library, arguments);
+    json_with_stdin(library, arguments, "")
+}
+
+fn json_with_stdin(library: &Path, arguments: &[&str], stdin: &str) -> (Value, usize) {
+    let output = run_with_stdin(library, arguments, stdin);
     assert!(
         output.status.success(),
         "snip {} failed:\n{}",
@@ -58,7 +69,7 @@ fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
         .map(|line| format!("line {line:04} of the big fragment\n"))
         .collect::<String>();
     assert!(big.len() > 30_000);
-    json(
+    json_with_stdin(
         &library,
         &[
             "create",
@@ -68,9 +79,10 @@ fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
             "Dev",
             "--language",
             "toml",
-            "--content",
-            &big,
+            "--content-file",
+            "-",
         ],
+        &big,
     );
     json(
         &library,
@@ -88,7 +100,7 @@ fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     );
     let long_line = format!("{}\n", "é".repeat(5_000));
     assert_eq!(long_line.len(), 10_001);
-    json(
+    json_with_stdin(
         &library,
         &[
             "create",
@@ -96,9 +108,10 @@ fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
             "One long line",
             "--folder",
             "Dev",
-            "--content",
-            &long_line,
+            "--content-file",
+            "-",
         ],
+        &long_line,
     );
     (temporary, library)
 }
