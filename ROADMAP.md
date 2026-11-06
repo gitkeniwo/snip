@@ -9,7 +9,32 @@ snip's remaining edge over SnippetsLab 2.7's `lab` CLI and MCP server is that an
 agent can *maintain* the library — edit, move, delete to trash, restore — on
 plain files under Git, on any machine, with no GUI running. `lab` can only
 search, read, and create, and only while SnippetsLab.app is open on a Mac. The
-items below close the setup and citation gaps without giving that up.
+items below close the read-cost, setup, and citation gaps without giving that up.
+
+### Token-efficient reads — shipped in 0.7.0
+
+`lab`'s one real advantage was how few tokens a read costs: a brief search with
+no content, fragment-level fetches, explicit truncation. snip's reads used to
+spend freely — `search` emitted a row per matching line, `list` and `show`
+carried absolute paths and full fingerprints, `show` had no budget, and the
+skill itself was 21.5 KB loaded on every trigger. Plan:
+`docs/plans/token-efficient-reads.md`. Everything shipped as opt-in flags; no
+existing JSON shape changed.
+
+- [x] Slim `skills/snip/SKILL.md` to ≤ 7 KB, moving workflows into
+  `references/`.
+- [x] `--if-hash` accepts a fingerprint prefix of ≥ 16 hex characters.
+- [x] `search --brief`: one row per snippet with `bytes`, matched fragments, and
+  a 16-character fingerprint, in a `{total, results}` envelope; `--limit`
+  counts snippets.
+- [x] `show --outline` / `show --max-bytes`: structured `truncated` and
+  `omitted_bytes` fields, cuts on line boundaries.
+- [x] `cat --lines A:B` / `cat --max-bytes` (stdout raw, truncation note on
+  stderr) and `list --brief`.
+- [x] Teach the locate → outline → read slice → write workflow in the skill,
+  update the man pages and README, and fence the output sizes with byte-budget
+  tests. These brief and outline shapes are also what a future `snip mcp` would
+  return, so it never needs its own read path.
 
 ### Snippet citations and copy formats
 
@@ -113,7 +138,11 @@ mouse users can copy part of a fragment).
 
 - [ ] Decide whether `MemoryIndex` needs an inverted index over titles and tags.
   Otherwise, rename it to reflect its linear scan. The answer depends on the
-  supported library size and is not urgent at today's scale.
+  supported library size and is not urgent at today's scale (73 snippets search
+  in ~10 ms). If one is ever needed, prefer an in-memory inverted index, then a
+  serialized cache in `.snip/cache` keyed on mtime and hash, and only then SQLite
+  FTS5 or tantivy. Whatever it is must be derived: deleting it must lose nothing,
+  and `snip doctor` must be able to rebuild it.
 
 ## Library format
 
@@ -155,6 +184,23 @@ describes.
 - [ ] Import a real, current SnippetsLab library (both 1.x and 2.x exports) and
   confirm fields, folders, tags, fragments, and notes still land correctly;
   update the field mappings for any format the current decoder misses.
+
+### Import through `lab`
+
+SnippetsLab 2.7 ships `lab`, an official JSON interface (`lab search --limit 0`,
+`lab fetch --format json`). Reading through it stops depending on the private
+database format, which is the risk the audit above is about.
+
+- [ ] `snip import snippetslab --via lab`: enumerate with `lab search`, fetch
+  each snippet as JSON, and map it like the current importer. Keep the direct
+  decoder as the offline fallback.
+- [ ] Verify what `lab` actually returns before relying on it: timestamps,
+  notes, language identifiers, and attachments (possibly names only). `lab`
+  cannot see the Trash and needs the app running.
+- [ ] Incremental re-import keyed on UUID and modification time, so a
+  SnippetsLab-primary user can keep a Git-backed snip mirror. `lab` can only
+  create, never update, so the reverse direction (snip → SnippetsLab sync) is
+  not feasible and is not planned.
 
 ## Project homepage
 

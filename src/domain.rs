@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 pub const FORMAT_NAME: &str = "snip-library";
@@ -16,6 +17,18 @@ pub fn folder_label(folder: &str) -> &str {
     } else {
         folder
     }
+}
+
+/// RFC 3339 to whole-second precision for the compact read shapes. Input that
+/// does not parse is preserved rather than dropped from otherwise valid output.
+pub fn timestamp_seconds(value: Option<&str>) -> Option<String> {
+    value.map(|value| {
+        OffsetDateTime::parse(value, &Rfc3339)
+            .ok()
+            .and_then(|timestamp| timestamp.replace_nanosecond(0).ok())
+            .and_then(|timestamp| timestamp.format(&Rfc3339).ok())
+            .unwrap_or_else(|| value.to_owned())
+    })
 }
 
 /// A folder restriction shared by `snip list`, `snip search`, and the TUI sidebar,
@@ -184,6 +197,31 @@ pub struct SnippetManifest {
 #[serde(transparent)]
 pub struct Fingerprint(pub String);
 
+impl Fingerprint {
+    /// Shortest `--if-hash` value accepted; the 16-character form is what brief
+    /// listings print.
+    pub const MIN_EXPECTED_LEN: usize = 16;
+    pub const SHORT_LEN: usize = 16;
+
+    /// Parse a user-supplied `--if-hash`: lowercase hex, 16 to 64 characters.
+    pub fn expected(value: &str) -> crate::error::Result<Self> {
+        let value = value.trim().to_ascii_lowercase();
+        let valid = (Self::MIN_EXPECTED_LEN..=64).contains(&value.len())
+            && value.bytes().all(|byte| byte.is_ascii_hexdigit());
+        if !valid {
+            return Err(crate::error::SnipError::usage(
+                "--if-hash needs at least 16 hex characters of the fingerprint",
+            ));
+        }
+        Ok(Self(value))
+    }
+
+    /// The 16-character prefix printed by brief outputs.
+    pub fn short(&self) -> &str {
+        &self.0[..Self::SHORT_LEN.min(self.0.len())]
+    }
+}
+
 impl std::fmt::Display for Fingerprint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
@@ -219,6 +257,32 @@ pub struct Snippet {
     pub modified_at: Option<String>,
     pub fingerprint: Fingerprint,
     pub loaded_fragments: Vec<Fragment>,
+}
+
+impl Snippet {
+    /// README + every fragment's content + every note, in UTF-8 bytes: what a
+    /// full read of the snippet costs in text.
+    pub fn content_bytes(&self) -> usize {
+        self.readme.as_ref().map_or(0, String::len)
+            + self
+                .loaded_fragments
+                .iter()
+                .map(|fragment| {
+                    fragment.content.len() + fragment.note_content.as_ref().map_or(0, String::len)
+                })
+                .sum::<usize>()
+    }
+
+    /// Distinct fragment languages, in fragment order.
+    pub fn languages(&self) -> Vec<String> {
+        let mut languages: Vec<String> = Vec::new();
+        for fragment in &self.loaded_fragments {
+            if !languages.contains(&fragment.language) {
+                languages.push(fragment.language.clone());
+            }
+        }
+        languages
+    }
 }
 
 impl std::ops::Deref for Snippet {
@@ -293,6 +357,42 @@ pub struct SearchResult {
     pub score: u32,
 }
 
+/// Where a brief search hit matched inside one fragment.
+#[derive(Clone, Debug, Serialize)]
+pub struct MatchedFragment {
+    /// 1-based, what `--fragment` takes.
+    pub index: usize,
+    /// Up to five matching content line numbers.
+    pub lines: Vec<usize>,
+}
+
+/// One snippet in a brief search: everything needed to pick a follow-up read
+/// and nothing that repeats per matching line.
+#[derive(Clone, Debug, Serialize)]
+pub struct BriefHit {
+    pub id: Uuid,
+    pub title: String,
+    pub folder: String,
+    pub tags: Vec<String>,
+    pub languages: Vec<String>,
+    pub fragments: usize,
+    pub bytes: usize,
+    /// 16-character prefix, accepted by `--if-hash`.
+    pub fingerprint: String,
+    pub modified_at: Option<String>,
+    pub fields: Vec<SearchField>,
+    pub matched_fragments: Vec<MatchedFragment>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excerpt: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct BriefSearch {
+    /// Matching snippets before `--limit`.
+    pub total: usize,
+    pub results: Vec<BriefHit>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,5 +437,22 @@ mod tests {
         let filter = FolderFilter::recursive("图床");
         assert!(filter.matches("图床/配置"));
         assert!(!filter.matches("图床配置"));
+    }
+
+    #[test]
+    fn timestamps_for_brief_output_drop_fractional_seconds() {
+        assert_eq!(
+            timestamp_seconds(Some("2026-08-03T02:43:09.381911935Z")).as_deref(),
+            Some("2026-08-03T02:43:09Z")
+        );
+        assert_eq!(
+            timestamp_seconds(Some("2026-08-03T02:43:09Z")).as_deref(),
+            Some("2026-08-03T02:43:09Z")
+        );
+        assert_eq!(
+            timestamp_seconds(Some("not a timestamp")).as_deref(),
+            Some("not a timestamp")
+        );
+        assert_eq!(timestamp_seconds(None), None);
     }
 }

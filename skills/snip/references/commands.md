@@ -28,19 +28,21 @@ Accepted by every command:
 
 Optimistic-concurrency flags, accepted by every mutating command:
 `--if-hash <FINGERPRINT>` asserts the snippet is unchanged; `--force` skips the
-assertion.
+assertion. `--if-hash` takes the full 64-character fingerprint or a lowercase hex
+prefix of at least 16 characters; anything shorter or non-hex is a `usage_error`.
 
 ## Reading
 
 ### `snip list`
-`--folder <FOLDER>` `--no-subfolders` `--tag <TAG>` `--sort manual|title|modified|created`
+`--folder <FOLDER>` `--no-subfolders` `--tag <TAG>` `--sort manual|title|modified|created` `--brief`
 
 Returns an array of snippet summaries (no content). Pinned snippets sort first
-in every mode.
+in every mode. `--brief` returns compact rows instead (see
+[Brief list row](#brief-list-row-list---brief)).
 
 ### `snip search <QUERY>`
 `--regex` `--field <FIELD>` `--context/-C <N>` `--limit/-m <N>` `--folder <FOLDER>`
-`--no-subfolders` `--tag <TAG>`
+`--no-subfolders` `--tag <TAG>` `--brief`
 
 Case-insensitive search over titles, tags, README, fragment content, and notes.
 Scored: exact title 100, title substring 80, tag 65, README line 50, note line
@@ -52,7 +54,8 @@ match, so one snippet can appear several times — cap it with `--limit`.
 | `--regex` | QUERY becomes a regular expression (the `regex` crate — linear time, no backreferences). Case-insensitive; `(?-i)` opts out. A bad pattern is a `usage_error`. |
 | `--field <FIELD>` | `title`, `tag`, `readme`, `content`, `note`. Repeatable; omitting it searches all five. |
 | `--context <N>`, `-C <N>` | Fill `context_before` / `context_after` with N lines each. Human output marks context with `-` and the match with `:`, like ripgrep. |
-| `--limit <N>`, `-m <N>` | Keep the top N rows after scoring. |
+| `--limit <N>`, `-m <N>` | Keep the top N rows after scoring (with `--brief`: the top N snippets). |
+| `--brief` | One row per snippet, no content, with sizes and matched fragments. JSON becomes `{"total": N, "results": [...]}`; `jsonl` emits the rows alone. Conflicts with `--context` (usage error). |
 
 Every result reports the `field` it matched and the snippet's `fingerprint`.
 
@@ -66,13 +69,26 @@ case-insensitive and component-wise: `--folder Cod` matches nothing, and
 library.
 
 ### `snip show <SELECTOR>`
+`--outline` `--max-bytes <N>`
+
 Complete snippet including every fragment's content and the fingerprint.
+`--outline` (exactly `--max-bytes 0`) returns structure only; `--max-bytes N`
+fills README, then each fragment's content and note in order, cutting on line
+boundaries (a single line longer than the budget is cut on a character
+boundary). The two flags conflict. Without either flag the output is unchanged.
+See [Budgeted show](#budgeted-show-show---outline---max-bytes).
 
 ### `snip cat <SELECTOR>`
-`--fragment <INDEX|UUID_PREFIX>`
+`--fragment <INDEX|UUID_PREFIX>` `--lines <RANGE>` `--max-bytes <N>`
 
 Raw fragment bytes, no headers. Defaults to the first fragment. This is the
 correct way to pipe snippet content into another program.
+
+`--lines` takes a 1-based inclusive range: `A:B`, `A:`, `:B`, or a single `A`.
+A start past the end of the fragment is a `usage_error`; an end past it clamps.
+`--max-bytes` is applied after `--lines`. Whenever the output is a strict subset,
+stderr gets one line such as `note: printed lines 1-120 of 812 (3.9 KB of 30 KB)`;
+stdout stays pure bytes and the exit code stays 0.
 
 ### `snip preview <SELECTOR>`
 `--render ansi|plain|html` `--pager` `--no-pager`
@@ -316,6 +332,58 @@ of `title`, `tag`, `readme`, `content`, `note`. The context arrays are omitted
 entirely unless `--context` was passed. `fingerprint` is the snippet's hash at
 scan time — enough to drive `--if-hash` for a metadata change without a second
 read, though replacing content still means reading the content first.
+
+### Brief search (`search --brief`)
+```json
+{
+  "total": 17,
+  "results": [{
+    "id": "bb4fc45f-…", "title": "Memos-litestream Dockerfile", "folder": "Docker",
+    "tags": ["dockerfile"], "languages": ["dockerfile"], "fragments": 2,
+    "bytes": 1840, "fingerprint": "a26fb40ed738e6be",
+    "modified_at": "2026-08-22T18:51:38Z",
+    "fields": ["title", "tag", "content"],
+    "matched_fragments": [{ "index": 1, "lines": [3, 9] }]
+  }]
+}
+```
+In `json` mode, brief search/list, `show --outline`, and `show --max-bytes` are
+printed as compact one-line JSON. `total` counts matching snippets before
+`--limit`. `bytes` is README + every fragment's content + every note: what a
+full `show` costs in text. `fingerprint` is the 16-character prefix, accepted by
+`--if-hash`. `modified_at` is rounded to whole seconds.
+`matched_fragments[].index` is what `--fragment` takes; `lines` holds up to five
+content line numbers (empty for a note-only match, and the entry is absent for
+title/tag/README matches). `excerpt` is capped at 160 characters and omitted
+when it equals `title`.
+
+### Brief list row (`list --brief`)
+`id`, `title`, `folder`, `tags`, `fragments`, `bytes`, 16-character
+`fingerprint`, `modified_at`. An array, like plain `list`.
+
+### Budgeted show (`show --outline`, `--max-bytes`)
+```json
+{
+  "id": "…", "title": "…", "folder": "…", "tags": [], "fingerprint": "<full>",
+  "created_at": "…", "modified_at": "…", "pinned": false, "locked": false,
+  "readme": "…", "readme_bytes": 412,
+  "fragments": [
+    { "index": 1, "id": "…", "title": "…", "language": "bash",
+      "bytes": 2100, "lines": 64, "has_note": true, "content": "…",
+      "note": "…", "note_bytes": 90, "truncated": false },
+    { "index": 2, "id": "…", "title": "…", "language": "toml",
+      "bytes": 30000, "lines": 812, "has_note": false, "truncated": true }
+  ],
+  "truncated": true,
+  "omitted_bytes": 29310
+}
+```
+`readme`, `content` and `note` appear only when some of their text fits. A
+fragment with `truncated: true` is incomplete, and so is the whole read when the
+top-level `truncated` is true. `omitted_bytes` plus the emitted text equals the
+snippet's `bytes`. `--if-hash` accepts the full `fingerprint` shown here or any
+prefix of at least 16 hex characters. JSON for this shape is compact; JSONL and
+human output are unchanged.
 
 ### Mutation result (`create`, `edit`, `fragment *`, `delete`)
 ```json

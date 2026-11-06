@@ -410,7 +410,7 @@ where
 
 pub(crate) fn ensure_hash(snippet: &Snippet, expected: Option<&Fingerprint>) -> Result<()> {
     if let Some(expected) = expected
-        && expected != &snippet.fingerprint
+        && !snippet.fingerprint.0.starts_with(&expected.0)
     {
         return Err(SnipError::conflict(format!(
             "snippet changed since it was read: expected {}, found {}",

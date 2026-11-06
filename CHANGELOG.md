@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Token-efficient reads for agents.** All opt-in; default output is unchanged.
+  `snip search --brief` returns one row per snippet (`{"total", "results"}` in
+  JSON) with sizes, a short fingerprint, and matched fragments instead of one row
+  per matching line; `snip list --brief` returns compact rows; `snip show
+  --outline` and `--max-bytes N` return a budgeted view with `truncated` and
+  `omitted_bytes`; `snip cat --lines A:B` and `--max-bytes N` print a slice and
+  report truncation on stderr. Cuts land on line boundaries. Brief and budgeted
+  show JSON is compact; brief timestamps have whole-second precision and an
+  excerpt that repeats the title is omitted.
+- **`--if-hash` accepts a fingerprint prefix** of at least 16 hex characters (the
+  form brief rows print). Shorter or non-hex values are a usage error (exit 2);
+  the full 64-character form keeps working.
 - **`snip doctor` scans the trash.** Each entry under `trash/` is validated
   like a live package — metadata, structure, and semantic fields — and reported
   on its own, so one broken entry no longer hides the rest. Entries that
@@ -23,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The agent skill is smaller.** `skills/snip/SKILL.md` drops from 21.5 KB to
+  under 7 KB; organizing, deleting, backup, sharing, and health procedures moved
+  to `skills/snip/references/workflows.md`, and the reading section now teaches
+  the locate → outline → read → write workflow.
 - **Folder-and-title selectors.** Every command that takes a snippet selector
   now accepts `folder/title`, split at the last slash, the same spelling
   `snip edit --create` files a new snippet under. It is tried only after

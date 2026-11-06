@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use serde_json::json;
 use snip::Library;
+use snip::budget::{LineRange, cut, human_bytes, select_lines};
 use snip::config::{AppConfig, PreviewRenderSetting};
-use snip::domain::{CatalogSnapshot, FolderFilter, Snippet, folder_label};
+use snip::domain::{CatalogSnapshot, FolderFilter, Snippet, folder_label, timestamp_seconds};
 use snip::error::{Result, SnipError};
 use snip::render::{RenderMode, preview};
-use snip::search::{MemoryIndex, SearchIndex, SearchQuery};
+use snip::search::{self, MemoryIndex, SearchIndex, SearchQuery};
 use snip::service::trash_entries;
 use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
@@ -14,8 +15,8 @@ use std::process::Command as ProcessCommand;
 
 use super::output::{display_json_scalar, print_record, print_records, send_to_pager};
 use crate::cli::{
-    ColorMode, FilterArgs, FragmentSelectorArgs, OpenArgs, OutputMode, PathArgs, PreviewArgs,
-    RenderArg, SearchArgs, SelectorArgs,
+    CatArgs, ColorMode, FilterArgs, OpenArgs, OutputMode, PathArgs, PreviewArgs, RenderArg,
+    SearchArgs, ShowArgs,
 };
 
 pub fn command_info(library: &Library, output: OutputMode) -> Result<()> {
@@ -58,7 +59,16 @@ pub fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) ->
     let catalog = library.scan()?;
     let mut snippets = filter_snippets(&catalog, args.folder_filter(), args.tag.as_deref());
     snippets.sort_by(|left, right| args.sort.compare(left, right));
-    let rows = snippets.iter().map(snippet_summary).collect::<Vec<_>>();
+    let rows = snippets
+        .iter()
+        .map(|snippet| {
+            if args.brief {
+                snippet_brief(snippet)
+            } else {
+                snippet_summary(snippet)
+            }
+        })
+        .collect::<Vec<_>>();
     if output == OutputMode::Human {
         for snippet in snippets {
             println!(
@@ -69,6 +79,8 @@ pub fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) ->
                 snippet.tags.join(", ")
             );
         }
+    } else if args.brief && output == OutputMode::Json {
+        println!("{}", serde_json::to_string(&rows)?);
     } else {
         print_records(&rows, output)?;
     }
@@ -82,8 +94,49 @@ pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) 
         .tag(args.tag.as_deref())
         .fields(&args.fields)
         .context_lines(args.context)
-        .limit(args.limit);
+        .limit(if args.brief { None } else { args.limit });
     let results = index.search(&query);
+    if args.brief {
+        let brief = search::brief(results, index.catalog(), args.limit);
+        match output {
+            OutputMode::Human => {
+                for hit in &brief.results {
+                    let matched = hit
+                        .matched_fragments
+                        .iter()
+                        .map(|matched| {
+                            if matched.lines.is_empty() {
+                                format!("#{}", matched.index)
+                            } else {
+                                let lines = matched
+                                    .lines
+                                    .iter()
+                                    .map(usize::to_string)
+                                    .collect::<Vec<_>>()
+                                    .join(",");
+                                format!("#{}:{lines}", matched.index)
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    println!(
+                        "{}  {}  [{}]  {} frags  {}  {}",
+                        &hit.id.simple().to_string()[..8],
+                        hit.title,
+                        folder_label(&hit.folder),
+                        hit.fragments,
+                        human_bytes(hit.bytes),
+                        matched
+                    );
+                }
+            }
+            // Compact on purpose: pretty-printing spends a third of the bytes on
+            // indentation, which is exactly what this flag exists to avoid.
+            OutputMode::Json => println!("{}", serde_json::to_string(&brief)?),
+            OutputMode::Jsonl => print_records(&brief.results, output)?,
+        }
+        return Ok(());
+    }
     if output == OutputMode::Human {
         for result in results {
             let location = result
@@ -116,9 +169,12 @@ pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) 
     Ok(())
 }
 
-pub fn command_show(library: &Library, args: &SelectorArgs, output: OutputMode) -> Result<()> {
+pub fn command_show(library: &Library, args: &ShowArgs, output: OutputMode) -> Result<()> {
     let catalog = library.scan()?;
     let snippet = library.resolve_snippet(&catalog, &args.selector)?;
+    if let Some(budget) = args.budget() {
+        return show_budgeted(snippet, budget, output);
+    }
     if output == OutputMode::Human {
         println!("ID: {}", snippet.id);
         println!("Title: {}", snippet.title);
@@ -153,7 +209,132 @@ pub fn command_show(library: &Library, args: &SelectorArgs, output: OutputMode) 
     Ok(())
 }
 
-pub fn command_cat(library: &Library, args: &FragmentSelectorArgs) -> Result<()> {
+/// Spend `remaining` on `text`. Returns what fits; once anything is cut the
+/// budget is spent, so later texts are omitted instead of leapfrogging.
+fn spend<'a>(text: &'a str, remaining: &mut usize) -> &'a str {
+    let shown = cut(text, *remaining);
+    if shown.len() < text.len() {
+        *remaining = 0;
+    } else {
+        *remaining -= shown.len();
+    }
+    shown
+}
+
+fn show_budgeted(snippet: &Snippet, budget: usize, output: OutputMode) -> Result<()> {
+    let total = snippet.content_bytes();
+    let mut remaining = budget;
+    let mut emitted = 0usize;
+
+    let readme = snippet.readme.as_deref().map(|readme| {
+        let shown = spend(readme, &mut remaining);
+        emitted += shown.len();
+        shown
+    });
+    let mut fragments = Vec::new();
+    for (index, fragment) in snippet.loaded_fragments.iter().enumerate() {
+        let content = spend(&fragment.content, &mut remaining);
+        emitted += content.len();
+        let note = fragment.note_content.as_deref().map(|note| {
+            let shown = spend(note, &mut remaining);
+            emitted += shown.len();
+            shown
+        });
+        let truncated = content.len() < fragment.content.len()
+            || note.is_some_and(|shown| {
+                shown.len() < fragment.note_content.as_ref().map_or(0, String::len)
+            });
+        fragments.push((index + 1, fragment, content, note, truncated));
+    }
+    let truncated = emitted < total;
+
+    if output == OutputMode::Human {
+        println!("ID: {}", snippet.id);
+        println!("Title: {}", snippet.title);
+        println!("Folder: {}", folder_label(&snippet.folder));
+        println!("Tags: {}", snippet.tags.join(", "));
+        println!("Fingerprint: {}", snippet.fingerprint);
+        if let Some(readme) = readme.filter(|readme| !readme.is_empty()) {
+            println!("\nREADME:\n{readme}");
+        }
+        for (index, fragment, content, note, _) in &fragments {
+            println!(
+                "\n--- {index}. {} ({}) [{} bytes, {} lines] ---",
+                fragment.title,
+                fragment.language,
+                fragment.content.len(),
+                fragment.content.lines().count()
+            );
+            print!("{content}");
+            if !content.is_empty() && !content.ends_with('\n') {
+                println!();
+            }
+            if let Some(note) = note.filter(|note| !note.is_empty()) {
+                println!("\nNote:\n{note}");
+            }
+        }
+        if truncated {
+            eprintln!(
+                "note: output truncated at {emitted} of {total} bytes (use --fragment / --lines)"
+            );
+        }
+        return Ok(());
+    }
+
+    let fragment_rows = fragments
+        .iter()
+        .map(|(index, fragment, content, note, truncated)| {
+            let mut row = serde_json::Map::new();
+            row.insert("index".into(), json!(index));
+            row.insert("id".into(), json!(fragment.id));
+            row.insert("title".into(), json!(fragment.title));
+            row.insert("language".into(), json!(fragment.language));
+            row.insert("bytes".into(), json!(fragment.content.len()));
+            row.insert("lines".into(), json!(fragment.content.lines().count()));
+            row.insert("has_note".into(), json!(fragment.note_content.is_some()));
+            if !content.is_empty() {
+                row.insert("content".into(), json!(content));
+            }
+            if let Some(full) = &fragment.note_content {
+                row.insert("note_bytes".into(), json!(full.len()));
+                if note.is_some_and(|shown| !shown.is_empty()) {
+                    row.insert("note".into(), json!(note));
+                }
+            }
+            row.insert("truncated".into(), json!(truncated));
+            serde_json::Value::Object(row)
+        })
+        .collect::<Vec<_>>();
+    let mut view = serde_json::Map::new();
+    view.insert("id".into(), json!(snippet.id));
+    view.insert("title".into(), json!(snippet.title));
+    view.insert("folder".into(), json!(snippet.folder));
+    view.insert("tags".into(), json!(snippet.tags));
+    view.insert("fingerprint".into(), json!(snippet.fingerprint));
+    view.insert("created_at".into(), json!(snippet.created_at));
+    view.insert("modified_at".into(), json!(snippet.modified_at));
+    view.insert("pinned".into(), json!(snippet.pinned));
+    view.insert("locked".into(), json!(snippet.locked));
+    if let Some(full) = &snippet.readme {
+        view.insert("readme_bytes".into(), json!(full.len()));
+        if readme.is_some_and(|shown| !shown.is_empty()) {
+            view.insert("readme".into(), json!(readme));
+        }
+    }
+    view.insert("fragments".into(), json!(fragment_rows));
+    view.insert("truncated".into(), json!(truncated));
+    view.insert("omitted_bytes".into(), json!(total - emitted));
+    let view = serde_json::Value::Object(view);
+    if output == OutputMode::Json {
+        println!("{}", serde_json::to_string(&view)?);
+        Ok(())
+    } else {
+        print_record(&view, output)
+    }
+}
+
+pub fn command_cat(library: &Library, args: &CatArgs) -> Result<()> {
+    let range = args.lines.as_deref().map(LineRange::parse).transpose()?;
     let catalog = library.scan()?;
     let snippet = library.resolve_snippet(&catalog, &args.selector)?;
     let fragment = library.resolve_fragment(snippet, args.fragment.as_deref())?;
@@ -161,7 +342,40 @@ pub fn command_cat(library: &Library, args: &FragmentSelectorArgs) -> Result<()>
         let count = snippet.loaded_fragments.len();
         eprintln!("note: snippet has {count} fragments; printed 1/{count} (use --fragment N)");
     }
-    print!("{}", fragment.content);
+    let full = fragment.content.as_str();
+    let (selected, first_line) = match range {
+        Some(range) => select_lines(full, range)?,
+        None => (full, 1),
+    };
+    let shown = match args.max_bytes {
+        Some(max) => cut(selected, max),
+        None => selected,
+    };
+    if shown.len() < full.len() {
+        let total_lines = full.lines().count();
+        if shown.is_empty() {
+            eprintln!(
+                "note: printed 0 of {total_lines} lines ({} of {})",
+                human_bytes(shown.len()),
+                human_bytes(full.len())
+            );
+        } else {
+            let printed = shown.lines().count().max(1);
+            let last_line = first_line + printed - 1;
+            let cut_mid_line = shown.len() < selected.len() && !shown.ends_with('\n');
+            eprintln!(
+                "note: printed lines {first_line}-{last_line} of {total_lines} ({} of {}){}",
+                human_bytes(shown.len()),
+                human_bytes(full.len()),
+                if cut_mid_line {
+                    format!(" (line {last_line} cut mid-line)")
+                } else {
+                    String::new()
+                }
+            );
+        }
+    }
+    print!("{shown}");
     io::stdout().flush()?;
     Ok(())
 }
@@ -292,6 +506,19 @@ fn filter_snippets<'a>(
                 })
         })
         .collect()
+}
+
+fn snippet_brief(snippet: &&Snippet) -> serde_json::Value {
+    json!({
+        "id": snippet.id,
+        "title": snippet.title,
+        "folder": snippet.folder,
+        "tags": snippet.tags,
+        "fragments": snippet.loaded_fragments.len(),
+        "bytes": snippet.content_bytes(),
+        "fingerprint": snippet.fingerprint.short(),
+        "modified_at": timestamp_seconds(snippet.modified_at.as_deref()),
+    })
 }
 
 fn snippet_summary(snippet: &&Snippet) -> serde_json::Value {
