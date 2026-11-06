@@ -865,6 +865,47 @@ fn show_marks_the_cited_fragment_and_reports_citations() {
 }
 
 #[test]
+fn search_rows_report_the_same_citations_as_list() {
+    let (_temporary, root, _prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "list", "--output", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let list: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let citations = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            (
+                row["id"].as_str().unwrap().to_owned(),
+                row["citation"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "--output", "json", "search", "e"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let rows: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let rows = rows.as_array().unwrap();
+    assert!(!rows.is_empty());
+    for row in rows {
+        let snippet_id = row["snippet_id"].as_str().unwrap();
+        assert_eq!(
+            row["citation"].as_str(),
+            citations.get(snippet_id).map(String::as_str)
+        );
+    }
+}
+
+#[test]
 fn snippet_level_commands_reject_a_fragment_citation() {
     let (_temporary, root, prefix) = citation_library();
     let library = root.to_str().unwrap();
@@ -911,4 +952,20 @@ fn path_and_structured_edit_honour_a_citation() {
         .assert()
         .success()
         .stdout("first\n");
+}
+
+#[test]
+fn path_rejects_a_citation_with_readme_or_metadata() {
+    let (_temporary, root, prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    for flag in ["--readme", "--metadata"] {
+        Command::cargo_bin("snip")
+            .unwrap()
+            .args(["--library", library, "path", &format!("{prefix}#2"), flag])
+            .assert()
+            .code(2)
+            .stderr(predicate::str::contains(
+                "it cannot be combined with --readme/--metadata",
+            ));
+    }
 }

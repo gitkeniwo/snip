@@ -115,7 +115,15 @@ pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) 
             }
         }
     } else {
-        print_records(&results, output)?;
+        let rows = results
+            .iter()
+            .map(|result| -> Result<serde_json::Value> {
+                let mut value = serde_json::to_value(result)?;
+                value["citation"] = json!(catalog.citation_prefix(result.snippet_id));
+                Ok(value)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        print_records(&rows, output)?;
     }
     Ok(())
 }
@@ -254,8 +262,18 @@ pub fn resolve_managed_path(
     fragment: Option<&str>,
 ) -> Result<PathBuf> {
     let catalog = library.scan()?;
-    let (snippet, fragment) = resolve_cited(library, &catalog, selector, fragment)?;
-    let fragment = fragment.as_deref();
+    let (snippet, cited) = library.resolve_citation(&catalog, selector)?;
+    if cited.is_some() && (metadata || readme) {
+        return Err(SnipError::usage(
+            "`#n` names a fragment; it cannot be combined with --readme/--metadata",
+        ));
+    }
+    if cited.is_some() && fragment.is_some() {
+        return Err(SnipError::usage(
+            "fragment given twice (`#n` and `--fragment`)",
+        ));
+    }
+    let fragment = cited.or(fragment);
     Ok(if metadata {
         snippet.package_path.join("snippet.toml")
     } else if readme {
