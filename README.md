@@ -533,6 +533,13 @@ snip --output json search 'kubectl (apply|rollout)' --regex
 snip --output json search rollout --context 2      # surrounding lines
 snip --output json search deploy --field title --field tag --limit 10
 
+# Token-efficient reads: locate, outline, then read only what you need
+snip --output json search terraform --brief -m 20  # one row per snippet, no content
+snip --output json show 428ac138 --outline         # fragments with bytes/lines, no text
+snip cat 428ac138 --fragment 2 --lines 10:40       # a slice; truncation notes go to stderr
+snip --output json show 428ac138 --max-bytes 4000  # budgeted, cut on line boundaries
+snip edit 428ac138 --title New --if-hash a26fb40ed738e6be  # 16-char prefix is enough
+
 # Content, notes, and READMEs take an inline value or a file (- is stdin)
 snip edit 428ac138 --content 'replacement content' --if-hash 03ab...
 snip edit 428ac138 --content-file - --if-hash 03ab... <<'EOF'

@@ -4,10 +4,10 @@
 .SH "NAME"
 snip\-query \- query and inspect snippets without modifying them
 .SH "SYNOPSIS"
-\fBsnip list\fR [\fB\-\-folder\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-tag\fR] [\fB\-\-sort\fR] [\fB\-h\fR|\fB\-\-help\fR] 
-\fBsnip search\fR [\fB\-\-regex\fR] [\fB\-\-folder\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-tag\fR] [\fB\-\-field\fR] [\fB\-C\fR|\fB\-\-context\fR] [\fB\-m\fR|\fB\-\-limit\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIQUERY\fR> 
-\fBsnip show\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
-\fBsnip cat\fR [\fB\-\-fragment\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip list\fR [\fB\-\-folder\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-tag\fR] [\fB\-\-sort\fR] [\fB\-\-brief\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip search\fR [\fB\-\-regex\fR] [\fB\-\-folder\fR] [\fB\-\-no\-subfolders\fR] [\fB\-\-tag\fR] [\fB\-\-field\fR] [\fB\-C\fR|\fB\-\-context\fR] [\fB\-m\fR|\fB\-\-limit\fR] [\fB\-\-brief\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIQUERY\fR> 
+\fBsnip show\fR [\fB\-\-outline\fR] [\fB\-\-max\-bytes\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
+\fBsnip cat\fR [\fB\-\-fragment\fR] [\fB\-\-lines\fR] [\fB\-\-max\-bytes\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip preview\fR [\fB\-\-render\fR] [\fB\-\-pager\fR] [\fB\-\-no\-pager\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip path\fR [\fB\-\-metadata\fR] [\fB\-\-readme\fR] [\fB\-\-fragment\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
 \fBsnip open\fR [\fB\-\-metadata\fR] [\fB\-\-readme\fR] [\fB\-\-fragment\fR] [\fB\-\-app\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISELECTOR\fR> 
@@ -18,6 +18,8 @@ Read and inspect snippets without modifying them. list returns summaries, search
 A snippet selector is resolved as a package path relative to snippets, a UUID prefix of at least eight hexadecimal digits, an exact case\-sensitive title, or a folder and title joined by a slash, split at the final slash and tried only when no title matches the whole selector. An ambiguous selector is reported as not_found and lists the package paths of its candidates. Fragment selectors are a 1\-based index or a fragment UUID prefix.
 .PP
 For list and search, \-\-folder includes the named folder and all descendants. Add \-\-no\-subfolders for only the direct folder, and pass \-\-folder "" for Uncategorized. Folder matching is case\-insensitive on complete path components. \-\-tag restricts results to one tag.
+.PP
+For agents with a limited context budget, three opt\-in flags keep reads small. search \-\-brief returns one row per snippet with its size in bytes, short fingerprint, and matched fragments, and no content; list \-\-brief returns compact rows; show \-\-outline returns fragments with language, bytes, and line counts but no text, and show \-\-max\-bytes N returns text up to a byte budget. cat accepts \-\-lines A:B and \-\-max\-bytes N to print a slice. Cuts always land on a line boundary unless a single line exceeds the budget. cat reports truncation on standard error and keeps standard output as raw bytes. Defaults are unchanged without these flags.
 .PP
 Use show for structured content and fingerprints, cat for pipelines, and preview for people. JSON and JSONL output contracts are documented in snip\-agents(7).
 .PP
@@ -51,6 +53,9 @@ title: Case\-insensitive title, ascending
 .IP \(bu 2
 created: Most recently created first
 .RE
+.TP
+\fB\-\-brief\fR
+Compact rows (id, title, folder, tags, fragment count, bytes, short fingerprint) for agents
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help (see a summary with \*(Aq\-h\*(Aq)
@@ -94,6 +99,9 @@ Lines of surrounding context to include with each match
 \fB\-m\fR, \fB\-\-limit\fR \fI<N>\fR
 Keep only the top N results after scoring
 .TP
+\fB\-\-brief\fR
+One row per snippet instead of one per match, with sizes and matched fragments but no content. JSON becomes {"total": N, "results": [...]}; \-\-limit then counts snippets
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
@@ -101,6 +109,12 @@ Print help
 Text or regular expression to find
 .SS "snip show"
 Show a complete snippet
+.TP
+\fB\-\-outline\fR
+Print the structure only: fragments with language, bytes, lines, and whether they have a note. No text
+.TP
+\fB\-\-max\-bytes\fR \fI<N>\fR
+Stop after about N bytes of text (README, then each fragment and note in order), cutting on line boundaries
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
@@ -112,6 +126,12 @@ Print one fragment with no decorations
 .TP
 \fB\-\-fragment\fR \fI<FRAGMENT>\fR
 1\-based index or fragment UUID prefix
+.TP
+\fB\-\-lines\fR \fI<RANGE>\fR
+Print only these 1\-based inclusive lines: A:B, A:, :B, or a single A
+.TP
+\fB\-\-max\-bytes\fR \fI<N>\fR
+Stop after about N bytes, cutting on a line boundary. Applied after \-\-lines
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
@@ -201,6 +221,15 @@ Search content and notes with two lines of context, keeping ten matches:
 .RS 4
 .nf
 snip \-\-output json search deploy \-\-field content \-\-field note \-\-context 2 \-\-limit 10
+.fi
+.RE
+.PP
+Find snippets without reading content, then print part of one:
+.RS 4
+.nf
+snip \-\-output json search deploy \-\-brief \-\-limit 20
+snip \-\-output json show 79d92dea \-\-outline
+snip cat 79d92dea \-\-fragment 2 \-\-lines 10:40
 .fi
 .RE
 .PP

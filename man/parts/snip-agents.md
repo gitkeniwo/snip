@@ -16,6 +16,10 @@ list emits summaries with id, title, folder, tags, fragment count, pinned, locke
 
 search emits one row per matching line with snippet_id, title, folder, fingerprint, field, optional fragment metadata, line, excerpt, optional context arrays, and score. field is title, tag, readme, content, or note.
 
+search --brief emits an object with total, the number of matching snippets before --limit, and results, one row per snippet with id, title, folder, tags, languages, fragments, bytes, fingerprint (16-character prefix), modified_at, score, fields, matched_fragments (1-based index and up to five line numbers), and excerpt. In JSONL mode only the rows are emitted. bytes is what a complete read of the snippet costs in text, which is how an agent chooses between show and a fragment or line-range read. list --brief emits id, title, folder, tags, fragments, bytes, fingerprint, and modified_at.
+
+show --outline and show --max-bytes emit a budgeted view: snippet metadata, readme_bytes, and a fragments array of index, id, title, language, bytes, lines, has_note, truncated, and, only when text fits, content and note. Top-level truncated and omitted_bytes report what was left out. A truncated read is not the content: read the remainder before quoting or editing it.
+
 show emits a complete snippet, including package_path, optional readme, fingerprint, and loaded_fragments. Each loaded fragment contains id, title, language, relative file, content, optional note_content, and absolute_path. cat is preferable when only raw fragment bytes are needed.
 
 %%WRITE CONTRACT
@@ -26,6 +30,8 @@ Read the current record before replacing content. Assert its fingerprint with --
     record=$(snip --output json show 79d92dea)
     hash=$(printf '%s' "$record" | jq -r .fingerprint)
     snip --output json edit 79d92dea --title "Greeter v2" --if-hash "$hash"
+
+--if-hash accepts the full fingerprint or a prefix of at least 16 hexadecimal characters, which is what brief rows print.
 
 Search results can supply a fingerprint directly for metadata changes. Replacing content still requires reading the content being overwritten.
 
