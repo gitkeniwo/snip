@@ -147,7 +147,7 @@ pub fn shell_quote_path(path: &str, style: CopyPathStyle) -> Cow<'_, str> {
 /// [`shell_quote_path`] with the platform as a parameter, so both branches are testable
 /// on every host.
 pub fn shell_quote_path_for(path: &str, style: CopyPathStyle, windows: bool) -> Cow<'_, str> {
-    if style == CopyPathStyle::Raw || !needs_quoting(path) {
+    if style == CopyPathStyle::Raw || !needs_quoting(path, windows) {
         return Cow::Borrowed(path);
     }
     if windows {
@@ -199,8 +199,37 @@ fn is_word_start_special(ch: char) -> bool {
     matches!(ch, '#' | '~')
 }
 
-fn needs_quoting(path: &str) -> bool {
-    path.chars().any(is_special) || path.chars().next().is_some_and(is_word_start_special)
+fn is_windows_special(ch: char) -> bool {
+    ch.is_whitespace()
+        || matches!(
+            ch,
+            '&' | '('
+                | ')'
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | '^'
+                | '='
+                | ';'
+                | '!'
+                | '\''
+                | '+'
+                | ','
+                | '`'
+                | '~'
+                | '%'
+                | '@'
+                | '#'
+        )
+}
+
+fn needs_quoting(path: &str, windows: bool) -> bool {
+    if windows {
+        path.chars().any(is_windows_special)
+    } else {
+        path.chars().any(is_special) || path.chars().next().is_some_and(is_word_start_special)
+    }
 }
 
 #[cfg(test)]
@@ -218,7 +247,26 @@ mod tests {
         for style in STYLES {
             for path in ["/Users/k/lib/snippets/a--937caecb/", "/x/👾/你好", ""] {
                 assert_eq!(shell_quote_path_for(path, style, false), path);
-                assert_eq!(shell_quote_path_for(path, style, true), path);
+            }
+        }
+    }
+
+    #[test]
+    fn windows_plain_paths_are_unchanged_in_every_style() {
+        let path = "C:\\Users\\k\\lib\\snippets\\a--937caecb\\";
+        for style in STYLES {
+            assert_eq!(shell_quote_path_for(path, style, true), path);
+        }
+    }
+
+    #[test]
+    fn windows_quoting_uses_only_the_windows_special_set() {
+        for path in ["C:\\My Dir\\x", "C:\\a&b\\x", "C:\\100%\\x"] {
+            for style in [CopyPathStyle::Quote, CopyPathStyle::Escape] {
+                assert_eq!(
+                    shell_quote_path_for(path, style, true),
+                    format!("\"{path}\"")
+                );
             }
         }
     }
