@@ -105,7 +105,7 @@ pub fn push(library: &Library, selector: &str, options: &PushOptions) -> Result<
     let catalog = library.scan()?;
     let snippet = library.resolve_snippet(&catalog, selector)?.clone();
     if let Some(hash) = &options.if_hash {
-        ensure_hash(&snippet, Some(&Fingerprint(hash.clone())))?;
+        ensure_hash(&snippet, Some(&Fingerprint::expected(hash)?))?;
     }
     let existing = if options.new {
         None

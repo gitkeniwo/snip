@@ -103,7 +103,7 @@ pub fn command_edit(
         } else {
             read_optional_text(args.readme.as_deref(), args.readme_file.as_deref())?.map(Some)
         },
-        if_hash: fingerprint(args.optimistic.if_hash.as_deref()),
+        if_hash: fingerprint(args.optimistic.if_hash.as_deref())?,
         force: args.optimistic.force,
     };
     let (snippet, changes) = edit_snippet(library, &args.selector, &options)?;
@@ -131,7 +131,7 @@ pub fn command_fragment(
                 content: read_optional_text(args.content.as_deref(), args.content_file.as_deref())?
                     .unwrap_or_default(),
                 note: read_optional_text(args.note.as_deref(), args.note_file.as_deref())?,
-                if_hash: fingerprint(args.optimistic.if_hash.as_deref()),
+                if_hash: fingerprint(args.optimistic.if_hash.as_deref())?,
                 force: args.optimistic.force,
                 ..FragmentAddOptions::default()
             },
@@ -149,7 +149,7 @@ pub fn command_fragment(
                 } else {
                     read_optional_text(args.note.as_deref(), args.note_file.as_deref())?.map(Some)
                 },
-                if_hash: fingerprint(args.optimistic.if_hash.as_deref()),
+                if_hash: fingerprint(args.optimistic.if_hash.as_deref())?,
                 force: args.optimistic.force,
             },
         )?,
@@ -157,7 +157,7 @@ pub fn command_fragment(
             library,
             &args.selector,
             &args.fragment,
-            fingerprint(args.optimistic.if_hash.as_deref()).as_ref(),
+            fingerprint(args.optimistic.if_hash.as_deref())?.as_ref(),
             args.optimistic.force,
         )?,
         FragmentCommand::Reorder(args) => reorder_fragment(
@@ -165,7 +165,7 @@ pub fn command_fragment(
             &args.selector,
             &args.fragment,
             args.position,
-            fingerprint(args.optimistic.if_hash.as_deref()).as_ref(),
+            fingerprint(args.optimistic.if_hash.as_deref())?.as_ref(),
             args.optimistic.force,
         )?,
     };
@@ -176,7 +176,7 @@ pub fn command_delete(library: &Library, args: &DeleteArgs, output: OutputMode) 
     let entry = delete_snippet(
         library,
         &args.selector,
-        fingerprint(args.optimistic.if_hash.as_deref()).as_ref(),
+        fingerprint(args.optimistic.if_hash.as_deref())?.as_ref(),
         args.optimistic.force,
     )?;
     if output == OutputMode::Human {
@@ -218,9 +218,9 @@ fn edit_external(
         }
         Err(error) => return Err(error),
     };
-    let expected = fingerprint(args.optimistic.if_hash.as_deref())
+    let expected = fingerprint(args.optimistic.if_hash.as_deref())?
         .unwrap_or_else(|| original.fingerprint.clone());
-    if expected != original.fingerprint {
+    if !original.fingerprint.0.starts_with(&expected.0) {
         return Err(SnipError::conflict(format!(
             "snippet changed since it was read: expected {expected}, found {}",
             original.fingerprint
@@ -495,8 +495,8 @@ fn edit_has_structured_changes(args: &EditArgs) -> bool {
         || args.clear_readme
 }
 
-fn fingerprint(value: Option<&str>) -> Option<Fingerprint> {
-    value.map(|value| Fingerprint(value.to_owned()))
+fn fingerprint(value: Option<&str>) -> Result<Option<Fingerprint>> {
+    value.map(Fingerprint::expected).transpose()
 }
 
 #[cfg(test)]

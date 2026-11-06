@@ -184,6 +184,31 @@ pub struct SnippetManifest {
 #[serde(transparent)]
 pub struct Fingerprint(pub String);
 
+impl Fingerprint {
+    /// Shortest `--if-hash` value accepted; the 16-character form is what brief
+    /// listings print.
+    pub const MIN_EXPECTED_LEN: usize = 16;
+    pub const SHORT_LEN: usize = 16;
+
+    /// Parse a user-supplied `--if-hash`: lowercase hex, 16 to 64 characters.
+    pub fn expected(value: &str) -> crate::error::Result<Self> {
+        let value = value.trim().to_ascii_lowercase();
+        let valid = (Self::MIN_EXPECTED_LEN..=64).contains(&value.len())
+            && value.bytes().all(|byte| byte.is_ascii_hexdigit());
+        if !valid {
+            return Err(crate::error::SnipError::usage(
+                "--if-hash needs at least 16 hex characters of the fingerprint",
+            ));
+        }
+        Ok(Self(value))
+    }
+
+    /// The 16-character prefix printed by brief outputs.
+    pub fn short(&self) -> &str {
+        &self.0[..Self::SHORT_LEN.min(self.0.len())]
+    }
+}
+
 impl std::fmt::Display for Fingerprint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
