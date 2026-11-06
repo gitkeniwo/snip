@@ -3516,6 +3516,16 @@ fn external_editor_command_saves_through_optimistic_service() {
     );
 }
 
+/// What the default `quote` style produces on this platform: POSIX single quotes,
+/// or double quotes on Windows.
+fn shell_quoted(path: &str) -> String {
+    if cfg!(windows) {
+        format!("\"{path}\"")
+    } else {
+        format!("'{path}'")
+    }
+}
+
 fn copied(effects: &[Effect]) -> (String, String) {
     let [Effect::CopyToClipboard { text, label }] = effects else {
         panic!("expected one copy effect, got {effects:?}");
@@ -3537,12 +3547,12 @@ fn copy_path_copies_the_fragment_file_or_the_package_directory() {
     app.preview_target = PreviewTarget::Fragment(0);
     let (text, label) = copied(&app.handle_key(key(KeyCode::Char('p'))));
     // The fixture's titles contain spaces, so the default style quotes them.
-    assert_eq!(text, format!("'{fragment_path}'"));
+    assert_eq!(text, shell_quoted(&fragment_path));
     assert_eq!(label, "snippet path, quoted");
 
     app.preview_target = PreviewTarget::Readme;
     let (text, _) = copied(&app.handle_key(key(KeyCode::Char('p'))));
-    assert_eq!(text, format!("'{package}'"));
+    assert_eq!(text, shell_quoted(&package));
     assert!(package.ends_with(std::path::MAIN_SEPARATOR));
 }
 
@@ -3563,7 +3573,7 @@ fn copy_path_quotes_per_setting_and_the_raw_command_ignores_it() {
     let (text, label) = copied(&app.handle_key(key(KeyCode::Char('p'))));
     assert!(package.contains(' ') || text == package);
     if package.contains(' ') {
-        assert_eq!(text, format!("'{package}'"));
+        assert_eq!(text, shell_quoted(&package));
         assert_eq!(label, "snippet path, quoted");
         let (raw, raw_label) = copied(&app.run_command(CommandId::CopyManagedPathRaw));
         assert_eq!(raw, package);
