@@ -98,6 +98,16 @@ Prefer the UUID. Titles are ambiguous — two snippets can share one, and an
 ambiguous selector is a hard error rather than a guess. When you have just
 listed or searched, you already hold the `id`; use it.
 
+A **citation** is a snippet UUID prefix, optionally followed by `#n` or `#<hex>`
+for a fragment: `937caecb` or `937caecb#2`. A bare run of 8 or more hex digits,
+with or without the `#n`, is a snip citation when you meet one in text. It is
+an ordinary selector: `snip show <citation>` opens the whole snippet and marks
+the cited fragment (`cited_fragment` in JSON), and `snip cat <citation>`, `path`,
+`open`, and `edit` act on just that fragment. Don't also pass `--fragment`, and
+note that commands acting on a whole snippet (`delete`, `fragment ...`, `gist ...`)
+reject the `#n` part. When citing a snippet back to the user, use the `citation`
+field from `--json` output.
+
 Fragments are selected with `--fragment`, taking either a **1-based index**
 (`--fragment 2`) or a fragment UUID prefix of 8+ hex digits. Index 0 is an
 error, because fragment numbering starts at 1 everywhere in snip.

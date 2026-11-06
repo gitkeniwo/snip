@@ -28,6 +28,7 @@ pub enum ConfigKey {
     TuiDensity,
     TuiLineNumbers,
     TuiSimplifiedUi,
+    TuiCopyPathStyle,
     GitAutoCommitInterval,
     GitAutoPush,
     GitAutoPull,
@@ -55,6 +56,7 @@ impl ConfigKey {
         Self::TuiDensity,
         Self::TuiLineNumbers,
         Self::TuiSimplifiedUi,
+        Self::TuiCopyPathStyle,
         Self::GitAutoCommitInterval,
         Self::GitAutoPush,
         Self::GitAutoPull,
@@ -82,6 +84,7 @@ impl ConfigKey {
             Self::TuiDensity => "tui-density",
             Self::TuiLineNumbers => "tui-line-numbers",
             Self::TuiSimplifiedUi => "tui-simplified-ui",
+            Self::TuiCopyPathStyle => "tui-copy-path-style",
             Self::GitAutoCommitInterval => "git-auto-commit-interval",
             Self::GitAutoPush => "git-auto-push",
             Self::GitAutoPull => "git-auto-pull",
@@ -285,6 +288,13 @@ pub const CONFIG_FIELDS: &[ConfigFieldSpec] = &[
         "false",
     ),
     settable(
+        "tui.copy_path_style",
+        ConfigKey::TuiCopyPathStyle,
+        "Controls how the TUI quotes a copied path that contains spaces or shell characters.",
+        "quote | escape | raw",
+        "\"quote\"",
+    ),
+    settable(
         "git.auto_commit_interval",
         ConfigKey::GitAutoCommitInterval,
         "Sets the automatic commit interval; zero disables scheduled commits and pushes.",
@@ -372,6 +382,7 @@ mod tests {
             density: _,
             line_numbers: _,
             simplified_ui: _,
+            copy_path_style: _,
             extra: _,
         } = TuiConfig::default();
         let GitConfig {
@@ -382,7 +393,7 @@ mod tests {
             extra: _,
         } = GitConfig::default();
 
-        assert_eq!(CONFIG_FIELDS.len(), 25);
+        assert_eq!(CONFIG_FIELDS.len(), 26);
         assert_eq!(
             CONFIG_FIELDS
                 .iter()

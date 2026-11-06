@@ -18,26 +18,26 @@ never read `skills/snip` needs a filesystem path it can open. An agent that has
 read the skill wants something short. The TUI gives each its own copy key, and
 the short form is the citation convention the skill documents.
 
-- [ ] Settle the citation form: the shortest UUID prefix that is unique in the
+- [x] Settle the citation form: the shortest UUID prefix that is unique in the
   library, never fewer than 8 hex digits (`937caecb`), with `#n` for the nth
   fragment (`937caecb#2`). It is the same prefix the package directory name
   already ends in, survives rename and move, contains no characters that need
   shell quoting, and must stay a valid selector, so `snip show <citation>`
   round-trips it. This is the counterpart of SnippetsLab's
   `snippetslab://snippet/<uuid>` links.
-- [ ] Teach selectors the `<prefix>#<n>` form in `show`, `cat`, `path`, and
+- [x] Teach selectors the `<prefix>#<n>` form in `show`, `cat`, `path`, and
   `edit`; it means the same as `--fragment <n>`. A bare prefix already resolves
   (`src/filesystem/scan.rs`), so this is the only new parsing. Reject `#n` with
   a clear error when a command also gets `--fragment`.
-- [ ] `Y` copies the citation of the selection: `<prefix>#<n>` with a fragment
-  open in the preview, `<prefix>` otherwise. The full UUID moves to a
-  palette-only `copy.snippet-uuid`. (`P` stays pin.)
-- [ ] `p` copies the package directory when no fragment is open, instead of its
+- [x] `Y` copies the citation of the selection: `<prefix>#<n>` with a fragment
+  open in the preview, `<prefix>` otherwise. The full UUID stays in
+  the palette as `copy.snippet-id`, with no default key. (`P` stays pin.)
+- [x] `p` copies the package directory when no fragment is open, instead of its
   `README.md`. An agent given a directory lists it and finds the README,
   `snippet.toml`, and every sibling fragment; one given a single file has no
   reason to look next to it. With a fragment open, `p` still copies that
   fragment's file.
-- [ ] `tui.copy_path_style = "quote" | "escape" | "raw"`, default `quote`,
+- [x] `tui.copy_path_style = "quote" | "escape" | "raw"`, default `quote`,
   registered in `src/config/fields.rs`. `quote` wraps in single quotes (`'`
   becomes `'\''`) and `escape` backslash-escapes, the way Terminal does on drag
   and drop; both act only when the path contains a space or shell
@@ -47,7 +47,7 @@ the short form is the citation convention the skill documents.
   quoted"), and a palette-only `copy.managed-path-raw` copies the bare path
   once without changing the setting. Paths in CLI output and `--json` are
   never quoted.
-- [ ] State the convention in `skills/snip`: a bare run of 8 or more hex digits,
+- [x] State the convention in `skills/snip`: a bare run of 8 or more hex digits,
   optionally followed by `#n`, is a snip citation; open it with `snip show`.
 - Not planned: a `snip://` URL scheme. Clickable links need an OS-registered
   handler — an app bundle on macOS, a `.desktop` file on Linux, a registry entry

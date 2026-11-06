@@ -161,7 +161,7 @@ fn characterization_table() -> Vec<(TestMode, Vec<(&'static str, CommandId)>)> {
             ("N", CommandId::ViewToggleLineNumbers),
             ("T", CommandId::LibraryToggleTrash),
             ("y", CommandId::CopyContent),
-            ("Y", CommandId::CopySnippetId),
+            ("Y", CommandId::CopyCitation),
             ("p", CommandId::CopyManagedPath),
             ("[", CommandId::PreviewPreviousItem),
             ("]", CommandId::PreviewNextItem),

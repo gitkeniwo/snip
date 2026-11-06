@@ -427,6 +427,16 @@ static COMMANDS: &[Command] = &[
         copy_id
     ),
     command!(
+        CopyCitation,
+        "copy.citation",
+        "Copy",
+        "Citation",
+        "Copy a short snip selector for the snippet, or the open fragment (`937caecb#2`)",
+        &["clipboard", "citation", "id"],
+        has_snippet,
+        copy_citation
+    ),
+    command!(
         CopyManagedPath,
         "copy.managed-path",
         "Copy",
@@ -435,6 +445,16 @@ static COMMANDS: &[Command] = &[
         &["clipboard", "path"],
         has_snippet,
         copy_path
+    ),
+    command!(
+        CopyManagedPathRaw,
+        "copy.managed-path-raw",
+        "Copy",
+        "Managed Path (raw)",
+        "Copy the selected managed file path without shell quoting",
+        &["clipboard", "path"],
+        has_snippet,
+        copy_path_raw
     ),
     command!(
         FolderNew,

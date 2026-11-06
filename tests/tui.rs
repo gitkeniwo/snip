@@ -438,7 +438,12 @@ fn command_palette_handles_input_and_executes_selected_command() {
     for character in "copy id".chars() {
         app.handle_key(key(KeyCode::Char(character)));
     }
-    assert_eq!(app.palette.matches[0].id, CommandId::CopySnippetId);
+    assert!(
+        app.palette
+            .matches
+            .iter()
+            .any(|entry| entry.id == CommandId::CopySnippetId)
+    );
     let effects = app.handle_key(key(KeyCode::Enter));
     assert!(!app.palette.open);
     assert!(matches!(
@@ -3511,22 +3516,96 @@ fn external_editor_command_saves_through_optimistic_service() {
     );
 }
 
+fn copied(effects: &[Effect]) -> (String, String) {
+    let [Effect::CopyToClipboard { text, label }] = effects else {
+        panic!("expected one copy effect, got {effects:?}");
+    };
+    (text.clone(), label.clone())
+}
+
 #[test]
-fn copy_snippet_path_effect_copies_absolute_path() {
+fn copy_path_copies_the_fragment_file_or_the_package_directory() {
     let (_temporary, library, _first_id, _second_id) = fixture();
     let mut app = App::new(library, &AppConfig::default()).unwrap();
-
-    let expected_path = app.selected_snippet().unwrap().loaded_fragments[0]
+    let snippet = app.selected_snippet().unwrap();
+    let fragment_path = snippet.loaded_fragments[0]
         .absolute_path
         .display()
         .to_string();
+    let package = snippet.package_path.join("").display().to_string();
 
-    let effects = app.handle_key(key(KeyCode::Char('p')));
-    let Effect::CopyToClipboard { text, label } = &effects[0] else {
-        panic!("expected copy to clipboard effect");
-    };
-    assert_eq!(text, &expected_path);
-    assert_eq!(label, "snippet path");
+    app.preview_target = PreviewTarget::Fragment(0);
+    let (text, label) = copied(&app.handle_key(key(KeyCode::Char('p'))));
+    // The fixture's titles contain spaces, so the default style quotes them.
+    assert_eq!(text, format!("'{fragment_path}'"));
+    assert_eq!(label, "snippet path, quoted");
+
+    app.preview_target = PreviewTarget::Readme;
+    let (text, _) = copied(&app.handle_key(key(KeyCode::Char('p'))));
+    assert_eq!(text, format!("'{package}'"));
+    assert!(package.ends_with(std::path::MAIN_SEPARATOR));
+}
+
+#[test]
+fn copy_path_quotes_per_setting_and_the_raw_command_ignores_it() {
+    let (_temporary, library, _first_id, _second_id) = fixture();
+    let mut config = AppConfig::default();
+    let mut app = App::new(library, &config).unwrap();
+    // "Alpha Rust" has a space, so its package path needs quoting.
+    app.preview_target = PreviewTarget::Readme;
+    let package = app
+        .selected_snippet()
+        .unwrap()
+        .package_path
+        .join("")
+        .display()
+        .to_string();
+    let (text, label) = copied(&app.handle_key(key(KeyCode::Char('p'))));
+    assert!(package.contains(' ') || text == package);
+    if package.contains(' ') {
+        assert_eq!(text, format!("'{package}'"));
+        assert_eq!(label, "snippet path, quoted");
+        let (raw, raw_label) = copied(&app.run_command(CommandId::CopyManagedPathRaw));
+        assert_eq!(raw, package);
+        assert_eq!(raw_label, "snippet path");
+    }
+    config.tui = Some(snip::config::TuiConfig {
+        copy_path_style: snip::config::CopyPathStyle::Raw,
+        ..Default::default()
+    });
+    let (_t2, library2, _a, _b) = fixture();
+    let mut raw_app = App::new(library2, &config).unwrap();
+    raw_app.preview_target = PreviewTarget::Readme;
+    let expected = raw_app
+        .selected_snippet()
+        .unwrap()
+        .package_path
+        .join("")
+        .display()
+        .to_string();
+    assert_eq!(
+        copied(&raw_app.handle_key(key(KeyCode::Char('p')))).0,
+        expected
+    );
+}
+
+#[test]
+fn capital_y_copies_a_citation_that_names_the_open_fragment() {
+    let (_temporary, library, first_id, _second_id) = fixture();
+    let mut app = App::new(library, &AppConfig::default()).unwrap();
+    let prefix = first_id.simple().to_string()[..8].to_owned();
+    app.preview_target = PreviewTarget::Readme;
+    let (text, label) = copied(&app.handle_key(key(KeyCode::Char('Y'))));
+    assert_eq!(
+        (text.as_str(), label.as_str()),
+        (prefix.as_str(), "citation")
+    );
+    app.preview_target = PreviewTarget::Fragment(0);
+    let (text, _) = copied(&app.handle_key(key(KeyCode::Char('Y'))));
+    assert_eq!(text, format!("{prefix}#1"));
+    // The full UUID stays reachable from the palette.
+    let (text, _) = copied(&app.run_command(CommandId::CopySnippetId));
+    assert_eq!(text, first_id.to_string());
 }
 
 #[test]

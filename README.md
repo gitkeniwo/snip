@@ -674,6 +674,7 @@ sort = "modified"          # modified | created | title
 density = "comfortable"    # comfortable | compact
 line_numbers = true        # preview gutter; toggled with `N`
 simplified_ui = false      # square bar caps; no Powerline font required
+copy_path_style = "quote"  # quote | escape | raw; shell quoting for the `p` copy
 
 [git]
 auto_commit_interval = 0   # minutes; 0 disables automatic Git operations
@@ -687,6 +688,13 @@ precedence over `SNIP_TUI_THEME` and lasts only for the current TUI session.
 Config values are defaults only; explicit CLI options override them. Unknown
 TOML fields are preserved when `snip config set` or `unset` rewrites the file,
 so future settings can coexist.
+
+In the TUI, `y` copies the fragment content, `Y` copies a citation (`937caecb`, or
+`937caecb#2` with a fragment open) that `snip show` and `snip cat` resolve, and
+`p` copies a path: the fragment's file when one is open, otherwise the snippet
+directory. `p` quotes paths containing spaces or shell characters according to
+`tui.copy_path_style`; the palette's "Copy › Managed Path (raw)" skips the
+quoting once. `snip path` and `--json` output are never quoted.
 
 `SNIP_CLIPBOARD=system|osc52|auto` controls where copies go (default `auto`).
 Over SSH, `auto` prefers the OSC 52 terminal escape so text lands on the client
