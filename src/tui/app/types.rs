@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 use ratatui::widgets::ListState;
 use uuid::Uuid;
 
-use crate::config::{EditorCwdSetting, GitConfig, TuiConfig, TuiDensitySetting, TuiThemeSetting};
+use crate::config::{
+    CopyPathStyle, EditorCwdSetting, GitConfig, TuiConfig, TuiDensitySetting, TuiThemeSetting,
+};
 use crate::domain::CatalogSnapshot;
 use crate::filesystem::Library;
 use crate::git;
@@ -195,6 +197,7 @@ pub struct App {
     pub preview_scroll: u16,
     pub show_line_numbers: bool,
     pub simplified_ui: bool,
+    pub copy_path_style: CopyPathStyle,
     /// Session-only, unlike `density` and `line_numbers`: a narrow terminal is
     /// a fact about this connection, not a preference to carry to the next machine.
     pub show_sidebar: bool,

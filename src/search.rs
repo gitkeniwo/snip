@@ -261,6 +261,7 @@ pub fn brief(
                     .collect::<String>();
                 hits.push(BriefHit {
                     id: snippet.id,
+                    citation: catalog.citation_prefix(snippet.id),
                     title: snippet.title.clone(),
                     folder: snippet.folder.clone(),
                     tags: snippet.tags.clone(),

@@ -9,7 +9,7 @@ Stable codes are io_error exit 1, usage_error exit 2, no_library or not_found ex
 %%SELECTORS
 Prefer the UUID returned by list, search, or show. A package path relative to snippets and an exact case-sensitive title are also accepted. UUID prefixes require at least eight hexadecimal digits. Ambiguous titles are conflicts rather than guesses.
 
-Fragments use a 1-based index or fragment UUID prefix. Trash restore and purge use entry_id, not snippet_id.
+Fragments use a 1-based index or fragment UUID prefix. A citation such as 937caecb#2 combines a snippet prefix with a fragment selector; every list, show, and search row carries a ready-made citation field. Trash restore and purge use entry_id, not snippet_id.
 
 %%READ CONTRACTS
 list emits summaries with id, title, folder, tags, fragment count, pinned, locked, timestamps, fingerprint, and path. folder is an empty string for Uncategorized.

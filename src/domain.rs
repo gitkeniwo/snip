@@ -302,6 +302,24 @@ pub struct CatalogSnapshot {
     pub tags: Vec<String>,
 }
 
+impl CatalogSnapshot {
+    /// The shortest prefix of the snippet's simple UUID that no other live snippet
+    /// shares, never shorter than 8 hex digits. This is what `Y` copies and what the
+    /// `citation` JSON field reports, so `snip show <citation>` always resolves.
+    pub fn citation_prefix(&self, id: Uuid) -> String {
+        let own = id.as_u128();
+        let shared = self
+            .snippets
+            .iter()
+            .filter(|snippet| snippet.id != id)
+            .map(|snippet| ((own ^ snippet.id.as_u128()).leading_zeros() / 4) as usize)
+            .max()
+            .unwrap_or(0);
+        let length = (shared + 1).clamp(8, 32);
+        id.simple().to_string()[..length].to_owned()
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ChangeSet {
     pub fields: Vec<String>,
@@ -371,6 +389,8 @@ pub struct MatchedFragment {
 #[derive(Clone, Debug, Serialize)]
 pub struct BriefHit {
     pub id: Uuid,
+    /// Shortest unique UUID prefix (≥ 8 hex digits); a valid selector.
+    pub citation: String,
     pub title: String,
     pub folder: String,
     pub tags: Vec<String>,

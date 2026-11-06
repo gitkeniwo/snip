@@ -40,6 +40,12 @@ A `<SELECTOR>` is a package path, a UUID prefix (≥8 hex), an exact title, or
 `folder/title`. Prefer the UUID you just got from a search. Ambiguous titles are
 an error. Fragments: `--fragment N` (1-based) or a UUID prefix.
 
+A **citation** (`937caecb`, `937caecb#2`) is a UUID prefix plus an optional
+`#n` fragment; a bare run of 8+ hex digits in text is one. It is a selector:
+`show` marks the cited fragment (`cited_fragment`), `cat`/`path`/`open`/`edit`
+act on it. Don't add `--fragment`; whole-snippet commands (`delete`,
+`fragment …`, `gist …`) reject `#n`. Cite back with the `citation` field.
+
 ## Reading (spend bytes on purpose)
 
 ```
@@ -50,7 +56,7 @@ an error. Fragments: `--fragment N` (1-based) or a UUID prefix.
 4 write    snip edit <id> … --if-hash <16-char fingerprint>
 ```
 
-- `search --brief` → `{total, results[]}`, one row per snippet: `id`, `title`,
+- `search --brief` → `{total, results[]}`, one row per snippet: `id`, `citation`, `title`,
   `folder`, `tags`, `languages`, `fragments`, `bytes`, 16-char `fingerprint`,
   `matched_fragments` (`index`, `lines`), `excerpt`. `-m` limits snippets;
   `total` says if the list is complete. Use `search` for lookup, not `rg`.

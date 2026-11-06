@@ -2,8 +2,8 @@ use clap::CommandFactory;
 use serde_json::json;
 use snip::Library;
 use snip::config::{
-    AppConfig, ColorSetting, ConfigKey, EDITOR_CWD_VALUES, EditorCwdSetting, GitConfig,
-    OutputSetting, PreviewRenderSetting, TuiConfig, TuiDensitySetting, TuiThemeSetting,
+    AppConfig, ColorSetting, ConfigKey, CopyPathStyle, EDITOR_CWD_VALUES, EditorCwdSetting,
+    GitConfig, OutputSetting, PreviewRenderSetting, TuiConfig, TuiDensitySetting, TuiThemeSetting,
     config_path,
 };
 use snip::error::{Result, SnipError};
@@ -250,6 +250,21 @@ fn set_config_value(config: &mut AppConfig, key: ConfigKey, value: &str) -> Resu
                 .get_or_insert_with(TuiConfig::default)
                 .line_numbers = parse_bool(value)?;
         }
+        ConfigKey::TuiCopyPathStyle => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .copy_path_style = match value.to_ascii_lowercase().as_str() {
+                "quote" => CopyPathStyle::Quote,
+                "escape" => CopyPathStyle::Escape,
+                "raw" => CopyPathStyle::Raw,
+                _ => {
+                    return Err(SnipError::usage(
+                        "tui-copy-path-style must be quote, escape, or raw",
+                    ));
+                }
+            };
+        }
         ConfigKey::TuiSimplifiedUi => {
             config
                 .tui
@@ -324,6 +339,12 @@ fn unset_config_value(config: &mut AppConfig, key: ConfigKey) {
                 .tui
                 .get_or_insert_with(TuiConfig::default)
                 .simplified_ui = TuiConfig::default().simplified_ui
+        }
+        ConfigKey::TuiCopyPathStyle => {
+            config
+                .tui
+                .get_or_insert_with(TuiConfig::default)
+                .copy_path_style = CopyPathStyle::default()
         }
         ConfigKey::GitAutoCommitInterval => {
             config

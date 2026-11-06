@@ -347,7 +347,8 @@ read, though replacing content still means reading the content first.
 {
   "total": 17,
   "results": [{
-    "id": "bb4fc45f-…", "title": "Memos-litestream Dockerfile", "folder": "Docker",
+    "id": "bb4fc45f-…", "citation": "bb4fc45f",
+    "title": "Memos-litestream Dockerfile", "folder": "Docker",
     "tags": ["dockerfile"], "languages": ["dockerfile"], "fragments": 2,
     "bytes": 1840, "fingerprint": "a26fb40ed738e6be",
     "modified_at": "2026-08-22T18:51:38Z",
@@ -360,20 +361,22 @@ In `json` mode, brief search/list, `show --outline`, and `show --max-bytes` are
 printed as compact one-line JSON. `total` counts matching snippets before
 `--limit`. `bytes` is README + every fragment's content + every note: what a
 full `show` costs in text. `fingerprint` is the 16-character prefix, accepted by
-`--if-hash`. `modified_at` is rounded to whole seconds.
+`--if-hash`. `modified_at` is rounded to whole seconds. `citation` is the
+shortest unique UUID prefix, as on plain rows.
 `matched_fragments[].index` is what `--fragment` takes; `lines` holds up to five
 content line numbers (empty for a note-only match, and the entry is absent for
 title/tag/README matches). `excerpt` is capped at 160 characters and omitted
 when it equals `title`.
 
 ### Brief list row (`list --brief`)
-`id`, `title`, `folder`, `tags`, `fragments`, `bytes`, 16-character
+`id`, `citation`, `title`, `folder`, `tags`, `fragments`, `bytes`, 16-character
 `fingerprint`, `modified_at`. An array, like plain `list`.
 
 ### Budgeted show (`show --outline`, `--max-bytes`)
 ```json
 {
-  "id": "…", "title": "…", "folder": "…", "tags": [], "fingerprint": "<full>",
+  "id": "…", "citation": "937caecb", "cited_fragment": 2,
+  "title": "…", "folder": "…", "tags": [], "fingerprint": "<full>",
   "created_at": "…", "modified_at": "…", "pinned": false, "locked": false,
   "readme": "…", "readme_bytes": 412,
   "fragments": [

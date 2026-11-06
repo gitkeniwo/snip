@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`--if-hash` accepts a fingerprint prefix** of at least 16 hex characters (the
   form brief rows print). Shorter or non-hex values are a usage error (exit 2);
   the full 64-character form keeps working.
+- **Snippet citations.** A snippet UUID prefix plus `#n` (`937caecb#2`) is now a
+  selector: `show` opens the whole snippet and marks the cited fragment
+  (`cited_fragment` in JSON), while `cat`, `path`, `open`, and `edit` act on that
+  fragment. Combining `#n` with `--fragment` is a usage error, and commands that
+  act on a whole snippet reject it. A selector that resolves as written, such as
+  a title containing `#`, still wins.
+- **`citation` JSON field** on `list`, `show`, and `search` rows: the shortest
+  UUID prefix, at least 8 digits, unique among live snippets. Text output of
+  `list` and `search` shows it too.
+- **`copy.citation`** TUI command, bound to `Y`.
+- **`tui.copy_path_style`** (`quote`, `escape`, `raw`; default `quote`) quotes
+  the path `p` copies when it contains spaces or shell metacharacters, and the
+  new palette command `copy.managed-path-raw` copies it unquoted once.
 - **`snip doctor` scans the trash.** Each entry under `trash/` is validated
   like a live package — metadata, structure, and semantic fields — and reported
   on its own, so one broken entry no longer hides the rest. Entries that
@@ -45,6 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   under 7 KB; organizing, deleting, backup, sharing, and health procedures moved
   to `skills/snip/references/workflows.md`, and the reading section now teaches
   the locate → outline → read → write workflow.
+- **`Y` copies the citation, and `p` copies the directory.** `Y` used to copy
+  the full UUID; that is now the palette-only `copy.snippet-id`. With no
+  fragment open, `p` copies the snippet directory instead of its `README.md`,
+  so the sibling fragments stay visible. Paths with spaces or shell characters
+  are quoted by default; set `tui.copy_path_style = "raw"` for the old output.
 - **Folder-and-title selectors.** Every command that takes a snippet selector
   now accepts `folder/title`, split at the last slash, the same spelling
   `snip edit --create` files a new snippet under. It is tried only after

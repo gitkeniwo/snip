@@ -34,6 +34,7 @@ sort = "modified"
 density = "comfortable"
 line_numbers = true
 simplified_ui = false
+copy_path_style = "quote"
 
 [git]
 auto_commit_interval = 0
@@ -101,6 +102,9 @@ Controls the preview line\-number gutter. Values: true | false.
 .TP
 \fBtui.simplified_ui (snip config set tui\-simplified\-ui)\fR
 Replaces Powerline caps with square, font\-independent cells. Values: true | false.
+.TP
+\fBtui.copy_path_style (snip config set tui\-copy\-path\-style)\fR
+Controls how the TUI quotes a copied path that contains spaces or shell characters. Values: quote | escape | raw.
 .TP
 \fBgit.auto_commit_interval (snip config set git\-auto\-commit\-interval)\fR
 Sets the automatic commit interval; zero disables scheduled commits and pushes. Values: non\-negative whole number of minutes.

@@ -63,9 +63,9 @@ pub fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) ->
         .iter()
         .map(|snippet| {
             if args.brief {
-                snippet_brief(snippet)
+                snippet_brief(snippet, &catalog)
             } else {
-                snippet_summary(snippet)
+                snippet_summary(snippet, &catalog)
             }
         })
         .collect::<Vec<_>>();
@@ -73,7 +73,7 @@ pub fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) ->
         for snippet in snippets {
             println!(
                 "{}  {}  [{}]  {}",
-                &snippet.id.simple().to_string()[..8],
+                catalog.citation_prefix(snippet.id),
                 snippet.title,
                 folder_label(&snippet.folder),
                 snippet.tags.join(", ")
@@ -88,7 +88,8 @@ pub fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) ->
 }
 
 pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) -> Result<()> {
-    let index = MemoryIndex::new(Arc::new(library.scan()?));
+    let catalog = Arc::new(library.scan()?);
+    let index = MemoryIndex::new(Arc::clone(&catalog));
     let query = SearchQuery::new(&args.query, args.regex)?
         .folder(args.folder_filter())
         .tag(args.tag.as_deref())
@@ -121,7 +122,7 @@ pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) 
                         .join(" ");
                     println!(
                         "{}  {}  [{}]  {} frags  {}  {}",
-                        &hit.id.simple().to_string()[..8],
+                        hit.citation,
                         hit.title,
                         folder_label(&hit.folder),
                         hit.fragments,
@@ -145,7 +146,7 @@ pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) 
                 .unwrap_or_default();
             println!(
                 "{}{}  {}  {}",
-                &result.snippet_id.simple().to_string()[..8],
+                catalog.citation_prefix(result.snippet_id),
                 location,
                 result.title,
                 result.excerpt
@@ -169,11 +170,37 @@ pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) 
     Ok(())
 }
 
+/// Resolves `<snippet>[#n]` plus an optional `--fragment`, rejecting a fragment given twice.
+pub(crate) fn resolve_cited<'a>(
+    library: &Library,
+    catalog: &'a CatalogSnapshot,
+    selector: &str,
+    explicit: Option<&str>,
+) -> Result<(&'a Snippet, Option<String>)> {
+    let (snippet, cited) = library.resolve_citation(catalog, selector)?;
+    if cited.is_some() && explicit.is_some() {
+        return Err(SnipError::usage(
+            "fragment given twice (`#n` and `--fragment`)",
+        ));
+    }
+    Ok((snippet, cited.or(explicit).map(str::to_owned)))
+}
+
 pub fn command_show(library: &Library, args: &ShowArgs, output: OutputMode) -> Result<()> {
     let catalog = library.scan()?;
-    let snippet = library.resolve_snippet(&catalog, &args.selector)?;
+    let (snippet, cited) = library.resolve_citation(&catalog, &args.selector)?;
+    let cited_index = match cited {
+        Some(selector) => {
+            let fragment = library.resolve_fragment(snippet, Some(selector))?;
+            snippet
+                .loaded_fragments
+                .iter()
+                .position(|candidate| candidate.id == fragment.id)
+        }
+        None => None,
+    };
     if let Some(budget) = args.budget() {
-        return show_budgeted(snippet, budget, output);
+        return show_budgeted(&catalog, snippet, cited_index, budget, output);
     }
     if output == OutputMode::Human {
         println!("ID: {}", snippet.id);
@@ -189,7 +216,12 @@ pub fn command_show(library: &Library, args: &ShowArgs, output: OutputMode) -> R
         println!("Fingerprint: {}", snippet.fingerprint);
         for (index, fragment) in snippet.loaded_fragments.iter().enumerate() {
             println!(
-                "\n--- {}. {} ({}) [{}] ---",
+                "\n---{} {}. {} ({}) [{}] ---",
+                if cited_index == Some(index) {
+                    " ▸"
+                } else {
+                    ""
+                },
                 index + 1,
                 fragment.title,
                 fragment.language,
@@ -204,7 +236,12 @@ pub fn command_show(library: &Library, args: &ShowArgs, output: OutputMode) -> R
             }
         }
     } else {
-        print_record(snippet, output)?;
+        let mut value = serde_json::to_value(snippet)?;
+        value["citation"] = json!(catalog.citation_prefix(snippet.id));
+        if let Some(index) = cited_index {
+            value["cited_fragment"] = json!(index + 1);
+        }
+        print_record(&value, output)?;
     }
     Ok(())
 }
@@ -221,7 +258,13 @@ fn spend<'a>(text: &'a str, remaining: &mut usize) -> &'a str {
     shown
 }
 
-fn show_budgeted(snippet: &Snippet, budget: usize, output: OutputMode) -> Result<()> {
+fn show_budgeted(
+    catalog: &CatalogSnapshot,
+    snippet: &Snippet,
+    cited_index: Option<usize>,
+    budget: usize,
+    output: OutputMode,
+) -> Result<()> {
     let total = snippet.content_bytes();
     let mut remaining = budget;
     let mut emitted = 0usize;
@@ -307,6 +350,13 @@ fn show_budgeted(snippet: &Snippet, budget: usize, output: OutputMode) -> Result
         .collect::<Vec<_>>();
     let mut view = serde_json::Map::new();
     view.insert("id".into(), json!(snippet.id));
+    view.insert(
+        "citation".into(),
+        json!(catalog.citation_prefix(snippet.id)),
+    );
+    if let Some(index) = cited_index {
+        view.insert("cited_fragment".into(), json!(index + 1));
+    }
     view.insert("title".into(), json!(snippet.title));
     view.insert("folder".into(), json!(snippet.folder));
     view.insert("tags".into(), json!(snippet.tags));
@@ -336,9 +386,10 @@ fn show_budgeted(snippet: &Snippet, budget: usize, output: OutputMode) -> Result
 pub fn command_cat(library: &Library, args: &CatArgs) -> Result<()> {
     let range = args.lines.as_deref().map(LineRange::parse).transpose()?;
     let catalog = library.scan()?;
-    let snippet = library.resolve_snippet(&catalog, &args.selector)?;
-    let fragment = library.resolve_fragment(snippet, args.fragment.as_deref())?;
-    if args.fragment.is_none() && snippet.loaded_fragments.len() > 1 {
+    let (snippet, selected) =
+        resolve_cited(library, &catalog, &args.selector, args.fragment.as_deref())?;
+    let fragment = library.resolve_fragment(snippet, selected.as_deref())?;
+    if selected.is_none() && snippet.loaded_fragments.len() > 1 {
         let count = snippet.loaded_fragments.len();
         eprintln!("note: snippet has {count} fragments; printed 1/{count} (use --fragment N)");
     }
@@ -427,7 +478,8 @@ pub fn resolve_managed_path(
     fragment: Option<&str>,
 ) -> Result<PathBuf> {
     let catalog = library.scan()?;
-    let snippet = library.resolve_snippet(&catalog, selector)?;
+    let (snippet, fragment) = resolve_cited(library, &catalog, selector, fragment)?;
+    let fragment = fragment.as_deref();
     Ok(if metadata {
         snippet.package_path.join("snippet.toml")
     } else if readme {
@@ -508,7 +560,15 @@ fn filter_snippets<'a>(
         .collect()
 }
 
-pub(super) fn snippet_brief(snippet: &&Snippet) -> serde_json::Value {
+fn snippet_brief(snippet: &&Snippet, catalog: &CatalogSnapshot) -> serde_json::Value {
+    let mut brief = snippet_brief_fields(snippet);
+    brief["citation"] = json!(catalog.citation_prefix(snippet.id));
+    brief
+}
+
+/// The brief row without its citation, which needs the whole catalog. Mutation
+/// results use this directly rather than rescanning the library after a write.
+pub(super) fn snippet_brief_fields(snippet: &Snippet) -> serde_json::Value {
     json!({
         "id": snippet.id,
         "title": snippet.title,
@@ -521,9 +581,10 @@ pub(super) fn snippet_brief(snippet: &&Snippet) -> serde_json::Value {
     })
 }
 
-fn snippet_summary(snippet: &&Snippet) -> serde_json::Value {
+fn snippet_summary(snippet: &&Snippet, catalog: &CatalogSnapshot) -> serde_json::Value {
     json!({
         "id": snippet.id,
+        "citation": catalog.citation_prefix(snippet.id),
         "title": snippet.title,
         "folder": snippet.folder,
         "tags": snippet.tags,
