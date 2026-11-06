@@ -246,6 +246,32 @@ pub struct Snippet {
     pub loaded_fragments: Vec<Fragment>,
 }
 
+impl Snippet {
+    /// README + every fragment's content + every note, in UTF-8 bytes: what a
+    /// full read of the snippet costs in text.
+    pub fn content_bytes(&self) -> usize {
+        self.readme.as_ref().map_or(0, String::len)
+            + self
+                .loaded_fragments
+                .iter()
+                .map(|fragment| {
+                    fragment.content.len() + fragment.note_content.as_ref().map_or(0, String::len)
+                })
+                .sum::<usize>()
+    }
+
+    /// Distinct fragment languages, in fragment order.
+    pub fn languages(&self) -> Vec<String> {
+        let mut languages: Vec<String> = Vec::new();
+        for fragment in &self.loaded_fragments {
+            if !languages.contains(&fragment.language) {
+                languages.push(fragment.language.clone());
+            }
+        }
+        languages
+    }
+}
+
 impl std::ops::Deref for Snippet {
     type Target = SnippetManifest;
 
@@ -316,6 +342,42 @@ pub struct SearchResult {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_after: Vec<String>,
     pub score: u32,
+}
+
+/// Where a brief search hit matched inside one fragment.
+#[derive(Clone, Debug, Serialize)]
+pub struct MatchedFragment {
+    /// 1-based, what `--fragment` takes.
+    pub index: usize,
+    /// Up to five matching content line numbers.
+    pub lines: Vec<usize>,
+}
+
+/// One snippet in a brief search: everything needed to pick a follow-up read
+/// and nothing that repeats per matching line.
+#[derive(Clone, Debug, Serialize)]
+pub struct BriefHit {
+    pub id: Uuid,
+    pub title: String,
+    pub folder: String,
+    pub tags: Vec<String>,
+    pub languages: Vec<String>,
+    pub fragments: usize,
+    pub bytes: usize,
+    /// 16-character prefix, accepted by `--if-hash`.
+    pub fingerprint: String,
+    pub modified_at: Option<String>,
+    pub score: u32,
+    pub fields: Vec<SearchField>,
+    pub matched_fragments: Vec<MatchedFragment>,
+    pub excerpt: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct BriefSearch {
+    /// Matching snippets before `--limit`.
+    pub total: usize,
+    pub results: Vec<BriefHit>,
 }
 
 #[cfg(test)]

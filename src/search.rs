@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use regex::{Regex, RegexBuilder};
 
-use crate::domain::{CatalogSnapshot, FolderFilter, SearchField, SearchResult, Snippet};
+use crate::domain::{
+    BriefHit, BriefSearch, CatalogSnapshot, FolderFilter, MatchedFragment, SearchField,
+    SearchResult, Snippet,
+};
 use crate::error::{Result, SnipError};
 
 pub trait SearchIndex {
@@ -225,6 +228,108 @@ impl SearchIndex for MemoryIndex {
             results.truncate(limit);
         }
         results
+    }
+}
+
+const EXCERPT_CHARS: usize = 160;
+const LINES_PER_FRAGMENT: usize = 5;
+
+/// Collapse row-per-match results into one row per snippet. `results` must be
+/// in `MemoryIndex::search` order (best score first); `limit` applies to
+/// snippets, and `total` counts them beforehand.
+pub fn brief(
+    results: Vec<SearchResult>,
+    catalog: &CatalogSnapshot,
+    limit: Option<usize>,
+) -> BriefSearch {
+    let mut hits: Vec<BriefHit> = Vec::new();
+    for result in results {
+        let position = match hits.iter().position(|hit| hit.id == result.snippet_id) {
+            Some(position) => position,
+            None => {
+                let Some(snippet) = catalog
+                    .snippets
+                    .iter()
+                    .find(|snippet| snippet.id == result.snippet_id)
+                else {
+                    continue;
+                };
+                hits.push(BriefHit {
+                    id: snippet.id,
+                    title: snippet.title.clone(),
+                    folder: snippet.folder.clone(),
+                    tags: snippet.tags.clone(),
+                    languages: snippet.languages(),
+                    fragments: snippet.loaded_fragments.len(),
+                    bytes: snippet.content_bytes(),
+                    fingerprint: snippet.fingerprint.short().to_owned(),
+                    modified_at: snippet.modified_at.clone(),
+                    score: result.score,
+                    fields: Vec::new(),
+                    matched_fragments: Vec::new(),
+                    excerpt: result.excerpt.chars().take(EXCERPT_CHARS).collect(),
+                });
+                hits.len() - 1
+            }
+        };
+        let hit = &mut hits[position];
+        if !hit.fields.contains(&result.field) {
+            hit.fields.push(result.field);
+        }
+        let Some(fragment_id) = result.fragment_id else {
+            continue;
+        };
+        let Some(snippet) = catalog
+            .snippets
+            .iter()
+            .find(|snippet| snippet.id == result.snippet_id)
+        else {
+            continue;
+        };
+        let Some(index) = snippet
+            .loaded_fragments
+            .iter()
+            .position(|fragment| fragment.id == fragment_id)
+        else {
+            continue;
+        };
+        let index = index + 1;
+        let slot = match hit
+            .matched_fragments
+            .iter()
+            .position(|matched| matched.index == index)
+        {
+            Some(slot) => slot,
+            None => {
+                hit.matched_fragments.push(MatchedFragment {
+                    index,
+                    lines: Vec::new(),
+                });
+                hit.matched_fragments.len() - 1
+            }
+        };
+        let lines = &mut hit.matched_fragments[slot].lines;
+        if result.field == SearchField::Content
+            && let Some(line) = result.line
+            && lines.len() < LINES_PER_FRAGMENT
+            && !lines.contains(&line)
+        {
+            lines.push(line);
+        }
+    }
+    for hit in &mut hits {
+        hit.matched_fragments.sort_by_key(|matched| matched.index);
+        for matched in &mut hit.matched_fragments {
+            matched.lines.sort_unstable();
+        }
+    }
+    let total = hits.len();
+    if let Some(limit) = limit {
+        hits.truncate(limit);
+    }
+    BriefSearch {
+        total,
+        results: hits,
     }
 }
 

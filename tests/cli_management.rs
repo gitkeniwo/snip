@@ -1236,12 +1236,18 @@ fn if_hash_accepts_a_prefix_of_at_least_sixteen_characters() {
         &["create", "--title", "Prefix", "--content", "one\n"],
     );
     let id = snippet_id(&created);
-    let full = created["snippet"]["fingerprint"].as_str().unwrap().to_owned();
+    let full = created["snippet"]["fingerprint"]
+        .as_str()
+        .unwrap()
+        .to_owned();
 
     let edit = |hash: &str, title: &str| {
-        command(&library, &["edit", &id, "--title", title, "--if-hash", hash])
-            .output()
-            .unwrap()
+        command(
+            &library,
+            &["edit", &id, "--title", title, "--if-hash", hash],
+        )
+        .output()
+        .unwrap()
     };
 
     // Too short or not hex is a usage error, before anything is compared.
@@ -1253,7 +1259,11 @@ fn if_hash_accepts_a_prefix_of_at_least_sixteen_characters() {
     assert_eq!(edit(&wrong, "A").status.code(), Some(4));
     // The matching prefix works, and so does the full value afterwards.
     let ok = edit(&full[..16], "Second");
-    assert!(ok.status.success(), "{}", String::from_utf8_lossy(&ok.stderr));
+    assert!(
+        ok.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
     let updated: Value = serde_json::from_slice(&ok.stdout).unwrap();
     let new_full = updated["snippet"]["fingerprint"].as_str().unwrap();
     assert!(edit(new_full, "Third").status.success());
