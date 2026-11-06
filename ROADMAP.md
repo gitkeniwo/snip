@@ -11,16 +11,49 @@ plain files under Git, on any machine, with no GUI running. `lab` can only
 search, read, and create, and only while SnippetsLab.app is open on a Mac. The
 items below close the setup and citation gaps without giving that up.
 
-### Stable snippet citations
+### Snippet citations and copy formats
 
-- [ ] Settle one citation form for agents to use when they quote or rely on a
-  snippet, and state it in `skills/snip`. The constraint that decides it: a
-  citation must itself be a valid selector, so `snip show <citation>` round-trips
-  it. Package paths and UUID prefixes already resolve (package paths first); pick
-  between them — or a combination such as `folder/title (uuid-prefix)` — on
-  readability versus stability under rename. This is the counterpart of
-  SnippetsLab's `snippetslab://snippet/<uuid>` links, and needs no new code if
-  an existing selector form is chosen.
+Two kinds of reader need to find a snippet from copied text. An agent that has
+never read `skills/snip` needs a filesystem path it can open. An agent that has
+read the skill wants something short. The TUI gives each its own copy key, and
+the short form is the citation convention the skill documents.
+
+- [ ] Settle the citation form: the shortest UUID prefix that is unique in the
+  library, never fewer than 8 hex digits (`937caecb`), with `#n` for the nth
+  fragment (`937caecb#2`). It is the same prefix the package directory name
+  already ends in, survives rename and move, contains no characters that need
+  shell quoting, and must stay a valid selector, so `snip show <citation>`
+  round-trips it. This is the counterpart of SnippetsLab's
+  `snippetslab://snippet/<uuid>` links.
+- [ ] Teach selectors the `<prefix>#<n>` form in `show`, `cat`, `path`, and
+  `edit`; it means the same as `--fragment <n>`. A bare prefix already resolves
+  (`src/filesystem/scan.rs`), so this is the only new parsing. Reject `#n` with
+  a clear error when a command also gets `--fragment`.
+- [ ] `Y` copies the citation of the selection: `<prefix>#<n>` with a fragment
+  open in the preview, `<prefix>` otherwise. The full UUID moves to a
+  palette-only `copy.snippet-uuid`. (`P` stays pin.)
+- [ ] `p` copies the package directory when no fragment is open, instead of its
+  `README.md`. An agent given a directory lists it and finds the README,
+  `snippet.toml`, and every sibling fragment; one given a single file has no
+  reason to look next to it. With a fragment open, `p` still copies that
+  fragment's file.
+- [ ] `tui.copy_path_style = "quote" | "escape" | "raw"`, default `quote`,
+  registered in `src/config/fields.rs`. `quote` wraps in single quotes (`'`
+  becomes `'\''`) and `escape` backslash-escapes, the way Terminal does on drag
+  and drop; both act only when the path contains a space or shell
+  metacharacter, so plain paths stay pasteable into Finder's Go to Folder or an
+  editor's quick open. On Windows `quote` uses double quotes and `escape` falls
+  back to `quote`. The status line names the style used ("copied path,
+  quoted"), and a palette-only `copy.managed-path-raw` copies the bare path
+  once without changing the setting. Paths in CLI output and `--json` are
+  never quoted.
+- [ ] State the convention in `skills/snip`: a bare run of 8 or more hex digits,
+  optionally followed by `#n`, is a snip citation; open it with `snip show`.
+- Not planned: a `snip://` URL scheme. Clickable links need an OS-registered
+  handler — an app bundle on macOS, a `.desktop` file on Linux, a registry entry
+  on Windows — that would launch a terminal running the TUI. Agents do not need
+  one, since they run `snip show <citation>` directly. Revisit only if links
+  from Markdown notes become a real request.
 
 ### `snip agent setup --client <name>`
 
