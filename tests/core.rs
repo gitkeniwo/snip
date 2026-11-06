@@ -1028,3 +1028,54 @@ fn doctor_warns_about_stray_files_in_trash() {
         report.warnings
     );
 }
+
+#[test]
+fn citation_prefix_is_eight_digits_until_a_live_snippet_collides() {
+    let (_temporary, library) = library();
+    let make = |id: &str, title: &str| {
+        create_snippet(
+            &library,
+            &CreateOptions {
+                id: Some(id.parse().unwrap()),
+                title: title.to_owned(),
+                language: "text".to_owned(),
+                ..CreateOptions::default()
+            },
+        )
+        .unwrap()
+    };
+    // These two share 9 leading hex digits, so each needs 10.
+    let first = make("937caecb-a111-4000-8000-000000000001", "First");
+    let second = make("937caecb-a222-4000-8000-000000000002", "Second");
+    let other = make("11111111-2222-4333-8444-555555555555", "Other");
+    let catalog = library.scan().unwrap();
+    assert_eq!(catalog.citation_prefix(first.id), "937caecba1");
+    assert_eq!(catalog.citation_prefix(second.id), "937caecba2");
+    assert_eq!(catalog.citation_prefix(other.id), "11111111");
+    // Each citation resolves back to its own snippet.
+    for snippet in [&first, &second, &other] {
+        let prefix = catalog.citation_prefix(snippet.id);
+        assert_eq!(
+            library.resolve_snippet(&catalog, &prefix).unwrap().id,
+            snippet.id
+        );
+    }
+}
+
+#[test]
+fn titles_containing_a_hash_keep_resolving_as_titles() {
+    let (_temporary, library) = library();
+    let snippet = create_snippet(
+        &library,
+        &CreateOptions {
+            title: "deadbeef#2".to_owned(),
+            language: "text".to_owned(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+    let catalog = library.scan().unwrap();
+    let (found, cited) = library.resolve_citation(&catalog, "deadbeef#2").unwrap();
+    assert_eq!(found.id, snippet.id);
+    assert_eq!(cited, None);
+}

@@ -755,3 +755,217 @@ fn config_output_is_default_but_cli_override_wins() {
         .success()
         .stdout(predicate::str::starts_with("path:"));
 }
+
+fn citation_library() -> (tempfile::TempDir, std::path::PathBuf, String) {
+    use snip::Library;
+    use snip::service::{CreateOptions, FragmentAddOptions, add_fragment, create_snippet};
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("Cite.sniplib");
+    let library = Library::init(&root, Some("Cite")).unwrap();
+    let snippet = create_snippet(
+        &library,
+        &CreateOptions {
+            title: "Multiple".to_owned(),
+            language: "text".to_owned(),
+            content: "first\n".to_owned(),
+            ..CreateOptions::default()
+        },
+    )
+    .unwrap();
+    add_fragment(
+        &library,
+        "Multiple",
+        &FragmentAddOptions {
+            title: "Second".to_owned(),
+            language: "text".to_owned(),
+            content: "second\n".to_owned(),
+            ..FragmentAddOptions::default()
+        },
+    )
+    .unwrap();
+    let prefix = snippet.id.simple().to_string()[..8].to_owned();
+    (temporary, root, prefix)
+}
+
+#[test]
+fn cat_accepts_a_citation_and_matches_the_fragment_flag() {
+    let (_temporary, root, prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "cat", &format!("{prefix}#2")])
+        .assert()
+        .success()
+        .stdout("second\n")
+        .stderr("");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "cat", &format!("{prefix}#3")])
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("out of range"));
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library,
+            "cat",
+            &format!("{prefix}#2"),
+            "--fragment",
+            "1",
+        ])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("fragment given twice"));
+}
+
+#[test]
+fn show_marks_the_cited_fragment_and_reports_citations() {
+    let (_temporary, root, prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library,
+            "show",
+            &format!("{prefix}#2"),
+            "--output",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["cited_fragment"], 2);
+    assert_eq!(value["citation"], prefix.as_str());
+    assert_eq!(value["fragments"].as_array().unwrap().len(), 2);
+
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "show", &prefix, "--output", "json"])
+        .output()
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(value.get("cited_fragment").is_none());
+
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "show", &format!("{prefix}#2")])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--- \u{25b8} 2. Second"));
+
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "list", "--output", "json"])
+        .output()
+        .unwrap();
+    let rows: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(rows[0]["citation"], prefix.as_str());
+}
+
+#[test]
+fn search_rows_report_the_same_citations_as_list() {
+    let (_temporary, root, _prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "list", "--output", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let list: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let citations = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            (
+                row["id"].as_str().unwrap().to_owned(),
+                row["citation"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "--output", "json", "search", "e"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let rows: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let rows = rows.as_array().unwrap();
+    assert!(!rows.is_empty());
+    for row in rows {
+        let snippet_id = row["snippet_id"].as_str().unwrap();
+        assert_eq!(
+            row["citation"].as_str(),
+            citations.get(snippet_id).map(String::as_str)
+        );
+    }
+}
+
+#[test]
+fn snippet_level_commands_reject_a_fragment_citation() {
+    let (_temporary, root, prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "delete", &format!("{prefix}#2")])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("whole snippet"));
+}
+
+#[test]
+fn path_and_structured_edit_honour_a_citation() {
+    let (_temporary, root, prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    let output = Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "path", &format!("{prefix}#2")])
+        .output()
+        .unwrap();
+    let path = String::from_utf8(output.stdout).unwrap();
+    assert!(path.trim().ends_with(".txt") || std::path::Path::new(path.trim()).is_file());
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args([
+            "--library",
+            library,
+            "edit",
+            &format!("{prefix}#2"),
+            "--content",
+            "changed\n",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "cat", &format!("{prefix}#2")])
+        .assert()
+        .success()
+        .stdout("changed\n");
+    Command::cargo_bin("snip")
+        .unwrap()
+        .args(["--library", library, "cat", &format!("{prefix}#1")])
+        .assert()
+        .success()
+        .stdout("first\n");
+}
+
+#[test]
+fn path_rejects_a_citation_with_readme_or_metadata() {
+    let (_temporary, root, prefix) = citation_library();
+    let library = root.to_str().unwrap();
+    for flag in ["--readme", "--metadata"] {
+        Command::cargo_bin("snip")
+            .unwrap()
+            .args(["--library", library, "path", &format!("{prefix}#2"), flag])
+            .assert()
+            .code(2)
+            .stderr(predicate::str::contains(
+                "it cannot be combined with --readme/--metadata",
+            ));
+    }
+}

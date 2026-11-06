@@ -323,7 +323,7 @@ pub struct OptimisticArgs {
     pub force: bool,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Clone, Debug)]
 pub struct EditArgs {
     /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,

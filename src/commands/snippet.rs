@@ -74,6 +74,24 @@ pub fn command_edit(
             "--create cannot be combined with --if-hash",
         ));
     }
+    let cited_args;
+    let args = if args.create {
+        // Under `--create` the selector is a title being created, so it is never split.
+        args
+    } else {
+        let catalog = library.scan()?;
+        let (snippet, fragment) = super::query::resolve_cited(
+            library,
+            &catalog,
+            &args.selector,
+            args.fragment.as_deref(),
+        )?;
+        let mut resolved = args.clone();
+        resolved.selector = snippet.id.to_string();
+        resolved.fragment = fragment;
+        cited_args = resolved;
+        &cited_args
+    };
     if args.create || !edit_has_structured_changes(args) {
         return edit_external(library, args, output, config);
     }
@@ -200,7 +218,7 @@ fn edit_external(
     }
     let catalog = library.scan()?;
     let mut created = false;
-    let original = match library.resolve_snippet(&catalog, &args.selector) {
+    let original = match library.resolve_snippet_literal(&catalog, &args.selector) {
         Ok(snippet) => {
             if args.create && edit_has_creation_options(args) {
                 return Err(SnipError::usage(

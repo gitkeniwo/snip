@@ -82,6 +82,7 @@ impl App {
         let density = tui.density;
         let show_line_numbers = tui.line_numbers;
         let simplified_ui = tui.simplified_ui;
+        let copy_path_style = tui.copy_path_style;
         let icon_mode = IconMode::Ascii;
         let mut app = Self {
             config_path: crate::config::config_path()?,
@@ -103,6 +104,7 @@ impl App {
             preview_scroll: 0,
             show_line_numbers,
             simplified_ui,
+            copy_path_style,
             show_sidebar: true,
             fragments_expanded: false,
             sort,

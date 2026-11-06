@@ -216,8 +216,14 @@ pub(crate) fn copy_content(app: &mut App) -> Vec<Effect> {
 pub(crate) fn copy_id(app: &mut App) -> Vec<Effect> {
     app.copy_id_effect()
 }
+pub(crate) fn copy_citation(app: &mut App) -> Vec<Effect> {
+    app.copy_citation_effect()
+}
 pub(crate) fn copy_path(app: &mut App) -> Vec<Effect> {
-    app.copy_path_effect()
+    app.copy_path_effect(false)
+}
+pub(crate) fn copy_path_raw(app: &mut App) -> Vec<Effect> {
+    app.copy_path_effect(true)
 }
 pub(crate) fn git_backup(app: &mut App) -> Vec<Effect> {
     app.git_effect(GitAction::Backup)

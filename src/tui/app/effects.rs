@@ -3,6 +3,8 @@ use super::super::modal::{ConfirmModal, Modal, ModalAction};
 use super::super::preview::PreviewTarget;
 use super::super::state::StatusLevel;
 use super::types::{App, Effect};
+use crate::clipboard::shell_quote_path;
+use crate::config::CopyPathStyle;
 use crate::external_editor::{EditorTargetKind, editor_dir_for_target, resolve_editor_cwd};
 
 impl App {
@@ -180,7 +182,27 @@ impl App {
             .collect()
     }
 
-    pub(super) fn copy_path_effect(&self) -> Vec<Effect> {
+    /// The shortest selector `snip show`/`snip cat` resolves: `937caecb`, plus `#n` when a
+    /// fragment is open.
+    pub(super) fn copy_citation_effect(&self) -> Vec<Effect> {
+        self.selected_snippet()
+            .map(|snippet| {
+                let mut text = self.catalog.citation_prefix(snippet.id);
+                if let Some(index) = self.preview_target.fragment_index() {
+                    text.push_str(&format!("#{}", index + 1));
+                }
+                Effect::CopyToClipboard {
+                    text,
+                    label: "citation".to_owned(),
+                }
+            })
+            .into_iter()
+            .collect()
+    }
+
+    /// With a fragment open this copies that fragment's file; otherwise the package
+    /// directory, so the siblings stay visible to whoever receives the path.
+    pub(super) fn copy_path_effect(&self, raw: bool) -> Vec<Effect> {
         self.selected_snippet()
             .map(|snippet| {
                 let path = match self.preview_target.fragment_index() {
@@ -189,11 +211,23 @@ impl App {
                         .get(index)
                         .map(|fragment| fragment.absolute_path.clone())
                         .unwrap_or_else(|| snippet.package_path.clone()),
-                    None => snippet.package_path.join("README.md"),
+                    None => snippet.package_path.join(""),
+                };
+                let plain = path.display().to_string();
+                let style = if raw {
+                    CopyPathStyle::Raw
+                } else {
+                    self.copy_path_style
+                };
+                let text = shell_quote_path(&plain, style).into_owned();
+                let label = if text == plain {
+                    "snippet path"
+                } else {
+                    "snippet path, quoted"
                 };
                 Effect::CopyToClipboard {
-                    text: path.display().to_string(),
-                    label: "snippet path".to_owned(),
+                    text,
+                    label: label.to_owned(),
                 }
             })
             .into_iter()
