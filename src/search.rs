@@ -4,7 +4,7 @@ use regex::{Regex, RegexBuilder};
 
 use crate::domain::{
     BriefHit, BriefSearch, CatalogSnapshot, FolderFilter, MatchedFragment, SearchField,
-    SearchResult, Snippet,
+    SearchResult, Snippet, timestamp_seconds,
 };
 use crate::error::{Result, SnipError};
 
@@ -254,6 +254,11 @@ pub fn brief(
                 else {
                     continue;
                 };
+                let excerpt = result
+                    .excerpt
+                    .chars()
+                    .take(EXCERPT_CHARS)
+                    .collect::<String>();
                 hits.push(BriefHit {
                     id: snippet.id,
                     title: snippet.title.clone(),
@@ -263,11 +268,10 @@ pub fn brief(
                     fragments: snippet.loaded_fragments.len(),
                     bytes: snippet.content_bytes(),
                     fingerprint: snippet.fingerprint.short().to_owned(),
-                    modified_at: snippet.modified_at.clone(),
-                    score: result.score,
+                    modified_at: timestamp_seconds(snippet.modified_at.as_deref()),
                     fields: Vec::new(),
                     matched_fragments: Vec::new(),
-                    excerpt: result.excerpt.chars().take(EXCERPT_CHARS).collect(),
+                    excerpt: (excerpt != snippet.title).then_some(excerpt),
                 });
                 hits.len() - 1
             }

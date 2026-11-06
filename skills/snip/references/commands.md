@@ -341,19 +341,21 @@ read, though replacing content still means reading the content first.
     "id": "bb4fc45f-…", "title": "Memos-litestream Dockerfile", "folder": "Docker",
     "tags": ["dockerfile"], "languages": ["dockerfile"], "fragments": 2,
     "bytes": 1840, "fingerprint": "a26fb40ed738e6be",
-    "modified_at": "2026-08-22T18:51:38Z", "score": 80,
+    "modified_at": "2026-08-22T18:51:38Z",
     "fields": ["title", "tag", "content"],
-    "matched_fragments": [{ "index": 1, "lines": [3, 9] }],
-    "excerpt": "Memos-litestream Dockerfile"
+    "matched_fragments": [{ "index": 1, "lines": [3, 9] }]
   }]
 }
 ```
-In `json` mode the brief shapes are printed compactly (one line) to save bytes. `total` counts matching snippets before `--limit`. `bytes` is README + every
-fragment's content + every note: what a full `show` costs in text. `fingerprint`
-is the 16-character prefix, accepted by `--if-hash`. `matched_fragments[].index`
-is what `--fragment` takes; `lines` holds up to five content line numbers (empty
-for a note-only match, and the entry is absent for title/tag/README matches).
-`excerpt` is capped at 160 characters.
+In `json` mode, brief search/list, `show --outline`, and `show --max-bytes` are
+printed as compact one-line JSON. `total` counts matching snippets before
+`--limit`. `bytes` is README + every fragment's content + every note: what a
+full `show` costs in text. `fingerprint` is the 16-character prefix, accepted by
+`--if-hash`. `modified_at` is rounded to whole seconds.
+`matched_fragments[].index` is what `--fragment` takes; `lines` holds up to five
+content line numbers (empty for a note-only match, and the entry is absent for
+title/tag/README matches). `excerpt` is capped at 160 characters and omitted
+when it equals `title`.
 
 ### Brief list row (`list --brief`)
 `id`, `title`, `folder`, `tags`, `fragments`, `bytes`, 16-character
@@ -380,7 +382,8 @@ for a note-only match, and the entry is absent for title/tag/README matches).
 fragment with `truncated: true` is incomplete, and so is the whole read when the
 top-level `truncated` is true. `omitted_bytes` plus the emitted text equals the
 snippet's `bytes`. `--if-hash` accepts the full `fingerprint` shown here or any
-prefix of at least 16 hex characters.
+prefix of at least 16 hex characters. JSON for this shape is compact; JSONL and
+human output are unchanged.
 
 ### Mutation result (`create`, `edit`, `fragment *`, `delete`)
 ```json

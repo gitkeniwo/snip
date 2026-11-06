@@ -4,7 +4,7 @@ use serde_json::json;
 use snip::Library;
 use snip::budget::{LineRange, cut, human_bytes, select_lines};
 use snip::config::{AppConfig, PreviewRenderSetting};
-use snip::domain::{CatalogSnapshot, FolderFilter, Snippet, folder_label};
+use snip::domain::{CatalogSnapshot, FolderFilter, Snippet, folder_label, timestamp_seconds};
 use snip::error::{Result, SnipError};
 use snip::render::{RenderMode, preview};
 use snip::search::{self, MemoryIndex, SearchIndex, SearchQuery};
@@ -324,7 +324,13 @@ fn show_budgeted(snippet: &Snippet, budget: usize, output: OutputMode) -> Result
     view.insert("fragments".into(), json!(fragment_rows));
     view.insert("truncated".into(), json!(truncated));
     view.insert("omitted_bytes".into(), json!(total - emitted));
-    print_record(&serde_json::Value::Object(view), output)
+    let view = serde_json::Value::Object(view);
+    if output == OutputMode::Json {
+        println!("{}", serde_json::to_string(&view)?);
+        Ok(())
+    } else {
+        print_record(&view, output)
+    }
 }
 
 pub fn command_cat(library: &Library, args: &CatArgs) -> Result<()> {
@@ -347,13 +353,27 @@ pub fn command_cat(library: &Library, args: &CatArgs) -> Result<()> {
     };
     if shown.len() < full.len() {
         let total_lines = full.lines().count();
-        let printed = shown.lines().count().max(usize::from(!shown.is_empty()));
-        let last_line = (first_line + printed).saturating_sub(1).max(first_line);
-        eprintln!(
-            "note: printed lines {first_line}-{last_line} of {total_lines} ({} of {})",
-            human_bytes(shown.len()),
-            human_bytes(full.len())
-        );
+        if shown.is_empty() {
+            eprintln!(
+                "note: printed 0 of {total_lines} lines ({} of {})",
+                human_bytes(shown.len()),
+                human_bytes(full.len())
+            );
+        } else {
+            let printed = shown.lines().count().max(1);
+            let last_line = first_line + printed - 1;
+            let cut_mid_line = shown.len() < selected.len() && !shown.ends_with('\n');
+            eprintln!(
+                "note: printed lines {first_line}-{last_line} of {total_lines} ({} of {}){}",
+                human_bytes(shown.len()),
+                human_bytes(full.len()),
+                if cut_mid_line {
+                    format!(" (line {last_line} cut mid-line)")
+                } else {
+                    String::new()
+                }
+            );
+        }
     }
     print!("{shown}");
     io::stdout().flush()?;
@@ -497,7 +517,7 @@ fn snippet_brief(snippet: &&Snippet) -> serde_json::Value {
         "fragments": snippet.loaded_fragments.len(),
         "bytes": snippet.content_bytes(),
         "fingerprint": snippet.fingerprint.short(),
-        "modified_at": snippet.modified_at,
+        "modified_at": timestamp_seconds(snippet.modified_at.as_deref()),
     })
 }
 

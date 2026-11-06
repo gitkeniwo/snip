@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 pub const FORMAT_NAME: &str = "snip-library";
@@ -16,6 +17,18 @@ pub fn folder_label(folder: &str) -> &str {
     } else {
         folder
     }
+}
+
+/// RFC 3339 to whole-second precision for the compact read shapes. Input that
+/// does not parse is preserved rather than dropped from otherwise valid output.
+pub fn timestamp_seconds(value: Option<&str>) -> Option<String> {
+    value.map(|value| {
+        OffsetDateTime::parse(value, &Rfc3339)
+            .ok()
+            .and_then(|timestamp| timestamp.replace_nanosecond(0).ok())
+            .and_then(|timestamp| timestamp.format(&Rfc3339).ok())
+            .unwrap_or_else(|| value.to_owned())
+    })
 }
 
 /// A folder restriction shared by `snip list`, `snip search`, and the TUI sidebar,
@@ -367,10 +380,10 @@ pub struct BriefHit {
     /// 16-character prefix, accepted by `--if-hash`.
     pub fingerprint: String,
     pub modified_at: Option<String>,
-    pub score: u32,
     pub fields: Vec<SearchField>,
     pub matched_fragments: Vec<MatchedFragment>,
-    pub excerpt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excerpt: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -424,5 +437,22 @@ mod tests {
         let filter = FolderFilter::recursive("图床");
         assert!(filter.matches("图床/配置"));
         assert!(!filter.matches("图床配置"));
+    }
+
+    #[test]
+    fn timestamps_for_brief_output_drop_fractional_seconds() {
+        assert_eq!(
+            timestamp_seconds(Some("2026-08-03T02:43:09.381911935Z")).as_deref(),
+            Some("2026-08-03T02:43:09Z")
+        );
+        assert_eq!(
+            timestamp_seconds(Some("2026-08-03T02:43:09Z")).as_deref(),
+            Some("2026-08-03T02:43:09Z")
+        );
+        assert_eq!(
+            timestamp_seconds(Some("not a timestamp")).as_deref(),
+            Some("not a timestamp")
+        );
+        assert_eq!(timestamp_seconds(None), None);
     }
 }

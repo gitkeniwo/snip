@@ -4,6 +4,7 @@
 
 use assert_cmd::Command;
 use serde_json::Value;
+use std::collections::HashSet;
 use std::path::Path;
 
 fn run(library: &Path, arguments: &[&str]) -> std::process::Output {
@@ -112,21 +113,23 @@ fn search_brief_is_one_row_per_snippet_and_small() {
     let rows = brief["results"].as_array().unwrap();
     assert_eq!(rows.len(), 30);
     assert!(full.as_array().unwrap().len() > rows.len());
-    let mut ids = rows.iter().map(|row| row["id"].clone()).collect::<Vec<_>>();
-    ids.dedup();
+    let ids = rows
+        .iter()
+        .map(|row| row["id"].as_str().unwrap())
+        .collect::<HashSet<_>>();
     assert_eq!(ids.len(), 30);
     assert!(
-        brief_bytes * 10 <= full_bytes * 4,
-        "brief {brief_bytes} B should be at most 40% of {full_bytes} B"
+        brief_bytes * 100 <= full_bytes * 60,
+        "brief {brief_bytes} B should be at most 60% of {full_bytes} B"
     );
-    // Recorded at implementation time (+10% margin).
-    assert!(
-        brief_bytes <= 21_000,
-        "brief search grew to {brief_bytes} B"
-    );
+    // Recorded at 9,055 B, plus a 10% margin.
+    assert!(brief_bytes <= 9_961, "brief search grew to {brief_bytes} B");
     let row = &rows[0];
     assert_eq!(row["fingerprint"].as_str().unwrap().len(), 16);
     assert!(row.get("path").is_none());
+    assert!(row.get("score").is_none());
+    assert!(row.get("excerpt").is_none(), "title hits omit excerpt");
+    assert!(!row["modified_at"].as_str().unwrap().contains('.'));
 
     let (limited, _) = json(&library, &["search", "git", "--brief", "-m", "5"]);
     assert_eq!(limited["total"], 30);
@@ -150,6 +153,7 @@ fn search_brief_reports_matched_fragments_and_sizes() {
     assert_eq!(row["languages"], serde_json::json!(["toml", "bash"]));
     assert_eq!(row["matched_fragments"][0]["index"], 2);
     assert_eq!(row["matched_fragments"][0]["lines"], serde_json::json!([1]));
+    assert_eq!(row["excerpt"], "echo second");
     let (shown, _) = json(&library, &["show", "Big multi"]);
     let bytes: usize = shown["loaded_fragments"]
         .as_array()
@@ -171,6 +175,12 @@ fn show_outline_has_no_text_and_stays_small() {
         assert!(fragment.get("note").is_none());
     }
     assert_eq!(outline["fragments"][0]["lines"], 1200);
+    let output = run(&library, &["show", "Big multi", "--outline"]);
+    assert_eq!(
+        output.stdout.iter().filter(|byte| **byte == b'\n').count(),
+        1,
+        "JSON output should be compact"
+    );
     assert!(
         run(&library, &["show", "x", "--outline", "--max-bytes", "5"])
             .status
@@ -233,11 +243,21 @@ fn cat_lines_and_max_bytes_print_the_exact_slice() {
     let capped = cat(&["Big multi", "--fragment", "1", "--max-bytes", "70"]);
     let out = String::from_utf8(capped.stdout).unwrap();
     assert_eq!(out.lines().count(), 2);
+    let note = String::from_utf8(capped.stderr).unwrap();
+    assert!(note.contains("printed lines 1-2 of 1200"));
+    assert!(!note.contains("cut mid-line"));
+
+    let empty = cat(&["Big multi", "--fragment", "1", "--max-bytes", "0"]);
+    assert!(empty.stdout.is_empty());
+    let note = String::from_utf8(empty.stderr).unwrap();
     assert!(
-        String::from_utf8(capped.stderr)
-            .unwrap()
-            .contains("printed lines 1-2 of 1200")
+        note.starts_with("note: printed 0 of 1200 lines (0 B of "),
+        "{note}"
     );
+
+    let midline = cat(&["One long line", "--max-bytes", "1001"]);
+    let note = String::from_utf8(midline.stderr).unwrap();
+    assert!(note.ends_with("(line 1 cut mid-line)\n"), "{note}");
 
     let whole = cat(&["Git helper 00"]);
     assert!(whole.stderr.is_empty(), "a full read prints no note");

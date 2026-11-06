@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per matching line; `snip list --brief` returns compact rows; `snip show
   --outline` and `--max-bytes N` return a budgeted view with `truncated` and
   `omitted_bytes`; `snip cat --lines A:B` and `--max-bytes N` print a slice and
-  report truncation on stderr. Cuts land on line boundaries.
+  report truncation on stderr. Cuts land on line boundaries. Brief and budgeted
+  show JSON is compact; brief timestamps have whole-second precision and an
+  excerpt that repeats the title is omitted.
 - **`--if-hash` accepts a fingerprint prefix** of at least 16 hex characters (the
   form brief rows print). Shorter or non-hex values are a usage error (exit 2);
   the full 64-character form keeps working.

@@ -547,6 +547,9 @@ replacement content
 EOF
 ```
 
+With `--output json`, the `--brief`, `--outline`, and `--max-bytes` shapes are
+compact one-line JSON. JSONL and human output are unchanged.
+
 `search` results carry the snippet's `fingerprint`, so a metadata change can go
 straight to `--if-hash` without a separate `show`. Commands that would open an
 editor fail with a usage error when stdout is not a terminal, so scripts never
