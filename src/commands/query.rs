@@ -79,6 +79,8 @@ pub fn command_list(library: &Library, args: &FilterArgs, output: OutputMode) ->
                 snippet.tags.join(", ")
             );
         }
+    } else if args.brief && output == OutputMode::Json {
+        println!("{}", serde_json::to_string(&rows)?);
     } else {
         print_records(&rows, output)?;
     }
@@ -128,7 +130,9 @@ pub fn command_search(library: &Library, args: &SearchArgs, output: OutputMode) 
                     );
                 }
             }
-            OutputMode::Json => print_record(&brief, output)?,
+            // Compact on purpose: pretty-printing spends a third of the bytes on
+            // indentation, which is exactly what this flag exists to avoid.
+            OutputMode::Json => println!("{}", serde_json::to_string(&brief)?),
             OutputMode::Jsonl => print_records(&brief.results, output)?,
         }
         return Ok(());

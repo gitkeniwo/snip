@@ -348,7 +348,7 @@ read, though replacing content still means reading the content first.
   }]
 }
 ```
-`total` counts matching snippets before `--limit`. `bytes` is README + every
+In `json` mode the brief shapes are printed compactly (one line) to save bytes. `total` counts matching snippets before `--limit`. `bytes` is README + every
 fragment's content + every note: what a full `show` costs in text. `fingerprint`
 is the 16-character prefix, accepted by `--if-hash`. `matched_fragments[].index`
 is what `--fragment` takes; `lines` holds up to five content line numbers (empty
