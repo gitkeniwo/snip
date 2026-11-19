@@ -56,6 +56,9 @@ an error. Fragments: `--fragment N` (1-based) or a UUID prefix.
   `total` says if the list is complete. Use `search` for lookup, not `rg`.
 - `bytes` is the cost of reading the whole snippet. Up to about 8 KB, `show`
   it directly; above that go outline → one fragment → a line range.
+- Looking for one thing inside a big snippet? Search for the thing itself
+  (`search parse_args --brief`), not the title: `matched_fragments` gives the
+  fragment and line numbers, so the next read is `cat --fragment N --lines A:B`.
 - `show --outline` lists fragments (language, bytes, lines, `has_note`) with no
   text. `--max-bytes N` fills README, then each fragment and note in order, and
   cuts on line boundaries.
