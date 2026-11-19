@@ -80,21 +80,14 @@ the short form is the citation convention the skill documents.
   one, since they run `snip show <citation>` directly. Revisit only if links
   from Markdown notes become a real request.
 
-### `snip agent setup --client <name>`
+### Versioned skill installs — no `snip agent setup`
 
-- [ ] One command that installs the skill for a named client (`claude-code`,
-  `codex`, `opencode`, `omp`, or the vendor-neutral `~/.agents/skills/`). Today
-  the README's install steps symlink `skills/snip` from a repository checkout,
-  so users who installed through Homebrew, apt, AUR, Scoop, or `install.sh` have
-  no skill to link. Embed `skills/snip` in the binary the way `man/` is embedded,
-  and write it out.
-- [ ] Keep the written copy from going stale across upgrades — the weakness of
-  SnippetsLab's static skill copy. Record the snip version that wrote it, have
-  `snip agent setup --check` (and possibly `snip doctor`) report a mismatch, and
-  make re-running `setup` replace it. A symlink into a checkout stays supported
-  for development and is left alone.
-- [ ] Once `snip mcp` exists, the same command writes that client's MCP server
-  entry.
+Agents install the skill themselves from a URL, so a setup command adds little.
+The real risk was a copy that describes a different binary. `SKILL.md` now
+names the version it was written for, the README's install prompt fetches
+`tree/v<snip --version>/skills/snip`, and `tests/skill.rs` fails until the
+release bump updates that line. Writing an MCP client entry is revisited only
+if `snip mcp` is built.
 
 ### `snip mcp` — planned, not prioritized
 
@@ -185,7 +178,11 @@ describes.
   confirm fields, folders, tags, fragments, and notes still land correctly;
   update the field mappings for any format the current decoder misses.
 
-### Import through `lab`
+### Import through `lab` — deferred
+
+snip is the primary library and SnippetsLab only an import source, so a
+continuous mirror has no user today. Revisit if a SnippetsLab-primary workflow
+appears, or as the way to run the audit above.
 
 SnippetsLab 2.7 ships `lab`, an official JSON interface (`lab search --limit 0`,
 `lab fetch --format json`). Reading through it stops depending on the private

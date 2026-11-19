@@ -5,6 +5,9 @@ description: Operate a snip snippet library from the command line — the filesy
 
 # Using the snip CLI
 
+Written for **snip 0.6.4**. If `snip --version` differs, re-fetch this skill
+from `https://github.com/gitkeniwo/snip/tree/v<that version>/skills/snip`.
+
 A library is a `*.sniplib` directory; each snippet is a package directory with a
 TOML manifest plus content files. No database: a human in the TUI, an editor,
 and you can all write at once. The fingerprint guard (`--if-hash`) is what makes

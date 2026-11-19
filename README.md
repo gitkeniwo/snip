@@ -570,7 +570,9 @@ Structured stdout is kept separate from errors. Exit codes are stable:
 
 [`skills/snip`](skills/snip/SKILL.md) packages all of the above into a skill any
 agent can load: vocabulary, selectors, JSON payload shapes, and the `--if-hash`
-workflow. Symlinking keeps it current as the CLI evolves.
+workflow. The skill names the snip version it was written for, and an agent
+that sees a different `snip --version` re-fetches the matching one. Symlinking
+from a checkout keeps it current as the CLI evolves.
 
 ```bash
 mkdir -p ~/.agents/skills && ln -s "$PWD/skills/snip" ~/.agents/skills/snip
@@ -593,8 +595,9 @@ done
 Or hand the job to the agent itself:
 
 ```text
-Install the snip agent skill from
-https://github.com/gitkeniwo/snip/tree/main/skills/snip
+Run `snip --version`, then install the snip agent skill from
+https://github.com/gitkeniwo/snip/tree/v<that version>/skills/snip
+(the release tag, so the skill matches the flags this binary has).
 
 Fetch that directory (SKILL.md plus everything under references/) and put it at
 ~/.agents/skills/snip if you read that location, otherwise your own skills
