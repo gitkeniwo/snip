@@ -1225,3 +1225,46 @@ fn search_supports_regex_context_fields_and_limits() {
     .unwrap();
     assert_eq!(stale.status.code(), Some(4));
 }
+
+#[test]
+fn if_hash_accepts_a_prefix_of_at_least_sixteen_characters() {
+    let temporary = tempfile::tempdir().unwrap();
+    let library = temporary.path().join("Prefix.sniplib");
+    json(&library, &["init", library.to_str().unwrap()]);
+    let created = json(
+        &library,
+        &["create", "--title", "Prefix", "--content", "one\n"],
+    );
+    let id = snippet_id(&created);
+    let full = created["snippet"]["fingerprint"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let edit = |hash: &str, title: &str| {
+        command(
+            &library,
+            &["edit", &id, "--title", title, "--if-hash", hash],
+        )
+        .output()
+        .unwrap()
+    };
+
+    // Too short or not hex is a usage error, before anything is compared.
+    assert_eq!(edit(&full[..15], "A").status.code(), Some(2));
+    assert_eq!(edit("zzzzzzzzzzzzzzzz", "A").status.code(), Some(2));
+    // A stale 16-character prefix is a conflict.
+    let stale = if full.starts_with('0') { "1" } else { "0" };
+    let wrong = format!("{stale}{}", &full[1..16]);
+    assert_eq!(edit(&wrong, "A").status.code(), Some(4));
+    // The matching prefix works, and so does the full value afterwards.
+    let ok = edit(&full[..16], "Second");
+    assert!(
+        ok.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
+    let updated: Value = serde_json::from_slice(&ok.stdout).unwrap();
+    let new_full = updated["snippet"]["fingerprint"].as_str().unwrap();
+    assert!(edit(new_full, "Third").status.success());
+}

@@ -74,9 +74,9 @@ pub enum Command {
     /// Search titles, tags, notes, and fragment content.
     Search(SearchArgs),
     /// Show a complete snippet.
-    Show(SelectorArgs),
+    Show(ShowArgs),
     /// Print one fragment with no decorations.
-    Cat(FragmentSelectorArgs),
+    Cat(CatArgs),
     /// Render a snippet for terminal or HTML preview.
     Preview(PreviewArgs),
     /// Print a managed filesystem path.
@@ -153,6 +153,9 @@ pub struct FilterArgs {
     /// Order of the listing. Pinned snippets always come first.
     #[arg(long, default_value = "modified")]
     pub sort: SortMode,
+    /// Compact rows (id, title, folder, tags, fragment count, bytes, short fingerprint) for agents.
+    #[arg(long)]
+    pub brief: bool,
 }
 
 impl FilterArgs {
@@ -188,6 +191,10 @@ pub struct SearchArgs {
     /// Keep only the top N results after scoring.
     #[arg(long, short = 'm', value_name = "N")]
     pub limit: Option<usize>,
+    /// One row per snippet instead of one per match, with sizes and matched fragments but no content.
+    /// JSON becomes {"total": N, "results": [...]}; --limit then counts snippets.
+    #[arg(long, conflicts_with = "context")]
+    pub brief: bool,
 }
 
 impl SearchArgs {
@@ -199,18 +206,41 @@ impl SearchArgs {
 }
 
 #[derive(Args, Debug)]
-pub struct SelectorArgs {
+pub struct ShowArgs {
     /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
+    /// Print the structure only: fragments with language, bytes, lines, and whether they have a note. No text.
+    #[arg(long, conflicts_with = "max_bytes")]
+    pub outline: bool,
+    /// Stop after about N bytes of text (README, then each fragment and note in order), cutting on line boundaries.
+    #[arg(long, value_name = "N")]
+    pub max_bytes: Option<usize>,
+}
+
+impl ShowArgs {
+    /// The text budget, if either flag asked for one. `--outline` is `--max-bytes 0`.
+    pub fn budget(&self) -> Option<usize> {
+        if self.outline {
+            Some(0)
+        } else {
+            self.max_bytes
+        }
+    }
 }
 
 #[derive(Args, Debug)]
-pub struct FragmentSelectorArgs {
+pub struct CatArgs {
     /// Snippet title, folder/title, UUID prefix, or package path.
     pub selector: String,
     /// 1-based index or fragment UUID prefix.
     #[arg(long)]
     pub fragment: Option<String>,
+    /// Print only these 1-based inclusive lines: A:B, A:, :B, or a single A.
+    #[arg(long, value_name = "RANGE")]
+    pub lines: Option<String>,
+    /// Stop after about N bytes, cutting on a line boundary. Applied after --lines.
+    #[arg(long, value_name = "N")]
+    pub max_bytes: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
