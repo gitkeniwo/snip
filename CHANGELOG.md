@@ -33,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fragment. Combining `#n` with `--fragment` is a usage error, and commands that
   act on a whole snippet reject it. A selector that resolves as written, such as
   a title containing `#`, still wins.
-- **`citation` JSON field** on `list`, `show`, and `search` rows: the shortest
+- **`citation` JSON field** on `list`, `show`, and `search` rows (brief and
+  budgeted shapes included): the shortest
   UUID prefix, at least 8 digits, unique among live snippets. Text output of
   `list` and `search` shows it too.
 - **`copy.citation`** TUI command, bound to `Y`.
