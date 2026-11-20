@@ -12,7 +12,9 @@ and any agent without skill support can simply read `SKILL.md` as documentation.
 ## Installing
 
 Copy or symlink the skill directory into the agent's skills folder. Symlinking
-keeps it current as the CLI evolves:
+keeps it current as the CLI evolves. A copy should come from the release tag
+matching `snip --version` (`tree/v<version>/skills/snip`), not `main`; the
+skill's first line names that version, so a stale copy is easy to spot:
 
 ```bash
 mkdir -p ~/.agents/skills && ln -s "$PWD/skills/snip" ~/.agents/skills/snip
@@ -49,6 +51,9 @@ config key. Install the binary with `cargo install --path .` from the repository
 root.
 
 ## Authoring notes
+
+The "Written for snip X.Y.Z" line in `snip/SKILL.md` must equal the crate
+version; `tests/skill.rs` fails until the release bump updates it.
 
 Keep `SKILL.md` under ~500 lines and push exhaustive detail into `references/`,
 which the agent loads only when it needs it. Everything documented should be
