@@ -410,7 +410,7 @@ human output are unchanged.
 ```
 `changes` is null on create. `new_path` differs from `old_path` when the title
 or folder changed. Carry `new_fingerprint` into your next `--if-hash`. With
-`--brief`, `snippet` is the `list --brief` row (id, title, folder, tags,
+`--brief`, `snippet` is the `list --brief` row minus `citation` (id, title, folder, tags,
 fragments, bytes, short fingerprint, modified_at) and no text.
 
 ### Snippet (`show`, and the `snippet` field above)

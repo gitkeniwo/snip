@@ -236,3 +236,28 @@ fn create_brief_omits_the_text() {
     assert_eq!(result["snippet"]["title"], "Big");
     assert!(result["changes"].is_null());
 }
+
+#[test]
+fn edit_lines_accepts_a_citation_selector() {
+    let (_temporary, library, id) = fixture();
+    let citation = json(&library, &["list", "--brief"], "").0[0]["citation"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (result, _) = json(
+        &library,
+        &[
+            "edit",
+            &format!("{citation}#2"),
+            "--lines",
+            "1",
+            "--content",
+            "first",
+            "--brief",
+        ],
+        "",
+    );
+    assert_eq!(result["changes"]["fields"][0], "fragments[2].content");
+    assert!(cat(&library, &[&id, "--fragment", "2"]).starts_with("first\nline 0002"));
+    assert_eq!(cat(&library, &[&id, "--fragment", "1"]), big_text());
+}
