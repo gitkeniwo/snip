@@ -74,6 +74,31 @@ impl LineRange {
 /// number of the first selected line. A start past the end is a usage error;
 /// an end past the end clamps.
 pub fn select_lines(text: &str, range: LineRange) -> Result<(&str, usize)> {
+    let (begin, end) = line_span(text, range)?;
+    Ok((&text[begin..end], range.start))
+}
+
+/// `text` with the lines in `range` replaced by `replacement`, the inverse of
+/// [`select_lines`]: splicing back exactly what `select_lines` returned is a
+/// no-op. A replacement missing the newline that ended the replaced lines gets
+/// one, and one that adds a newline the last line lacked loses it. An empty
+/// replacement deletes the lines.
+pub fn splice_lines(text: &str, range: LineRange, replacement: &str) -> Result<String> {
+    let (begin, end) = line_span(text, range)?;
+    let replaced_newline = text[begin..end].ends_with('\n');
+    let mut middle = replacement.to_owned();
+    if !middle.is_empty() {
+        if replaced_newline && !middle.ends_with('\n') {
+            middle.push('\n');
+        } else if !replaced_newline && end == text.len() && middle.ends_with('\n') {
+            middle.pop();
+        }
+    }
+    Ok(format!("{}{middle}{}", &text[..begin], &text[end..]))
+}
+
+/// Byte offsets of the lines in `range`, clamped to the end of `text`.
+fn line_span(text: &str, range: LineRange) -> Result<(usize, usize)> {
     let total = text.lines().count();
     if range.start > total.max(1) {
         return Err(SnipError::usage(format!(
@@ -81,20 +106,18 @@ pub fn select_lines(text: &str, range: LineRange) -> Result<(&str, usize)> {
             range.start
         )));
     }
-    let mut offsets = text.match_indices('\n').map(|(index, _)| index + 1);
-    let begin = if range.start == 1 {
-        0
-    } else {
-        offsets.nth(range.start - 2).unwrap_or(text.len())
-    };
-    let end = match range.end {
-        None => text.len(),
-        Some(end) => {
-            let mut offsets = text.match_indices('\n').map(|(index, _)| index + 1);
-            offsets.nth(end - 1).unwrap_or(text.len())
+    let line_start = |line: usize| -> usize {
+        if line == 1 {
+            0
+        } else {
+            text.match_indices('\n')
+                .nth(line - 2)
+                .map_or(text.len(), |(index, _)| index + 1)
         }
     };
-    Ok((&text[begin..end.max(begin)], range.start))
+    let begin = line_start(range.start);
+    let end = range.end.map_or(text.len(), |end| line_start(end + 1));
+    Ok((begin, end.max(begin)))
 }
 
 /// `812` → `812 B`, `30000` → `29.3 KB`.
@@ -143,5 +166,25 @@ mod tests {
         assert!(LineRange::parse("0:3").is_err());
         assert!(LineRange::parse("3:2").is_err());
         assert!(LineRange::parse("x").is_err());
+    }
+
+    #[test]
+    fn splice_is_the_inverse_of_select() {
+        let splice = |text: &str, spec: &str, with: &str| {
+            splice_lines(text, LineRange::parse(spec).unwrap(), with).unwrap()
+        };
+        let text = "1\n2\n3\n4\n";
+        for spec in ["1", "2:3", "3:", ":2", "4", "3:99"] {
+            let (slice, _) = select_lines(text, LineRange::parse(spec).unwrap()).unwrap();
+            assert_eq!(splice(text, spec, slice), text, "{spec}");
+        }
+        assert_eq!(splice(text, "2:3", "two\nthree\n"), "1\ntwo\nthree\n4\n");
+        assert_eq!(splice(text, "2", "two"), "1\ntwo\n3\n4\n");
+        assert_eq!(splice(text, "2:3", ""), "1\n4\n");
+        assert_eq!(splice(text, "2", "a\nb\nc"), "1\na\nb\nc\n3\n4\n");
+        let unterminated = "1\n2";
+        assert_eq!(splice(unterminated, "2", "two\n"), "1\ntwo");
+        assert_eq!(splice(unterminated, "2", "two"), "1\ntwo");
+        assert!(splice_lines(text, LineRange::parse("6").unwrap(), "x").is_err());
     }
 }

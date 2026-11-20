@@ -341,6 +341,9 @@ pub struct CreateArgs {
     /// Lock the new snippet against mutation.
     #[arg(long)]
     pub lock: bool,
+    /// Report the result as a brief snippet entry, without its text.
+    #[arg(long)]
+    pub brief: bool,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -399,6 +402,9 @@ pub struct EditArgs {
     /// Read replacement fragment content from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub content_file: Option<String>,
+    /// Replace only these 1-based inclusive lines of the fragment with --content or --content-file: A:B, A:, :B, or a single A.
+    #[arg(long, value_name = "RANGE")]
+    pub lines: Option<String>,
     /// Replacement fragment note (Markdown), given inline.
     #[arg(long, conflicts_with_all = ["note_file", "clear_note"])]
     pub note: Option<String>,
@@ -426,12 +432,18 @@ pub struct EditArgs {
     /// Edit the selected fragment note instead of its content.
     #[arg(long)]
     pub note_editor: bool,
+    /// Report the result as a brief snippet entry plus changes, without its text.
+    #[arg(long)]
+    pub brief: bool,
     #[command(flatten)]
     pub optimistic: OptimisticArgs,
 }
 
 #[derive(Args, Debug)]
 pub struct FragmentArgs {
+    /// Report the result as a brief snippet entry plus changes, without its text.
+    #[arg(long, global = true)]
+    pub brief: bool,
     #[command(subcommand)]
     pub command: FragmentCommand,
 }
@@ -492,6 +504,9 @@ pub struct FragmentEditArgs {
     /// Read replacement fragment content from a UTF-8 file; use - for stdin.
     #[arg(long)]
     pub content_file: Option<String>,
+    /// Replace only these 1-based inclusive lines with --content or --content-file: A:B, A:, :B, or a single A.
+    #[arg(long, value_name = "RANGE")]
+    pub lines: Option<String>,
     /// Replacement fragment note (Markdown), given inline.
     #[arg(long, conflicts_with_all = ["note_file", "clear_note"])]
     pub note: Option<String>,

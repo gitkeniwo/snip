@@ -81,6 +81,11 @@ snip edit Greeter --content 'echo hi' --if-hash "$HASH" --output json
 - A stale hash → `conflict` (exit 4): re-read, reassess, retry. `--force`
   only when the user said to overwrite.
 - Every mutation returns `changes.new_fingerprint`; reuse it for the next edit.
+  Add `--brief` to `create`, `edit` and `fragment` so the result doesn't echo
+  the whole snippet back.
+- Changing a few lines of a big fragment: read them with `cat --lines A:B`,
+  then `edit --fragment N --lines A:B --content-file - --if-hash … --brief`
+  replaces just those lines. Never round-trip the whole fragment.
 - A hash from search/list is fine for **metadata** changes (tag, move, rename,
   pin, delete). Before replacing content, read the content first.
 - `edit` needs at least one structured flag (`--title --folder --tag

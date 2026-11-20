@@ -4,7 +4,7 @@
 .SH "NAME"
 snip\-create \- create a snippet
 .SH "SYNOPSIS"
-\fBsnip create\fR <\fB\-\-title\fR> [\fB\-\-folder\fR] [\fB\-\-tag\fR] [\fB\-\-language\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-pin\fR] [\fB\-\-lock\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsnip create\fR <\fB\-\-title\fR> [\fB\-\-folder\fR] [\fB\-\-tag\fR] [\fB\-\-language\fR] [\fB\-\-fragment\-title\fR] [\fB\-\-content\fR] [\fB\-\-content\-file\fR] [\fB\-\-note\fR] [\fB\-\-note\-file\fR] [\fB\-\-readme\fR] [\fB\-\-readme\-file\fR] [\fB\-\-pin\fR] [\fB\-\-lock\fR] [\fB\-\-brief\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH "DESCRIPTION"
 Create a snippet with one initial fragment. The title is required; language, folder, and tags fall back to configured defaults when omitted. \-\-tag is repeatable, and a missing folder is created automatically.
 .PP
@@ -51,6 +51,9 @@ Pin the new snippet
 .TP
 \fB\-\-lock\fR
 Lock the new snippet against mutation
+.TP
+\fB\-\-brief\fR
+Report the result as a brief snippet entry, without its text
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

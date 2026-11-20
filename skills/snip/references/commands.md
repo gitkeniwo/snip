@@ -136,6 +136,15 @@ Structured changes: `--title`, `--folder`, `--tag` (repeatable), `--clear-tags`,
 `--readme` / `--readme-file` / `--clear-readme`, and `--fragment <F>` to target
 one fragment.
 
+`--lines A:B` with `--content` / `--content-file` replaces only those 1-based
+inclusive lines of the fragment (same range syntax as `cat --lines`; an empty
+replacement deletes them). Writing back exactly what `cat --lines` printed is a
+no-op. The write is pinned to the fingerprint read for the splice, so pass
+`--if-hash` anyway when you read the lines earlier.
+
+`--brief` (also on `create` and `fragment`) returns the brief snippet entry
+instead of the full snippet; see Mutation result.
+
 External-editor modes spawn `$EDITOR` and block until it exits, so they are for
 humans: a bare `edit` with no structured flag, plus `--metadata-editor`,
 `--readme-editor`, and `--note-editor`. Each checks for a terminal first and
@@ -147,7 +156,7 @@ blocking — but pass a structured flag to actually get work done.
 | Subcommand | Signature |
 |---|---|
 | `add <SELECTOR>` | `--title <TITLE>` (required) `--language` `--content`/`--content-file` `--note`/`--note-file` |
-| `edit <SELECTOR> <FRAGMENT>` | `--title` `--language` `--content`/`--content-file` `--note`/`--note-file` `--clear-note` |
+| `edit <SELECTOR> <FRAGMENT>` | `--title` `--language` `--content`/`--content-file` `--lines A:B` `--note`/`--note-file` `--clear-note` |
 | `remove <SELECTOR> <FRAGMENT>` | — |
 | `reorder <SELECTOR> <FRAGMENT>` | `--position <N>` (1-based) |
 
@@ -397,7 +406,9 @@ human output are unchanged.
 }
 ```
 `changes` is null on create. `new_path` differs from `old_path` when the title
-or folder changed. Carry `new_fingerprint` into your next `--if-hash`.
+or folder changed. Carry `new_fingerprint` into your next `--if-hash`. With
+`--brief`, `snippet` is the `list --brief` row (id, title, folder, tags,
+fragments, bytes, short fingerprint, modified_at) and no text.
 
 ### Snippet (`show`, and the `snippet` field above)
 Adds to the list entry: `readme` (string or absent), `package_path`, and

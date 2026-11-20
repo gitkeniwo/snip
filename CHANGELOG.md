@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   report truncation on stderr. Cuts land on line boundaries. Brief and budgeted
   show JSON is compact; brief timestamps have whole-second precision and an
   excerpt that repeats the title is omitted.
+- **Edit part of a large fragment.** `snip edit --lines A:B` and `snip fragment
+  edit --lines A:B` replace only those lines with `--content` /
+  `--content-file`, using `cat --lines` ranges; writing back what `cat --lines`
+  printed is a no-op, and the write is pinned to the fingerprint it spliced
+  into. `--brief` on `create`, `edit`, and `fragment` returns the brief snippet
+  entry instead of echoing the whole snippet.
 - **`--if-hash` accepts a fingerprint prefix** of at least 16 hex characters (the
   form brief rows print). Shorter or non-hex values are a usage error (exit 2);
   the full 64-character form keeps working.

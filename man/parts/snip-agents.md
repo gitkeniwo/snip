@@ -23,7 +23,7 @@ show --outline and show --max-bytes emit a budgeted view: snippet metadata, read
 show emits a complete snippet, including package_path, optional readme, fingerprint, and loaded_fragments. Each loaded fragment contains id, title, language, relative file, content, optional note_content, and absolute_path. cat is preferable when only raw fragment bytes are needed.
 
 %%WRITE CONTRACT
-Mutations emit snippet plus changes. changes contains fields, old_fingerprint, new_fingerprint, old_path, and new_path; create uses null because no prior snippet exists. Carry new_fingerprint into the next write.
+Mutations emit snippet plus changes. changes contains fields, old_fingerprint, new_fingerprint, old_path, and new_path; create uses null because no prior snippet exists. Carry new_fingerprint into the next write. With --brief on create, edit, or fragment, snippet is the list --brief row instead of the full snippet.
 
 Read the current record before replacing content. Assert its fingerprint with --if-hash. A conflict means another writer changed or locked the target; re-read and reassess rather than automatically adding --force.
 
