@@ -59,10 +59,13 @@ pub fn send_to_pager(content: &str, configured_pager: Option<&str>) -> Result<()
 }
 
 /// `action` labels the human-mode first line: `created`, `updated`, or `restored`.
+/// `brief` swaps the full snippet in structured output for its brief entry, so
+/// a write does not echo the text it just wrote.
 pub fn print_mutation(
     action: &str,
     snippet: &Snippet,
     changes: Option<&snip::ChangeSet>,
+    brief: bool,
     output: OutputMode,
 ) -> Result<()> {
     if output == OutputMode::Human {
@@ -73,6 +76,11 @@ pub fn print_mutation(
             println!("fields: {}", changes.fields.join(", "));
         }
     } else {
+        let snippet = if brief {
+            super::query::snippet_brief(&snippet)
+        } else {
+            serde_json::to_value(snippet)?
+        };
         print_record(
             &json!({
                 "snippet": snippet,

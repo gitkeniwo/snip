@@ -1,5 +1,6 @@
 use serde_json::json;
 use snip::Library;
+use snip::budget::{LineRange, splice_lines};
 use snip::config::AppConfig;
 use snip::domain::{CatalogSnapshot, Fingerprint, Snippet};
 use snip::error::{ErrorKind, Result, SnipError};
@@ -17,7 +18,9 @@ use std::path::{Path, PathBuf};
 use tempfile::Builder;
 
 use super::output::{print_mutation, print_record};
-use crate::cli::{CreateArgs, DeleteArgs, EditArgs, FragmentArgs, FragmentCommand, OutputMode};
+use crate::cli::{
+    CreateArgs, DeleteArgs, EditArgs, FragmentArgs, FragmentCommand, OptimisticArgs, OutputMode,
+};
 
 pub fn command_create(
     library: &Library,
@@ -55,7 +58,7 @@ pub fn command_create(
             ..CreateOptions::default()
         },
     )?;
-    print_mutation("created", &snippet, None, output)
+    print_mutation("created", &snippet, None, args.brief, output)
 }
 
 pub fn command_edit(
@@ -74,9 +77,22 @@ pub fn command_edit(
             "--create cannot be combined with --if-hash",
         ));
     }
+    if args.lines.is_some() && args.content.is_none() && args.content_file.is_none() {
+        return Err(SnipError::usage(
+            "--lines replaces part of a fragment; pass the new lines with --content or --content-file",
+        ));
+    }
     if args.create || !edit_has_structured_changes(args) {
         return edit_external(library, args, output, config);
     }
+    let (content, if_hash) = replacement_content(
+        library,
+        &args.selector,
+        args.fragment.as_deref(),
+        args.lines.as_deref(),
+        read_optional_text(args.content.as_deref(), args.content_file.as_deref())?,
+        &args.optimistic,
+    )?;
     let options = EditOptions {
         title: args.title.clone(),
         folder: args.folder.clone(),
@@ -92,7 +108,7 @@ pub fn command_edit(
         fragment_selector: args.fragment.clone(),
         fragment_title: args.fragment_title.clone(),
         language: args.language.clone(),
-        content: read_optional_text(args.content.as_deref(), args.content_file.as_deref())?,
+        content,
         note: if args.clear_note {
             Some(None)
         } else {
@@ -103,19 +119,20 @@ pub fn command_edit(
         } else {
             read_optional_text(args.readme.as_deref(), args.readme_file.as_deref())?.map(Some)
         },
-        if_hash: fingerprint(args.optimistic.if_hash.as_deref())?,
+        if_hash,
         force: args.optimistic.force,
     };
     let (snippet, changes) = edit_snippet(library, &args.selector, &options)?;
-    print_mutation("updated", &snippet, Some(&changes), output)
+    print_mutation("updated", &snippet, Some(&changes), args.brief, output)
 }
 
 pub fn command_fragment(
     library: &Library,
-    args: &FragmentArgs,
+    fragment_args: &FragmentArgs,
     output: OutputMode,
     config: &AppConfig,
 ) -> Result<()> {
+    let args = fragment_args;
     let (snippet, changes) = match &args.command {
         FragmentCommand::Add(args) => add_fragment(
             library,
@@ -136,23 +153,41 @@ pub fn command_fragment(
                 ..FragmentAddOptions::default()
             },
         )?,
-        FragmentCommand::Edit(args) => edit_fragment(
-            library,
-            &args.selector,
-            &args.fragment,
-            &FragmentEditOptions {
-                title: args.title.clone(),
-                language: args.language.clone(),
-                content: read_optional_text(args.content.as_deref(), args.content_file.as_deref())?,
-                note: if args.clear_note {
-                    Some(None)
-                } else {
-                    read_optional_text(args.note.as_deref(), args.note_file.as_deref())?.map(Some)
+        FragmentCommand::Edit(args) => {
+            let content =
+                read_optional_text(args.content.as_deref(), args.content_file.as_deref())?;
+            if args.lines.is_some() && content.is_none() {
+                return Err(SnipError::usage(
+                    "--lines replaces part of a fragment; pass the new lines with --content or --content-file",
+                ));
+            }
+            let (content, if_hash) = replacement_content(
+                library,
+                &args.selector,
+                Some(&args.fragment),
+                args.lines.as_deref(),
+                content,
+                &args.optimistic,
+            )?;
+            edit_fragment(
+                library,
+                &args.selector,
+                &args.fragment,
+                &FragmentEditOptions {
+                    title: args.title.clone(),
+                    language: args.language.clone(),
+                    content,
+                    note: if args.clear_note {
+                        Some(None)
+                    } else {
+                        read_optional_text(args.note.as_deref(), args.note_file.as_deref())?
+                            .map(Some)
+                    },
+                    if_hash,
+                    force: args.optimistic.force,
                 },
-                if_hash: fingerprint(args.optimistic.if_hash.as_deref())?,
-                force: args.optimistic.force,
-            },
-        )?,
+            )?
+        }
         FragmentCommand::Remove(args) => remove_fragment(
             library,
             &args.selector,
@@ -169,7 +204,13 @@ pub fn command_fragment(
             args.optimistic.force,
         )?,
     };
-    print_mutation("updated", &snippet, Some(&changes), output)
+    print_mutation(
+        "updated",
+        &snippet,
+        Some(&changes),
+        fragment_args.brief,
+        output,
+    )
 }
 
 pub fn command_delete(library: &Library, args: &DeleteArgs, output: OutputMode) -> Result<()> {
@@ -290,7 +331,7 @@ fn edit_external(
     if edited == initial {
         // A snippet created for this edit exists even when the editor saved nothing.
         if created {
-            return print_mutation("created", &original, None, output);
+            return print_mutation("created", &original, None, args.brief, output);
         }
         if output == OutputMode::Human {
             println!("unchanged: {}", original.id);
@@ -349,7 +390,7 @@ fn edit_external(
         )?,
     };
     let action = if created { "created" } else { "updated" };
-    print_mutation(action, &snippet, Some(&changes), output)
+    print_mutation(action, &snippet, Some(&changes), args.brief, output)
 }
 
 fn create_external_snippet(
@@ -493,6 +534,35 @@ fn edit_has_structured_changes(args: &EditArgs) -> bool {
         || args.readme.is_some()
         || args.readme_file.is_some()
         || args.clear_readme
+}
+
+/// The fragment content and `--if-hash` a structured edit writes with. With
+/// `--lines`, the replacement is spliced into the fragment as read now, and the
+/// write is pinned to that read's fingerprint unless `--if-hash` or `--force`
+/// already says otherwise, so lines cannot land in a fragment that moved.
+fn replacement_content(
+    library: &Library,
+    selector: &str,
+    fragment: Option<&str>,
+    lines: Option<&str>,
+    content: Option<String>,
+    optimistic: &OptimisticArgs,
+) -> Result<(Option<String>, Option<Fingerprint>)> {
+    let if_hash = fingerprint(optimistic.if_hash.as_deref())?;
+    let (Some(lines), Some(replacement)) = (lines, content.as_deref()) else {
+        return Ok((content, if_hash));
+    };
+    let range = LineRange::parse(lines)?;
+    let catalog = library.scan()?;
+    let snippet = library.resolve_snippet(&catalog, selector)?;
+    let current = library.resolve_fragment(snippet, fragment)?;
+    let spliced = splice_lines(&current.content, range, replacement)?;
+    let pinned = if optimistic.force {
+        if_hash
+    } else {
+        Some(if_hash.unwrap_or_else(|| snippet.fingerprint.clone()))
+    };
+    Ok((Some(spliced), pinned))
 }
 
 fn fingerprint(value: Option<&str>) -> Result<Option<Fingerprint>> {

@@ -508,7 +508,7 @@ fn filter_snippets<'a>(
         .collect()
 }
 
-fn snippet_brief(snippet: &&Snippet) -> serde_json::Value {
+pub(super) fn snippet_brief(snippet: &&Snippet) -> serde_json::Value {
     json!({
         "id": snippet.id,
         "title": snippet.title,
