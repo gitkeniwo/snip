@@ -77,7 +77,7 @@ pub fn print_mutation(
         }
     } else {
         let snippet = if brief {
-            super::query::snippet_brief(&snippet)
+            super::query::snippet_brief_fields(snippet)
         } else {
             serde_json::to_value(snippet)?
         };

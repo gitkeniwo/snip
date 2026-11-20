@@ -1,6 +1,8 @@
+use std::borrow::Cow;
 use std::env;
 use std::io::{self, IsTerminal, Write};
 
+use crate::config::CopyPathStyle;
 use crate::error::{Result, SnipError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -134,9 +136,190 @@ fn base64(input: &[u8]) -> String {
     output
 }
 
+/// Quotes `path` so a shell reads it back as one word.
+///
+/// A path with nothing to quote is returned unchanged in every style, and non-ASCII
+/// alone does not count: shells handle `👾` and `你好` fine.
+pub fn shell_quote_path(path: &str, style: CopyPathStyle) -> Cow<'_, str> {
+    shell_quote_path_for(path, style, cfg!(windows))
+}
+
+/// [`shell_quote_path`] with the platform as a parameter, so both branches are testable
+/// on every host.
+pub fn shell_quote_path_for(path: &str, style: CopyPathStyle, windows: bool) -> Cow<'_, str> {
+    if style == CopyPathStyle::Raw || !needs_quoting(path, windows) {
+        return Cow::Borrowed(path);
+    }
+    if windows {
+        // A Windows path cannot contain `"`, and neither cmd nor PowerShell has POSIX
+        // backslash escaping, so `Escape` falls back to quoting.
+        return Cow::Owned(format!("\"{path}\""));
+    }
+    match style {
+        CopyPathStyle::Escape => {
+            let mut out = String::with_capacity(path.len() + 4);
+            for (index, ch) in path.chars().enumerate() {
+                if is_special(ch) || (index == 0 && is_word_start_special(ch)) {
+                    out.push('\\');
+                }
+                out.push(ch);
+            }
+            Cow::Owned(out)
+        }
+        _ => Cow::Owned(format!("'{}'", path.replace('\'', "'\\''"))),
+    }
+}
+
+fn is_special(ch: char) -> bool {
+    ch.is_whitespace()
+        || matches!(
+            ch,
+            '\'' | '"'
+                | '\\'
+                | '$'
+                | '`'
+                | '!'
+                | '*'
+                | '?'
+                | '['
+                | ']'
+                | '('
+                | ')'
+                | '{'
+                | '}'
+                | '<'
+                | '>'
+                | '|'
+                | '&'
+                | ';'
+        )
+}
+
+fn is_word_start_special(ch: char) -> bool {
+    matches!(ch, '#' | '~')
+}
+
+fn is_windows_special(ch: char) -> bool {
+    ch.is_whitespace()
+        || matches!(
+            ch,
+            '&' | '('
+                | ')'
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | '^'
+                | '='
+                | ';'
+                | '!'
+                | '\''
+                | '+'
+                | ','
+                | '`'
+                | '~'
+                | '%'
+                | '@'
+                | '#'
+        )
+}
+
+fn needs_quoting(path: &str, windows: bool) -> bool {
+    if windows {
+        path.chars().any(is_windows_special)
+    } else {
+        path.chars().any(is_special) || path.chars().next().is_some_and(is_word_start_special)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ClipboardMode, base64, in_ssh_session};
+    use super::{ClipboardMode, CopyPathStyle, base64, in_ssh_session, shell_quote_path_for};
+
+    const STYLES: [CopyPathStyle; 3] = [
+        CopyPathStyle::Quote,
+        CopyPathStyle::Escape,
+        CopyPathStyle::Raw,
+    ];
+
+    #[test]
+    fn plain_paths_are_unchanged_in_every_style() {
+        for style in STYLES {
+            for path in ["/Users/k/lib/snippets/a--937caecb/", "/x/👾/你好", ""] {
+                assert_eq!(shell_quote_path_for(path, style, false), path);
+            }
+        }
+    }
+
+    #[test]
+    fn windows_plain_paths_are_unchanged_in_every_style() {
+        let path = "C:\\Users\\k\\lib\\snippets\\a--937caecb\\";
+        for style in STYLES {
+            assert_eq!(shell_quote_path_for(path, style, true), path);
+        }
+    }
+
+    #[test]
+    fn windows_quoting_uses_only_the_windows_special_set() {
+        for path in ["C:\\My Dir\\x", "C:\\a&b\\x", "C:\\100%\\x"] {
+            for style in [CopyPathStyle::Quote, CopyPathStyle::Escape] {
+                assert_eq!(
+                    shell_quote_path_for(path, style, true),
+                    format!("\"{path}\"")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn unix_quoting_matches_the_contract() {
+        let q = |path, style| shell_quote_path_for(path, style, false).into_owned();
+        assert_eq!(q("/a b/c", CopyPathStyle::Quote), "'/a b/c'");
+        assert_eq!(q("/a'b", CopyPathStyle::Quote), "'/a'\\''b'");
+        assert_eq!(q("/a b/c", CopyPathStyle::Escape), "/a\\ b/c");
+        assert_eq!(q("/a$b!", CopyPathStyle::Escape), "/a\\$b\\!");
+        assert_eq!(q("~/x", CopyPathStyle::Quote), "'~/x'");
+        assert_eq!(q("~/x", CopyPathStyle::Escape), "\\~/x");
+        assert_eq!(q("/a b", CopyPathStyle::Raw), "/a b");
+        assert_eq!(q("/AI 👾/x", CopyPathStyle::Quote), "'/AI 👾/x'");
+        assert_eq!(q("/a~b#c", CopyPathStyle::Quote), "/a~b#c");
+    }
+
+    #[test]
+    fn windows_quoting_wraps_in_double_quotes() {
+        for style in [CopyPathStyle::Quote, CopyPathStyle::Escape] {
+            assert_eq!(
+                shell_quote_path_for("C:\\My Dir\\x", style, true),
+                "\"C:\\My Dir\\x\""
+            );
+        }
+        assert_eq!(
+            shell_quote_path_for("C:\\My Dir", CopyPathStyle::Raw, true),
+            "C:\\My Dir"
+        );
+    }
+
+    #[test]
+    fn unix_quoting_round_trips_through_shlex() {
+        for path in [
+            "/a b/c",
+            "/it's/here",
+            "/$HOME/`x`/!y/*",
+            "~/x y",
+            "#top",
+            "/AI 👾/Rules--937caecb/",
+            "/a\\b (1) {2} [3] <4> |5| &6; \"7\"",
+        ] {
+            for style in [CopyPathStyle::Quote, CopyPathStyle::Escape] {
+                let quoted = shell_quote_path_for(path, style, false);
+                assert_eq!(
+                    shlex::split(&quoted),
+                    Some(vec![path.to_owned()]),
+                    "{quoted}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn base64_encodes_osc52_payloads() {

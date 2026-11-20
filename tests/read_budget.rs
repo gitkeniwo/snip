@@ -294,3 +294,34 @@ fn list_brief_is_at_most_half_of_the_full_listing() {
     assert!(row.get("path").is_none() && row.get("bytes").is_some());
     assert_eq!(row["fingerprint"].as_str().unwrap().len(), 16);
 }
+
+#[test]
+fn brief_and_budgeted_shapes_carry_the_citation() {
+    let (_temporary, library) = fixture();
+    let (search, _) = json(&library, &["search", "Big multi", "--brief"]);
+    let hit = &search["results"][0];
+    let citation = hit["citation"].as_str().unwrap().to_owned();
+    assert!(citation.len() >= 8);
+    assert!(
+        hit["id"]
+            .as_str()
+            .unwrap()
+            .replace('-', "")
+            .starts_with(&citation)
+    );
+
+    let (list, _) = json(&library, &["list", "--brief"]);
+    assert!(
+        list.as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["citation"] == citation.as_str())
+    );
+
+    let cited = format!("{citation}#2");
+    let (outline, _) = json(&library, &["show", &cited, "--outline"]);
+    assert_eq!(outline["citation"], citation.as_str());
+    assert_eq!(outline["cited_fragment"], 2);
+    let (plain, _) = json(&library, &["show", &citation, "--outline"]);
+    assert!(plain.get("cited_fragment").is_none());
+}

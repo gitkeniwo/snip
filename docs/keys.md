@@ -34,7 +34,7 @@ Part of normal pane stacks; exclusive modes inherit only commands in their allow
 | `N` | `view.toggle-line-numbers` | Show or hide preview line numbers |
 | `S` | `view.toggle-sidebar` | Show or hide the library pane |
 | `T` | `library.toggle-trash` | Open or close the trash |
-| `Y` | `copy.snippet-id` | Copy the selected snippet ID |
+| `Y` | `copy.citation` | Copy a short snip selector for the snippet, or the open fragment (`937caecb#2`) |
 | `[` | `preview.previous-item` | Select the previous preview item |
 | `]` | `preview.next-item` | Select the next preview item |
 | `h` / `Left` | `pane.back` | Go back to the previous pane |

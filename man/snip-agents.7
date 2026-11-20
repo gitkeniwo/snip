@@ -12,7 +12,7 @@ Stable codes are io_error exit 1, usage_error exit 2, no_library or not_found ex
 .SH "SELECTORS"
 Prefer the UUID returned by list, search, or show. A package path relative to snippets and an exact case\-sensitive title are also accepted. UUID prefixes require at least eight hexadecimal digits. Ambiguous titles are conflicts rather than guesses.
 .PP
-Fragments use a 1\-based index or fragment UUID prefix. Trash restore and purge use entry_id, not snippet_id.
+Fragments use a 1\-based index or fragment UUID prefix. A citation such as 937caecb#2 combines a snippet prefix with a fragment selector; every list, show, and search row carries a ready\-made citation field. Trash restore and purge use entry_id, not snippet_id.
 .SH "READ CONTRACTS"
 list emits summaries with id, title, folder, tags, fragment count, pinned, locked, timestamps, fingerprint, and path. folder is an empty string for Uncategorized.
 .PP
@@ -24,7 +24,7 @@ show \-\-outline and show \-\-max\-bytes emit a budgeted view: snippet metadata,
 .PP
 show emits a complete snippet, including package_path, optional readme, fingerprint, and loaded_fragments. Each loaded fragment contains id, title, language, relative file, content, optional note_content, and absolute_path. cat is preferable when only raw fragment bytes are needed.
 .SH "WRITE CONTRACT"
-Mutations emit snippet plus changes. changes contains fields, old_fingerprint, new_fingerprint, old_path, and new_path; create uses null because no prior snippet exists. Carry new_fingerprint into the next write. With \-\-brief on create, edit, or fragment, snippet is the list \-\-brief row instead of the full snippet.
+Mutations emit snippet plus changes. changes contains fields, old_fingerprint, new_fingerprint, old_path, and new_path; create uses null because no prior snippet exists. Carry new_fingerprint into the next write. With \-\-brief on create, edit, or fragment, snippet is the list \-\-brief row without its citation instead of the full snippet.
 .PP
 Read the current record before replacing content. Assert its fingerprint with \-\-if\-hash. A conflict means another writer changed or locked the target; re\-read and reassess rather than automatically adding \-\-force.
 .RS 4

@@ -104,6 +104,19 @@ impl TuiDensitySetting {
     }
 }
 
+/// How the TUI's `p` key quotes a path that a shell would split or expand.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CopyPathStyle {
+    /// Wrap in quotes, e.g. `'/a b/c'`.
+    #[default]
+    Quote,
+    /// Backslash-escape each special character, e.g. `/a\ b/c`.
+    Escape,
+    /// Copy the path unchanged.
+    Raw,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TuiConfig {
     #[serde(default)]
@@ -123,6 +136,9 @@ pub struct TuiConfig {
     /// Replace Powerline private-use caps with square, font-independent cells.
     #[serde(default)]
     pub simplified_ui: bool,
+    /// Quoting applied to the path the TUI's `p` key copies.
+    #[serde(default)]
+    pub copy_path_style: CopyPathStyle,
     #[serde(flatten)]
     pub extra: toml::Table,
 }
@@ -141,6 +157,7 @@ impl Default for TuiConfig {
             density: TuiDensitySetting::default(),
             line_numbers: default_line_numbers(),
             simplified_ui: false,
+            copy_path_style: CopyPathStyle::default(),
             extra: toml::Table::new(),
         }
     }

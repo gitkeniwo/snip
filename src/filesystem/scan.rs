@@ -151,7 +151,46 @@ impl Library {
         })
     }
 
+    /// Resolves a selector for a command that acts on a whole snippet. A citation's
+    /// `#fragment` part is rejected with a usage error rather than a confusing not-found.
     pub fn resolve_snippet<'a>(
+        &self,
+        catalog: &'a CatalogSnapshot,
+        selector: &str,
+    ) -> Result<&'a Snippet> {
+        self.resolve_snippet_literal(catalog, selector)
+            .map_err(|error| {
+                if is_plain_not_found(&error) && split_citation(selector).is_some() {
+                    SnipError::usage(format!(
+                        "{selector:?} names a fragment, but this command acts on a whole snippet; drop the `#n` part"
+                    ))
+                } else {
+                    error
+                }
+            })
+    }
+
+    /// Resolves `<snippet>[#<fragment>]`. A selector that resolves as written wins, so
+    /// titles and paths containing `#` keep working.
+    pub fn resolve_citation<'a, 's>(
+        &self,
+        catalog: &'a CatalogSnapshot,
+        selector: &'s str,
+    ) -> Result<(&'a Snippet, Option<&'s str>)> {
+        match self.resolve_snippet_literal(catalog, selector) {
+            Ok(snippet) => Ok((snippet, None)),
+            Err(error) if is_plain_not_found(&error) => match split_citation(selector) {
+                Some((left, fragment)) => {
+                    Ok((self.resolve_snippet_literal(catalog, left)?, Some(fragment)))
+                }
+                None => Err(error),
+            },
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Resolves the selector exactly as written, with no citation handling.
+    pub fn resolve_snippet_literal<'a>(
         &self,
         catalog: &'a CatalogSnapshot,
         selector: &str,
@@ -392,6 +431,27 @@ fn update_modified(value: &mut Option<std::time::SystemTime>, path: &Path) {
     }
 }
 
+fn is_plain_not_found(error: &SnipError) -> bool {
+    error.kind == crate::error::ErrorKind::NotFound && error.hint.is_none()
+}
+
+/// Splits `<snippet-prefix>#<fragment>` into its two selectors.
+/// Returns `None` for anything that is not a citation, so ordinary
+/// selectors, including titles that contain `#`, pass through untouched.
+pub fn split_citation(selector: &str) -> Option<(&str, &str)> {
+    let (left, right) = selector.split_once('#')?;
+    if right.contains('#') {
+        return None;
+    }
+    let is_hex = |text: &str| {
+        let compact = text.replace('-', "");
+        compact.len() >= 8 && compact.chars().all(|ch| ch.is_ascii_hexdigit())
+    };
+    let fragment_ok =
+        (!right.is_empty() && right.chars().all(|ch| ch.is_ascii_digit())) || is_hex(right);
+    (is_hex(left) && fragment_ok).then_some((left, right))
+}
+
 fn one_match<'a, T>(matches: Vec<&'a T>, kind: &str, selector: &str) -> Result<&'a T> {
     match matches.as_slice() {
         [] => Err(SnipError::not_found(format!(
@@ -407,6 +467,27 @@ fn one_match<'a, T>(matches: Vec<&'a T>, kind: &str, selector: &str) -> Result<&
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn split_citation_accepts_only_citation_shapes() {
+        use super::split_citation;
+        assert_eq!(split_citation("937caecb#2"), Some(("937caecb", "2")));
+        assert_eq!(
+            split_citation("937caecb#0a1b2c3d"),
+            Some(("937caecb", "0a1b2c3d"))
+        );
+        for rejected in [
+            "937caecb",
+            "937caec#2",
+            "937caecb#",
+            "937caecb#2#3",
+            "Bug #2",
+            "#2",
+            "937caecb#xyz",
+        ] {
+            assert_eq!(split_citation(rejected), None, "{rejected}");
+        }
+    }
+
     use super::{Library, find_snippet_by_folder_and_title};
     use crate::domain::{
         CatalogSnapshot, FORMAT_NAME, Fingerprint, LibraryManifest, SCHEMA_VERSION, Snippet,
